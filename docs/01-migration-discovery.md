@@ -1,8 +1,24 @@
 # SwiftUI Migration Discovery
 
-This document captures the current Expo/React Native implementation in `levy-home-app` and turns it into a migration plan for rebuilding the product as an iOS-only native SwiftUI application in `levy-home`.
+This document captures the deprecated Expo/React Native implementation in `levy-home-app` and turns it into migration context for rebuilding the product as an iOS-only native SwiftUI application in `levy-home`.
 
-The React Native app should be treated as the product specification, not as a line-by-line implementation template. The SwiftUI rebuild should preserve user-facing behavior and backend contracts where they are useful, while replacing Expo-specific mobile plumbing with native iOS equivalents.
+The React Native app should be treated as a conceptual reference, not as the product specification or a line-by-line implementation template. It was not fully validated because of Expo issues. The SwiftUI rebuild should preserve useful product ideas and backend contract concepts where they still fit, while replacing Expo-specific mobile plumbing with native iOS equivalents.
+
+## Continuity Note
+
+This document is primarily an inventory of the existing Expo/React Native reference app and the original notification-first migration plan. It intentionally preserves the source app's current Home, Events, Settings, and Debug tab shape as historical context.
+
+The target product scope has since changed. Where this document's target-roadmap or SwiftUI-equivalent sections conflict with `docs/04-product-scope-update.md`, `docs/02-swiftui-architecture.md`, `docs/03-implementation-roadmap.md`, or `docs/05-project-continuity-review.md`, treat the newer documents as authoritative for implementation order and target IA. All new implementation work belongs in `levy-home` unless explicitly directed otherwise.
+
+Current superseded assumptions in this discovery document include:
+
+- Home as a mostly static status/copy screen.
+- Events as the primary dynamic product surface rather than supporting Activity history.
+- Settings as a primary tab.
+- Debug as a primary tab rather than build-gated Developer Tools.
+- Device controls and light/garage quick actions as entirely out of scope.
+
+These remain accurate descriptions of the current reference app, but they are not the revised SwiftUI target.
 
 ## 1. Executive Summary
 

@@ -2,13 +2,16 @@
 
 This document defines the target architecture for rebuilding the Levy Home mobile app as a native iOS-only SwiftUI application in `levy-home`.
 
-It builds on `docs/01-migration-discovery.md` and does not repeat the full discovery inventory. The current Expo/React Native app in `levy-home-app` remains the product reference. The first native migration replaces only the mobile client. The existing Node/Express API may remain during the first phase.
+Product scope update: Levy Home is now a family-focused home notification and lightweight control application. It remains curated and narrow: it is not a Home Assistant replacement, full smart-home dashboard, automation builder, or camera application.
 
-The architecture intentionally separates three workstreams:
+It builds on `docs/01-migration-discovery.md` and does not repeat the full discovery inventory. The current Expo/React Native app in `levy-home-app` is deprecated and should be used only as a conceptual reference because it was not fully validated. `levy-home` is the working project for new SwiftUI and supporting API/backend code. Any reused API ideas should be ported or recreated in `levy-home` rather than implemented in `levy-home-app`, unless explicitly directed otherwise.
 
-1. UI/client parity work: rebuild the tabs, models, API client, timeline, settings, and debug UI in SwiftUI.
-2. Native APNs registration work: replace Expo mobile push-token registration with native iOS notification permission and APNs device-token registration.
-3. Backend push-provider migration work: update the API push provider from Expo push tokens to APNs-capable delivery.
+The architecture intentionally separates four workstreams:
+
+1. Product UI/client parity work: rebuild Home as the primary command center, keep Activity/Events, add a lightweight Notifications hub for delivery status and preferences, and move Debug out of primary navigation.
+2. Lightweight control/status work: support selected Home Assistant status and actions through the Levy Home API facade.
+3. Native APNs registration work: replace Expo mobile push-token registration with native iOS notification permission and APNs device-token registration.
+4. Backend push-provider migration work: update the API push provider from Expo push tokens to APNs-capable delivery.
 
 These workstreams should not be collapsed into one milestone. Client parity can progress against the existing API before native push delivery is complete.
 
@@ -16,14 +19,14 @@ These workstreams should not be collapsed into one milestone. Client parity can 
 
 ### Target Shape
 
-The SwiftUI app should be a small native client with a flat tab structure, a tiny service layer, Swift `Codable` models, and simple observable state.
+The SwiftUI app should be a small native client with a command-center Home screen, a flat product navigation structure, a tiny service layer, Swift `Codable` models, and simple observable state.
 
 ```text
 SwiftUI app
 -> TabView UI
 -> ViewModels for screen state
--> Services for API/config/notifications/settings
--> Existing Node/Express API during initial migration
+-> Services for API/config/status/actions/preferences/notifications
+-> Levy Home API/Home Assistant facade owned from the `levy-home` workspace
 -> APNs-aware backend after push-provider migration
 ```
 
@@ -31,17 +34,18 @@ SwiftUI app
 
 | Layer | Responsibilities | Explicitly not responsible for |
 | --- | --- | --- |
-| SwiftUI views | Render Home, Events, Settings, Debug; route tab selection; show loading/error/empty states | Networking details, APNs credentials, Home Assistant webhook secrets |
+| SwiftUI views | Render Home command center, Activity, Notifications hub, and build-gated Developer Tools; route tab selection; show loading/error/empty/action states | Networking details, APNs credentials, Home Assistant webhook secrets, arbitrary device management |
 | View models | Own screen state, call services, expose display-ready values | Global state frameworks, backend business rules |
-| Services | API calls, notification registration, configuration lookup, non-sensitive settings | UI layout, Home Assistant automation logic |
-| Models | Decode API responses and represent app domain values | Server-side validation of Home Assistant webhook payloads |
-| Backend API | Receive Home Assistant events, store timeline/devices, send push notifications | Native UI state or local iOS storage |
+| Services | API calls, status loading, selected quick actions, notification preferences, notification registration, configuration lookup, non-sensitive settings | UI layout, arbitrary Home Assistant service calls from the client |
+| Models | Decode API responses and represent event, status, action, and preference values | Server-side validation of Home Assistant webhook payloads |
+| Backend API | Receive Home Assistant events, expose curated status/actions, store timeline/devices/preferences as needed, send push notifications | Native UI state or local iOS storage |
 
 ### Migration Boundaries
 
 | Workstream | Goal | Can ship before APNs backend migration? | Notes |
 | --- | --- | --- | --- |
-| UI/client parity | Native app renders the current mobile experience and reads events from the existing API | Yes | Events timeline, Home, Settings, and much of Debug can work with push status marked pending/unavailable. |
+| UI/client parity | Native app renders revised Home, Activity, Notifications hub, and developer diagnostics against static/sample data or existing event APIs | Yes | Home can start with placeholders/sample status; Activity can use existing `/api/events`; Notifications can start with local preferences and delivery-status summary; Debug is build-gated. |
+| Status/actions facade | API exposes curated garage/light status and selected quick actions | Yes | Control/status work is separate from APNs push delivery but required for revised MVP. |
 | Native APNs registration | App requests notification permission and obtains APNs device token | Partially | App can obtain token once entitlements/provisioning are ready, but end-to-end pushes require backend support. |
 | Backend push-provider migration | API accepts APNs-aware registrations and sends APNs pushes | No, for push parity | This is the core risk and should be tested as its own vertical slice. |
 
@@ -49,7 +53,8 @@ SwiftUI app
 
 - No TCA, Redux, Flux, coordinator framework, dependency injection framework, or enterprise layering.
 - No production user authentication during the client parity stage.
-- No Home Assistant dashboard, camera view, automation builder, or device control UI.
+- No Home Assistant dashboard, camera view, automation builder, arbitrary device list, or generic device management.
+- No direct Home Assistant credentials or arbitrary Home Assistant service/entity payloads in the iOS app.
 - No client storage of Home Assistant webhook secrets.
 - No Core Data, SwiftData, SQLite, Realm, or local event database for MVP parity.
 - No mechanical translation of React components into Swift files.
@@ -71,14 +76,20 @@ levy-home/
 |   |   |-- Root/
 |   |   |   `-- RootTabView.swift
 |   |   |-- Home/
-|   |   |   `-- HomeView.swift
-|   |   |-- Events/
-|   |   |   |-- EventsView.swift
+|   |   |   |-- HomeView.swift
+|   |   |   |-- GarageStatusCard.swift
+|   |   |   |-- LightSummaryCard.swift
+|   |   |   |-- RecentImportantEventView.swift
+|   |   |   `-- QuickActionsView.swift
+|   |   |-- Activity/
+|   |   |   |-- ActivityView.swift
 |   |   |   |-- EventCardView.swift
 |   |   |   `-- SeverityBadgeView.swift
-|   |   |-- Settings/
-|   |   |   `-- SettingsView.swift
-|   |   |-- Debug/
+|   |   |-- Notifications/
+|   |   |   |-- NotificationHubView.swift
+|   |   |   |-- NotificationDeliveryStatusView.swift
+|   |   |   `-- NotificationPreferencesView.swift
+|   |   |-- DeveloperTools/
 |   |   |   `-- DebugView.swift
 |   |   `-- Shared/
 |   |       |-- InfoPanel.swift
@@ -86,7 +97,10 @@ levy-home/
 |   |       `-- ErrorBannerView.swift
 |   |-- ViewModels/
 |   |   |-- PushRegistrationViewModel.swift
-|   |   |-- EventsViewModel.swift
+|   |   |-- HomeOverviewViewModel.swift
+|   |   |-- ActivityViewModel.swift
+|   |   |-- NotificationPreferencesViewModel.swift
+|   |   |-- QuickActionsViewModel.swift
 |   |   `-- DebugViewModel.swift
 |   |-- Models/
 |   |   |-- EventType.swift
@@ -94,11 +108,19 @@ levy-home/
 |   |   |-- LevyHomeEvent.swift
 |   |   |-- EventDisplayMetadata.swift
 |   |   |-- EventPushStatus.swift
+|   |   |-- HomeOverview.swift
+|   |   |-- GarageStatus.swift
+|   |   |-- LightSummary.swift
+|   |   |-- QuickAction.swift
+|   |   |-- NotificationPreference.swift
 |   |   |-- APIResponses.swift
 |   |   |-- APIRequests.swift
 |   |   `-- APIError.swift
 |   |-- Services/
 |   |   |-- APIClient.swift
+|   |   |-- HomeStatusService.swift
+|   |   |-- QuickActionService.swift
+|   |   |-- NotificationPreferencesService.swift
 |   |   |-- NotificationService.swift
 |   |   |-- SettingsStore.swift
 |   |   `-- DateFormattingService.swift
@@ -116,13 +138,19 @@ levy-home/
 |-- LevyHomeTests/
 |   |-- ModelDecodingTests.swift
 |   |-- APIClientTests.swift
-|   |-- EventsViewModelTests.swift
+|   |-- HomeOverviewViewModelTests.swift
+|   |-- ActivityViewModelTests.swift
+|   |-- QuickActionsViewModelTests.swift
+|   |-- NotificationPreferencesViewModelTests.swift
 |   `-- PushRegistrationViewModelTests.swift
 |-- LevyHomeUITests/
 |   `-- SmokeUITests.swift
 `-- docs/
     |-- 01-migration-discovery.md
-    `-- 02-swiftui-architecture.md
+    |-- 02-swiftui-architecture.md
+    |-- 03-implementation-roadmap.md
+    |-- 04-product-scope-update.md
+    `-- 05-project-continuity-review.md
 ```
 
 ### Structure Rules
@@ -142,31 +170,37 @@ levy-home/
 LevyHomeApp
 `-- RootTabView
     |-- HomeView
-    |-- EventsView
-    |-- SettingsView
-    `-- DebugView
+    |-- ActivityView
+    `-- NotificationHubView
+
+Developer Tools, build-gated
+`-- DebugView
 ```
 
 ### Home Tab
 
 ```text
 HomeView
-|-- Header
-|-- InfoPanel: Push status
-`-- InfoPanel: API base URL
+|-- Header/status summary
+|-- GarageStatusCard
+|-- LightSummaryCard
+|-- RecentImportantEventView
+`-- QuickActionsView
 ```
 
 Responsibilities:
 
-- Show product positioning copy from the Expo app.
-- Show current push registration status message.
-- Show current API base URL.
-- No user actions.
+- Act as the primary family command center.
+- Show garage door status.
+- Show light status summary.
+- Show recent important event summary.
+- Provide selected quick actions such as close garage and turn off curated lights.
+- Clearly show loading, stale, partial, action-in-progress, success, and failure states.
 
-### Events Tab
+### Activity Tab
 
 ```text
-EventsView
+ActivityView
 |-- ErrorBannerView, when needed
 |-- Empty state, when events are empty and not loading
 `-- ScrollView/List of EventCardView
@@ -184,22 +218,32 @@ Responsibilities:
 - Preserve current empty and error states.
 - Display newest-first events from the API.
 
-### Settings Tab
+### Notifications Hub Tab
 
 ```text
-SettingsView
-|-- InfoPanel: API URL
-|-- InfoPanel: Platform
-`-- InfoPanel: Data
+NotificationHubView
+|-- NotificationDeliveryStatusView
+|   |-- Permission status
+|   `-- Push registration/API sync summary
+|-- NotificationPreferencesView
+|   |-- Garage opened
+|   |-- Garage closed
+|   |-- Garage left open
+|   |-- Garage after-hours
+|   `-- Garage still open at 10 PM
+`-- Future categories placeholder, hidden or disabled until implemented
 ```
 
 Responsibilities:
 
-- Read-only runtime summary for parity.
-- Show API URL, platform, and current storage model.
-- Later Debug-only API override can live here or Debug, but should not be required for parity.
+- Act as the family-facing notification hub, not a developer diagnostics screen.
+- Show whether notifications are allowed/registered in plain language without exposing raw APNs tokens.
+- Let the family configure selected notification categories.
+- Persist simple preferences locally at first.
+- Prepare for backend per-device preference sync when push delivery enforcement is implemented.
+- Avoid exposing Home Assistant implementation details.
 
-### Debug Tab
+### Developer Tools
 
 ```text
 DebugView
@@ -218,15 +262,16 @@ Responsibilities:
 - Display APNs token or native-pending status.
 - Call debug test-push endpoint once backend support exists.
 - Show technical errors useful during development.
+- Stay out of primary product navigation for release builds.
 
 ### View Hierarchy Decision
 
 | Decision | Recommendation |
 | --- | --- |
-| Navigation | Use a single SwiftUI `TabView` with four tabs. |
-| Alternatives considered | `NavigationStack` per tab, coordinator objects, custom router, deep-link-first routing. |
-| Tradeoffs | `TabView` is simple and maps directly to the current app. It does not solve future deep-link routing by itself, but current product does not need that. |
-| Why this fits | The Expo app has a flat four-tab structure and no nested navigation. Adding routing architecture now would create surface area without solving a current problem. |
+| Navigation | Use a single SwiftUI `TabView` with three primary tabs: Home, Activity, Notifications. Keep Debug as build-gated Developer Tools. |
+| Alternatives considered | Preserve four primary tabs, add `NavigationStack` per tab, coordinator objects, custom router, deep-link-first routing. |
+| Tradeoffs | `TabView` remains simple and product-friendly. Moving Debug out of primary navigation requires a build-gated access path, but prevents developer tooling from defining the family experience. |
+| Why this fits | The revised product needs Home as the command center, Activity as supporting history, and Notifications as the lightweight hub for notification status and preferences. It still does not need nested navigation or coordinator infrastructure. |
 
 ## 4. State Management Approach
 
@@ -246,8 +291,11 @@ Use SwiftUI-native observable state:
 | Selected tab | `RootTabView` local state, if needed | UI session |
 | API base URL/config | `AppConfig` | App lifetime |
 | Push status/token/error | `PushRegistrationViewModel` | App lifetime |
-| Event list/loading/error | `EventsViewModel` | Events tab lifetime |
-| Debug sending/last response | `DebugViewModel` | Debug tab lifetime |
+| Home overview/loading/error | `HomeOverviewViewModel` | Home tab lifetime, refreshable |
+| Quick action progress/result | `QuickActionsViewModel` | Home tab lifetime |
+| Event list/loading/error | `ActivityViewModel` | Activity tab lifetime |
+| Notification preferences | `NotificationPreferencesViewModel` | Notifications hub lifetime, persisted |
+| Debug sending/last response | `DebugViewModel` | Developer Tools lifetime |
 | Debug API override, if added | `SettingsStore` backed by `UserDefaults` | Persistent, non-sensitive |
 
 ### App Environment
@@ -258,6 +306,9 @@ Create a small `AppEnvironment` object or value that groups long-lived dependenc
 AppEnvironment
 |-- config: AppConfig
 |-- apiClient: APIClient
+|-- homeStatusService: HomeStatusService
+|-- quickActionService: QuickActionService
+|-- notificationPreferencesService: NotificationPreferencesService
 |-- notificationService: NotificationService
 |-- settingsStore: SettingsStore
 |-- dateFormatter: DateFormattingService
@@ -269,10 +320,10 @@ This is not a dependency injection framework. It is a simple composition root so
 
 | Decision | Recommendation |
 | --- | --- |
-| State management | Use SwiftUI Observation or `ObservableObject`; app-level push registration state plus screen-level view models. |
+| State management | Use SwiftUI Observation or `ObservableObject`; app-level push registration state plus screen-level Home, Activity, Notifications, and Developer Tools view models. |
 | Alternatives considered | TCA, Redux-style store, Flux, global singleton state, coordinators with state ownership. |
 | Tradeoffs | Simple observable objects are less rigid than reducer-based systems, but much faster to understand and maintain for a four-screen app. They rely on discipline to avoid view model sprawl. |
-| Why this fits | The current app has minimal React state: push registration, events loading/error/list, and debug sending state. Native SwiftUI state primitives cover this cleanly. |
+| Why this fits | Even with Home overview, quick actions, and preferences, state remains screen-scoped and small. Native SwiftUI state primitives cover this cleanly. |
 
 ## 5. Service Layer Design
 
@@ -280,7 +331,10 @@ This is not a dependency injection framework. It is a simple composition root so
 
 | Service | Responsibilities | Not responsible for |
 | --- | --- | --- |
-| `APIClient` | HTTP requests, JSON encode/decode, API errors | Push permission, UI alerts, persistence policy |
+| `APIClient` | HTTP requests, JSON encode/decode, API errors | Push permission, UI alerts, persistence policy, arbitrary Home Assistant calls |
+| `HomeStatusService` | Load garage status, light summary, recent important event summary, and composed Home overview | UI layout, direct Home Assistant credentials |
+| `QuickActionService` | Execute selected curated actions such as close garage and turn off lights | Arbitrary device control, accepting raw HA service/entity payloads from UI |
+| `NotificationPreferencesService` | Load/save notification preferences locally and later sync per-device preferences to backend | APNs permission prompts, push sending |
 | `NotificationService` | Permission checks, APNs registration, foreground presentation policy, token callbacks | Sending push notifications from server, storing APNs credentials |
 | `SettingsStore` | Non-sensitive local settings via `UserDefaults` | Auth tokens, Home Assistant secrets, event database |
 | `DateFormattingService` | Parse API ISO dates and format display strings | Business rules, storage |
@@ -297,7 +351,7 @@ Services should be created once at app startup and passed into view models. Avoi
 | Service layer | Use a small hand-written service layer with explicit dependencies passed at initialization. |
 | Alternatives considered | Dependency injection framework, service locator, global singletons, no service layer. |
 | Tradeoffs | Explicit construction is a little more setup than global singletons, but testable and still small. A framework would add unnecessary ceremony. |
-| Why this fits | The app needs only API, notifications, settings, and formatting services. These are stable seams without needing enterprise architecture. |
+| Why this fits | The app needs API, status, actions, preferences, notifications, settings, and formatting services. These are stable seams without needing enterprise architecture. |
 
 ## 6. Swift Model Design
 
@@ -312,6 +366,12 @@ Services should be created once at app startup and passed into view models. Avoi
 | `EventDisplayMetadata` | Default title/body/severity | Decoded from API response. Local fallback constants optional. |
 | `EventPushStatus` | Push attempt/skip metadata | Keep Expo-specific fields optional during transition. |
 | `LevyHomeEvent` | Timeline event | `Codable`, `Identifiable`, display helpers where useful. |
+| `HomeOverview` | Composed Home screen data | Garage status, light summary, recent important event. |
+| `GarageStatus` | Current garage state | `open`, `closed`, `opening`, `closing`, `unknown`; include last updated when available. |
+| `LightSummary` | Curated light status summary | Overall state plus optional count/group summaries. |
+| `QuickAction` | Curated action shown on Home | Close garage, turn off all lights, turn off selected groups. |
+| `QuickActionResult` | Result of a selected action | Success/failure message and optional refreshed status. |
+| `NotificationPreference` | User preference for notification category | Garage opened/closed/left open/after-hours/still open at 10 PM. |
 | `RegisterDeviceRequest` | Device token registration body | Should evolve to provider-aware APNs contract. |
 | `RegisterDeviceResponse` | Device registration response | Keep `registeredDeviceCount`. Device details optional. |
 | `EventsResponse` | Recent events response | Contains `[LevyHomeEvent]`. |
@@ -345,17 +405,22 @@ Recommendation: use unknown fallback for API-decoded event type and severity val
 | Model style | Use manually written Swift `Codable` value types with lightweight enum fallbacks. |
 | Alternatives considered | Generated Swift from TypeScript, dynamic dictionaries everywhere, shared schema generation, server-driven display only. |
 | Tradeoffs | Manual models must be kept in sync with backend contracts, but they are easy to read and test. Code generation would need a schema pipeline the project does not yet have. Dynamic dictionaries would hide errors. |
-| Why this fits | The event contract is small, stable, and already well understood from the shared TypeScript package. Manual Swift models are the lowest-friction reliable choice. |
+| Why this fits | The event, status, action, and preference contracts are small and curated. Manual Swift models are the lowest-friction reliable choice. |
 
 ## 7. API Client Design
 
-### Current Mobile Endpoints
+### Target And Transitional Mobile Endpoints
+
+The current reference app only uses `/api/events`, `/api/devices/register`, and `/api/debug/send-test-push`. The Home overview, quick-action, and notification-preference endpoints below are target contracts required by the revised MVP.
 
 | Method | Path | Initial SwiftUI use |
 | --- | --- | --- |
-| `GET` | `/api/events` | Events timeline. |
+| `GET` | `/api/home/overview` | Home command center status and summary, once backend facade exists. |
+| `POST` | `/api/home/actions/...` or `/api/home/actions` | Selected quick actions, once backend facade exists. |
+| `GET/PUT` | `/api/notification-preferences` | Future backend preference sync; local-only first slice can defer. |
+| `GET` | `/api/events` | Activity timeline. |
 | `POST` | `/api/devices/register` | Native token registration, after backend contract is decided. |
-| `POST` | `/api/debug/send-test-push` | Debug screen. |
+| `POST` | `/api/debug/send-test-push` | Developer Tools. |
 | `GET` | `/health` | Optional diagnostics. |
 
 The SwiftUI app should not call `POST /api/ha/events`; Home Assistant owns that integration.
@@ -372,13 +437,14 @@ The SwiftUI app should not call `POST /api/ha/events`; Home Assistant owns that 
 - Decode `{ error: string }` for non-2xx responses when possible.
 - Produce typed `APIError` values for invalid URL, transport, status, server message, and decoding failures.
 - Avoid automatic retries at first. Push/event actions are simple enough for manual retry UI.
+- Keep quick-action requests limited to curated action IDs or explicit curated endpoints. Do not send arbitrary Home Assistant service/entity payloads from the app.
 
 ### Error Surface
 
 | Error | View behavior |
 | --- | --- |
-| Invalid config/base URL | Settings/Debug should show clear configuration issue. |
-| Network unreachable | Events shows error banner; Debug shows technical detail. |
+| Invalid config/base URL | Home/Developer Tools should show clear configuration issue. |
+| Network unreachable | Activity shows error banner; Developer Tools shows technical detail. |
 | Non-2xx with error envelope | Display server-provided message where safe. |
 | Non-2xx without envelope | Display status-based fallback. |
 | Decoding failure | Display `The API returned an unexpected response.` and log detail in debug builds. |
@@ -390,7 +456,7 @@ The SwiftUI app should not call `POST /api/ha/events`; Home Assistant owns that 
 | Networking | Use `URLSession` with `async/await` and a small typed `APIClient`. |
 | Alternatives considered | Alamofire, generated OpenAPI client, raw `URLSession` calls inside view models, callback-based networking. |
 | Tradeoffs | A hand-written client means contract changes require manual updates, but the surface is only a few endpoints. Third-party networking would be heavier than the app needs. |
-| Why this fits | Current mobile networking is a tiny `fetch` wrapper. Native parity needs the same simplicity with better typed errors. |
+| Why this fits | The client still talks to a small Levy Home API facade. Native parity needs simple typed networking with better errors, not a broad Home Assistant client. |
 
 ## 8. Configuration Strategy
 
@@ -400,7 +466,7 @@ The SwiftUI app should not call `POST /api/ha/events`; Home Assistant owns that 
 | --- | --- | --- |
 | API base URL | Build setting or Info.plist value, optionally Debug override in UserDefaults | No |
 | Build flavor | Xcode scheme/build configuration | No |
-| Debug tab enabled | Compile-time flag or build configuration | No |
+| Developer Tools enabled | Compile-time flag or build configuration | No |
 | Bundle identifier | Xcode target setting | No, but important |
 | APNs environment | Entitlements/provisioning and backend registration payload | No on client; credentials are server-side |
 | Home Assistant webhook secret | Server/Home Assistant only | Yes |
@@ -414,7 +480,7 @@ Use a small `AppConfig` value that contains:
 - `apiBaseURL`
 - `buildFlavor`
 - `isDebugBuild`
-- `isDebugTabEnabled`
+- `isDeveloperToolsEnabled`
 - optional `apnsEnvironment` if the app needs to tell the backend sandbox vs production
 
 ### Local Development
@@ -445,6 +511,7 @@ Initial native client persistence should be minimal:
 | API base URL debug override | Optional | `UserDefaults` | Debug builds only. |
 | Last selected environment | Optional | `UserDefaults` | Only if multiple environments exist. |
 | APNs token | Optional | Memory or `UserDefaults` for display/debug | APNs token can change; always treat callbacks as authoritative. |
+| Notification preferences | Yes | `UserDefaults` initially; backend per-device sync later | Local storage is useful for first UI slice; server sync is needed to affect push delivery. |
 | Events timeline | No | None | Fetch from API for parity. |
 | Home Assistant secret | Never | Nowhere in app | Server-side only. |
 | Future user auth tokens | Future work | Keychain | Only if production auth is added. |
@@ -457,7 +524,7 @@ The existing API stores devices, events, and dedupe state in memory. That is a b
 
 | Decision | Recommendation |
 | --- | --- |
-| Persistence | Use `UserDefaults` only for non-sensitive debug/config preferences; defer event caching and Keychain until needed. |
+| Persistence | Use `UserDefaults` only for non-sensitive debug/config preferences and simple notification preferences; defer event caching and Keychain until needed. |
 | Alternatives considered | Core Data, SwiftData, SQLite, Realm, local JSON event cache, storing all app state in UserDefaults. |
 | Tradeoffs | Minimal persistence means no offline timeline, but avoids stale local data and unnecessary storage logic. Backend persistence remains the correct place to solve timeline/device durability. |
 | Why this fits | The current Expo app persists nothing locally. Parity does not require a database, and the product is not an offline-first app. |
@@ -486,7 +553,7 @@ App launch or Debug retry
 -> AppDelegate receives APNs device token or failure
 -> PushRegistrationViewModel updates state
 -> APIClient registers provider-aware device token with backend
--> Home and Debug show resulting status
+-> Home, Notifications, and Developer Tools show resulting status at the appropriate level of detail
 ```
 
 ### Foreground Presentation
@@ -525,7 +592,7 @@ The exact backend route can be either the existing `/api/devices/register` with 
 
 ### Notification Routing
 
-Initial native app should not add complex notification deep-link routing. If the user taps a notification, opening the app to the Events tab is enough future behavior. Highlighting a specific event requires the notification payload to include a stable event ID and the client to fetch/locate it; that is future work.
+Initial native app should not add complex notification deep-link routing. If the user taps a notification, opening the app to the Activity tab is enough future behavior. Highlighting a specific event requires the notification payload to include a stable event ID and the client to fetch/locate it; that is future work.
 
 ### Notification Decision
 
@@ -538,13 +605,13 @@ Initial native app should not add complex notification deep-link routing. If the
 
 ## 11. Debug/Release Behavior Strategy
 
-### Debug Tab Policy
+### Developer Tools Policy
 
-The Debug tab is useful during migration, but it exposes internal implementation details such as tokens, API URLs, registration errors, and test push actions.
+Developer Tools are useful during migration, but they expose internal implementation details such as tokens, API URLs, registration errors, and test push actions.
 
 Recommended behavior:
 
-| Build | Debug tab | Token visibility | Test push |
+| Build | Developer Tools | Token visibility | Test push |
 | --- | --- | --- | --- |
 | Debug/local | Enabled | Full token visible/copyable if needed | Enabled |
 | Internal/TestFlight | Enabled or hidden by build flag | Masked by default, reveal optional | Enabled only if backend endpoint is safe |
@@ -559,7 +626,7 @@ Recommended behavior:
 | Decision | Recommendation |
 | --- | --- |
 | Debug/release | Keep Debug tooling in Debug builds; hide or restrict it in Release until endpoints are protected. |
-| Alternatives considered | Always ship Debug tab, remove Debug entirely, put Debug behind a secret gesture, require production auth now. |
+| Alternatives considered | Always ship Debug as a primary tab, remove Debug entirely, put Debug behind a secret gesture, require production auth now. |
 | Tradeoffs | Debug-only gating keeps migration efficient but requires build configuration discipline. Shipping Debug always is risky. Adding auth now would expand scope. |
 | Why this fits | Debug tools are valuable for APNs migration, but the app is family-facing and should not expose raw diagnostics in production by default. |
 
@@ -575,6 +642,15 @@ Recommended behavior:
 | Push dedupe semantics | Keep server-side. Client only displays skip reasons. |
 | Debug test push endpoint | Keep for local/debug, but revisit release exposure. |
 
+### New Contracts For Revised MVP
+
+| Contract | Purpose | Notes |
+| --- | --- | --- |
+| Home overview/status | Provide garage status, light summary, and recent important event summary | Prefer a composed `/api/home/overview` endpoint or similarly narrow facade. |
+| Quick actions | Execute close garage, turn off all lights, and curated light-group actions | Use explicit endpoints or curated action IDs. Do not accept arbitrary HA service/entity payloads from the app. |
+| Notification preferences | Store garage notification preferences locally first and later per device on backend | Backend enforcement is required before preferences reliably affect APNs delivery. |
+| Notification hub status | Surface permission, registration, and preference sync state in product-safe language | Reuse push registration state and preference sync results; do not expose raw token details outside Developer Tools. |
+
 ### Contracts That Need Push Migration Work
 
 | Contract | Current Expo behavior | Native/APNs implication |
@@ -584,6 +660,7 @@ Recommended behavior:
 | Push send result | Expo tickets and invalid Expo token count | Needs provider-neutral send result fields. |
 | Server push provider | `expo-server-sdk` | Needs APNs provider implementation. |
 | Token environment | Implied by Expo/EAS | Must distinguish sandbox/production APNs. |
+| Preference enforcement | Not present | Needs device/user preference model before server-side push filtering. |
 
 ### Recommended Provider-Aware Device Model
 
@@ -606,9 +683,9 @@ Optional fields can wait. The important additions are `provider` and `environmen
 | Decision | Recommendation |
 | --- | --- |
 | Backend contract | Keep read-only event/timeline contracts stable; evolve device registration and push send responses to provider-aware APNs-capable contracts. |
-| Alternatives considered | Rewrite backend before client parity, keep Expo-only backend, create a separate native-only API, add production auth immediately. |
-| Tradeoffs | Evolving the existing API minimizes client migration risk, but requires careful transitional naming around `pushToken`. A backend rewrite would delay native UI parity. Keeping Expo-only blocks native push parity. |
-| Why this fits | The API already matches the product model. Only the push-provider boundary is architecturally wrong for a pure native app. |
+| Alternatives considered | Rewrite backend before client parity, keep Expo-only backend, create a separate native-only API, call Home Assistant directly from the app, add production auth immediately. |
+| Tradeoffs | Evolving the existing API minimizes client migration risk and keeps HA secrets server-side, but adds backend facade work for status/actions. Calling HA directly would simplify the API but weaken credential and curation boundaries. |
+| Why this fits | The API already matches the event model and is the right place to curate Home Assistant status/actions for a family app. |
 
 ## 13. Testing Strategy
 
@@ -616,19 +693,22 @@ Optional fields can wait. The important additions are `provider` and `environmen
 
 | Layer | Recommended coverage |
 | --- | --- |
-| Unit tests | Models, API client, view models, date formatting, push state transitions. |
-| Integration/manual tests | Local API event fetching, APNs registration on physical device, debug test push. |
-| UI smoke tests | App launches, tabs exist, Events empty/list/error states render. |
-| Backend contract tests | Future backend APNs route behavior and provider-neutral push result shape. |
+| Unit tests | Models, API client, Home/Activity/Preferences view models, quick-action state, date formatting, push state transitions. |
+| Integration/manual tests | Local API event fetching, Home overview loading, selected quick actions, APNs registration on physical device, debug test push. |
+| UI smoke tests | App launches, primary tabs exist, Home status/action states render, Activity empty/list/error states render, Notifications hub status renders, preferences persist. |
+| Backend contract tests | Home overview/action facade behavior, future APNs route behavior, provider-neutral push result shape. |
 
 ### Client Tests
 
 | Area | Test examples |
 | --- | --- |
 | Model decoding | Decode all five garage events, doorbell placeholder event, skipped push event, unknown event type fallback. |
+| Home overview models | Decode garage status, light summary, recent important event, partial/unknown status. |
+| Quick actions | Successful action, failed action, duplicate tap while in progress, status refresh after success. |
+| Notification preferences | Default garage preferences, toggling, persistence, future backend sync failure. |
 | Date formatting | Valid ISO date, missing optional date, malformed date fallback. |
 | API client | Success, server error envelope, non-JSON error, 500 without envelope, invalid base URL, decoding failure. |
-| Events view model | Initial load success, load failure, refresh success after prior error, empty response. |
+| Activity view model | Initial load success, load failure, refresh success after prior error, empty response. |
 | Push view model | Permission denied, APNs token success, APNs failure, API registration success, API registration failure. |
 | Debug view model | Test push success, test push failure, duplicate tap while sending. |
 
@@ -652,7 +732,7 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 | Testing | Unit-test models/API/view models; use physical-device manual tests for APNs; keep UI automation to smoke coverage initially. |
 | Alternatives considered | Heavy UI automation first, no tests until app complete, snapshot testing everything, relying only on manual QA. |
 | Tradeoffs | Focused tests catch contract and state bugs without slowing UI iteration. APNs still needs manual real-device testing. Full UI automation would be expensive before the UI stabilizes. |
-| Why this fits | The riskiest code is model/network/push state, not complex navigation. The app has only four tabs and little interaction depth. |
+| Why this fits | The riskiest code is model/network/action/push state, not complex navigation. The app has a small tab structure and limited interaction depth. |
 
 ## 14. Architecture Decision Records
 
@@ -672,25 +752,25 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 | Recommendation | Use SwiftUI views, observable view models, small services, and plain `Codable` models. |
 | Alternatives considered | TCA, Redux, Flux, coordinator architecture, dependency injection framework, Clean Architecture-style use cases/repositories. |
 | Tradeoffs | Small architecture relies on discipline, but avoids boilerplate. Heavy patterns offer consistency at scale but are premature here. |
-| Why this fits this app | The product has four tabs, a few API calls, and one central native capability. Complexity should be spent on APNs, not architecture scaffolding. |
+| Why this fits this app | The product has a small tab structure, a few curated API surfaces, and one central native capability. Complexity should be spent on Home value, APNs, and safe controls, not architecture scaffolding. |
 
 ### ADR 003: Use `TabView` For Navigation
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Use a single `TabView` with Home, Events, Settings, and Debug. |
-| Alternatives considered | Custom router, coordinator, nested navigation stacks from day one. |
-| Tradeoffs | `TabView` does not solve future deep links alone, but current app has no nested navigation. |
-| Why this fits this app | It directly mirrors the Expo Router tab structure and minimizes migration risk. |
+| Recommendation | Use a single `TabView` with Home, Activity, and Notifications; keep Debug in build-gated Developer Tools. |
+| Alternatives considered | Preserve old Home/Events/Settings/Debug tabs, custom router, coordinator, nested navigation stacks from day one. |
+| Tradeoffs | `TabView` does not solve future deep links alone, but current app has no nested navigation. Moving Debug out of primary tabs requires build-gated access. |
+| Why this fits this app | The revised product needs Home, Activity, and Notifications as the primary family surfaces. Debug is a developer tool. |
 
 ### ADR 004: Use Screen-Level View Models
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Use `EventsViewModel` and `DebugViewModel` for screen-specific async state, plus an app-level `PushRegistrationViewModel`. |
+| Recommendation | Use `HomeOverviewViewModel`, `QuickActionsViewModel`, `ActivityViewModel`, `NotificationPreferencesViewModel`, and `DebugViewModel` for screen-specific state, plus an app-level `PushRegistrationViewModel`. |
 | Alternatives considered | One global app store, views owning all async state, one view model per tiny subview. |
 | Tradeoffs | Screen view models are easy to test and reason about. They can become bloated if responsibilities are not kept narrow. |
-| Why this fits this app | Current state naturally divides into app-wide push registration and per-screen event/debug state. |
+| Why this fits this app | State naturally divides into Home overview/actions, Activity history, Preferences, Debug, and app-wide push registration. |
 
 ### ADR 005: Use `URLSession` And `async/await`
 
@@ -714,7 +794,7 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Use `UserDefaults` only for non-sensitive debug/config preferences; avoid local event persistence initially. |
+| Recommendation | Use `UserDefaults` only for non-sensitive debug/config preferences and notification preferences; avoid local event persistence initially. |
 | Alternatives considered | SwiftData, Core Data, SQLite, Realm, JSON file cache. |
 | Tradeoffs | No offline timeline at first. Avoids stale cache behavior and storage complexity. |
 | Why this fits this app | The Expo app has no local persistence. Backend persistence is the right place to solve durable event/device state. |
@@ -759,7 +839,7 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Keep Debug tab enabled for Debug/internal builds and hide or restrict it for Release unless intentionally productized. |
+| Recommendation | Keep Developer Tools enabled for Debug/internal builds and hide or restrict them for Release unless intentionally productized. |
 | Alternatives considered | Always ship Debug, remove Debug, hide behind gesture, require auth immediately. |
 | Tradeoffs | Build gating is simple but needs release discipline. Always shipping Debug risks exposing internals. |
 | Why this fits this app | Debug tooling is essential for APNs migration but not necessarily part of the family-facing product. |
@@ -768,7 +848,7 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Initially open the app normally after notification tap; consider routing to Events later. |
+| Recommendation | Initially open the app normally after notification tap; consider routing to Activity later. |
 | Alternatives considered | Full deep-link routing now, event-detail screen, notification-specific navigation stack. |
 | Tradeoffs | Less polished notification tap behavior at first, but avoids building navigation that the current app does not have. |
 | Why this fits this app | The reference app does not implement notification tap routing or event detail screens. Parity should stay lean. |
@@ -782,6 +862,33 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 | Tradeoffs | Keeping model support is harmless, but UI/integration work would expand scope. |
 | Why this fits this app | Doorbell events exist as placeholders in the contract, while docs explicitly defer eufy/doorbell reliability work. |
 
+### ADR 015: Make Home The Primary Command Center
+
+| Field | Decision |
+| --- | --- |
+| Recommendation | Treat Home as the primary experience for garage status, light summary, recent important event summary, and selected quick actions. |
+| Alternatives considered | Keep Home as static copy/status, make Activity the primary screen, build a full dashboard. |
+| Tradeoffs | Home becomes more complex and requires status/action APIs. It remains much smaller than a dashboard because actions and summaries are curated. |
+| Why this fits this app | The updated product goal is family-focused notification plus lightweight control for forgotten-away-from-home tasks. |
+
+### ADR 016: Route Controls Through A Curated Backend Facade
+
+| Field | Decision |
+| --- | --- |
+| Recommendation | Execute selected Home Assistant actions through the Levy Home API using explicit endpoints or curated action IDs. |
+| Alternatives considered | Call Home Assistant directly from the app, accept arbitrary HA service/entity payloads from the app, omit controls. |
+| Tradeoffs | A backend facade adds backend work but keeps HA credentials server-side and prevents the app from becoming a generic control surface. |
+| Why this fits this app | The app should support close garage and turn off lights without becoming a Home Assistant replacement. |
+
+### ADR 017: Add Notification Preferences As A First-Class Product Surface
+
+| Field | Decision |
+| --- | --- |
+| Recommendation | Add a Notifications hub for product-safe notification delivery status and garage notification preferences with local persistence first and backend per-device sync later. |
+| Alternatives considered | Hide preferences in Settings, defer all preferences, require user accounts first. |
+| Tradeoffs | Local preferences alone do not enforce server push filtering. Showing delivery status in the hub duplicates a small amount of push status from Developer Tools, but keeps the family-facing surface understandable without exposing tokens. Designing the UI/model now lets backend sync arrive later without reshaping the product. |
+| Why this fits this app | Notification status and preferences are core to a family notification app and should not be buried in developer settings. |
+
 ## Implementation Cut Lines
 
 ### Cut Line A: Client Parity Without Native Push
@@ -789,9 +896,12 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 Deliver:
 
 - Project baseline.
-- `TabView` with Home, Events, Settings, Debug.
+- `TabView` with Home, Activity, Notifications hub.
+- Build-gated Developer Tools for Debug.
+- Home command center with garage status, light summary, recent important event summary, and selected quick-action UI.
 - Models and `APIClient`.
-- Events timeline from existing API.
+- Activity timeline from existing API.
+- Notifications hub with product-safe delivery status and notification preferences with local persistence.
 - Push status shown as native-pending/unavailable.
 
 Do not block this on APNs or backend push migration.
@@ -821,3 +931,5 @@ This is the point where native notification parity is achieved.
 ## Final Recommendation
 
 Build the native SwiftUI app as a small, direct client first. Keep screens, models, networking, and settings simple. Treat APNs as a native capability workstream and backend push migration as a backend contract workstream. The architecture should make those seams explicit without importing a heavyweight app framework.
+
+With the revised product scope, spend the added complexity on a polished Home command center, curated quick actions, and notification preferences. Keep Home Assistant integration behind a narrow backend facade and resist expanding into dashboard or automation-builder patterns.
