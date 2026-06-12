@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 4 has added the static Home command center. The current app builds and launches in Simulator with sample Home status cards, a recent event summary, and disabled quick actions.
+Stage 5 has added the first Swift model layer and `LevyHomeTests` unit test target. The current app still builds and launches in Simulator with the static Home command center from Stage 4, and model decoding tests can now run with `xcodebuild test` or Xcode's `Cmd-U`.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 
@@ -17,6 +17,7 @@ Current values:
 | Project file | `LevyHome.xcodeproj` | `ls *.xcodeproj` |
 | Workspace file | None currently | `ls *.xcworkspace` |
 | Scheme | `LevyHome` | `xcodebuild -list -project LevyHome.xcodeproj` |
+| Test target | `LevyHomeTests` | Xcode test navigator or `xcodebuild test` |
 | Verified simulator | `iPhone 17 Pro`, iOS 26.5 | `xcrun simctl list devices available` |
 | Bundle ID | `com.levy.home` | Xcode target settings or built app `Info.plist` |
 
@@ -159,9 +160,7 @@ xcrun simctl launch booted com.levy.home
 
 ## Run Tests
 
-The project does not include a test target yet. `xcodebuild test` will report that the scheme is not configured for the test action until a later stage adds `LevyHomeTests` or another test target.
-
-After tests exist, use one of these commands.
+Use these commands to run the `LevyHomeTests` unit test target.
 
 Project version:
 

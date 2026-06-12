@@ -29,7 +29,26 @@
 		A30000000000000000000003 /* RecentImportantEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* RecentImportantEventView.swift */; };
 		A30000000000000000000004 /* QuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* QuickActionsView.swift */; };
 		A30000000000000000000005 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PreviewData.swift */; };
+		A40000000000000000000001 /* EventType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* EventType.swift */; };
+		A40000000000000000000002 /* EventSeverity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* EventSeverity.swift */; };
+		A40000000000000000000003 /* LevyHomeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* LevyHomeEvent.swift */; };
+		A40000000000000000000004 /* HomeOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000014 /* HomeOverview.swift */; };
+		A40000000000000000000005 /* GarageStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000015 /* GarageStatus.swift */; };
+		A40000000000000000000006 /* LightSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000016 /* LightSummary.swift */; };
+		A40000000000000000000007 /* QuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000017 /* QuickAction.swift */; };
+		A40000000000000000000008 /* NotificationPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000018 /* NotificationPreference.swift */; };
+		A50000000000000000000003 /* ModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000002 /* ModelDecodingTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A5000000000000000000000C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000041 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000040;
+			remoteInfo = LevyHome;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000004 /* LevyHome.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LevyHome.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -56,10 +75,27 @@
 		A30000000000000000000013 /* RecentImportantEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentImportantEventView.swift; sourceTree = "<group>"; };
 		A30000000000000000000014 /* QuickActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsView.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		A40000000000000000000011 /* EventType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventType.swift; sourceTree = "<group>"; };
+		A40000000000000000000012 /* EventSeverity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSeverity.swift; sourceTree = "<group>"; };
+		A40000000000000000000013 /* LevyHomeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevyHomeEvent.swift; sourceTree = "<group>"; };
+		A40000000000000000000014 /* HomeOverview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverview.swift; sourceTree = "<group>"; };
+		A40000000000000000000015 /* GarageStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageStatus.swift; sourceTree = "<group>"; };
+		A40000000000000000000016 /* LightSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightSummary.swift; sourceTree = "<group>"; };
+		A40000000000000000000017 /* QuickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAction.swift; sourceTree = "<group>"; };
+		A40000000000000000000018 /* NotificationPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreference.swift; sourceTree = "<group>"; };
+		A50000000000000000000001 /* LevyHomeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LevyHomeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A50000000000000000000002 /* ModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDecodingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000020 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000005 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -73,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000031 /* LevyHome */,
+				A50000000000000000000004 /* LevyHomeTests */,
 				A10000000000000000000032 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -82,6 +119,7 @@
 			children = (
 				A10000000000000000000033 /* App */,
 				A20000000000000000000021 /* Theme */,
+				A40000000000000000000021 /* Models */,
 				A10000000000000000000035 /* Views */,
 				A30000000000000000000021 /* PreviewSupport */,
 				A10000000000000000000034 /* Resources */,
@@ -93,6 +131,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000004 /* LevyHome.app */,
+				A50000000000000000000001 /* LevyHomeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -195,6 +234,29 @@
 			path = PreviewSupport;
 			sourceTree = "<group>";
 		};
+		A40000000000000000000021 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000011 /* EventType.swift */,
+				A40000000000000000000012 /* EventSeverity.swift */,
+				A40000000000000000000013 /* LevyHomeEvent.swift */,
+				A40000000000000000000014 /* HomeOverview.swift */,
+				A40000000000000000000015 /* GarageStatus.swift */,
+				A40000000000000000000016 /* LightSummary.swift */,
+				A40000000000000000000017 /* QuickAction.swift */,
+				A40000000000000000000018 /* NotificationPreference.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000004 /* LevyHomeTests */ = {
+			isa = PBXGroup;
+			children = (
+				A50000000000000000000002 /* ModelDecodingTests.swift */,
+			);
+			path = LevyHomeTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -215,6 +277,24 @@
 			productReference = A10000000000000000000004 /* LevyHome.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A50000000000000000000008 /* LevyHomeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A50000000000000000000009 /* Build configuration list for PBXNativeTarget "LevyHomeTests" */;
+			buildPhases = (
+				A50000000000000000000006 /* Sources */,
+				A50000000000000000000005 /* Frameworks */,
+				A50000000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A5000000000000000000000D /* PBXTargetDependency */,
+			);
+			name = LevyHomeTests;
+			productName = LevyHomeTests;
+			productReference = A50000000000000000000001 /* LevyHomeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -227,6 +307,10 @@
 				TargetAttributes = {
 					A10000000000000000000040 = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					A50000000000000000000008 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = A10000000000000000000040;
 					};
 				};
 			};
@@ -244,6 +328,7 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000040 /* LevyHome */,
+				A50000000000000000000008 /* LevyHomeTests */,
 			);
 		};
 /* End PBXProject section */
@@ -255,6 +340,13 @@
 			files = (
 				A10000000000000000000002 /* Assets.xcassets in Resources */,
 				A10000000000000000000003 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,10 +377,34 @@
 				A30000000000000000000003 /* RecentImportantEventView.swift in Sources */,
 				A30000000000000000000004 /* QuickActionsView.swift in Sources */,
 				A30000000000000000000005 /* PreviewData.swift in Sources */,
+				A40000000000000000000001 /* EventType.swift in Sources */,
+				A40000000000000000000002 /* EventSeverity.swift in Sources */,
+				A40000000000000000000003 /* LevyHomeEvent.swift in Sources */,
+				A40000000000000000000004 /* HomeOverview.swift in Sources */,
+				A40000000000000000000005 /* GarageStatus.swift in Sources */,
+				A40000000000000000000006 /* LightSummary.swift in Sources */,
+				A40000000000000000000007 /* QuickAction.swift in Sources */,
+				A40000000000000000000008 /* NotificationPreference.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A50000000000000000000003 /* ModelDecodingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A5000000000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000040 /* LevyHome */;
+			targetProxy = A5000000000000000000000C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A10000000000000000000070 /* Debug */ = {
@@ -462,6 +578,60 @@
 			};
 			name = Release;
 		};
+		A5000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.levy.home.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LevyHome.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LevyHome";
+			};
+			name = Debug;
+		};
+		A5000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.levy.home.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LevyHome.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LevyHome";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -479,6 +649,15 @@
 			buildConfigurations = (
 				A10000000000000000000070 /* Debug */,
 				A10000000000000000000071 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A50000000000000000000009 /* Build configuration list for PBXNativeTarget "LevyHomeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A5000000000000000000000A /* Debug */,
+				A5000000000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

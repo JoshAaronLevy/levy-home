@@ -1,0 +1,63 @@
+import Foundation
+
+enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
+    case garageOpened
+    case garageClosed
+    case garageLeftOpen
+    case garageAfterHours
+    case garageStillOpenAt10PM
+    case unknown(String)
+
+    var rawValue: String {
+        switch self {
+        case .garageOpened:
+            return "garage_opened"
+        case .garageClosed:
+            return "garage_closed"
+        case .garageLeftOpen:
+            return "garage_left_open"
+        case .garageAfterHours:
+            return "garage_after_hours"
+        case .garageStillOpenAt10PM:
+            return "garage_still_open_at_10pm"
+        case .unknown(let rawValue):
+            return rawValue
+        }
+    }
+
+    init(rawValue: String) {
+        switch rawValue {
+        case "garage_opened":
+            self = .garageOpened
+        case "garage_closed":
+            self = .garageClosed
+        case "garage_left_open":
+            self = .garageLeftOpen
+        case "garage_after_hours":
+            self = .garageAfterHours
+        case "garage_still_open_at_10pm":
+            self = .garageStillOpenAt10PM
+        default:
+            self = .unknown(rawValue)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.init(rawValue: try container.decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+struct NotificationPreference: Codable, Equatable, Identifiable {
+    var id: NotificationPreferenceCategory { category }
+
+    let category: NotificationPreferenceCategory
+    let isEnabled: Bool
+    let title: String?
+    let detail: String?
+}
