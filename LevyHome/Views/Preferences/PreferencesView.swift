@@ -7,6 +7,9 @@ struct PreferencesView: View {
         PreferencesContentView(
             viewModel: NotificationPreferencesViewModel(
                 service: appEnvironment.notificationPreferencesService
+            ),
+            pushRegistrationViewModel: PushRegistrationViewModel(
+                service: appEnvironment.notificationService
             )
         )
     }
@@ -14,15 +17,20 @@ struct PreferencesView: View {
 
 private struct PreferencesContentView: View {
     @StateObject private var viewModel: NotificationPreferencesViewModel
+    @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
 
-    init(viewModel: NotificationPreferencesViewModel) {
+    init(
+        viewModel: NotificationPreferencesViewModel,
+        pushRegistrationViewModel: PushRegistrationViewModel
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        _pushRegistrationViewModel = StateObject(wrappedValue: pushRegistrationViewModel)
     }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
-                NotificationDeliveryStatusView()
+                NotificationDeliveryStatusView(viewModel: pushRegistrationViewModel)
 
                 NotificationPreferencesView(viewModel: viewModel)
             }
@@ -30,6 +38,16 @@ private struct PreferencesContentView: View {
         }
         .background(AppColors.pageBackground)
         .navigationTitle("Preferences")
+        .toolbar {
+            if BuildConfiguration.current.defaultDeveloperToolsEnabled {
+                NavigationLink {
+                    DebugView(pushRegistrationViewModel: pushRegistrationViewModel)
+                } label: {
+                    Image(systemName: "wrench.and.screwdriver")
+                }
+                .accessibilityLabel("Developer Tools")
+            }
+        }
     }
 }
 
@@ -40,7 +58,25 @@ private struct PreferencesContentView: View {
                 service: NotificationPreferencesService(
                     userDefaults: UserDefaults(suiteName: "PreferencesPreview") ?? .standard
                 )
+            ),
+            pushRegistrationViewModel: PushRegistrationViewModel(
+                service: PreviewPreferencesNotificationService()
             )
         )
+    }
+}
+
+private struct PreviewPreferencesNotificationService: NotificationServicing {
+    func currentSnapshot() async -> PushRegistrationSnapshot {
+        PushRegistrationSnapshot(
+            permissionStatus: .authorized,
+            availability: .available,
+            deviceToken: "0123456789abcdef",
+            errorMessage: nil
+        )
+    }
+
+    func requestAuthorizationAndRegister() async -> PushRegistrationSnapshot {
+        await currentSnapshot()
     }
 }

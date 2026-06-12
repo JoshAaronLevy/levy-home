@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 12 has wired the Home screen to the backend Home overview and quick-action facades in `apps/api`. The current iOS app builds and launches in Simulator with live Home overview loading/error/refresh states, live curated Home quick actions with confirmation/progress/result states, the live Activity timeline from Stage 8, and the Preferences tab from Stage 9. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
+Stage 13 has added native APNs permission/token plumbing. The current iOS app builds and launches in Simulator with live Home overview loading/error/refresh states, live curated Home quick actions with confirmation/progress/result states, the live Activity timeline from Stage 8, the Preferences tab from Stage 9, and product-safe push registration status. Simulator intentionally reports APNs registration as unavailable; a native APNs token requires a signed build on a physical iPhone. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 
@@ -20,6 +20,12 @@ Current values:
 | Test target | `LevyHomeTests` | Xcode test navigator or `xcodebuild test` |
 | Verified simulator | `iPhone 17 Pro`, iOS 26.5 | `xcrun simctl list devices available` |
 | Bundle ID | `com.levy.home` | Xcode target settings or built app `Info.plist` |
+
+Stage 13 physical-device note:
+
+- The app target now includes the Push Notifications capability and `LevyHome/Resources/LevyHome.entitlements` with `aps-environment` set to `development`.
+- To test native APNs token registration, choose a physical iPhone in Xcode, set your Apple development team on the `LevyHome` target if Xcode asks, run the app, open Preferences, tap the debug-only Developer Tools wrench, and tap `Register For Push`.
+- The simulator should not prompt for or receive a native APNs token; it should show device registration as unavailable.
 
 ## First-Time Sanity Checks
 

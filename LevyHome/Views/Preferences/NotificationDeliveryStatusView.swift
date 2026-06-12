@@ -1,8 +1,7 @@
 import SwiftUI
-import UserNotifications
 
 struct NotificationDeliveryStatusView: View {
-    @State private var authorizationStatus: UNAuthorizationStatus?
+    @ObservedObject var viewModel: PushRegistrationViewModel
 
     var body: some View {
         InfoPanel(
@@ -13,17 +12,21 @@ struct NotificationDeliveryStatusView: View {
             VStack(alignment: .leading, spacing: AppSpacing.medium) {
                 deliveryRow(
                     title: "Notifications",
-                    detail: permissionDetail,
-                    badge: permissionBadge
+                    detail: viewModel.permissionDetail,
+                    badge: StatusBadgeView(
+                        label: viewModel.permissionLabel,
+                        systemImage: viewModel.permissionSystemImage,
+                        tone: viewModel.permissionTone
+                    )
                 )
 
                 deliveryRow(
                     title: "Device registration",
-                    detail: "Push registration is not connected yet.",
+                    detail: viewModel.registrationDetail,
                     badge: StatusBadgeView(
-                        label: "Coming later",
-                        systemImage: "iphone",
-                        tone: .neutral
+                        label: viewModel.registrationLabel,
+                        systemImage: viewModel.registrationSystemImage,
+                        tone: viewModel.registrationTone
                     )
                 )
 
@@ -39,38 +42,7 @@ struct NotificationDeliveryStatusView: View {
             }
         }
         .task {
-            let settings = await UNUserNotificationCenter.current().notificationSettings()
-            authorizationStatus = settings.authorizationStatus
-        }
-    }
-
-    private var permissionBadge: StatusBadgeView {
-        switch authorizationStatus {
-        case .authorized, .provisional, .ephemeral:
-            return StatusBadgeView(label: "Allowed", systemImage: "bell", tone: .success)
-        case .denied:
-            return StatusBadgeView(label: "Off", systemImage: "bell.slash", tone: .warning)
-        case .notDetermined:
-            return StatusBadgeView(label: "Not requested", systemImage: "bell.badge", tone: .neutral)
-        case nil:
-            return StatusBadgeView(label: "Checking", systemImage: "clock", tone: .neutral)
-        @unknown default:
-            return StatusBadgeView(label: "Unknown", systemImage: "questionmark.circle", tone: .neutral)
-        }
-    }
-
-    private var permissionDetail: String {
-        switch authorizationStatus {
-        case .authorized, .provisional, .ephemeral:
-            return "iOS allows Levy Home notifications on this device."
-        case .denied:
-            return "iOS notifications are turned off for Levy Home."
-        case .notDetermined:
-            return "Levy Home has not asked for notification permission yet."
-        case nil:
-            return "Checking iOS notification settings."
-        @unknown default:
-            return "Levy Home could not read the current notification setting."
+            await viewModel.refreshStatus()
         }
     }
 
@@ -98,7 +70,24 @@ struct NotificationDeliveryStatusView: View {
 }
 
 #Preview {
-    NotificationDeliveryStatusView()
+    NotificationDeliveryStatusView(
+        viewModel: PushRegistrationViewModel(service: PreviewDeliveryNotificationService())
+    )
         .padding()
         .background(AppColors.pageBackground)
+}
+
+private struct PreviewDeliveryNotificationService: NotificationServicing {
+    func currentSnapshot() async -> PushRegistrationSnapshot {
+        PushRegistrationSnapshot(
+            permissionStatus: .notDetermined,
+            availability: .simulatorUnavailable,
+            deviceToken: nil,
+            errorMessage: nil
+        )
+    }
+
+    func requestAuthorizationAndRegister() async -> PushRegistrationSnapshot {
+        await currentSnapshot()
+    }
 }
