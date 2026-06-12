@@ -38,6 +38,10 @@
 		A40000000000000000000007 /* QuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000017 /* QuickAction.swift */; };
 		A40000000000000000000008 /* NotificationPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000018 /* NotificationPreference.swift */; };
 		A50000000000000000000003 /* ModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000002 /* ModelDecodingTests.swift */; };
+		A60000000000000000000001 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000011 /* APIError.swift */; };
+		A60000000000000000000002 /* APIRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000012 /* APIRequests.swift */; };
+		A60000000000000000000003 /* APIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* APIResponses.swift */; };
+		A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* APIModelDecodingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,6 +89,10 @@
 		A40000000000000000000018 /* NotificationPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreference.swift; sourceTree = "<group>"; };
 		A50000000000000000000001 /* LevyHomeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LevyHomeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A50000000000000000000002 /* ModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDecodingTests.swift; sourceTree = "<group>"; };
+		A60000000000000000000011 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		A60000000000000000000012 /* APIRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRequests.swift; sourceTree = "<group>"; };
+		A60000000000000000000013 /* APIResponses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponses.swift; sourceTree = "<group>"; };
+		A60000000000000000000014 /* APIModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelDecodingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -245,6 +253,9 @@
 				A40000000000000000000016 /* LightSummary.swift */,
 				A40000000000000000000017 /* QuickAction.swift */,
 				A40000000000000000000018 /* NotificationPreference.swift */,
+				A60000000000000000000011 /* APIError.swift */,
+				A60000000000000000000012 /* APIRequests.swift */,
+				A60000000000000000000013 /* APIResponses.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -253,6 +264,7 @@
 			isa = PBXGroup;
 			children = (
 				A50000000000000000000002 /* ModelDecodingTests.swift */,
+				A60000000000000000000014 /* APIModelDecodingTests.swift */,
 			);
 			path = LevyHomeTests;
 			sourceTree = "<group>";
@@ -385,6 +397,9 @@
 				A40000000000000000000006 /* LightSummary.swift in Sources */,
 				A40000000000000000000007 /* QuickAction.swift in Sources */,
 				A40000000000000000000008 /* NotificationPreference.swift in Sources */,
+				A60000000000000000000001 /* APIError.swift in Sources */,
+				A60000000000000000000002 /* APIRequests.swift in Sources */,
+				A60000000000000000000003 /* APIResponses.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -393,6 +408,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A50000000000000000000003 /* ModelDecodingTests.swift in Sources */,
+				A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

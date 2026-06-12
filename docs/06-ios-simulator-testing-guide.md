@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 5 has added the first Swift model layer and `LevyHomeTests` unit test target. The current app still builds and launches in Simulator with the static Home command center from Stage 4, and model decoding tests can now run with `xcodebuild test` or Xcode's `Cmd-U`.
+Stage 6 has added typed API request, response, and error models plus `LevyHomeTests` coverage for decoding and request encoding. The current app still builds and launches in Simulator with the static Home command center from Stage 4, and model/API contract tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 

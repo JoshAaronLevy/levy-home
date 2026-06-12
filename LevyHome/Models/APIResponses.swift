@@ -1,0 +1,52 @@
+import Foundation
+
+struct EventsResponse: Codable, Equatable {
+    let ok: Bool
+    let events: [LevyHomeEvent]
+}
+
+struct HomeOverviewResponse: Codable, Equatable {
+    let ok: Bool
+    let overview: HomeOverview
+}
+
+struct QuickActionsResponse: Codable, Equatable {
+    let ok: Bool
+    let actions: [QuickAction]
+}
+
+struct QuickActionResponse: Codable, Equatable {
+    let ok: Bool
+    let result: QuickActionResult
+}
+
+struct NotificationPreferencesResponse: Codable, Equatable {
+    let ok: Bool
+    let preferences: [NotificationPreference]
+    let syncedAt: String?
+}
+
+struct RegisteredDevice: Codable, Equatable, Identifiable {
+    let id: String?
+    let platform: DevicePlatform?
+    let provider: PushProvider?
+    let environment: APNsEnvironment?
+    let registeredAt: String?
+    let lastSeenAt: String?
+}
+
+struct RegisterDeviceResponse: Codable, Equatable {
+    let ok: Bool
+    let registeredDeviceCount: Int
+    let device: RegisteredDevice?
+}
+
+struct TestPushResponse: Codable, Equatable {
+    let ok: Bool
+    let message: String
+    let registeredDeviceCount: Int
+    let sentNotificationCount: Int?
+    let sentTicketCount: Int?
+    let invalidTokenCount: Int?
+    let provider: PushProvider?
+}
