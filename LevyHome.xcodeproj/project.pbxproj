@@ -42,6 +42,8 @@
 		A60000000000000000000002 /* APIRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000012 /* APIRequests.swift */; };
 		A60000000000000000000003 /* APIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* APIResponses.swift */; };
 		A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* APIModelDecodingTests.swift */; };
+		A70000000000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* APIClient.swift */; };
+		A70000000000000000000002 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* APIClientTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,6 +95,8 @@
 		A60000000000000000000012 /* APIRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRequests.swift; sourceTree = "<group>"; };
 		A60000000000000000000013 /* APIResponses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponses.swift; sourceTree = "<group>"; };
 		A60000000000000000000014 /* APIModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelDecodingTests.swift; sourceTree = "<group>"; };
+		A70000000000000000000011 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		A70000000000000000000012 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +132,7 @@
 				A10000000000000000000033 /* App */,
 				A20000000000000000000021 /* Theme */,
 				A40000000000000000000021 /* Models */,
+				A70000000000000000000021 /* Services */,
 				A10000000000000000000035 /* Views */,
 				A30000000000000000000021 /* PreviewSupport */,
 				A10000000000000000000034 /* Resources */,
@@ -260,11 +265,20 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		A70000000000000000000021 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A70000000000000000000011 /* APIClient.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		A50000000000000000000004 /* LevyHomeTests */ = {
 			isa = PBXGroup;
 			children = (
 				A50000000000000000000002 /* ModelDecodingTests.swift */,
 				A60000000000000000000014 /* APIModelDecodingTests.swift */,
+				A70000000000000000000012 /* APIClientTests.swift */,
 			);
 			path = LevyHomeTests;
 			sourceTree = "<group>";
@@ -400,6 +414,7 @@
 				A60000000000000000000001 /* APIError.swift in Sources */,
 				A60000000000000000000002 /* APIRequests.swift in Sources */,
 				A60000000000000000000003 /* APIResponses.swift in Sources */,
+				A70000000000000000000001 /* APIClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -409,6 +424,7 @@
 			files = (
 				A50000000000000000000003 /* ModelDecodingTests.swift in Sources */,
 				A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */,
+				A70000000000000000000002 /* APIClientTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

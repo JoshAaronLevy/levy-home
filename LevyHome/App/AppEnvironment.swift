@@ -2,16 +2,24 @@ import SwiftUI
 
 struct AppEnvironment {
     let config: AppConfig
+    let apiClient: APIClient
+
+    init(config: AppConfig, apiClient: APIClient? = nil) {
+        self.config = config
+        self.apiClient = apiClient ?? APIClient(baseURL: config.apiBaseURL)
+    }
 
     static func live(
         bundle: Bundle = .main,
         processInfo: ProcessInfo = .processInfo
     ) -> AppEnvironment {
-        AppEnvironment(
-            config: AppConfig(
-                bundle: bundle,
-                processInfo: processInfo
-            )
+        let config = AppConfig(
+            bundle: bundle,
+            processInfo: processInfo
+        )
+
+        return AppEnvironment(
+            config: config
         )
     }
 }
