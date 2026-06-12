@@ -18,6 +18,12 @@
 		A1000000000000000000000A /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* ActivityView.swift */; };
 		A1000000000000000000000B /* NotificationHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* NotificationHubView.swift */; };
 		A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* NotificationPreferencesView.swift */; };
+		A20000000000000000000001 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AppColors.swift */; };
+		A20000000000000000000002 /* AppSpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* AppSpacing.swift */; };
+		A20000000000000000000003 /* InfoPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* InfoPanel.swift */; };
+		A20000000000000000000004 /* ErrorBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* ErrorBannerView.swift */; };
+		A20000000000000000000005 /* PrimaryActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* PrimaryActionButton.swift */; };
+		A20000000000000000000006 /* StatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* StatusBadgeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +40,12 @@
 		A10000000000000000000019 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 		A1000000000000000000001A /* NotificationHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHubView.swift; sourceTree = "<group>"; };
 		A1000000000000000000001B /* NotificationPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesView.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* AppSpacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSpacing.swift; sourceTree = "<group>"; };
+		A20000000000000000000013 /* InfoPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPanel.swift; sourceTree = "<group>"; };
+		A20000000000000000000014 /* ErrorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBannerView.swift; sourceTree = "<group>"; };
+		A20000000000000000000015 /* PrimaryActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryActionButton.swift; sourceTree = "<group>"; };
+		A20000000000000000000016 /* StatusBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +71,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000033 /* App */,
+				A20000000000000000000021 /* Theme */,
 				A10000000000000000000035 /* Views */,
 				A10000000000000000000034 /* Resources */,
 			);
@@ -101,6 +114,7 @@
 				A10000000000000000000037 /* Home */,
 				A10000000000000000000038 /* Activity */,
 				A10000000000000000000039 /* Notifications */,
+				A20000000000000000000022 /* Shared */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -136,6 +150,26 @@
 				A1000000000000000000001B /* NotificationPreferencesView.swift */,
 			);
 			path = Notifications;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000021 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000011 /* AppColors.swift */,
+				A20000000000000000000012 /* AppSpacing.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000022 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000013 /* InfoPanel.swift */,
+				A20000000000000000000014 /* ErrorBannerView.swift */,
+				A20000000000000000000015 /* PrimaryActionButton.swift */,
+				A20000000000000000000016 /* StatusBadgeView.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -217,6 +251,12 @@
 				A1000000000000000000000A /* ActivityView.swift in Sources */,
 				A1000000000000000000000B /* NotificationHubView.swift in Sources */,
 				A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */,
+				A20000000000000000000001 /* AppColors.swift in Sources */,
+				A20000000000000000000002 /* AppSpacing.swift in Sources */,
+				A20000000000000000000003 /* InfoPanel.swift in Sources */,
+				A20000000000000000000004 /* ErrorBannerView.swift in Sources */,
+				A20000000000000000000005 /* PrimaryActionButton.swift in Sources */,
+				A20000000000000000000006 /* StatusBadgeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
