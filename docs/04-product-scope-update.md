@@ -97,10 +97,10 @@ Recommended changes:
 5. Add backend status/action facade stages before APNs backend push migration.
 6. Keep native APNs registration and backend APNs push-provider migration as separate cut lines.
 7. Keep production/TestFlight readiness after end-to-end garage notification/control verification.
+8. Add theme preference and dark mode styling after production/TestFlight readiness unless there is an explicit decision to pull it earlier.
 
 Do not add these to the implementation roadmap except as future work:
 
-- dark mode
 - production auth
 - doorbell/person/motion implementation
 - local event caching
@@ -251,10 +251,12 @@ The Home screen should feel like a polished family command center.
 
 ## 8. Revised Notification History And Preferences Experience
 
-Notifications and Preferences should be separate family-facing surfaces. Notifications is the read-only notification history. Preferences answers two editable/configuration questions:
+Notifications and Preferences should be separate family-facing surfaces. Notifications is the read-only notification history. Preferences initially answers two editable/configuration questions:
 
 - Are notifications currently allowed and registered?
 - Which garage notification categories does this device/family member want?
+
+After the notification/control/TestFlight path is stable, Preferences should also include a Theme setting with System, Light, and Dark options. The default should be System when iOS exposes system appearance, with Light as the fallback if system appearance cannot be identified.
 
 Developer details such as raw APNs tokens, provider names, debug push responses, and server errors belong in Developer Tools, not in the family-facing Preferences tab.
 
@@ -269,6 +271,7 @@ The Preferences root should list configurable notification categories, devices, 
 | Garage left open | On | High-value safety notification. |
 | Garage after-hours | On | High-value security notification. |
 | Garage still open at 10 PM | On | High-value bedtime notification. |
+| Theme | System, falling back to Light only if system appearance cannot be identified | Implement in the later dark-mode stage with a detail screen offering System, Light, and Dark. |
 
 ### Future Categories
 
@@ -383,3 +386,4 @@ Recommendation: prefer explicit curated endpoints or curated action IDs. Do not 
 6. Add backend Home Assistant facade stages for selected status/actions.
 7. Keep APNs registration and backend push-provider migration separate.
 8. Update the roadmap so the revised MVP is achieved before TestFlight readiness.
+9. Add theme preference and dark mode styling as a post-readiness stage, not as part of the APNs/control safety path.

@@ -37,10 +37,22 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `POST` | `/api/home/actions/close-garage` | Explicit close-garage action. |
 | `POST` | `/api/home/actions/lights-off` | Explicit all-lights-off action. |
 | `POST` | `/api/home/actions/light-groups/:groupId/off` | Explicit curated light-group off action. |
+| `POST` | `/api/devices/register` | Provider-aware push-device registration for native APNs tokens and legacy Expo push tokens. |
+| `GET` | `/api/notification-preferences` | Garage notification preferences, optionally scoped by `deviceId` or provider-aware device token query params. |
+| `PUT` | `/api/notification-preferences` | Sync per-device garage notification preferences by registered `deviceId` or provider-aware token. |
 | `POST` | `/api/ha/events` | Home Assistant event webhook. |
 | `GET` | `/api/events` | Recent event timeline. |
 
 The API rejects arbitrary Home Assistant service/entity payloads from the app. Do not send fields such as `domain`, `service`, `entity_id`, or `target` to `/api/home/actions`.
+
+Device registration is provider-aware:
+
+- Native iOS APNs registrations must include `token`, `platform: "ios"`, `provider: "apns"`, and `environment: "sandbox"` or `"production"`.
+- APNs sandbox and production registrations are stored separately even if the raw token value is the same.
+- Legacy Expo-style registrations are still accepted with `pushToken` and are treated as `provider: "expo"`.
+- Tokens are not returned in registration responses.
+
+Notification preferences are currently in-memory backend state. They can sync from the native app and be fetched for manual verification, but push delivery enforcement begins in a later stage.
 
 ## Manual Checks
 
@@ -65,6 +77,36 @@ To verify arbitrary Home Assistant payloads are rejected:
 curl -i -X POST http://localhost:4000/api/home/actions \
   -H "Content-Type: application/json" \
   -d '{"domain":"light","service":"turn_on","entity_id":"light.everything"}'
+```
+
+To verify provider-aware APNs registration and per-device garage preferences:
+
+```sh
+curl -X POST http://localhost:4000/api/devices/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "sample-apns-token",
+    "platform": "ios",
+    "provider": "apns",
+    "environment": "sandbox",
+    "appVersion": "0.1.0",
+    "deviceName": "Josh iPhone"
+  }'
+
+curl -X PUT http://localhost:4000/api/notification-preferences \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deviceToken": "sample-apns-token",
+    "provider": "apns",
+    "environment": "sandbox",
+    "preferences": [
+      { "category": "garage_opened", "isEnabled": false },
+      { "category": "garage_left_open", "isEnabled": true },
+      { "category": "garage_after_hours", "isEnabled": true }
+    ]
+  }'
+
+curl 'http://localhost:4000/api/notification-preferences?deviceToken=sample-apns-token&provider=apns&environment=sandbox'
 ```
 
 To verify the event webhook and timeline:

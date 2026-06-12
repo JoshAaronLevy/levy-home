@@ -90,7 +90,8 @@ levy-home/
 |   |   |-- Preferences/
 |   |   |   |-- PreferencesView.swift
 |   |   |   |-- NotificationDeliveryStatusView.swift
-|   |   |   `-- NotificationPreferencesView.swift
+|   |   |   |-- NotificationPreferencesView.swift
+|   |   |   `-- ThemePreferenceView.swift
 |   |   |-- DeveloperTools/
 |   |   |   `-- DebugView.swift
 |   |   `-- Shared/
@@ -102,6 +103,7 @@ levy-home/
 |   |   |-- HomeOverviewViewModel.swift
 |   |   |-- ActivityViewModel.swift
 |   |   |-- NotificationPreferencesViewModel.swift
+|   |   |-- ThemePreferenceViewModel.swift
 |   |   |-- QuickActionsViewModel.swift
 |   |   `-- DebugViewModel.swift
 |   |-- Models/
@@ -115,6 +117,7 @@ levy-home/
 |   |   |-- LightSummary.swift
 |   |   |-- QuickAction.swift
 |   |   |-- NotificationPreference.swift
+|   |   |-- ThemePreference.swift
 |   |   |-- APIResponses.swift
 |   |   |-- APIRequests.swift
 |   |   `-- APIError.swift
@@ -123,6 +126,7 @@ levy-home/
 |   |   |-- HomeStatusService.swift
 |   |   |-- QuickActionService.swift
 |   |   |-- NotificationPreferencesService.swift
+|   |   |-- ThemePreferenceService.swift
 |   |   |-- NotificationService.swift
 |   |   |-- SettingsStore.swift
 |   |   `-- DateFormattingService.swift
@@ -144,6 +148,7 @@ levy-home/
 |   |-- ActivityViewModelTests.swift
 |   |-- QuickActionsViewModelTests.swift
 |   |-- NotificationPreferencesViewModelTests.swift
+|   |-- ThemePreferenceViewModelTests.swift
 |   `-- PushRegistrationViewModelTests.swift
 |-- LevyHomeUITests/
 |   `-- SmokeUITests.swift
@@ -244,6 +249,11 @@ PreferencesView
 |-- NotificationDeliveryStatusView
 |   |-- Permission status
 |   `-- Push registration/API sync summary
+|-- Theme row
+|   `-- ThemePreferenceView
+|       |-- System
+|       |-- Light
+|       `-- Dark
 `-- NotificationPreferencesView
     |-- Garage row
     `-- GarageNotificationPreferencesView
@@ -257,9 +267,11 @@ PreferencesView
 Responsibilities:
 
 - Show whether notifications are allowed/registered in plain language without exposing raw APNs tokens.
+- Show a Theme row that opens a focused detail screen for System, Light, and Dark appearance choices.
 - List configurable categories cleanly before showing detailed toggles.
 - Let the family configure selected notification categories on a category detail screen.
-- Persist simple preferences locally at first.
+- Persist simple preferences locally at first, including notification preferences and theme preference.
+- Default theme to System when iOS exposes system appearance; fall back to Light if system appearance cannot be identified.
 - Prepare for backend per-device preference sync when push delivery enforcement is implemented.
 - Hide or defer future doorbell/person/motion categories until implemented.
 - Avoid exposing Home Assistant implementation details.
@@ -316,6 +328,7 @@ Use SwiftUI-native observable state:
 | Quick action progress/result | `QuickActionsViewModel` | Home tab lifetime |
 | Event list/loading/error | `ActivityViewModel` | Activity tab lifetime |
 | Notification preferences | `NotificationPreferencesViewModel` | Preferences tab lifetime, persisted |
+| Theme preference | `ThemePreferenceViewModel` plus app-level preferred color scheme binding | App lifetime, persisted |
 | Debug sending/last response | `DebugViewModel` | Developer Tools lifetime |
 | Debug API override, if added | `SettingsStore` backed by `UserDefaults` | Persistent, non-sensitive |
 
@@ -330,6 +343,7 @@ AppEnvironment
 |-- homeStatusService: HomeStatusService
 |-- quickActionService: QuickActionService
 |-- notificationPreferencesService: NotificationPreferencesService
+|-- themePreferenceService: ThemePreferenceService
 |-- notificationService: NotificationService
 |-- settingsStore: SettingsStore
 |-- dateFormatter: DateFormattingService
@@ -356,6 +370,7 @@ This is not a dependency injection framework. It is a simple composition root so
 | `HomeStatusService` | Load garage status, light summary, recent important event summary, and composed Home overview | UI layout, direct Home Assistant credentials |
 | `QuickActionService` | Execute selected curated actions such as close garage and turn off lights | Arbitrary device control, accepting raw HA service/entity payloads from UI |
 | `NotificationPreferencesService` | Load/save notification preferences locally and later sync per-device preferences to backend | APNs permission prompts, push sending |
+| `ThemePreferenceService` | Load/save System, Light, or Dark theme preference locally and expose the corresponding SwiftUI preferred color scheme | Notification settings, debug settings, backend sync |
 | `NotificationService` | Permission checks, APNs registration, foreground presentation policy, token callbacks | Sending push notifications from server, storing APNs credentials |
 | `SettingsStore` | Non-sensitive local settings via `UserDefaults` | Auth tokens, Home Assistant secrets, event database |
 | `DateFormattingService` | Parse API ISO dates and format display strings | Business rules, storage |
@@ -714,9 +729,9 @@ Optional fields can wait. The important additions are `provider` and `environmen
 
 | Layer | Recommended coverage |
 | --- | --- |
-| Unit tests | Models, API client, Home/Activity/Preferences view models, quick-action state, date formatting, push state transitions. |
+| Unit tests | Models, API client, Home/Activity/Preferences/theme view models, quick-action state, date formatting, push state transitions. |
 | Integration/manual tests | Local API event fetching, Home overview loading, selected quick actions, APNs registration on physical device, debug test push. |
-| UI smoke tests | App launches, primary tabs exist, Home status/action states render, Activity empty/list/error states render, Notifications history renders, Preferences status renders, preferences persist. |
+| UI smoke tests | App launches, primary tabs exist, Home status/action states render, Activity empty/list/error states render, Notifications history renders, Preferences status renders, preferences persist, Light/Dark appearances are legible. |
 | Backend contract tests | Home overview/action facade behavior, future APNs route behavior, provider-neutral push result shape. |
 
 ### Client Tests
@@ -727,6 +742,7 @@ Optional fields can wait. The important additions are `provider` and `environmen
 | Home overview models | Decode garage status, light summary, recent important event, partial/unknown status. |
 | Quick actions | Successful action, failed action, duplicate tap while in progress, status refresh after success. |
 | Notification preferences | Default garage preferences, toggling, persistence, future backend sync failure. |
+| Theme preference | Default System preference, Light/Dark persistence, mapping to `preferredColorScheme`, System nil color-scheme behavior. |
 | Date formatting | Valid ISO date, missing optional date, malformed date fallback. |
 | API client | Success, server error envelope, non-JSON error, 500 without envelope, invalid base URL, decoding failure. |
 | Activity view model | Initial load success, load failure, refresh success after prior error, empty response. |
@@ -909,6 +925,15 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 | Alternatives considered | Keep preferences inside Notifications, hide preferences in Settings, defer all preferences, require user accounts first. |
 | Tradeoffs | Local preferences alone do not enforce server push filtering. A fourth tab adds one more primary destination, but keeps notification history and editing concerns separate without exposing tokens. Designing the UI/model now lets backend sync arrive later without reshaping the product. |
 | Why this fits this app | Notification status and preferences are core to a family notification app and should be easy to find, but notification history should remain a clean read-only surface. |
+
+### ADR 018: Add Theme Preference After Release Readiness
+
+| Field | Decision |
+| --- | --- |
+| Recommendation | Add a Preferences Theme row after the push/TestFlight readiness path, with System, Light, and Dark options. Default to System when iOS can provide system appearance and fall back to Light only if system appearance cannot be identified. Apply the selection app-wide through SwiftUI's preferred color scheme and update shared theme colors for both appearances. |
+| Alternatives considered | Add dark mode during the initial theme stage, force system-only appearance, add a fifth tab for display settings, make theme a Developer Tools option. |
+| Tradeoffs | Deferring dark mode avoids distracting from notification/control safety, but requires a later styling pass across all screens. A Preferences row keeps the setting discoverable without changing primary navigation. |
+| Why this fits this app | Theme choice is useful and family-facing, but it is lower risk than APNs, garage notifications, controls, and TestFlight readiness. Preferences is already the app's home for user-configurable behavior. |
 
 ## Implementation Cut Lines
 

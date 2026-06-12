@@ -116,6 +116,107 @@ test('explicit curated action endpoints work', async () => {
   assert.equal(lightGroup.result.actionId, 'turn_off_light_group');
 });
 
+test('POST /api/devices/register stores APNs registrations by provider and environment', async () => {
+  const sandbox = await postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    appVersion: '0.1.0',
+    deviceName: 'Josh iPhone',
+  });
+  const production = await postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'production',
+  });
+
+  assert.equal(sandbox.ok, true);
+  assert.equal(sandbox.registeredDeviceCount, 1);
+  assert.equal(sandbox.device.provider, 'apns');
+  assert.equal(sandbox.device.environment, 'sandbox');
+  assert.equal(sandbox.device.token, undefined);
+  assert.equal(production.registeredDeviceCount, 2);
+  assert.notEqual(sandbox.device.id, production.device.id);
+});
+
+test('POST /api/devices/register preserves legacy Expo push token registration', async () => {
+  const response = await postJSON('/api/devices/register', {
+    pushToken: 'ExponentPushToken[sample]',
+    platform: 'ios',
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.registeredDeviceCount, 1);
+  assert.equal(response.device.provider, 'expo');
+  assert.equal(response.device.platform, 'ios');
+});
+
+test('POST /api/devices/register rejects ambiguous APNs registrations', async () => {
+  const response = await fetch(`${baseURL}/api/devices/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token: 'sample-apns-token',
+      platform: 'ios',
+      provider: 'apns',
+    }),
+  });
+  const body = (await response.json()) as { error: string; code: string };
+
+  assert.equal(response.status, 400);
+  assert.equal(body.code, 'missing_apns_environment');
+});
+
+test('notification preferences can be synced and fetched by device token or device ID', async () => {
+  const registered = await postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const tokenSync = await putJSON('/api/notification-preferences', {
+    deviceToken: 'sample-apns-token',
+    provider: 'apns',
+    environment: 'sandbox',
+    preferences: [
+      { category: 'garage_opened', isEnabled: false },
+      { category: 'garage_left_open', isEnabled: false },
+    ],
+  });
+  const tokenFetch = await getJSON(
+    '/api/notification-preferences?deviceToken=sample-apns-token&provider=apns&environment=sandbox',
+  );
+
+  assert.equal(tokenSync.ok, true);
+  assert.equal(tokenFetch.preferences.length, 5);
+  assert.equal(
+    tokenFetch.preferences.find((preference: { category: string }) => preference.category === 'garage_opened')
+      .isEnabled,
+    false,
+  );
+  assert.equal(
+    tokenFetch.preferences.find((preference: { category: string }) => preference.category === 'garage_closed')
+      .isEnabled,
+    true,
+  );
+
+  const deviceSync = await putJSON('/api/notification-preferences', {
+    deviceId: registered.device.id,
+    preferences: [{ category: 'garage_closed', isEnabled: false }],
+  });
+  const deviceFetch = await getJSON(`/api/notification-preferences?deviceId=${registered.device.id}`);
+
+  assert.equal(deviceSync.ok, true);
+  assert.equal(
+    deviceFetch.preferences.find((preference: { category: string }) => preference.category === 'garage_closed')
+      .isEnabled,
+    false,
+  );
+});
+
 test('event webhook stores events and /api/events returns them', async () => {
   const created = await postJSON(
     '/api/ha/events',
@@ -153,6 +254,24 @@ async function postJSON(
       ...headers,
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  assert.equal(response.ok, true);
+  return response.json();
+}
+
+async function putJSON(
+  path: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+): Promise<any> {
+  const response = await fetch(`${baseURL}${path}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(body),
   });
 
   assert.equal(response.ok, true);

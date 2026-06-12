@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, and Stage 15 backend provider-aware device registration plus per-device garage notification preference sync. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 70% by staged roadmap count, or roughly 60-65% by remaining risk. The biggest remaining work is backend device registration, backend APNs sending, physical-device verification, backend preference enforcement, and TestFlight readiness.
+Estimated completion percentage: approximately 75% by staged roadmap count, or roughly 65-70% by remaining risk. The biggest remaining work is backend APNs sending, physical-device verification, backend preference enforcement, TestFlight readiness, and the newly planned post-readiness theme/dark-mode pass.
 
 Work already completed:
 
@@ -24,6 +24,8 @@ Work already completed:
 - Home quick actions are wired through the backend facade with confirmation, progress, success/failure messaging, duplicate-tap protection, and post-action overview refresh.
 - Native APNs permission and token plumbing exists in the iOS app, including `AppDelegate`, `NotificationService`, `PushRegistrationViewModel`, product-safe Preferences status, debug-only Developer Tools access, and Push Notifications entitlements.
 - Client-side API registration and preference-sync adapters exist for APNs device registration and garage notification preferences, with technical failure reporting in Developer Tools and product-safe degraded status in Preferences.
+- Backend provider-aware device registration exists for native APNs tokens, with APNs sandbox/production separation and legacy Expo push-token compatibility.
+- Backend garage notification preferences can be synced and fetched per device by provider-aware token or registered device ID.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -36,20 +38,22 @@ Work partially completed:
 
 Work unfinished:
 
-- Backend notification preferences and preference enforcement.
-- Backend device registration, preference persistence/enforcement, and APNs sender.
+- Backend APNs sender and debug/test push delivery.
+- Backend notification preference enforcement during push delivery.
+- Durable backend persistence for events, devices, and preferences if/when required for production.
 - End-to-end physical-device verification.
 - TestFlight/release readiness.
-- Backend/API code needed for notification preferences, preference enforcement, and APNs in `levy-home`.
+- Theme preference and dark mode styling planned for Stage 19.
+- Backend/API code needed for APNs sending and notification preference enforcement in `levy-home`.
 
 ## Documentation Audit
 
 | Document | Complete | Needs revision | Conflicts found | Missing sections |
 | --- | --- | --- | --- | --- |
 | `docs/01-migration-discovery.md` | Complete as a deprecated reference-app inventory | Yes, if used as target implementation guidance | It describes the old current/reference app scope: notification timeline, Settings tab, Debug tab, no controls. Its later staged roadmap conflicts with the revised product vision. | It does not fully model the revised Home command center, notification hub, quick actions, or preferences because those were not in the reference app. A continuity note now marks those target assumptions as superseded and clarifies `levy-home-app` is conceptual reference only. |
-| `docs/02-swiftui-architecture.md` | Mostly complete as target architecture | Minor revisions applied | Earlier versions had stale Events/Settings/Debug references and treated Notifications as the place for preferences. | Notifications history and Preferences are now separate. Real backend contract shapes for status/actions/preferences still need finalization during implementation stages. |
-| `docs/03-implementation-roadmap.md` | Mostly complete as staged roadmap | Minor revisions applied | Earlier versions supported preferences inside Notifications. | Stage 2 and Stage 9 now reflect a four-tab product shell. Exact backend route shapes, APNs credential strategy, real HA entity/action configuration, and release security decisions remain intentionally deferred to their stages. |
-| `docs/04-product-scope-update.md` | Complete as product direction update | Minor revisions applied | No material conflict with architecture/roadmap after this update. | Notification history and Preferences clarification was added. Broader future categories remain deferred. |
+| `docs/02-swiftui-architecture.md` | Mostly complete as target architecture | Minor revisions applied | Earlier versions had stale Events/Settings/Debug references and treated Notifications as the place for preferences. | Notifications history and Preferences are now separate. Theme preference architecture has been added for a later post-readiness implementation. Real backend contract shapes for status/actions/preferences still need finalization during implementation stages. |
+| `docs/03-implementation-roadmap.md` | Mostly complete as staged roadmap | Minor revisions applied | Earlier versions supported preferences inside Notifications and explicitly deferred dark mode. | Stage 2 and Stage 9 now reflect a four-tab product shell. Stage 19 now covers theme preference and dark mode styling. Exact backend route shapes, APNs credential strategy, real HA entity/action configuration, and release security decisions remain intentionally deferred to their stages. |
+| `docs/04-product-scope-update.md` | Complete as product direction update | Minor revisions applied | No material conflict with architecture/roadmap after this update. | Notification history and Preferences clarification was added. Theme preference is now planned after production/TestFlight readiness. Broader future categories remain deferred. |
 
 ## Product Scope Alignment
 
@@ -59,12 +63,13 @@ Work unfinished:
 | Home overview/dashboard vision | Yes | Architecture and roadmap make Home the command center with garage status, light summary, recent important event, and quick actions. It remains curated, not a full dashboard. |
 | Quick actions | Yes | Close garage, turn off all lights, and curated light-group actions are in architecture, product scope, and roadmap. |
 | Notification preferences | Yes | Garage notification preferences are modeled as first-class UI/service/model work, with a Preferences category row, a Garage detail screen, local persistence first, and backend sync later. |
+| Theme preference and dark mode | Planned | Stage 19 now adds a Preferences Theme row, System/Light/Dark choices, persisted theme preference, and full dark-mode styling. |
 | Debug tooling no longer primary UX | Yes | Architecture, roadmap, and product scope move Debug into build-gated Developer Tools. Discovery still describes the deprecated reference app's Debug tab, with a superseding continuity note. |
 
 Remaining product gaps:
 
 - Product-safe notification delivery wording and exact Preferences status states still need later APNs-stage refinement.
-- Preferences do not affect push delivery until backend per-device preference sync and enforcement exist.
+- Preferences can now sync to the backend per device, but they do not affect push delivery until Stage 16 or a later enforcement pass wires them into sending.
 - Home overview and action facade contracts now exist, but real Home Assistant entity/action configuration still needs household-specific validation.
 
 ## Architecture Alignment
@@ -74,9 +79,10 @@ Remaining product gaps:
 | Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` now load and display live Home overview data. |
 | Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring now displays live/partial/unknown light status. |
 | Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, duplicate-tap protection, and post-action overview refresh are implemented. |
-| Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, Preferences UI, provider-aware sync request construction, and product-safe sync status are implemented; backend persistence/enforcement is still planned. |
+| Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, Preferences UI, provider-aware sync request construction, product-safe sync status, and backend per-device preference sync are implemented; backend delivery enforcement is still planned. |
+| Theme preference | Planned | Architecture now calls for `ThemePreference`, `ThemePreferenceService`, `ThemePreferenceViewModel`, a Preferences detail screen, app-wide preferred color scheme binding, and light/dark styling updates in Stage 19. |
 | Event timeline | Yes | `ActivityView`, `ActivityViewModel`, event models, `APIClient.fetchRecentEvents`, event cards, empty/error/refresh states are implemented. |
-| APNs migration | Yes | Native `NotificationService`, `AppDelegate`, `PushRegistrationViewModel`, debug registration controls, simulator unavailable handling, entitlements, and client API registration adapter are implemented. Backend device registration, backend APNs sending, and physical-device end-to-end verification remain planned. |
+| APNs migration | Yes | Native `NotificationService`, `AppDelegate`, `PushRegistrationViewModel`, debug registration controls, simulator unavailable handling, entitlements, client API registration adapter, and backend provider-aware device registration are implemented. Backend APNs sending and physical-device end-to-end verification remain planned. |
 
 Missing architecture details to settle during future stages:
 
@@ -104,11 +110,12 @@ The roadmap now supports the revised product vision. It includes:
 - Backend APNs sender.
 - End-to-end garage notification/control verification.
 - Production/TestFlight readiness.
+- Post-readiness theme preference and dark mode styling.
 - Guardrails that keep all new implementation in `levy-home` and use `levy-home-app` only as conceptual reference.
 
 Stages that must be added:
 
-- None after this update. The Notifications/Preferences split is incorporated into existing Stage 2, Stage 9, Stage 13, Stage 14, and Stage 17.
+- Stage 19 has been added for theme preference and dark mode styling. The Notifications/Preferences split remains incorporated into existing Stage 2, Stage 9, Stage 13, Stage 14, and Stage 17.
 
 Stages that must be modified:
 
@@ -116,6 +123,7 @@ Stages that must be modified:
 - Stage 9: revised so Preferences owns delivery status and local preferences while Notifications remains history-only.
 - Stage 13/14: revised so APNs state feeds Developer Tools and product-safe Preferences status.
 - Stage 17: revised to verify Preferences status and Notifications history in end-to-end QA.
+- Guardrails and future-work sections: revised so dark mode is no longer treated as indefinitely deferred and is instead planned for Stage 19.
 
 Stages that should be removed:
 
@@ -123,9 +131,9 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 15: backend provider-aware device registration and preferences.
+Implement Stage 16: backend APNs sender and debug push.
 
-Stop condition for the next step: the backend accepts provider-aware APNs registrations and per-device garage preference sync without changing Home Assistant event ingestion or timeline contracts.
+Stop condition for the next step: the backend can send provider-neutral debug/test pushes through APNs to registered native devices without committing APNs credentials or breaking existing routes.
 
 ## Documentation Updates Made
 
@@ -139,5 +147,7 @@ Stop condition for the next step: the backend accepts provider-aware APNs regist
 - Updated docs after Stage 12 to mark live Home quick-action integration complete and move the recommended next action to Stage 13.
 - Updated docs after Stage 13 to mark native APNs permission/token plumbing complete and move the recommended next action to Stage 14.
 - Updated docs after Stage 14 to mark client API registration/preference-sync adapters complete and move the recommended next action to Stage 15.
+- Updated docs after Stage 15 to mark backend provider-aware device registration and per-device garage preference sync complete and move the recommended next action to Stage 16.
+- Updated docs to add Stage 19 for a Preferences Theme setting and dark mode styling, including architecture and product-scope alignment.
 
-Application code has since been implemented through the Stage 14 client device registration and preference-sync adapter milestone.
+Application code has since been implemented through the Stage 15 backend provider-aware device registration and preferences milestone.

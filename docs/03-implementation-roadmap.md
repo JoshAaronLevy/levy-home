@@ -11,7 +11,8 @@ The first goal is still to make the app runnable as early as possible. The revis
 - Keep each implementation commit focused; target 1-5 files per commit where practical.
 - Each stage stops after its own acceptance criteria.
 - Do not combine unrelated UI, Home Assistant facade, APNs, backend push, and release-readiness work.
-- Do not add dark mode, production auth, doorbell integration, local event caching, backend persistence, deep-link routing, widgets, arbitrary device management, camera features, automation builder features, or full Home Assistant dashboard features during this roadmap.
+- Do not add production auth, doorbell integration, local event caching, backend persistence, deep-link routing, widgets, arbitrary device management, camera features, automation builder features, or full Home Assistant dashboard features during this roadmap.
+- Dark mode is intentionally deferred until Stage 19 so the APNs, garage notification, and TestFlight readiness path remains focused.
 - Use SwiftUI, async/await, URLSession, UserDefaults for non-sensitive preferences, and Keychain only when future secrets exist.
 - Route selected controls through the Levy Home API facade. Do not put Home Assistant credentials or arbitrary HA service/entity payloads in the iOS app.
 - Keep new implementation work in `levy-home`. Use `levy-home-app` only as conceptual reference unless explicitly directed otherwise.
@@ -26,6 +27,7 @@ The first goal is still to make the app runnable as early as possible. The revis
 | 3. Backend APNs push-provider migration | Stage 16 | Backend accepts provider-aware APNs registrations and sends APNs pushes. |
 | 4. End-to-end physical-device garage notification verification | Stage 17 | Garage events produce APNs notifications, Activity entries, and Home overview updates on a physical iPhone. |
 | 5. Production/TestFlight readiness | Stage 18 | Build/config/release checks are complete for internal distribution. |
+| 6. Theme preference and dark mode | Stage 19 | Preferences includes a Theme setting, and the app supports System, Light, and Dark appearance with polished styling. |
 
 ## Reasoning Levels
 
@@ -340,13 +342,28 @@ The first goal is still to make the app runnable as early as possible. The revis
 | Suggested commit message | `Prepare internal TestFlight build` |
 | Recommended GPT-5.5 reasoning level | Max |
 
+## Stage 19: Theme Preference And Dark Mode Styling
+
+| Field | Details |
+| --- | --- |
+| Objective | Add a family-facing Theme setting in Preferences and complete dark theme styling across the app. |
+| User-visible outcome | User can choose System, Light, or Dark appearance from Preferences. The default is System when iOS exposes the system color scheme, otherwise Light. Home, Activity, Notifications, Preferences, Developer Tools, status badges, banners, buttons, and cards all look intentional in light and dark appearances. |
+| Workstream | Client UI, Client infrastructure |
+| Files/directories likely created | `LevyHome/Models/ThemePreference.swift`; `LevyHome/Services/ThemePreferenceService.swift`; `LevyHome/ViewModels/ThemePreferenceViewModel.swift`; `LevyHome/Views/Preferences/ThemePreferenceView.swift`; `LevyHomeTests/ThemePreferenceViewModelTests.swift`. |
+| Files/directories likely modified | `LevyHome/App/AppEnvironment.swift`; `LevyHome/App/LevyHomeApp.swift` or `LevyHome/Views/Root/RootTabView.swift`; `LevyHome/Theme/AppColors.swift`; shared components and feature views that use fixed colors; `LevyHome/Views/Preferences/PreferencesView.swift`; simulator testing guide if the manual appearance check flow changes. |
+| Dependencies | Stage 18, or explicit decision to pull theme work earlier after push/release risk is handled. |
+| Risks | Fixed colors that look fine in Light but fail in Dark; overriding system appearance too aggressively; adding a top-level tab instead of a Preferences row; changing the app's product IA while touching styling. |
+| Acceptance criteria | Default theme preference is System when identifiable and Light as fallback; Preferences root includes a clean Theme row; tapping Theme opens a detail screen with System, Light, and Dark options; selection persists across launches; System follows iOS appearance changes; Light and Dark force the selected appearance app-wide; all existing product screens and Developer Tools are legible and polished in Light and Dark; no new product tabs or unrelated settings are added. |
+| Manual test plan | Run app in simulator; open Preferences; confirm Theme row appears; open Theme detail and select System, Light, and Dark; quit/relaunch after each forced selection; verify Home, Activity, Notifications, Preferences, Garage notification detail, Developer Tools, loading/error/empty states, action progress/result states, and tab/navigation bars in both appearances; toggle simulator/system appearance and verify System mode follows it. |
+| Suggested commit message | `Add theme preference and dark mode` |
+| Recommended GPT-5.5 reasoning level | Medium |
+
 ## Future Work Not In This Roadmap
 
 These items are intentionally deferred. They should become separate discovery/architecture/roadmap updates before implementation.
 
 | Future item | Why deferred |
 | --- | --- |
-| Dark mode | Current priority is revised MVP parity and safety. |
 | Production user authentication | Current scope excludes auth; adding it affects backend, storage, UX, and security model. Revisit before broad internet exposure. |
 | Doorbell/eufy/person/motion integration | Event types exist as placeholders, but reliability and Home Assistant mapping are not yet validated. |
 | Local event caching/offline timeline | Existing Expo app has no local persistence; backend persistence should be solved first if durability is needed. |
