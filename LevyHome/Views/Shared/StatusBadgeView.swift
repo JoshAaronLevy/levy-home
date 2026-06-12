@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum StatusBadgeTone {
+enum StatusBadgeTone: Equatable {
     case neutral
     case accent
     case success

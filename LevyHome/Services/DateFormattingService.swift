@@ -31,6 +31,10 @@ struct DateFormattingService {
 
         let referenceDate = now()
         let interval = abs(date.timeIntervalSince(referenceDate))
+        if interval < 60 {
+            return "just now"
+        }
+
         if interval < 60 * 60 * 24 {
             return relativeFormatter.localizedString(for: date, relativeTo: referenceDate)
         }

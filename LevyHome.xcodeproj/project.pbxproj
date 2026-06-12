@@ -54,6 +54,9 @@
 		A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000013 /* NotificationDeliveryStatusView.swift */; };
 		A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */; };
 		AA0000000000000000000001 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* PreferencesView.swift */; };
+		B10000000000000000000001 /* HomeStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* HomeStatusService.swift */; };
+		B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HomeOverviewViewModel.swift */; };
+		B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* HomeOverviewViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +120,9 @@
 		A90000000000000000000013 /* NotificationDeliveryStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDeliveryStatusView.swift; sourceTree = "<group>"; };
 		A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesViewModelTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000000011 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* HomeStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatusService.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* HomeOverviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* HomeOverviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -303,6 +309,7 @@
 			children = (
 				A70000000000000000000011 /* APIClient.swift */,
 				A80000000000000000000012 /* DateFormattingService.swift */,
+				B10000000000000000000011 /* HomeStatusService.swift */,
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 			);
 			path = Services;
@@ -312,6 +319,7 @@
 			isa = PBXGroup;
 			children = (
 				A80000000000000000000011 /* ActivityViewModel.swift */,
+				B10000000000000000000012 /* HomeOverviewViewModel.swift */,
 				A90000000000000000000012 /* NotificationPreferencesViewModel.swift */,
 			);
 			path = ViewModels;
@@ -324,6 +332,7 @@
 				A60000000000000000000014 /* APIModelDecodingTests.swift */,
 				A70000000000000000000012 /* APIClientTests.swift */,
 				A80000000000000000000015 /* ActivityViewModelTests.swift */,
+				B10000000000000000000013 /* HomeOverviewViewModelTests.swift */,
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
 			);
 			path = LevyHomeTests;
@@ -465,6 +474,8 @@
 				A80000000000000000000002 /* DateFormattingService.swift in Sources */,
 				A80000000000000000000003 /* SeverityBadgeView.swift in Sources */,
 				A80000000000000000000004 /* EventCardView.swift in Sources */,
+				B10000000000000000000001 /* HomeStatusService.swift in Sources */,
+				B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */,
 				A90000000000000000000001 /* NotificationPreferencesService.swift in Sources */,
 				A90000000000000000000002 /* NotificationPreferencesViewModel.swift in Sources */,
 				A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */,
@@ -480,6 +491,7 @@
 				A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */,
 				A70000000000000000000002 /* APIClientTests.swift in Sources */,
 				A80000000000000000000005 /* ActivityViewModelTests.swift in Sources */,
+				B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */,
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

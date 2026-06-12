@@ -20,6 +20,7 @@ enum PreviewData {
         title: "Garage closed",
         detail: "The main garage was closed from the driveway remote.",
         timestamp: "Today at 8:42 AM",
+        badgeLabel: "Info",
         tone: .success
     )
 

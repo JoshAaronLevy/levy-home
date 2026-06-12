@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 10 has added the backend Home status/action facade in `apps/api`. The current iOS app still builds and launches in Simulator with the static Home command center from Stage 4, the live Activity timeline from Stage 8, and the Preferences tab from Stage 9. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
+Stage 11 has wired the Home screen to the backend Home overview facade in `apps/api`. The current iOS app builds and launches in Simulator with live Home overview loading/error/refresh states, the live Activity timeline from Stage 8, and the Preferences tab from Stage 9. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 

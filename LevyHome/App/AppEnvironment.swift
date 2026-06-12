@@ -3,15 +3,19 @@ import SwiftUI
 struct AppEnvironment {
     let config: AppConfig
     let apiClient: APIClient
+    let homeStatusService: HomeStatusServicing
     let notificationPreferencesService: NotificationPreferencesService
 
     init(
         config: AppConfig,
         apiClient: APIClient? = nil,
+        homeStatusService: HomeStatusServicing? = nil,
         notificationPreferencesService: NotificationPreferencesService? = nil
     ) {
         self.config = config
-        self.apiClient = apiClient ?? APIClient(baseURL: config.apiBaseURL)
+        let resolvedAPIClient = apiClient ?? APIClient(baseURL: config.apiBaseURL)
+        self.apiClient = resolvedAPIClient
+        self.homeStatusService = homeStatusService ?? HomeStatusService(apiClient: resolvedAPIClient)
         self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService()
     }
 

@@ -1,9 +1,15 @@
 import SwiftUI
 
 struct LightGroupSummary: Identifiable {
-    let id = UUID()
+    let id: String
     let name: String
     let count: String
+
+    init(id: String = UUID().uuidString, name: String, count: String) {
+        self.id = id
+        self.name = name
+        self.count = count
+    }
 }
 
 struct LightSummaryCardData {

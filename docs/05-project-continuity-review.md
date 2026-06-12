@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, static Home command center, typed models/API client, live Activity timeline plumbing, local notification preference UI, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, typed models/API client, live Activity timeline plumbing, local notification preference UI, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 50% by staged roadmap count, or roughly 40-45% by remaining risk. The biggest remaining work is live Home wiring, quick-action execution, APNs registration, backend APNs sending, physical-device verification, and TestFlight readiness.
+Estimated completion percentage: approximately 55% by staged roadmap count, or roughly 45-50% by remaining risk. The biggest remaining work is quick-action execution, APNs registration, backend APNs sending, physical-device verification, and TestFlight readiness.
 
 Work already completed:
 
@@ -15,7 +15,7 @@ Work already completed:
 - Staged implementation roadmap exists in `docs/03-implementation-roadmap.md`.
 - Revised product scope exists in `docs/04-product-scope-update.md`.
 - Native SwiftUI project baseline, app environment/config skeleton, and root `TabView` exist.
-- Home has the static command-center experience.
+- Home is wired to the backend overview facade for live garage status, light status, recent important events, loading, refresh, partial, stale, and error states.
 - Models, API request/response/error types, and `APIClient` exist with unit coverage.
 - Activity is wired through `ActivityViewModel` for live event data and tested states.
 - Preferences now contains product-safe delivery status plus a clean notification category list; Garage notification toggles live on a pushed detail screen and persist locally.
@@ -34,12 +34,11 @@ Work partially completed:
 Work unfinished:
 
 - Backend notification preferences and preference enforcement.
-- Live Home overview integration.
 - Live quick-action execution.
 - Provider-aware APNs registration and APNs sender.
 - End-to-end physical-device verification.
 - TestFlight/release readiness.
-- Any backend/API code needed for status, actions, preferences, or APNs in `levy-home`.
+- Backend/API code needed for notification preferences, preference enforcement, and APNs in `levy-home`.
 
 ## Documentation Audit
 
@@ -64,14 +63,14 @@ Remaining product gaps:
 
 - Product-safe notification delivery wording and exact Preferences status states still need later APNs-stage refinement.
 - Preferences do not affect push delivery until backend per-device preference sync and enforcement exist.
-- Home overview is documented, but actual status/action backend contracts are not implemented or finalized.
+- Home overview and action facade contracts now exist, but real Home Assistant entity/action configuration still needs household-specific validation.
 
 ## Architecture Alignment
 
 | Capability | Architecture support | Missing pieces |
 | --- | --- | --- |
-| Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` are still planned for Stage 11. |
-| Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring is still planned for Stage 11. |
+| Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` now load and display live Home overview data. |
+| Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring now displays live/partial/unknown light status. |
 | Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, and live action execution are still planned for Stage 12. |
 | Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, and Preferences UI are implemented; later backend sync/enforcement is still planned. |
 | Event timeline | Yes | `ActivityView`, `ActivityViewModel`, event models, `APIClient.fetchRecentEvents`, event cards, empty/error/refresh states are implemented. |
@@ -79,7 +78,7 @@ Remaining product gaps:
 
 Missing architecture details to settle during future stages:
 
-- Final backend contract shape for Home overview and actions.
+- Final household-specific Home Assistant entity IDs and curated action groups.
 - Final backend contract shape for notification preference sync/enforcement.
 - Final backend/API location and runtime inside `levy-home`.
 - Whether Developer Tools access is hidden tab, toolbar item, menu, or build-only route.
@@ -122,9 +121,9 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 11: live Home overview integration in the SwiftUI app using the Stage 10 backend facade.
+Implement Stage 12: live quick-action integration in the SwiftUI app using the Stage 10 backend facade.
 
-Stop condition for the next step: Home loads overview data from the API, supports retry/refresh, and handles unknown or partial status gracefully.
+Stop condition for the next step: Home executes only curated backend quick actions, protects against duplicate taps, refreshes overview after actions, and shows confirmation/progress/error states.
 
 ## Documentation Updates Made
 
@@ -134,5 +133,6 @@ Stop condition for the next step: Home loads overview data from the API, support
 - Updated `docs/04-product-scope-update.md` to clarify the notification history and Preferences vision.
 - Updated docs to clarify that `levy-home-app` is deprecated, unvalidated conceptual reference, and that new implementation belongs in `levy-home`.
 - Updated docs again after Stage 9 to split Notifications history from the Preferences tab.
+- Updated docs after Stage 11 to mark live Home overview integration complete and move the recommended next action to Stage 12.
 
-Application code has since been implemented through the Stage 9 local Preferences milestone.
+Application code has since been implemented through the Stage 11 live Home overview milestone.

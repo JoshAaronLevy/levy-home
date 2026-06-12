@@ -4,6 +4,7 @@ struct RecentImportantEventData {
     let title: String
     let detail: String
     let timestamp: String
+    let badgeLabel: String
     let tone: StatusBadgeTone
 }
 
@@ -23,7 +24,7 @@ struct RecentImportantEventView: View {
 
                     Spacer(minLength: AppSpacing.medium)
 
-                    StatusBadgeView(label: "Sample", tone: data.tone)
+                    StatusBadgeView(label: data.badgeLabel, tone: data.tone)
                 }
 
                 Text(data.detail)
