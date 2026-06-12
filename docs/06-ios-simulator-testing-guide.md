@@ -6,19 +6,19 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-The native Xcode project does not exist until Stage 0 of `docs/03-implementation-roadmap.md` is implemented. Until then, the commands below are a reference for what to run after files such as `LevyHome.xcodeproj`, `LevyHome.xcworkspace`, or a Swift Package/Xcode project equivalent exist.
+Stage 0 has created a native Xcode project at `LevyHome.xcodeproj`. The current app is a minimal SwiftUI placeholder target that builds and launches in Simulator.
 
-After Stage 0, update this guide if the actual project name, scheme name, bundle identifier, or derived-data path differs.
+Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 
-Expected placeholders:
+Current values:
 
-| Placeholder | Likely value | How to confirm |
+| Setting | Current value | How to confirm |
 | --- | --- | --- |
 | Project file | `LevyHome.xcodeproj` | `ls *.xcodeproj` |
-| Workspace file | `LevyHome.xcworkspace` if one exists | `ls *.xcworkspace` |
+| Workspace file | None currently | `ls *.xcworkspace` |
 | Scheme | `LevyHome` | `xcodebuild -list -project LevyHome.xcodeproj` |
-| Simulator | `iPhone 17 Pro` or another installed iPhone simulator | `xcrun simctl list devices available` |
-| Bundle ID | TBD in Stage 0 | Xcode target settings or built app `Info.plist` |
+| Verified simulator | `iPhone 17 Pro`, iOS 26.5 | `xcrun simctl list devices available` |
+| Bundle ID | `com.levy.home` | Xcode target settings or built app `Info.plist` |
 
 ## First-Time Sanity Checks
 
@@ -119,7 +119,7 @@ Project version:
 xcodebuild \
   -project LevyHome.xcodeproj \
   -scheme LevyHome \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -derivedDataPath build/DerivedData \
   build
 ```
@@ -130,7 +130,7 @@ Workspace version:
 xcodebuild \
   -workspace LevyHome.xcworkspace \
   -scheme LevyHome \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -derivedDataPath build/DerivedData \
   build
 ```
@@ -151,13 +151,17 @@ xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulat
 
 ### 6. Launch The App
 
-Replace `BUNDLE_ID_FROM_PREVIOUS_STEP` with the printed bundle identifier:
+The current Stage 0 bundle identifier is `com.levy.home`:
 
 ```sh
-xcrun simctl launch booted BUNDLE_ID_FROM_PREVIOUS_STEP
+xcrun simctl launch booted com.levy.home
 ```
 
 ## Run Tests
+
+Stage 0 does not include a test target yet. `xcodebuild test` will report that the scheme is not configured for the test action until a later stage adds `LevyHomeTests` or another test target.
+
+After tests exist, use one of these commands.
 
 Project version:
 
@@ -165,7 +169,7 @@ Project version:
 xcodebuild \
   -project LevyHome.xcodeproj \
   -scheme LevyHome \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -derivedDataPath build/DerivedData \
   test
 ```
@@ -176,7 +180,7 @@ Workspace version:
 xcodebuild \
   -workspace LevyHome.xcworkspace \
   -scheme LevyHome \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -derivedDataPath build/DerivedData \
   test
 ```
@@ -189,7 +193,7 @@ If Xcode seems confused, start with the light clean:
 xcodebuild \
   -project LevyHome.xcodeproj \
   -scheme LevyHome \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   clean
 ```
 
@@ -327,7 +331,7 @@ xcrun simctl boot "iPhone 17 Pro" || true
 open -a Simulator
 
 # Build
-xcodebuild -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath build/DerivedData build
+xcodebuild -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -derivedDataPath build/DerivedData build
 
 # Install
 xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulator/LevyHome.app
@@ -335,9 +339,9 @@ xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulat
 # Print bundle ID
 /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' build/DerivedData/Build/Products/Debug-iphonesimulator/LevyHome.app/Info.plist
 
-# Launch after replacing the bundle ID
-xcrun simctl launch booted BUNDLE_ID_FROM_PREVIOUS_STEP
+# Launch
+xcrun simctl launch booted com.levy.home
 
-# Test
-xcodebuild -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath build/DerivedData test
+# Test, after a test target exists
+xcodebuild -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -derivedDataPath build/DerivedData test
 ```
