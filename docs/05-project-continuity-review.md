@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 65% by staged roadmap count, or roughly 55-60% by remaining risk. The biggest remaining work is backend device registration, backend APNs sending, physical-device verification, preference sync/enforcement, and TestFlight readiness.
+Estimated completion percentage: approximately 70% by staged roadmap count, or roughly 60-65% by remaining risk. The biggest remaining work is backend device registration, backend APNs sending, physical-device verification, backend preference enforcement, and TestFlight readiness.
 
 Work already completed:
 
@@ -23,6 +23,7 @@ Work already completed:
 - Stage 10 backend facade exists in `apps/api`, with mock/live Home Assistant modes, `/api/home/overview`, curated quick-action routes, and event timeline endpoints.
 - Home quick actions are wired through the backend facade with confirmation, progress, success/failure messaging, duplicate-tap protection, and post-action overview refresh.
 - Native APNs permission and token plumbing exists in the iOS app, including `AppDelegate`, `NotificationService`, `PushRegistrationViewModel`, product-safe Preferences status, debug-only Developer Tools access, and Push Notifications entitlements.
+- Client-side API registration and preference-sync adapters exist for APNs device registration and garage notification preferences, with technical failure reporting in Developer Tools and product-safe degraded status in Preferences.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -36,7 +37,7 @@ Work partially completed:
 Work unfinished:
 
 - Backend notification preferences and preference enforcement.
-- Backend device registration and APNs sender.
+- Backend device registration, preference persistence/enforcement, and APNs sender.
 - End-to-end physical-device verification.
 - TestFlight/release readiness.
 - Backend/API code needed for notification preferences, preference enforcement, and APNs in `levy-home`.
@@ -73,9 +74,9 @@ Remaining product gaps:
 | Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` now load and display live Home overview data. |
 | Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring now displays live/partial/unknown light status. |
 | Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, duplicate-tap protection, and post-action overview refresh are implemented. |
-| Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, and Preferences UI are implemented; later backend sync/enforcement is still planned. |
+| Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, Preferences UI, provider-aware sync request construction, and product-safe sync status are implemented; backend persistence/enforcement is still planned. |
 | Event timeline | Yes | `ActivityView`, `ActivityViewModel`, event models, `APIClient.fetchRecentEvents`, event cards, empty/error/refresh states are implemented. |
-| APNs migration | Yes | Native `NotificationService`, `AppDelegate`, `PushRegistrationViewModel`, debug registration controls, simulator unavailable handling, and entitlements are implemented. Backend device registration, backend APNs sending, and physical-device end-to-end verification remain planned. |
+| APNs migration | Yes | Native `NotificationService`, `AppDelegate`, `PushRegistrationViewModel`, debug registration controls, simulator unavailable handling, entitlements, and client API registration adapter are implemented. Backend device registration, backend APNs sending, and physical-device end-to-end verification remain planned. |
 
 Missing architecture details to settle during future stages:
 
@@ -122,9 +123,9 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 14: client device registration and preference sync adapter.
+Implement Stage 15: backend provider-aware device registration and preferences.
 
-Stop condition for the next step: the client can represent whether API device registration is skipped, pending, successful, or failed without requiring backend APNs delivery yet.
+Stop condition for the next step: the backend accepts provider-aware APNs registrations and per-device garage preference sync without changing Home Assistant event ingestion or timeline contracts.
 
 ## Documentation Updates Made
 
@@ -137,5 +138,6 @@ Stop condition for the next step: the client can represent whether API device re
 - Updated docs after Stage 11 to mark live Home overview integration complete and move the recommended next action to Stage 12.
 - Updated docs after Stage 12 to mark live Home quick-action integration complete and move the recommended next action to Stage 13.
 - Updated docs after Stage 13 to mark native APNs permission/token plumbing complete and move the recommended next action to Stage 14.
+- Updated docs after Stage 14 to mark client API registration/preference-sync adapters complete and move the recommended next action to Stage 15.
 
-Application code has since been implemented through the Stage 13 native APNs permission/token milestone.
+Application code has since been implemented through the Stage 14 client device registration and preference-sync adapter milestone.

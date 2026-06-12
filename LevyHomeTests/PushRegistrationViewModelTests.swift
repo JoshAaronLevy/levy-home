@@ -20,6 +20,7 @@ final class PushRegistrationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.permissionLabel, "Not requested")
         XCTAssertEqual(viewModel.registrationLabel, "Unavailable")
         XCTAssertEqual(viewModel.registrationTone, .neutral)
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Skipped")
         XCTAssertNil(viewModel.deviceToken)
     }
 
@@ -41,7 +42,80 @@ final class PushRegistrationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.registrationLabel, "Registered")
         XCTAssertEqual(viewModel.registrationTone, .success)
         XCTAssertEqual(viewModel.deviceToken, "abc123")
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Skipped")
         XCTAssertEqual(viewModel.developerStatusMessage, "Native APNs token is available on this device.")
+    }
+
+    func testRegistrationSuccessSyncsDeviceWithAPI() async {
+        let apiService = MockDeviceRegistrationService(
+            response: RegisterDeviceResponse(
+                ok: true,
+                registeredDeviceCount: 2,
+                device: RegisteredDevice(
+                    id: "device-1",
+                    platform: .iOS,
+                    provider: .apns,
+                    environment: .sandbox,
+                    registeredAt: nil,
+                    lastSeenAt: nil
+                )
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: MockNotificationService(
+                registrationSnapshot: PushRegistrationSnapshot(
+                    permissionStatus: .authorized,
+                    availability: .available,
+                    deviceToken: "abc123",
+                    errorMessage: nil
+                )
+            ),
+            deviceRegistrationService: apiService,
+            apnsEnvironment: .sandbox,
+            appVersion: "0.1.0",
+            deviceName: "Josh's iPhone"
+        )
+
+        await viewModel.requestRegistration()
+
+        XCTAssertEqual(viewModel.registrationLabel, "Registered")
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Synced")
+        XCTAssertEqual(viewModel.apiRegistrationTone, .success)
+        XCTAssertEqual(viewModel.developerStatusMessage, "API device registration succeeded. Registered devices: 2.")
+        XCTAssertEqual(apiService.requests, [
+            RegisterDeviceRequest(
+                token: "abc123",
+                platform: .iOS,
+                provider: .apns,
+                environment: .sandbox,
+                appVersion: "0.1.0",
+                deviceName: "Josh's iPhone"
+            )
+        ])
+    }
+
+    func testRegistrationAPIFailureKeepsNativeTokenAndShowsTechnicalFailure() async {
+        let apiService = MockDeviceRegistrationService(error: APIError.server(statusCode: 503, message: "Devices unavailable."))
+        let viewModel = PushRegistrationViewModel(
+            service: MockNotificationService(
+                registrationSnapshot: PushRegistrationSnapshot(
+                    permissionStatus: .authorized,
+                    availability: .available,
+                    deviceToken: "abc123",
+                    errorMessage: nil
+                )
+            ),
+            deviceRegistrationService: apiService,
+            apnsEnvironment: .sandbox
+        )
+
+        await viewModel.requestRegistration()
+
+        XCTAssertEqual(viewModel.registrationLabel, "Registered")
+        XCTAssertEqual(viewModel.deviceToken, "abc123")
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Failed")
+        XCTAssertEqual(viewModel.apiRegistrationTone, .warning)
+        XCTAssertEqual(viewModel.developerStatusMessage, "API device registration failed: Devices unavailable.")
     }
 
     func testPermissionDeniedShowsBlockedState() async {
@@ -144,5 +218,29 @@ private final class MockNotificationService: NotificationServicing {
         }
 
         return registrationSnapshotValue
+    }
+}
+
+private final class MockDeviceRegistrationService: DeviceRegistrationServicing {
+    private let response: RegisterDeviceResponse?
+    private let error: Error?
+    private(set) var requests: [RegisterDeviceRequest] = []
+
+    init(
+        response: RegisterDeviceResponse? = nil,
+        error: Error? = nil
+    ) {
+        self.response = response
+        self.error = error
+    }
+
+    func registerDevice(_ request: RegisterDeviceRequest) async throws -> RegisterDeviceResponse {
+        requests.append(request)
+
+        if let error {
+            throw error
+        }
+
+        return response ?? RegisterDeviceResponse(ok: true, registeredDeviceCount: 1, device: nil)
     }
 }

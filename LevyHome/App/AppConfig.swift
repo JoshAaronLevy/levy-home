@@ -7,21 +7,35 @@ struct AppConfig: Equatable {
     let buildFlavor: BuildConfiguration
     let isDeveloperToolsEnabled: Bool
     let apnsEnvironment: APNSEnvironment?
+    let appVersion: String?
 
     var isDebugBuild: Bool {
         buildFlavor.isDebugBuild
+    }
+
+    var apiAPNsEnvironment: APNsEnvironment {
+        switch apnsEnvironment {
+        case .sandbox:
+            return .sandbox
+        case .production:
+            return .production
+        case nil:
+            return buildFlavor.isDebugBuild ? .sandbox : .production
+        }
     }
 
     init(
         apiBaseURL: URL,
         buildFlavor: BuildConfiguration = .current,
         isDeveloperToolsEnabled: Bool? = nil,
-        apnsEnvironment: APNSEnvironment? = nil
+        apnsEnvironment: APNSEnvironment? = nil,
+        appVersion: String? = nil
     ) {
         self.apiBaseURL = apiBaseURL
         self.buildFlavor = buildFlavor
         self.isDeveloperToolsEnabled = isDeveloperToolsEnabled ?? buildFlavor.defaultDeveloperToolsEnabled
         self.apnsEnvironment = apnsEnvironment
+        self.appVersion = appVersion
     }
 
     init(
@@ -34,7 +48,8 @@ struct AppConfig: Equatable {
 
         self.init(
             apiBaseURL: Self.normalizedAPIBaseURL(from: rawAPIBaseURL),
-            buildFlavor: buildFlavor
+            buildFlavor: buildFlavor,
+            appVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         )
     }
 

@@ -198,6 +198,29 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(json["environment"] as? String, "sandbox")
     }
 
+    func testEncodesProviderAwareNotificationPreferenceSyncRequest() throws {
+        let request = NotificationPreferencesUpdateRequest(
+            preferences: [
+                NotificationPreferenceUpdate(category: .garageOpened, isEnabled: true),
+                NotificationPreferenceUpdate(category: .garageLeftOpen, isEnabled: false)
+            ],
+            deviceToken: "sample-apns-token",
+            provider: .apns,
+            environment: .sandbox
+        )
+
+        let json = try encodeJSON(request)
+        let preferences = try XCTUnwrap(json["preferences"] as? [[String: Any]])
+
+        XCTAssertEqual(json["deviceToken"] as? String, "sample-apns-token")
+        XCTAssertEqual(json["provider"] as? String, "apns")
+        XCTAssertEqual(json["environment"] as? String, "sandbox")
+        XCTAssertEqual(preferences[0]["category"] as? String, "garage_opened")
+        XCTAssertEqual(preferences[0]["isEnabled"] as? Bool, true)
+        XCTAssertEqual(preferences[1]["category"] as? String, "garage_left_open")
+        XCTAssertEqual(preferences[1]["isEnabled"] as? Bool, false)
+    }
+
     private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
         try decoder.decode(T.self, from: Data(json.utf8))
     }

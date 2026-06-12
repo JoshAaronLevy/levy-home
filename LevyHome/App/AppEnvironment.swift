@@ -21,7 +21,9 @@ struct AppEnvironment {
         self.apiClient = resolvedAPIClient
         self.homeStatusService = homeStatusService ?? HomeStatusService(apiClient: resolvedAPIClient)
         self.quickActionService = quickActionService ?? QuickActionService(apiClient: resolvedAPIClient)
-        self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService()
+        self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService(
+            apiClient: resolvedAPIClient
+        )
         if let notificationService {
             self.notificationService = notificationService
         } else {

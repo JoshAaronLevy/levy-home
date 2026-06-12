@@ -1,11 +1,26 @@
 import Foundation
 
-final class NotificationPreferencesService {
+protocol NotificationPreferencesServicing {
+    func loadGaragePreferences() -> [NotificationPreference]
+    func setPreference(_ category: NotificationPreferenceCategory, isEnabled: Bool)
+    func syncGaragePreferences(
+        deviceToken: String,
+        provider: PushProvider,
+        environment: APNsEnvironment
+    ) async throws -> NotificationPreferencesResponse
+}
+
+final class NotificationPreferencesService: NotificationPreferencesServicing {
     private let userDefaults: UserDefaults
+    private let apiClient: APIClient?
     private let keyPrefix = "notificationPreference"
 
-    init(userDefaults: UserDefaults = .standard) {
+    init(
+        userDefaults: UserDefaults = .standard,
+        apiClient: APIClient? = nil
+    ) {
         self.userDefaults = userDefaults
+        self.apiClient = apiClient
     }
 
     func loadGaragePreferences() -> [NotificationPreference] {
@@ -21,6 +36,27 @@ final class NotificationPreferencesService {
 
     func setPreference(_ category: NotificationPreferenceCategory, isEnabled: Bool) {
         userDefaults.set(isEnabled, forKey: key(for: category))
+    }
+
+    func syncGaragePreferences(
+        deviceToken: String,
+        provider: PushProvider = .apns,
+        environment: APNsEnvironment
+    ) async throws -> NotificationPreferencesResponse {
+        guard let apiClient else {
+            throw APIError.transport("Notification preference sync is not configured.")
+        }
+
+        let request = NotificationPreferencesUpdateRequest(
+            preferences: loadGaragePreferences().map {
+                NotificationPreferenceUpdate(category: $0.category, isEnabled: $0.isEnabled)
+            },
+            deviceToken: deviceToken,
+            provider: provider,
+            environment: environment
+        )
+
+        return try await apiClient.updateNotificationPreferences(request)
     }
 
     private func storedValue(for category: NotificationPreferenceCategory) -> Bool? {

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct DebugView: View {
     @ObservedObject var pushRegistrationViewModel: PushRegistrationViewModel
+    @ObservedObject var notificationPreferencesViewModel: NotificationPreferencesViewModel
+    let apnsEnvironment: APNsEnvironment
 
     var body: some View {
         ScrollView {
@@ -28,6 +30,14 @@ struct DebugView: View {
                             badgeTone: pushRegistrationViewModel.registrationTone
                         )
 
+                        statusRow(
+                            title: "API registration",
+                            detail: pushRegistrationViewModel.apiRegistrationDetail,
+                            badgeLabel: pushRegistrationViewModel.apiRegistrationLabel,
+                            badgeImage: pushRegistrationViewModel.apiRegistrationSystemImage,
+                            badgeTone: pushRegistrationViewModel.apiRegistrationTone
+                        )
+
                         if let token = pushRegistrationViewModel.deviceToken {
                             tokenView(token)
                         }
@@ -37,12 +47,48 @@ struct DebugView: View {
                         }
 
                         PrimaryActionButton(
-                            title: "Register For Push",
+                            title: "Register And Sync Device",
                             systemImage: "bell.badge",
                             isLoading: pushRegistrationViewModel.isRegistering
                         ) {
                             Task {
                                 await pushRegistrationViewModel.requestRegistration()
+                            }
+                        }
+                    }
+                }
+
+                InfoPanel(
+                    title: "Preference Sync",
+                    subtitle: "API adapter for garage notification preferences.",
+                    systemImage: "slider.horizontal.3"
+                ) {
+                    VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                        statusRow(
+                            title: "Garage preferences",
+                            detail: notificationPreferencesViewModel.syncDetail,
+                            badgeLabel: notificationPreferencesViewModel.syncLabel,
+                            badgeImage: notificationPreferencesViewModel.syncSystemImage,
+                            badgeTone: notificationPreferencesViewModel.syncTone
+                        )
+
+                        if let message = notificationPreferencesViewModel.developerSyncMessage {
+                            ErrorBannerView(
+                                message: message,
+                                tone: notificationPreferencesViewModel.syncTone == .warning ? .warning : .info
+                            )
+                        }
+
+                        PrimaryActionButton(
+                            title: "Sync Preferences",
+                            systemImage: "arrow.triangle.2.circlepath",
+                            isLoading: notificationPreferencesViewModel.isSyncing
+                        ) {
+                            Task {
+                                await notificationPreferencesViewModel.syncPreferences(
+                                    deviceToken: pushRegistrationViewModel.deviceToken,
+                                    environment: apnsEnvironment
+                                )
                             }
                         }
                     }
@@ -121,7 +167,13 @@ struct DebugView: View {
         DebugView(
             pushRegistrationViewModel: PushRegistrationViewModel(
                 service: PreviewNotificationService()
-            )
+            ),
+            notificationPreferencesViewModel: NotificationPreferencesViewModel(
+                service: NotificationPreferencesService(
+                    userDefaults: UserDefaults(suiteName: "DebugPreview") ?? .standard
+                )
+            ),
+            apnsEnvironment: .sandbox
         )
     }
 }

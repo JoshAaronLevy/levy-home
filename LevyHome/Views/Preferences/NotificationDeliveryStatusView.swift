@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationDeliveryStatusView: View {
     @ObservedObject var viewModel: PushRegistrationViewModel
+    @ObservedObject var preferencesViewModel: NotificationPreferencesViewModel
 
     var body: some View {
         InfoPanel(
@@ -21,7 +22,7 @@ struct NotificationDeliveryStatusView: View {
                 )
 
                 deliveryRow(
-                    title: "Device registration",
+                    title: "APNs token",
                     detail: viewModel.registrationDetail,
                     badge: StatusBadgeView(
                         label: viewModel.registrationLabel,
@@ -31,12 +32,22 @@ struct NotificationDeliveryStatusView: View {
                 )
 
                 deliveryRow(
-                    title: "Preferences",
-                    detail: "Saved on this device. Backend enforcement comes later.",
+                    title: "API sync",
+                    detail: viewModel.apiRegistrationDetail,
                     badge: StatusBadgeView(
-                        label: "Local",
-                        systemImage: "checkmark.circle",
-                        tone: .success
+                        label: viewModel.apiRegistrationLabel,
+                        systemImage: viewModel.apiRegistrationSystemImage,
+                        tone: productSafeAPITone
+                    )
+                )
+
+                deliveryRow(
+                    title: "Preferences",
+                    detail: preferencesViewModel.syncDetail,
+                    badge: StatusBadgeView(
+                        label: preferencesViewModel.syncLabel,
+                        systemImage: preferencesViewModel.syncSystemImage,
+                        tone: preferencesViewModel.syncTone
                     )
                 )
             }
@@ -44,6 +55,10 @@ struct NotificationDeliveryStatusView: View {
         .task {
             await viewModel.refreshStatus()
         }
+    }
+
+    private var productSafeAPITone: StatusBadgeTone {
+        viewModel.apiRegistrationTone == .critical ? .warning : viewModel.apiRegistrationTone
     }
 
     private func deliveryRow<Badge: View>(
@@ -71,7 +86,12 @@ struct NotificationDeliveryStatusView: View {
 
 #Preview {
     NotificationDeliveryStatusView(
-        viewModel: PushRegistrationViewModel(service: PreviewDeliveryNotificationService())
+        viewModel: PushRegistrationViewModel(service: PreviewDeliveryNotificationService()),
+        preferencesViewModel: NotificationPreferencesViewModel(
+            service: NotificationPreferencesService(
+                userDefaults: UserDefaults(suiteName: "DeliveryStatusPreview") ?? .standard
+            )
+        )
     )
         .padding()
         .background(AppColors.pageBackground)

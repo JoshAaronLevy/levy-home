@@ -163,3 +163,9 @@ final class APIClient {
         return url
     }
 }
+
+protocol DeviceRegistrationServicing {
+    func registerDevice(_ request: RegisterDeviceRequest) async throws -> RegisterDeviceResponse
+}
+
+extension APIClient: DeviceRegistrationServicing {}

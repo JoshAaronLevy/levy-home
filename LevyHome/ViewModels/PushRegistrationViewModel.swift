@@ -12,14 +12,33 @@ final class PushRegistrationViewModel: ObservableObject {
     @Published private(set) var registrationTone: StatusBadgeTone = .neutral
     @Published private(set) var registrationSystemImage = "clock"
 
+    @Published private(set) var apiRegistrationLabel = "Not synced"
+    @Published private(set) var apiRegistrationDetail = "API device registration waits for a native APNs token."
+    @Published private(set) var apiRegistrationTone: StatusBadgeTone = .neutral
+    @Published private(set) var apiRegistrationSystemImage = "arrow.triangle.2.circlepath"
+
     @Published private(set) var developerStatusMessage: String?
     @Published private(set) var deviceToken: String?
     @Published private(set) var isRegistering = false
 
     private let service: NotificationServicing
+    private let deviceRegistrationService: DeviceRegistrationServicing?
+    private let apnsEnvironment: APNsEnvironment
+    private let appVersion: String?
+    private let deviceName: String?
 
-    init(service: NotificationServicing) {
+    init(
+        service: NotificationServicing,
+        deviceRegistrationService: DeviceRegistrationServicing? = nil,
+        apnsEnvironment: APNsEnvironment = .sandbox,
+        appVersion: String? = nil,
+        deviceName: String? = nil
+    ) {
         self.service = service
+        self.deviceRegistrationService = deviceRegistrationService
+        self.apnsEnvironment = apnsEnvironment
+        self.appVersion = appVersion
+        self.deviceName = deviceName
     }
 
     func refreshStatus() async {
@@ -41,7 +60,10 @@ final class PushRegistrationViewModel: ObservableObject {
             isRegistering = false
         }
 
-        apply(await service.requestAuthorizationAndRegister(), preserveDeveloperMessage: false)
+        let snapshot = await service.requestAuthorizationAndRegister()
+        apply(snapshot, preserveDeveloperMessage: false)
+
+        await syncDeviceWithAPIIfPossible(snapshot)
     }
 
     private func apply(
@@ -105,6 +127,7 @@ final class PushRegistrationViewModel: ObservableObject {
             registrationDetail = "Native APNs tokens are only available on a physical iPhone."
             registrationTone = .neutral
             registrationSystemImage = "iphone.slash"
+            applyAPISyncSkipped("Backend sync waits for a physical-device APNs token.")
             return
         }
 
@@ -113,6 +136,7 @@ final class PushRegistrationViewModel: ObservableObject {
             registrationDetail = "This device has a native APNs token. Backend sync comes next."
             registrationTone = .success
             registrationSystemImage = "checkmark.circle"
+            applyAPISyncPending()
             return
         }
 
@@ -121,6 +145,7 @@ final class PushRegistrationViewModel: ObservableObject {
             registrationDetail = "This device could not finish native push registration."
             registrationTone = .critical
             registrationSystemImage = "exclamationmark.triangle"
+            applyAPISyncSkipped("Backend sync waits for native push registration to recover.")
             return
         }
 
@@ -129,6 +154,7 @@ final class PushRegistrationViewModel: ObservableObject {
             registrationDetail = "Turn notifications on in iOS Settings before registering this device."
             registrationTone = .warning
             registrationSystemImage = "bell.slash"
+            applyAPISyncSkipped("Backend sync waits for notification permission.")
             return
         }
 
@@ -136,5 +162,71 @@ final class PushRegistrationViewModel: ObservableObject {
         registrationDetail = "Open Developer Tools to request notification permission and APNs registration."
         registrationTone = .neutral
         registrationSystemImage = "iphone"
+        applyAPISyncPending()
+    }
+
+    private func syncDeviceWithAPIIfPossible(_ snapshot: PushRegistrationSnapshot) async {
+        guard snapshot.availability == .available else {
+            applyAPISyncSkipped("Backend sync waits for a physical-device APNs token.")
+            return
+        }
+
+        guard let token = snapshot.deviceToken, !token.isEmpty else {
+            applyAPISyncSkipped("Backend sync waits for native push registration.")
+            return
+        }
+
+        guard let deviceRegistrationService else {
+            applyAPISyncSkipped("API device registration is not configured yet.")
+            return
+        }
+
+        applyAPISyncInProgress()
+
+        do {
+            let response = try await deviceRegistrationService.registerDevice(
+                RegisterDeviceRequest(
+                    token: token,
+                    platform: .iOS,
+                    provider: .apns,
+                    environment: apnsEnvironment,
+                    appVersion: appVersion,
+                    deviceName: deviceName
+                )
+            )
+
+            apiRegistrationLabel = "Synced"
+            apiRegistrationDetail = "This device is registered with the Levy Home API."
+            apiRegistrationTone = .success
+            apiRegistrationSystemImage = "checkmark.circle"
+            developerStatusMessage = "API device registration succeeded. Registered devices: \(response.registeredDeviceCount)."
+        } catch {
+            apiRegistrationLabel = "Failed"
+            apiRegistrationDetail = "The API could not sync this device. Notifications may not arrive yet."
+            apiRegistrationTone = .warning
+            apiRegistrationSystemImage = "exclamationmark.triangle"
+            developerStatusMessage = "API device registration failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func applyAPISyncPending() {
+        apiRegistrationLabel = "Not synced"
+        apiRegistrationDetail = "API device registration has not run yet."
+        apiRegistrationTone = .neutral
+        apiRegistrationSystemImage = "arrow.triangle.2.circlepath"
+    }
+
+    private func applyAPISyncInProgress() {
+        apiRegistrationLabel = "Syncing"
+        apiRegistrationDetail = "Registering this APNs device token with the Levy Home API."
+        apiRegistrationTone = .accent
+        apiRegistrationSystemImage = "arrow.triangle.2.circlepath"
+    }
+
+    private func applyAPISyncSkipped(_ detail: String) {
+        apiRegistrationLabel = "Skipped"
+        apiRegistrationDetail = detail
+        apiRegistrationTone = .neutral
+        apiRegistrationSystemImage = "forward"
     }
 }

@@ -9,8 +9,12 @@ struct PreferencesView: View {
                 service: appEnvironment.notificationPreferencesService
             ),
             pushRegistrationViewModel: PushRegistrationViewModel(
-                service: appEnvironment.notificationService
-            )
+                service: appEnvironment.notificationService,
+                deviceRegistrationService: appEnvironment.apiClient,
+                apnsEnvironment: appEnvironment.config.apiAPNsEnvironment,
+                appVersion: appEnvironment.config.appVersion
+            ),
+            apnsEnvironment: appEnvironment.config.apiAPNsEnvironment
         )
     }
 }
@@ -18,19 +22,25 @@ struct PreferencesView: View {
 private struct PreferencesContentView: View {
     @StateObject private var viewModel: NotificationPreferencesViewModel
     @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
+    private let apnsEnvironment: APNsEnvironment
 
     init(
         viewModel: NotificationPreferencesViewModel,
-        pushRegistrationViewModel: PushRegistrationViewModel
+        pushRegistrationViewModel: PushRegistrationViewModel,
+        apnsEnvironment: APNsEnvironment = .sandbox
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         _pushRegistrationViewModel = StateObject(wrappedValue: pushRegistrationViewModel)
+        self.apnsEnvironment = apnsEnvironment
     }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
-                NotificationDeliveryStatusView(viewModel: pushRegistrationViewModel)
+                NotificationDeliveryStatusView(
+                    viewModel: pushRegistrationViewModel,
+                    preferencesViewModel: viewModel
+                )
 
                 NotificationPreferencesView(viewModel: viewModel)
             }
@@ -41,7 +51,11 @@ private struct PreferencesContentView: View {
         .toolbar {
             if BuildConfiguration.current.defaultDeveloperToolsEnabled {
                 NavigationLink {
-                    DebugView(pushRegistrationViewModel: pushRegistrationViewModel)
+                    DebugView(
+                        pushRegistrationViewModel: pushRegistrationViewModel,
+                        notificationPreferencesViewModel: viewModel,
+                        apnsEnvironment: apnsEnvironment
+                    )
                 } label: {
                     Image(systemName: "wrench.and.screwdriver")
                 }
@@ -61,7 +75,8 @@ private struct PreferencesContentView: View {
             ),
             pushRegistrationViewModel: PushRegistrationViewModel(
                 service: PreviewPreferencesNotificationService()
-            )
+            ),
+            apnsEnvironment: .sandbox
         )
     }
 }
