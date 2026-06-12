@@ -13,6 +13,11 @@
 		A10000000000000000000005 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* AppConfig.swift */; };
 		A10000000000000000000006 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* AppEnvironment.swift */; };
 		A10000000000000000000007 /* BuildConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* BuildConfiguration.swift */; };
+		A10000000000000000000008 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* RootTabView.swift */; };
+		A10000000000000000000009 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* HomeView.swift */; };
+		A1000000000000000000000A /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* ActivityView.swift */; };
+		A1000000000000000000000B /* NotificationHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* NotificationHubView.swift */; };
+		A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* NotificationPreferencesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +29,11 @@
 		A10000000000000000000014 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		A10000000000000000000016 /* BuildConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
+		A10000000000000000000017 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		A10000000000000000000018 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A10000000000000000000019 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
+		A1000000000000000000001A /* NotificationHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHubView.swift; sourceTree = "<group>"; };
+		A1000000000000000000001B /* NotificationPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -49,6 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000033 /* App */,
+				A10000000000000000000035 /* Views */,
 				A10000000000000000000034 /* Resources */,
 			);
 			path = LevyHome;
@@ -81,6 +92,50 @@
 				A10000000000000000000013 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000035 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000036 /* Root */,
+				A10000000000000000000037 /* Home */,
+				A10000000000000000000038 /* Activity */,
+				A10000000000000000000039 /* Notifications */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000036 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000017 /* RootTabView.swift */,
+			);
+			path = Root;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000037 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000018 /* HomeView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000038 /* Activity */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000019 /* ActivityView.swift */,
+			);
+			path = Activity;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000039 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000001A /* NotificationHubView.swift */,
+				A1000000000000000000001B /* NotificationPreferencesView.swift */,
+			);
+			path = Notifications;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -157,6 +212,11 @@
 				A10000000000000000000005 /* AppConfig.swift in Sources */,
 				A10000000000000000000006 /* AppEnvironment.swift in Sources */,
 				A10000000000000000000007 /* BuildConfiguration.swift in Sources */,
+				A10000000000000000000008 /* RootTabView.swift in Sources */,
+				A10000000000000000000009 /* HomeView.swift in Sources */,
+				A1000000000000000000000A /* ActivityView.swift in Sources */,
+				A1000000000000000000000B /* NotificationHubView.swift in Sources */,
+				A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

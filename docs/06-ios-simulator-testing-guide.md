@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 1 has created a native Xcode project at `LevyHome.xcodeproj` with a minimal app composition/config skeleton. The current app is still a minimal SwiftUI placeholder target that builds and launches in Simulator.
+Stage 2 has added the revised SwiftUI tab shell. The current app builds and launches in Simulator with Home, Activity, and Notifications tabs using placeholder content only.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 
@@ -151,7 +151,7 @@ xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulat
 
 ### 6. Launch The App
 
-The current Stage 0 bundle identifier is `com.levy.home`:
+The current bundle identifier is `com.levy.home`:
 
 ```sh
 xcrun simctl launch booted com.levy.home
@@ -159,7 +159,7 @@ xcrun simctl launch booted com.levy.home
 
 ## Run Tests
 
-Stage 0 does not include a test target yet. `xcodebuild test` will report that the scheme is not configured for the test action until a later stage adds `LevyHomeTests` or another test target.
+The project does not include a test target yet. `xcodebuild test` will report that the scheme is not configured for the test action until a later stage adds `LevyHomeTests` or another test target.
 
 After tests exist, use one of these commands.
 
