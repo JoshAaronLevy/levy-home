@@ -2,3 +2,6 @@
 build/
 DerivedData/
 *.xcuserdata/
+node_modules/
+apps/api/dist/
+apps/api/.env

@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 9 has added a fourth Preferences tab with product-safe delivery status and locally persisted garage notification preferences. Notifications is now focused on notification history. The current app still builds and launches in Simulator with the static Home command center from Stage 4 and the live Activity timeline from Stage 8, and model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
+Stage 10 has added the backend Home status/action facade in `apps/api`. The current iOS app still builds and launches in Simulator with the static Home command center from Stage 4, the live Activity timeline from Stage 8, and the Preferences tab from Stage 9. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 

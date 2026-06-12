@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, static Home command center, typed models/API client, live Activity timeline plumbing, and local notification preference UI. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, static Home command center, typed models/API client, live Activity timeline plumbing, local notification preference UI, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 45% by staged roadmap count, or roughly 35-40% by remaining risk. The biggest remaining work is backend status/action facade implementation, live Home wiring, quick-action execution, APNs registration, backend APNs sending, physical-device verification, and TestFlight readiness.
+Estimated completion percentage: approximately 50% by staged roadmap count, or roughly 40-45% by remaining risk. The biggest remaining work is live Home wiring, quick-action execution, APNs registration, backend APNs sending, physical-device verification, and TestFlight readiness.
 
 Work already completed:
 
@@ -20,6 +20,7 @@ Work already completed:
 - Activity is wired through `ActivityViewModel` for live event data and tested states.
 - Preferences now contains product-safe delivery status plus a clean notification category list; Garage notification toggles live on a pushed detail screen and persist locally.
 - Notifications is now focused on notification history only.
+- Stage 10 backend facade exists in `apps/api`, with mock/live Home Assistant modes, `/api/home/overview`, curated quick-action routes, and event timeline endpoints.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -32,7 +33,6 @@ Work partially completed:
 
 Work unfinished:
 
-- Backend Home Assistant status/action facade.
 - Backend notification preferences and preference enforcement.
 - Live Home overview integration.
 - Live quick-action execution.
@@ -70,9 +70,9 @@ Remaining product gaps:
 
 | Capability | Architecture support | Missing pieces |
 | --- | --- | --- |
-| Garage status | Yes | `GarageStatus`, `HomeOverview`, `HomeStatusService`, `HomeOverviewViewModel`, `GarageStatusCard`, and backend `/api/home/overview` facade are planned but not implemented. |
-| Light status | Yes | `LightSummary`, `LightSummaryCard`, `HomeStatusService`, and backend overview/facade support are planned but not implemented. |
-| Quick actions | Yes | `QuickAction`, `QuickActionResult`, `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, and backend action endpoints are planned but not implemented. |
+| Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` are still planned for Stage 11. |
+| Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring is still planned for Stage 11. |
+| Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, and live action execution are still planned for Stage 12. |
 | Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, and Preferences UI are implemented; later backend sync/enforcement is still planned. |
 | Event timeline | Yes | `ActivityView`, `ActivityViewModel`, event models, `APIClient.fetchRecentEvents`, event cards, empty/error/refresh states are implemented. |
 | APNs migration | Yes | `NotificationService`, `AppDelegate`, provider-aware device registration, APNs backend migration, physical-device test stages are planned but not implemented. |
@@ -122,9 +122,9 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 10: the backend Home status and action facade in `levy-home`, keeping Home Assistant credentials server-side and supporting only curated status/action endpoints.
+Implement Stage 11: live Home overview integration in the SwiftUI app using the Stage 10 backend facade.
 
-Stop condition for the next step: the API exposes a narrow Home overview/status endpoint and selected quick-action endpoints without accepting arbitrary Home Assistant service/entity payloads from the app.
+Stop condition for the next step: Home loads overview data from the API, supports retry/refresh, and handles unknown or partial status gracefully.
 
 ## Documentation Updates Made
 

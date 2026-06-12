@@ -1,0 +1,156 @@
+import type { AppConfig } from './config.js';
+import type {
+  HomeOverview,
+  LevyHomeEvent,
+  LightSummary,
+  LightState,
+  QuickAction,
+  QuickActionId,
+  QuickActionResult,
+} from './contracts.js';
+import type { HomeAssistantFacade } from './homeAssistantClient.js';
+import { HTTPError } from './httpError.js';
+
+const importantSeverities = new Set(['warning', 'critical']);
+
+export class HomeService {
+  constructor(
+    private readonly config: AppConfig,
+    private readonly homeAssistant: HomeAssistantFacade,
+    private readonly getRecentEvents: () => LevyHomeEvent[],
+  ) {}
+
+  async getOverview(): Promise<HomeOverview> {
+    const [garageStatus, lightSummaryInputs] = await Promise.all([
+      this.homeAssistant.getGarageStatus(),
+      this.homeAssistant.getLightSummaryInputs(),
+    ]);
+
+    const lightSummary = summarizeLights(lightSummaryInputs.allLights, lightSummaryInputs.groups);
+
+    return {
+      garageStatus,
+      lightSummary,
+      recentImportantEvent: this.findRecentImportantEvent(),
+      generatedAt: new Date().toISOString(),
+      isPartial: false,
+    };
+  }
+
+  listQuickActions(): QuickAction[] {
+    const lightGroupTarget =
+      this.config.homeAssistant.lightGroups.length === 1
+        ? this.config.homeAssistant.lightGroups[0]?.name
+        : 'Curated light groups';
+
+    return [
+      {
+        id: 'close_garage',
+        title: 'Close Garage',
+        subtitle: 'Close the main garage door.',
+        isEnabled: true,
+        requiresConfirmation: true,
+        targetName: 'Main garage',
+      },
+      {
+        id: 'turn_off_all_lights',
+        title: 'Turn Off All Lights',
+        subtitle: 'Turn off the configured all-lights group.',
+        isEnabled: true,
+        requiresConfirmation: false,
+        targetName: 'All lights',
+      },
+      {
+        id: 'turn_off_light_group',
+        title: 'Turn Off Light Group',
+        subtitle: 'Turn off one configured light group.',
+        isEnabled: this.config.homeAssistant.lightGroups.length > 0,
+        requiresConfirmation: false,
+        targetName: lightGroupTarget,
+      },
+    ];
+  }
+
+  async performAction(actionId: QuickActionId, groupId?: string): Promise<QuickActionResult> {
+    switch (actionId) {
+    case 'close_garage':
+      await this.homeAssistant.closeGarage();
+      return this.result(actionId, 'Garage close requested.');
+    case 'turn_off_all_lights':
+      await this.homeAssistant.turnOffAllLights();
+      return this.result(actionId, 'All configured lights were turned off.');
+    case 'turn_off_light_group':
+      if (!groupId) {
+        throw new HTTPError(400, 'groupId is required for turn_off_light_group.', 'group_id_required');
+      }
+
+      await this.homeAssistant.turnOffLightGroup(groupId);
+      return this.result(actionId, 'The selected light group was turned off.');
+    }
+  }
+
+  private async result(actionId: QuickActionId, message: string): Promise<QuickActionResult> {
+    return {
+      actionId,
+      status: 'success',
+      message,
+      refreshedHomeOverview: await this.getOverview(),
+    };
+  }
+
+  private findRecentImportantEvent(): LevyHomeEvent | null {
+    return (
+      this.getRecentEvents().find((event) => importantSeverities.has(event.display.severity) || event.category === 'garage') ??
+      null
+    );
+  }
+}
+
+function summarizeLights(allLights: LightSummary['groups'][number], groups: LightSummary['groups']): LightSummary {
+  if (groups.length === 0) {
+    return {
+      state: allLights.state,
+      lightsOnCount: allLights.lightsOnCount,
+      totalLightCount: allLights.totalLightCount,
+      groups,
+    };
+  }
+
+  const totalLightCount = sumDefined(groups.map((group) => group.totalLightCount)) ?? allLights.totalLightCount;
+  const lightsOnCount = sumDefined(groups.map((group) => group.lightsOnCount)) ?? allLights.lightsOnCount;
+
+  return {
+    state: summarizeLightState(groups.map((group) => group.state), allLights.state),
+    lightsOnCount,
+    totalLightCount,
+    groups,
+  };
+}
+
+function summarizeLightState(groupStates: LightState[], fallback: LightState): LightState {
+  if (groupStates.length === 0) {
+    return fallback;
+  }
+
+  if (groupStates.every((state) => state === 'off')) {
+    return 'off';
+  }
+
+  if (groupStates.every((state) => state === 'on')) {
+    return 'on';
+  }
+
+  if (groupStates.some((state) => state === 'on')) {
+    return 'partially_on';
+  }
+
+  return fallback;
+}
+
+function sumDefined(values: Array<number | undefined>): number | undefined {
+  if (values.some((value) => value === undefined)) {
+    return undefined;
+  }
+
+  return values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+}
