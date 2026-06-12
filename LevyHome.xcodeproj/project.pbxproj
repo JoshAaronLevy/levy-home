@@ -10,6 +10,9 @@
 		A10000000000000000000001 /* LevyHomeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010 /* LevyHomeApp.swift */; };
 		A10000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* Assets.xcassets */; };
 		A10000000000000000000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000005 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* AppConfig.swift */; };
+		A10000000000000000000006 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* AppEnvironment.swift */; };
+		A10000000000000000000007 /* BuildConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* BuildConfiguration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +21,9 @@
 		A10000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000013 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A10000000000000000000014 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		A10000000000000000000015 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		A10000000000000000000016 /* BuildConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,6 +66,9 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000010 /* LevyHomeApp.swift */,
+				A10000000000000000000014 /* AppConfig.swift */,
+				A10000000000000000000015 /* AppEnvironment.swift */,
+				A10000000000000000000016 /* BuildConfiguration.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -145,6 +154,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* LevyHomeApp.swift in Sources */,
+				A10000000000000000000005 /* AppConfig.swift in Sources */,
+				A10000000000000000000006 /* AppEnvironment.swift in Sources */,
+				A10000000000000000000007 /* BuildConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -281,6 +293,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LEVY_HOME_API_BASE_URL = "http://localhost:4000";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levy.home;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -308,6 +321,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LEVY_HOME_API_BASE_URL = "http://localhost:4000";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levy.home;
 				PRODUCT_NAME = "$(TARGET_NAME)";

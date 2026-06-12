@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 0 has created a native Xcode project at `LevyHome.xcodeproj`. The current app is a minimal SwiftUI placeholder target that builds and launches in Simulator.
+Stage 1 has created a native Xcode project at `LevyHome.xcodeproj` with a minimal app composition/config skeleton. The current app is still a minimal SwiftUI placeholder target that builds and launches in Simulator.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 
