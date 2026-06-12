@@ -8,7 +8,7 @@ It builds on `docs/01-migration-discovery.md` and does not repeat the full disco
 
 The architecture intentionally separates four workstreams:
 
-1. Product UI/client parity work: rebuild Home as the primary command center, keep Activity/Events, add a lightweight Notifications hub for delivery status and preferences, and move Debug out of primary navigation.
+1. Product UI/client parity work: rebuild Home as the primary command center, keep Activity/Events, add a lightweight Notifications history tab, add a Preferences tab for delivery status and notification preferences, and move Debug out of primary navigation.
 2. Lightweight control/status work: support selected Home Assistant status and actions through the Levy Home API facade.
 3. Native APNs registration work: replace Expo mobile push-token registration with native iOS notification permission and APNs device-token registration.
 4. Backend push-provider migration work: update the API push provider from Expo push tokens to APNs-capable delivery.
@@ -34,7 +34,7 @@ SwiftUI app
 
 | Layer | Responsibilities | Explicitly not responsible for |
 | --- | --- | --- |
-| SwiftUI views | Render Home command center, Activity, Notifications hub, and build-gated Developer Tools; route tab selection; show loading/error/empty/action states | Networking details, APNs credentials, Home Assistant webhook secrets, arbitrary device management |
+| SwiftUI views | Render Home command center, Activity, Notifications history, Preferences, and build-gated Developer Tools; route tab selection; show loading/error/empty/action states | Networking details, APNs credentials, Home Assistant webhook secrets, arbitrary device management |
 | View models | Own screen state, call services, expose display-ready values | Global state frameworks, backend business rules |
 | Services | API calls, status loading, selected quick actions, notification preferences, notification registration, configuration lookup, non-sensitive settings | UI layout, arbitrary Home Assistant service calls from the client |
 | Models | Decode API responses and represent event, status, action, and preference values | Server-side validation of Home Assistant webhook payloads |
@@ -44,7 +44,7 @@ SwiftUI app
 
 | Workstream | Goal | Can ship before APNs backend migration? | Notes |
 | --- | --- | --- | --- |
-| UI/client parity | Native app renders revised Home, Activity, Notifications hub, and developer diagnostics against static/sample data or existing event APIs | Yes | Home can start with placeholders/sample status; Activity can use existing `/api/events`; Notifications can start with local preferences and delivery-status summary; Debug is build-gated. |
+| UI/client parity | Native app renders revised Home, Activity, Notifications history, Preferences, and developer diagnostics against static/sample data or existing event APIs | Yes | Home can start with placeholders/sample status; Activity can use existing `/api/events`; Notifications can start as notification history; Preferences can start with local preferences and delivery-status summary; Debug is build-gated. |
 | Status/actions facade | API exposes curated garage/light status and selected quick actions | Yes | Control/status work is separate from APNs push delivery but required for revised MVP. |
 | Native APNs registration | App requests notification permission and obtains APNs device token | Partially | App can obtain token once entitlements/provisioning are ready, but end-to-end pushes require backend support. |
 | Backend push-provider migration | API accepts APNs-aware registrations and sends APNs pushes | No, for push parity | This is the core risk and should be tested as its own vertical slice. |
@@ -86,7 +86,9 @@ levy-home/
 |   |   |   |-- EventCardView.swift
 |   |   |   `-- SeverityBadgeView.swift
 |   |   |-- Notifications/
-|   |   |   |-- NotificationHubView.swift
+|   |   |   `-- NotificationHubView.swift
+|   |   |-- Preferences/
+|   |   |   |-- PreferencesView.swift
 |   |   |   |-- NotificationDeliveryStatusView.swift
 |   |   |   `-- NotificationPreferencesView.swift
 |   |   |-- DeveloperTools/
@@ -171,7 +173,8 @@ LevyHomeApp
 `-- RootTabView
     |-- HomeView
     |-- ActivityView
-    `-- NotificationHubView
+    |-- NotificationHubView
+    `-- PreferencesView
 
 Developer Tools, build-gated
 `-- DebugView
@@ -218,29 +221,47 @@ Responsibilities:
 - Preserve current empty and error states.
 - Display newest-first events from the API.
 
-### Notifications Hub Tab
+### Notifications Tab
 
 ```text
 NotificationHubView
-|-- NotificationDeliveryStatusView
-|   |-- Permission status
-|   `-- Push registration/API sync summary
-|-- NotificationPreferencesView
-|   |-- Garage opened
-|   |-- Garage closed
-|   |-- Garage left open
-|   |-- Garage after-hours
-|   `-- Garage still open at 10 PM
-`-- Future categories placeholder, hidden or disabled until implemented
+`-- Notification history
+    |-- Empty state, before push history exists
+    `-- Future delivered notification rows
 ```
 
 Responsibilities:
 
-- Act as the family-facing notification hub, not a developer diagnostics screen.
+- Show notification history only.
+- Avoid editing preferences from the Notifications tab.
+- Stay product-facing and avoid raw token/provider/debug details.
+- Remain lightweight until backend notification records exist.
+
+### Preferences Tab
+
+```text
+PreferencesView
+|-- NotificationDeliveryStatusView
+|   |-- Permission status
+|   `-- Push registration/API sync summary
+`-- NotificationPreferencesView
+    |-- Garage row
+    `-- GarageNotificationPreferencesView
+        |-- Garage opened
+        |-- Garage closed
+        |-- Garage left open
+        |-- Garage after-hours
+        `-- Garage still open at 10 PM
+```
+
+Responsibilities:
+
 - Show whether notifications are allowed/registered in plain language without exposing raw APNs tokens.
-- Let the family configure selected notification categories.
+- List configurable categories cleanly before showing detailed toggles.
+- Let the family configure selected notification categories on a category detail screen.
 - Persist simple preferences locally at first.
 - Prepare for backend per-device preference sync when push delivery enforcement is implemented.
+- Hide or defer future doorbell/person/motion categories until implemented.
 - Avoid exposing Home Assistant implementation details.
 
 ### Developer Tools
@@ -268,10 +289,10 @@ Responsibilities:
 
 | Decision | Recommendation |
 | --- | --- |
-| Navigation | Use a single SwiftUI `TabView` with three primary tabs: Home, Activity, Notifications. Keep Debug as build-gated Developer Tools. |
-| Alternatives considered | Preserve four primary tabs, add `NavigationStack` per tab, coordinator objects, custom router, deep-link-first routing. |
-| Tradeoffs | `TabView` remains simple and product-friendly. Moving Debug out of primary navigation requires a build-gated access path, but prevents developer tooling from defining the family experience. |
-| Why this fits | The revised product needs Home as the command center, Activity as supporting history, and Notifications as the lightweight hub for notification status and preferences. It still does not need nested navigation or coordinator infrastructure. |
+| Navigation | Use a single SwiftUI `TabView` with four primary tabs: Home, Activity, Notifications, Preferences. Keep Debug as build-gated Developer Tools. |
+| Alternatives considered | Keep preferences inside Notifications, preserve the old Debug tab, add `NavigationStack` per tab, coordinator objects, custom router, deep-link-first routing. |
+| Tradeoffs | `TabView` remains simple and product-friendly. A fourth tab gives preferences a clear home, while moving Debug out of primary navigation still requires a build-gated access path. |
+| Why this fits | The revised product needs Home as the command center, Activity as supporting event history, Notifications as notification history, and Preferences as the place to manage delivery status and notification choices. It still does not need nested navigation or coordinator infrastructure. |
 
 ## 4. State Management Approach
 
@@ -294,7 +315,7 @@ Use SwiftUI-native observable state:
 | Home overview/loading/error | `HomeOverviewViewModel` | Home tab lifetime, refreshable |
 | Quick action progress/result | `QuickActionsViewModel` | Home tab lifetime |
 | Event list/loading/error | `ActivityViewModel` | Activity tab lifetime |
-| Notification preferences | `NotificationPreferencesViewModel` | Notifications hub lifetime, persisted |
+| Notification preferences | `NotificationPreferencesViewModel` | Preferences tab lifetime, persisted |
 | Debug sending/last response | `DebugViewModel` | Developer Tools lifetime |
 | Debug API override, if added | `SettingsStore` backed by `UserDefaults` | Persistent, non-sensitive |
 
@@ -320,7 +341,7 @@ This is not a dependency injection framework. It is a simple composition root so
 
 | Decision | Recommendation |
 | --- | --- |
-| State management | Use SwiftUI Observation or `ObservableObject`; app-level push registration state plus screen-level Home, Activity, Notifications, and Developer Tools view models. |
+| State management | Use SwiftUI Observation or `ObservableObject`; app-level push registration state plus screen-level Home, Activity, Notifications, Preferences, and Developer Tools view models. |
 | Alternatives considered | TCA, Redux-style store, Flux, global singleton state, coordinators with state ownership. |
 | Tradeoffs | Simple observable objects are less rigid than reducer-based systems, but much faster to understand and maintain for a four-screen app. They rely on discipline to avoid view model sprawl. |
 | Why this fits | Even with Home overview, quick actions, and preferences, state remains screen-scoped and small. Native SwiftUI state primitives cover this cleanly. |
@@ -649,7 +670,7 @@ Recommended behavior:
 | Home overview/status | Provide garage status, light summary, and recent important event summary | Prefer a composed `/api/home/overview` endpoint or similarly narrow facade. |
 | Quick actions | Execute close garage, turn off all lights, and curated light-group actions | Use explicit endpoints or curated action IDs. Do not accept arbitrary HA service/entity payloads from the app. |
 | Notification preferences | Store garage notification preferences locally first and later per device on backend | Backend enforcement is required before preferences reliably affect APNs delivery. |
-| Notification hub status | Surface permission, registration, and preference sync state in product-safe language | Reuse push registration state and preference sync results; do not expose raw token details outside Developer Tools. |
+| Preferences delivery status | Surface permission, registration, and preference sync state in product-safe language | Reuse push registration state and preference sync results; do not expose raw token details outside Developer Tools. |
 
 ### Contracts That Need Push Migration Work
 
@@ -695,7 +716,7 @@ Optional fields can wait. The important additions are `provider` and `environmen
 | --- | --- |
 | Unit tests | Models, API client, Home/Activity/Preferences view models, quick-action state, date formatting, push state transitions. |
 | Integration/manual tests | Local API event fetching, Home overview loading, selected quick actions, APNs registration on physical device, debug test push. |
-| UI smoke tests | App launches, primary tabs exist, Home status/action states render, Activity empty/list/error states render, Notifications hub status renders, preferences persist. |
+| UI smoke tests | App launches, primary tabs exist, Home status/action states render, Activity empty/list/error states render, Notifications history renders, Preferences status renders, preferences persist. |
 | Backend contract tests | Home overview/action facade behavior, future APNs route behavior, provider-neutral push result shape. |
 
 ### Client Tests
@@ -758,10 +779,10 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Use a single `TabView` with Home, Activity, and Notifications; keep Debug in build-gated Developer Tools. |
+| Recommendation | Use a single `TabView` with Home, Activity, Notifications, and Preferences; keep Debug in build-gated Developer Tools. |
 | Alternatives considered | Preserve old Home/Events/Settings/Debug tabs, custom router, coordinator, nested navigation stacks from day one. |
 | Tradeoffs | `TabView` does not solve future deep links alone, but current app has no nested navigation. Moving Debug out of primary tabs requires build-gated access. |
-| Why this fits this app | The revised product needs Home, Activity, and Notifications as the primary family surfaces. Debug is a developer tool. |
+| Why this fits this app | The revised product needs Home, Activity, Notifications, and Preferences as the primary family surfaces. Debug is a developer tool. |
 
 ### ADR 004: Use Screen-Level View Models
 
@@ -884,10 +905,10 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 
 | Field | Decision |
 | --- | --- |
-| Recommendation | Add a Notifications hub for product-safe notification delivery status and garage notification preferences with local persistence first and backend per-device sync later. |
-| Alternatives considered | Hide preferences in Settings, defer all preferences, require user accounts first. |
-| Tradeoffs | Local preferences alone do not enforce server push filtering. Showing delivery status in the hub duplicates a small amount of push status from Developer Tools, but keeps the family-facing surface understandable without exposing tokens. Designing the UI/model now lets backend sync arrive later without reshaping the product. |
-| Why this fits this app | Notification status and preferences are core to a family notification app and should not be buried in developer settings. |
+| Recommendation | Add a Preferences tab for product-safe notification delivery status and garage notification preferences with local persistence first and backend per-device sync later. Keep Notifications focused on notification history. |
+| Alternatives considered | Keep preferences inside Notifications, hide preferences in Settings, defer all preferences, require user accounts first. |
+| Tradeoffs | Local preferences alone do not enforce server push filtering. A fourth tab adds one more primary destination, but keeps notification history and editing concerns separate without exposing tokens. Designing the UI/model now lets backend sync arrive later without reshaping the product. |
+| Why this fits this app | Notification status and preferences are core to a family notification app and should be easy to find, but notification history should remain a clean read-only surface. |
 
 ## Implementation Cut Lines
 
@@ -896,12 +917,12 @@ APNs cannot be fully proven on simulator. Manual acceptance should include:
 Deliver:
 
 - Project baseline.
-- `TabView` with Home, Activity, Notifications hub.
+- `TabView` with Home, Activity, Notifications, Preferences.
 - Build-gated Developer Tools for Debug.
 - Home command center with garage status, light summary, recent important event summary, and selected quick-action UI.
 - Models and `APIClient`.
 - Activity timeline from existing API.
-- Notifications hub with product-safe delivery status and notification preferences with local persistence.
+- Notifications history placeholder and Preferences tab with product-safe delivery status plus notification preferences with local persistence.
 - Push status shown as native-pending/unavailable.
 
 Do not block this on APNs or backend push migration.

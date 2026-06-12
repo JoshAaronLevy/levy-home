@@ -2,7 +2,7 @@
 
 This roadmap converts `docs/01-migration-discovery.md`, `docs/02-swiftui-architecture.md`, and `docs/04-product-scope-update.md` into small, sequential, independently committable implementation stages for the native SwiftUI rebuild.
 
-The first goal is still to make the app runnable as early as possible. The revised product goal is broader than the original notification timeline: Levy Home is now a family-focused home notification and lightweight control application. Client product parity, the Notifications hub, native APNs registration, backend APNs push-provider migration, and production readiness remain separate cut lines.
+The first goal is still to make the app runnable as early as possible. The revised product goal is broader than the original notification timeline: Levy Home is now a family-focused home notification and lightweight control application. Client product parity, notification history, Preferences, native APNs registration, backend APNs push-provider migration, and production readiness remain separate cut lines.
 
 ## Roadmap Guardrails
 
@@ -21,7 +21,7 @@ The first goal is still to make the app runnable as early as possible. The revis
 
 | Cut line | Completed by | Meaning |
 | --- | --- | --- |
-| 1. Client parity without native push | Stage 12 | Native app is runnable with revised primary navigation, Home command center, Activity timeline, Notifications hub with local preferences, selected quick actions, and Debug moved out of primary navigation. Native APNs is not required. |
+| 1. Client parity without native push | Stage 12 | Native app is runnable with revised primary navigation, Home command center, Activity timeline, Notifications history, Preferences with local notification preferences, selected quick actions, and Debug moved out of primary navigation. Native APNs is not required. |
 | 2. Native APNs registration | Stage 13 | Native app requests notification permission and obtains APNs token on a physical device, independent of backend push delivery. |
 | 3. Backend APNs push-provider migration | Stage 16 | Backend accepts provider-aware APNs registrations and sends APNs pushes. |
 | 4. End-to-end physical-device garage notification verification | Stage 17 | Garage events produce APNs notifications, Activity entries, and Home overview updates on a physical iPhone. |
@@ -72,14 +72,14 @@ The first goal is still to make the app runnable as early as possible. The revis
 
 | Field | Details |
 | --- | --- |
-| Objective | Create the revised product navigation with Home, Activity, and Notifications hub primary tabs; keep Developer Tools out of primary navigation. This is the first simulator-only milestone. |
-| User-visible outcome | The app launches on simulator with a native tab bar and three family-facing tabs. |
+| Objective | Create the revised product navigation with Home, Activity, Notifications, and Preferences primary tabs; keep Developer Tools out of primary navigation. This is the first simulator-only milestone. |
+| User-visible outcome | The app launches on simulator with a native tab bar and four family-facing tabs. |
 | Workstream | Client UI |
-| Files/directories likely created | `LevyHome/Views/Root/RootTabView.swift`; `LevyHome/Views/Home/HomeView.swift`; `LevyHome/Views/Activity/ActivityView.swift`; `LevyHome/Views/Notifications/NotificationHubView.swift`; `LevyHome/Views/Notifications/NotificationPreferencesView.swift`; `LevyHome/Views/DeveloperTools/DebugView.swift` if build-gated early. |
+| Files/directories likely created | `LevyHome/Views/Root/RootTabView.swift`; `LevyHome/Views/Home/HomeView.swift`; `LevyHome/Views/Activity/ActivityView.swift`; `LevyHome/Views/Notifications/NotificationHubView.swift`; `LevyHome/Views/Preferences/PreferencesView.swift`; `LevyHome/Views/Preferences/NotificationPreferencesView.swift`; `LevyHome/Views/DeveloperTools/DebugView.swift` if build-gated early. |
 | Files/directories likely modified | `LevyHome/App/LevyHomeApp.swift`; `LevyHome/App/BuildConfiguration.swift`. |
 | Dependencies | Stage 1. |
 | Risks | Accidentally preserving Debug as a normal product tab; adding navigation beyond the flat tab shell. |
-| Acceptance criteria | Simulator shows Home, Activity, and Notifications tabs; Debug is absent from primary tabs; each tab has simple placeholder text; Notifications placeholder is framed as a hub for delivery status and preferences; no networking or push permission prompt occurs. |
+| Acceptance criteria | Simulator shows Home, Activity, Notifications, and Preferences tabs; Debug is absent from primary tabs; each tab has simple placeholder text; Notifications is framed as history; Preferences is framed as delivery status and preference editing; no networking or push permission prompt occurs. |
 | Manual test plan | Run on simulator; tap each primary tab; confirm no crash and no native permission prompts. Stop and verify the first runnable revised tabbed app before visual parity. |
 | Suggested commit message | `Add revised SwiftUI tab shell` |
 | Recommended GPT-5.5 reasoning level | Medium |
@@ -121,7 +121,7 @@ The first goal is still to make the app runnable as early as possible. The revis
 | Field | Details |
 | --- | --- |
 | Objective | Add Swift models for the revised MVP: events, garage status, light summary, Home overview, quick actions, action results, and notification preferences. |
-| User-visible outcome | No UI change; the app gains typed models for Home, Activity, and Notifications. |
+| User-visible outcome | No UI change; the app gains typed models for Home, Activity, Notifications, and Preferences. |
 | Workstream | Client infrastructure |
 | Files/directories likely created | `LevyHome/Models/EventType.swift`; `LevyHome/Models/EventSeverity.swift`; `LevyHome/Models/LevyHomeEvent.swift`; `LevyHome/Models/HomeOverview.swift`; `LevyHome/Models/GarageStatus.swift`; `LevyHome/Models/LightSummary.swift`; `LevyHome/Models/QuickAction.swift`; `LevyHome/Models/NotificationPreference.swift`; `LevyHomeTests/ModelDecodingTests.swift`. |
 | Files/directories likely modified | Test target configuration if needed. |
@@ -180,20 +180,20 @@ The first goal is still to make the app runnable as early as possible. The revis
 | Suggested commit message | `Wire Activity timeline to API` |
 | Recommended GPT-5.5 reasoning level | High |
 
-## Stage 9: Notifications Hub UI With Local Preferences
+## Stage 9: Preferences UI With Local Notification Preferences
 
 | Field | Details |
 | --- | --- |
-| Objective | Implement the Notifications hub with product-safe delivery status and garage notification preferences using local `UserDefaults` persistence. Backend enforcement can come later. |
-| User-visible outcome | User can see whether notifications are allowed/registered in plain language, toggle garage notification categories, and see preferences persist across app launches. |
+| Objective | Implement the Preferences tab with product-safe delivery status and garage notification preferences using local `UserDefaults` persistence. Keep Notifications focused on notification history. Backend enforcement can come later. |
+| User-visible outcome | User can open Preferences to see whether notifications are allowed/registered in plain language, choose a notification category such as Garage, toggle that category's notification settings on a detail screen, and see preferences persist across app launches; Notifications remains a simple history surface. |
 | Workstream | Client UI, Client infrastructure |
-| Files/directories likely created | `LevyHome/Views/Notifications/NotificationDeliveryStatusView.swift`; `LevyHome/Services/NotificationPreferencesService.swift`; `LevyHome/ViewModels/NotificationPreferencesViewModel.swift`; `LevyHomeTests/NotificationPreferencesViewModelTests.swift`. |
-| Files/directories likely modified | `LevyHome/Views/Notifications/NotificationHubView.swift`; `LevyHome/Views/Notifications/NotificationPreferencesView.swift`; `LevyHome/App/AppEnvironment.swift`; `LevyHome/Services/SettingsStore.swift` if used. |
+| Files/directories likely created | `LevyHome/Views/Preferences/PreferencesView.swift`; `LevyHome/Views/Preferences/NotificationDeliveryStatusView.swift`; `LevyHome/Services/NotificationPreferencesService.swift`; `LevyHome/ViewModels/NotificationPreferencesViewModel.swift`; `LevyHomeTests/NotificationPreferencesViewModelTests.swift`. |
+| Files/directories likely modified | `LevyHome/Views/Root/RootTabView.swift`; `LevyHome/Views/Notifications/NotificationHubView.swift`; `LevyHome/Views/Preferences/NotificationPreferencesView.swift`; `LevyHome/App/AppEnvironment.swift`; `LevyHome/Services/SettingsStore.swift` if used. |
 | Dependencies | Stage 5 and Stage 3. |
-| Risks | Implying preferences already affect server push delivery; exposing developer-only token details in a family-facing hub; burying future categories in UI too early. |
-| Acceptance criteria | Hub shows product-safe notification delivery status without raw tokens; five garage preferences are shown; toggles persist locally; UI clearly remains simple; future doorbell/person/motion categories are hidden or disabled until implemented; no backend sync required yet. |
-| Manual test plan | Run on simulator; inspect notification status copy; toggle each preference; quit/relaunch app; verify values persist; confirm no APNs permission prompt occurs. Stop and verify hub/preference architecture before backend enforcement. |
-| Suggested commit message | `Add notifications hub UI` |
+| Risks | Implying preferences already affect server push delivery; exposing developer-only token details in family-facing Preferences; burying future categories in UI too early. |
+| Acceptance criteria | Preferences shows product-safe notification delivery status without raw tokens; Preferences root lists Garage as a clean category row instead of showing all toggles; tapping Garage opens a detail screen with five garage preferences; toggles persist locally; Notifications is history-only; UI clearly remains simple; future doorbell/person/motion categories are hidden or disabled until implemented; no backend sync required yet. |
+| Manual test plan | Run on simulator; inspect Preferences notification status copy; tap Garage; toggle each preference; quit/relaunch app; verify values persist; confirm Notifications shows history only and no APNs permission prompt occurs. Stop and verify preference architecture before backend enforcement. |
+| Suggested commit message | `Add notification preferences UI` |
 | Recommended GPT-5.5 reasoning level | Medium |
 
 ## Stage 10: Backend Home Status And Action Facade
@@ -249,13 +249,13 @@ The first goal is still to make the app runnable as early as possible. The revis
 | Field | Details |
 | --- | --- |
 | Objective | Add native notification permission flow, APNs registration, app delegate callback handling, and app-level push registration state without requiring backend APNs sending. This is the physical-device-only APNs milestone. |
-| User-visible outcome | On a physical iPhone, Developer Tools can request notification permission and show an APNs token or error, while the Notifications hub shows product-safe registration status. Simulator shows a clear unavailable state. |
+| User-visible outcome | On a physical iPhone, Developer Tools can request notification permission and show an APNs token or error, while Preferences shows product-safe registration status. Simulator shows a clear unavailable state. |
 | Workstream | Native APNs |
 | Files/directories likely created | `LevyHome/Services/NotificationService.swift`; `LevyHome/App/AppDelegate.swift`; `LevyHome/ViewModels/PushRegistrationViewModel.swift`; `LevyHomeTests/PushRegistrationViewModelTests.swift`. |
-| Files/directories likely modified | `LevyHome/App/LevyHomeApp.swift`; `LevyHome/App/AppEnvironment.swift`; `LevyHome/Views/Notifications/NotificationDeliveryStatusView.swift`; `LevyHome/Views/DeveloperTools/DebugView.swift`; entitlement/project capability files. |
+| Files/directories likely modified | `LevyHome/App/LevyHomeApp.swift`; `LevyHome/App/AppEnvironment.swift`; `LevyHome/Views/Preferences/NotificationDeliveryStatusView.swift`; `LevyHome/Views/DeveloperTools/DebugView.swift`; entitlement/project capability files. |
 | Dependencies | Stage 12; Apple developer team/provisioning access; physical iPhone; Push Notifications capability. |
 | Risks | Provisioning/signing failures; simulator behavior differs from device; permission denial edge cases; APNs token callback timing. |
-| Acceptance criteria | Physical device receives APNs token; Developer Tools shows registered/native-token status; Notifications hub shows product-safe allowed/registered status; permission denied and APNs failure states are visible; simulator does not crash and reports unavailable. |
+| Acceptance criteria | Physical device receives APNs token; Developer Tools shows registered/native-token status; Preferences shows product-safe allowed/registered status; permission denied and APNs failure states are visible; simulator does not crash and reports unavailable. |
 | Manual test plan | Build to physical iPhone; launch app; open Developer Tools; tap Register; accept permission; verify APNs token appears; delete/reinstall and test permission-denied path if practical; run simulator and verify unavailable state. Stop and verify Cut Line 2: native APNs registration. |
 | Suggested commit message | `Add native APNs registration` |
 | Recommended GPT-5.5 reasoning level | Max |
@@ -265,13 +265,13 @@ The first goal is still to make the app runnable as early as possible. The revis
 | Field | Details |
 | --- | --- |
 | Objective | Prepare the native client for provider-aware device registration and future backend notification preference sync once backend contracts exist. |
-| User-visible outcome | Developer Tools can show whether APNs token registration with the API is pending, skipped, successful, or failed; Notifications hub can show product-safe sync status and later sync preferences without UI redesign. |
+| User-visible outcome | Developer Tools can show whether APNs token registration with the API is pending, skipped, successful, or failed; Preferences can show product-safe sync status and later sync preferences without UI redesign. |
 | Workstream | Client infrastructure, Native APNs |
 | Files/directories likely created | None expected unless adding `DeviceRegistrationState.swift`. |
 | Files/directories likely modified | `LevyHome/Models/APIRequests.swift`; `LevyHome/Models/APIResponses.swift`; `LevyHome/Services/APIClient.swift`; `LevyHome/ViewModels/PushRegistrationViewModel.swift`; `LevyHome/Services/NotificationPreferencesService.swift`; related tests. |
 | Dependencies | Stage 13; agreed backend registration/preference request shape. |
 | Risks | Overloading current `pushToken` semantics; implying local preferences already control server push delivery; breaking client parity against existing API. |
-| Acceptance criteria | Client can build provider-aware APNs registration and preference sync requests; if backend is unavailable, Developer Tools reports technical API registration/sync failure while Notifications hub reports product-safe degraded status without losing local state; tests cover success/failure with stubbed API. |
+| Acceptance criteria | Client can build provider-aware APNs registration and preference sync requests; if backend is unavailable, Developer Tools reports technical API registration/sync failure while Preferences reports product-safe degraded status without losing local state; tests cover success/failure with stubbed API. |
 | Manual test plan | Run unit tests; on physical device, obtain APNs token; attempt API registration against current backend if configured; verify graceful failure or success. Stop and verify client APNs state is separate from server push delivery. |
 | Suggested commit message | `Prepare APNs registration and preference sync` |
 | Recommended GPT-5.5 reasoning level | High |
@@ -319,7 +319,7 @@ The first goal is still to make the app runnable as early as possible. The revis
 | Files/directories likely modified | Existing docs only if manual QA findings require clarifying steps; no app source changes unless a bug fix is split into its own commit. |
 | Dependencies | Stage 16; physical iPhone; local or deployed API; Home Assistant webhook secret for fake curl tests; safe configured HA entities/groups; dedupe cooldown awareness. |
 | Risks | APNs sandbox/production mismatch; dedupe causing false negatives; Home Assistant entity/timezone assumptions; unsafe garage action testing; physical-device network reachability. |
-| Acceptance criteria | Home overview loads; close garage confirmation/cancel path works; light-off actions work against safe curated groups; all five MVP garage event types can be sent; expected pushes arrive according to preferences; Activity shows newest-first entries; Notifications hub shows correct product-safe status; Debug/Developer Tools show correct environment and technical push status. |
+| Acceptance criteria | Home overview loads; close garage confirmation/cancel path works; light-off actions work against safe curated groups; all five MVP garage event types can be sent; expected pushes arrive according to preferences; Activity shows newest-first entries; Preferences shows correct product-safe status; Notifications remains history-focused; Debug/Developer Tools show correct environment and technical push status. |
 | Manual test plan | On physical iPhone, register APNs token; load Home; run safe quick actions; send `garage_opened`, `garage_closed`, `garage_left_open_10_min`, `garage_opened_after_hours`, and `garage_still_open_at_10pm` curl events; confirm push and Activity for each; toggle one preference and verify expected behavior if backend enforcement exists; repeat one event within cooldown and verify skip reason if applicable. Stop and verify Cut Line 4: end-to-end physical-device garage notification verification. |
 | Suggested commit message | `Verify garage notification and control flow` |
 | Recommended GPT-5.5 reasoning level | Max |

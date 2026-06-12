@@ -67,7 +67,7 @@ The existing architecture can stay simple. Do not introduce TCA, Redux, coordina
 | Home overview | `HomeOverviewViewModel`, status cards, recent important event summary, quick-action section. |
 | Status models | `GarageStatus`, `LightSummary`, `HomeOverview`, optional `ImportantEventSummary`. |
 | Quick actions | `QuickAction`, `QuickActionResult`, `QuickActionService`, confirmation/error UI. |
-| Notification hub | Product-safe notification delivery status plus `NotificationPreference`, `NotificationPreferencesViewModel`, `NotificationPreferencesService`, and simple persistence. |
+| Preferences | Product-safe notification delivery status plus `NotificationPreference`, `NotificationPreferencesViewModel`, `NotificationPreferencesService`, and simple persistence. |
 | API client | Methods for home overview/status, quick actions, and notification preferences. |
 | Backend facade | Selected endpoints that proxy Home Assistant status/actions without exposing HA tokens to the app. |
 | Developer tools | Debug view stays build-gated and out of primary navigation. |
@@ -91,7 +91,7 @@ The roadmap should shift from event-timeline parity first to command-center pari
 Recommended changes:
 
 1. Keep the early runnable simulator milestone.
-2. Build the revised tab shell with Home, Activity/Events, Notifications hub, and developer Debug hidden or build-gated.
+2. Build the revised tab shell with Home, Activity/Events, Notifications history, Preferences, and developer Debug hidden or build-gated.
 3. Build static Home command-center UI before live API integration.
 4. Add models/API client support for home overview, selected quick actions, and preferences.
 5. Add backend status/action facade stages before APNs backend push migration.
@@ -124,8 +124,9 @@ Do not add these to the implementation roadmap except as future work:
 | Close garage quick action | User can close the garage door through a selected Home Assistant action. |
 | Turn off all lights quick action | User can turn off all lights through a selected Home Assistant action. |
 | Turn off selected light groups | User can turn off curated groups, not arbitrary devices. |
+| Notification history | User can see recent delivered notification history once native push delivery and backend notification records exist. |
 | Notification preferences | User can enable/disable garage notification categories: opened, closed, left open, after-hours, still open at 10 PM. |
-| Notification hub | User can see plain-language notification permission/registration/sync status without raw token details. |
+| Preferences status | User can see plain-language notification permission/registration/sync status without raw token details. |
 | Events/activity timeline | Continues to show recent events and pull-to-refresh. |
 | Native APNs | Still required for notification delivery, separated from UI/control parity. |
 | Developer diagnostics | Available as a build-gated developer tool, not a primary tab in production. |
@@ -160,6 +161,10 @@ Activity
 - Event severity and push metadata
 
 Notifications
+- Notification history
+- Delivered notification status/history once backend records exist
+
+Preferences
 - Product-safe delivery status
 - Garage notification preferences
 - Future doorbell/person/motion categories disabled or hidden until implemented
@@ -177,8 +182,9 @@ Developer Tools
 | --- | --- | --- |
 | 1 | Home | Command center for status and action. |
 | 2 | Activity | Event history and troubleshooting context. |
-| 3 | Notifications | Family-facing notification hub for delivery status and preferences. |
-| 4 | Developer Tools | Diagnostics for development and TestFlight only. |
+| 3 | Notifications | Family-facing notification history. |
+| 4 | Preferences | Family-facing notification delivery status and preference editing. |
+| 5 | Developer Tools | Diagnostics for development and TestFlight only. |
 
 ## 6. Revised Navigation Structure
 
@@ -190,10 +196,11 @@ Use `TabView`, but revise the primary tabs:
 RootTabView
 |-- Home
 |-- Activity
-`-- Notifications
+|-- Notifications
+`-- Preferences
 ```
 
-Optional product settings can be reached from a toolbar/menu later. Debug should not be a normal production tab.
+Other product settings can be reached from a toolbar/menu later if needed. Debug should not be a normal production tab.
 
 ### Debug Access
 
@@ -242,14 +249,16 @@ The Home screen should feel like a polished family command center.
 - Quick actions should be few, obvious, and confirmation-aware for garage closure.
 - Status should answer practical questions, not expose Home Assistant internals.
 
-## 8. Revised Notification Preferences Experience
+## 8. Revised Notification History And Preferences Experience
 
-The Notifications surface should be a lightweight notification hub rather than only a settings form. It should answer two family-facing questions:
+Notifications and Preferences should be separate family-facing surfaces. Notifications is the read-only notification history. Preferences answers two editable/configuration questions:
 
 - Are notifications currently allowed and registered?
 - Which garage notification categories does this device/family member want?
 
-Developer details such as raw APNs tokens, provider names, debug push responses, and server errors belong in Developer Tools, not in the family-facing hub.
+Developer details such as raw APNs tokens, provider names, debug push responses, and server errors belong in Developer Tools, not in the family-facing Preferences tab.
+
+The Preferences root should list configurable notification categories, devices, or groups cleanly. It should not show every toggle at the top level. Tapping a row such as Garage should open a detail screen where that category's notification settings can be edited, matching the shape of iOS Settings notification preferences.
 
 ### Initial Preferences
 
@@ -275,7 +284,12 @@ Recommended initial architecture:
 
 ```text
 NotificationHubView
+-> notification history list/placeholder
+
+PreferencesView
 -> NotificationDeliveryStatusView
+-> notification category list
+   -> GarageNotificationPreferencesView
 -> NotificationPreferencesViewModel
 -> NotificationPreferencesService
 -> local UserDefaults and/or backend device preference endpoint
@@ -356,16 +370,16 @@ Recommendation: prefer explicit curated endpoints or curated action IDs. Do not 
 | Garage close action could be triggered accidentally | Require confirmation, show current state, disable duplicate taps, refresh status. |
 | Backend may expose overly broad HA control | Use curated action IDs/endpoints only; never accept arbitrary HA service payloads from app. |
 | Preferences UI may not match server push behavior initially | Clearly separate local UI slice from backend preference enforcement stage. |
-| App drifts toward dashboard | Keep IA limited: Home command center, Activity, Notifications. No arbitrary device list. |
+| App drifts toward dashboard | Keep IA limited: Home command center, Activity, Notifications, and Preferences. No arbitrary device list. |
 | Debug remains visible in product | Build-gate Developer Tools and remove Debug from normal tabs. |
 
 ## Recommended Change Summary
 
 1. Preserve the simple SwiftUI architecture.
-2. Revise primary navigation to Home, Activity, Notifications.
+2. Revise primary navigation to Home, Activity, Notifications, and Preferences.
 3. Move Debug to build-gated Developer Tools.
 4. Add Home overview/status/action models and services.
-5. Add the Notifications hub with product-safe delivery status, preference models, and view model now, with backend sync later.
+5. Add a Preferences tab with product-safe delivery status, preference models, and view model now, with backend sync later; keep Notifications focused on history.
 6. Add backend Home Assistant facade stages for selected status/actions.
 7. Keep APNs registration and backend push-provider migration separate.
 8. Update the roadmap so the revised MVP is achieved before TestFlight readiness.

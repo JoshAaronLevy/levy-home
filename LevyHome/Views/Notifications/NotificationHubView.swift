@@ -3,23 +3,17 @@ import SwiftUI
 struct NotificationHubView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.large) {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
                 InfoPanel(
-                    title: "Notifications",
-                    subtitle: "Delivery status and garage notification preferences",
+                    title: "Notification History",
+                    subtitle: "Recent delivered notifications will appear here.",
                     systemImage: "bell"
                 ) {
-                    VStack(alignment: .leading, spacing: AppSpacing.medium) {
-                        Text("Notification delivery status will appear here without raw token details.")
-                            .font(.body)
-                            .foregroundStyle(AppColors.mutedText)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        StatusBadgeView(label: "Permission pending", systemImage: "bell.badge", tone: .warning)
-                    }
+                    Text("Notification history will be connected after native push delivery and backend notification records are in place.")
+                        .font(.body)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                NotificationPreferencesView()
             }
             .padding(AppSpacing.screen)
         }

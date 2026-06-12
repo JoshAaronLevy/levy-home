@@ -23,6 +23,13 @@ struct RootTabView: View {
             .tabItem {
                 Label("Notifications", systemImage: "bell")
             }
+
+            NavigationStack {
+                PreferencesView()
+            }
+            .tabItem {
+                Label("Preferences", systemImage: "gearshape")
+            }
         }
     }
 }

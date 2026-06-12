@@ -44,6 +44,16 @@
 		A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* APIModelDecodingTests.swift */; };
 		A70000000000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* APIClient.swift */; };
 		A70000000000000000000002 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* APIClientTests.swift */; };
+		A80000000000000000000001 /* ActivityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* ActivityViewModel.swift */; };
+		A80000000000000000000002 /* DateFormattingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* DateFormattingService.swift */; };
+		A80000000000000000000003 /* SeverityBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SeverityBadgeView.swift */; };
+		A80000000000000000000004 /* EventCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000014 /* EventCardView.swift */; };
+		A80000000000000000000005 /* ActivityViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000015 /* ActivityViewModelTests.swift */; };
+		A90000000000000000000001 /* NotificationPreferencesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000011 /* NotificationPreferencesService.swift */; };
+		A90000000000000000000002 /* NotificationPreferencesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000012 /* NotificationPreferencesViewModel.swift */; };
+		A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000013 /* NotificationDeliveryStatusView.swift */; };
+		A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */; };
+		AA0000000000000000000001 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* PreferencesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +107,16 @@
 		A60000000000000000000014 /* APIModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelDecodingTests.swift; sourceTree = "<group>"; };
 		A70000000000000000000011 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		A70000000000000000000012 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		A80000000000000000000011 /* ActivityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewModel.swift; sourceTree = "<group>"; };
+		A80000000000000000000012 /* DateFormattingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormattingService.swift; sourceTree = "<group>"; };
+		A80000000000000000000013 /* SeverityBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeverityBadgeView.swift; sourceTree = "<group>"; };
+		A80000000000000000000014 /* EventCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCardView.swift; sourceTree = "<group>"; };
+		A80000000000000000000015 /* ActivityViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewModelTests.swift; sourceTree = "<group>"; };
+		A90000000000000000000011 /* NotificationPreferencesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesService.swift; sourceTree = "<group>"; };
+		A90000000000000000000012 /* NotificationPreferencesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesViewModel.swift; sourceTree = "<group>"; };
+		A90000000000000000000013 /* NotificationDeliveryStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDeliveryStatusView.swift; sourceTree = "<group>"; };
+		A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesViewModelTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000011 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,6 +153,7 @@
 				A20000000000000000000021 /* Theme */,
 				A40000000000000000000021 /* Models */,
 				A70000000000000000000021 /* Services */,
+				A80000000000000000000021 /* ViewModels */,
 				A10000000000000000000035 /* Views */,
 				A30000000000000000000021 /* PreviewSupport */,
 				A10000000000000000000034 /* Resources */,
@@ -177,6 +198,7 @@
 				A10000000000000000000037 /* Home */,
 				A10000000000000000000038 /* Activity */,
 				A10000000000000000000039 /* Notifications */,
+				AA0000000000000000000021 /* Preferences */,
 				A20000000000000000000022 /* Shared */,
 			);
 			path = Views;
@@ -206,6 +228,8 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000019 /* ActivityView.swift */,
+				A80000000000000000000014 /* EventCardView.swift */,
+				A80000000000000000000013 /* SeverityBadgeView.swift */,
 			);
 			path = Activity;
 			sourceTree = "<group>";
@@ -214,9 +238,18 @@
 			isa = PBXGroup;
 			children = (
 				A1000000000000000000001A /* NotificationHubView.swift */,
-				A1000000000000000000001B /* NotificationPreferencesView.swift */,
 			);
 			path = Notifications;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000021 /* Preferences */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000011 /* PreferencesView.swift */,
+				A90000000000000000000013 /* NotificationDeliveryStatusView.swift */,
+				A1000000000000000000001B /* NotificationPreferencesView.swift */,
+			);
+			path = Preferences;
 			sourceTree = "<group>";
 		};
 		A20000000000000000000021 /* Theme */ = {
@@ -269,8 +302,19 @@
 			isa = PBXGroup;
 			children = (
 				A70000000000000000000011 /* APIClient.swift */,
+				A80000000000000000000012 /* DateFormattingService.swift */,
+				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		A80000000000000000000021 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A80000000000000000000011 /* ActivityViewModel.swift */,
+				A90000000000000000000012 /* NotificationPreferencesViewModel.swift */,
+			);
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		A50000000000000000000004 /* LevyHomeTests */ = {
@@ -279,6 +323,8 @@
 				A50000000000000000000002 /* ModelDecodingTests.swift */,
 				A60000000000000000000014 /* APIModelDecodingTests.swift */,
 				A70000000000000000000012 /* APIClientTests.swift */,
+				A80000000000000000000015 /* ActivityViewModelTests.swift */,
+				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
 			);
 			path = LevyHomeTests;
 			sourceTree = "<group>";
@@ -415,6 +461,14 @@
 				A60000000000000000000002 /* APIRequests.swift in Sources */,
 				A60000000000000000000003 /* APIResponses.swift in Sources */,
 				A70000000000000000000001 /* APIClient.swift in Sources */,
+				A80000000000000000000001 /* ActivityViewModel.swift in Sources */,
+				A80000000000000000000002 /* DateFormattingService.swift in Sources */,
+				A80000000000000000000003 /* SeverityBadgeView.swift in Sources */,
+				A80000000000000000000004 /* EventCardView.swift in Sources */,
+				A90000000000000000000001 /* NotificationPreferencesService.swift in Sources */,
+				A90000000000000000000002 /* NotificationPreferencesViewModel.swift in Sources */,
+				A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */,
+				AA0000000000000000000001 /* PreferencesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -425,6 +479,8 @@
 				A50000000000000000000003 /* ModelDecodingTests.swift in Sources */,
 				A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */,
 				A70000000000000000000002 /* APIClientTests.swift in Sources */,
+				A80000000000000000000005 /* ActivityViewModelTests.swift in Sources */,
+				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
