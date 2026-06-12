@@ -106,6 +106,8 @@ final class APIClientTests: XCTestCase {
         _ = try await client.fetchHealth()
 
         XCTAssertEqual(capturedRequests.count, 8)
+        let quickActions = try await client.fetchQuickActions()
+        XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["downstairs"])
         XCTAssertEqual(capturedRequests[2].jsonBody["actionId"] as? String, "turn_off_light_group")
         XCTAssertEqual(capturedRequests[2].jsonBody["groupId"] as? String, "downstairs")
         XCTAssertEqual(capturedRequests[4].jsonBody["preferences"] as? [[String: Any]] != nil, true)
@@ -262,6 +264,12 @@ final class APIClientTests: XCTestCase {
               "isEnabled": true,
               "requiresConfirmation": true,
               "targetName": "Main garage"
+            }
+          ],
+          "lightGroups": [
+            {
+              "id": "downstairs",
+              "name": "Downstairs lights"
             }
           ]
         }

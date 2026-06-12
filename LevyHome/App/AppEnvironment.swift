@@ -4,18 +4,21 @@ struct AppEnvironment {
     let config: AppConfig
     let apiClient: APIClient
     let homeStatusService: HomeStatusServicing
+    let quickActionService: QuickActionServicing
     let notificationPreferencesService: NotificationPreferencesService
 
     init(
         config: AppConfig,
         apiClient: APIClient? = nil,
         homeStatusService: HomeStatusServicing? = nil,
+        quickActionService: QuickActionServicing? = nil,
         notificationPreferencesService: NotificationPreferencesService? = nil
     ) {
         self.config = config
         let resolvedAPIClient = apiClient ?? APIClient(baseURL: config.apiBaseURL)
         self.apiClient = resolvedAPIClient
         self.homeStatusService = homeStatusService ?? HomeStatusService(apiClient: resolvedAPIClient)
+        self.quickActionService = quickActionService ?? QuickActionService(apiClient: resolvedAPIClient)
         self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService()
     }
 

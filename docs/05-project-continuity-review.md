@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, typed models/API client, live Activity timeline plumbing, local notification preference UI, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, and the Stage 10 backend Home status/action facade. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 55% by staged roadmap count, or roughly 45-50% by remaining risk. The biggest remaining work is quick-action execution, APNs registration, backend APNs sending, physical-device verification, and TestFlight readiness.
+Estimated completion percentage: approximately 60% by staged roadmap count, or roughly 50-55% by remaining risk. The biggest remaining work is APNs registration, backend APNs sending, physical-device verification, preference sync/enforcement, and TestFlight readiness.
 
 Work already completed:
 
@@ -21,6 +21,7 @@ Work already completed:
 - Preferences now contains product-safe delivery status plus a clean notification category list; Garage notification toggles live on a pushed detail screen and persist locally.
 - Notifications is now focused on notification history only.
 - Stage 10 backend facade exists in `apps/api`, with mock/live Home Assistant modes, `/api/home/overview`, curated quick-action routes, and event timeline endpoints.
+- Home quick actions are wired through the backend facade with confirmation, progress, success/failure messaging, duplicate-tap protection, and post-action overview refresh.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -34,7 +35,6 @@ Work partially completed:
 Work unfinished:
 
 - Backend notification preferences and preference enforcement.
-- Live quick-action execution.
 - Provider-aware APNs registration and APNs sender.
 - End-to-end physical-device verification.
 - TestFlight/release readiness.
@@ -71,7 +71,7 @@ Remaining product gaps:
 | --- | --- | --- |
 | Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` now load and display live Home overview data. |
 | Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring now displays live/partial/unknown light status. |
-| Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, and live action execution are still planned for Stage 12. |
+| Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, duplicate-tap protection, and post-action overview refresh are implemented. |
 | Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, and Preferences UI are implemented; later backend sync/enforcement is still planned. |
 | Event timeline | Yes | `ActivityView`, `ActivityViewModel`, event models, `APIClient.fetchRecentEvents`, event cards, empty/error/refresh states are implemented. |
 | APNs migration | Yes | `NotificationService`, `AppDelegate`, provider-aware device registration, APNs backend migration, physical-device test stages are planned but not implemented. |
@@ -121,9 +121,9 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 12: live quick-action integration in the SwiftUI app using the Stage 10 backend facade.
+Implement Stage 13: native APNs permission and token registration milestone.
 
-Stop condition for the next step: Home executes only curated backend quick actions, protects against duplicate taps, refreshes overview after actions, and shows confirmation/progress/error states.
+Stop condition for the next step: a physical iPhone can request notification permission, obtain an APNs token, and show product-safe registration state without requiring backend push delivery yet.
 
 ## Documentation Updates Made
 
@@ -134,5 +134,6 @@ Stop condition for the next step: Home executes only curated backend quick actio
 - Updated docs to clarify that `levy-home-app` is deprecated, unvalidated conceptual reference, and that new implementation belongs in `levy-home`.
 - Updated docs again after Stage 9 to split Notifications history from the Preferences tab.
 - Updated docs after Stage 11 to mark live Home overview integration complete and move the recommended next action to Stage 12.
+- Updated docs after Stage 12 to mark live Home quick-action integration complete and move the recommended next action to Stage 13.
 
-Application code has since been implemented through the Stage 11 live Home overview milestone.
+Application code has since been implemented through the Stage 12 live Home quick-action milestone.

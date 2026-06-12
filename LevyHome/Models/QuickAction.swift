@@ -52,6 +52,11 @@ struct QuickAction: Codable, Equatable, Identifiable {
     let targetName: String?
 }
 
+struct LightActionGroup: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+}
+
 struct QuickActionResult: Codable, Equatable {
     enum Status: Codable, Equatable, Hashable {
         case success

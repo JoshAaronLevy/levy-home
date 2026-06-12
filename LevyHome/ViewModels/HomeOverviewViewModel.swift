@@ -128,10 +128,6 @@ final class HomeOverviewViewModel: ObservableObject {
         )
     }
 
-    var quickActions: [QuickActionDisplayData] {
-        PreviewData.quickActions
-    }
-
     convenience init(service: HomeStatusServicing) {
         self.init {
             try await service.fetchOverview()
@@ -156,6 +152,12 @@ final class HomeOverviewViewModel: ObservableObject {
 
     func refresh() async {
         await load(isRefresh: true)
+    }
+
+    func apply(overview: HomeOverview) {
+        self.overview = overview
+        errorMessage = nil
+        hasLoaded = true
     }
 
     private func load(isRefresh: Bool) async {

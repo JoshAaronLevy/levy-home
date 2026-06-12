@@ -26,19 +26,31 @@ enum PreviewData {
 
     static let quickActions = [
         QuickActionDisplayData(
+            id: QuickActionID.closeGarage.rawValue,
+            request: .closeGarage,
             title: "Close Garage",
-            subtitle: "Available after live status and action support are connected.",
-            systemImage: "door.garage.closed"
+            subtitle: "Close the main garage door.",
+            systemImage: "door.garage.closed",
+            isEnabled: true,
+            requiresConfirmation: true
         ),
         QuickActionDisplayData(
+            id: QuickActionID.turnOffAllLights.rawValue,
+            request: .turnOffAllLights,
             title: "Turn Off All Lights",
-            subtitle: "Will turn off curated whole-home lighting groups.",
-            systemImage: "lightbulb.slash"
+            subtitle: "Turn off configured whole-home lighting groups.",
+            systemImage: "lightbulb.slash",
+            isEnabled: true,
+            requiresConfirmation: false
         ),
         QuickActionDisplayData(
+            id: "\(QuickActionID.turnOffLightGroup.rawValue).downstairs",
+            request: .turnOffLightGroup(groupId: "downstairs"),
             title: "Turn Off Kitchen + Living Room",
-            subtitle: "Will target selected family room lighting groups.",
-            systemImage: "lightswitch.off"
+            subtitle: "Turn off this curated light group.",
+            systemImage: "lightswitch.off",
+            isEnabled: true,
+            requiresConfirmation: false
         )
     ]
 }

@@ -57,6 +57,9 @@
 		B10000000000000000000001 /* HomeStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* HomeStatusService.swift */; };
 		B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HomeOverviewViewModel.swift */; };
 		B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* HomeOverviewViewModelTests.swift */; };
+		B20000000000000000000001 /* QuickActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* QuickActionService.swift */; };
+		B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* QuickActionsViewModel.swift */; };
+		B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* QuickActionsViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -123,6 +126,9 @@
 		B10000000000000000000011 /* HomeStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatusService.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HomeOverviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* HomeOverviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModelTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000011 /* QuickActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionService.swift; sourceTree = "<group>"; };
+		B20000000000000000000012 /* QuickActionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModel.swift; sourceTree = "<group>"; };
+		B20000000000000000000013 /* QuickActionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -310,6 +316,7 @@
 				A70000000000000000000011 /* APIClient.swift */,
 				A80000000000000000000012 /* DateFormattingService.swift */,
 				B10000000000000000000011 /* HomeStatusService.swift */,
+				B20000000000000000000011 /* QuickActionService.swift */,
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 			);
 			path = Services;
@@ -320,6 +327,7 @@
 			children = (
 				A80000000000000000000011 /* ActivityViewModel.swift */,
 				B10000000000000000000012 /* HomeOverviewViewModel.swift */,
+				B20000000000000000000012 /* QuickActionsViewModel.swift */,
 				A90000000000000000000012 /* NotificationPreferencesViewModel.swift */,
 			);
 			path = ViewModels;
@@ -333,6 +341,7 @@
 				A70000000000000000000012 /* APIClientTests.swift */,
 				A80000000000000000000015 /* ActivityViewModelTests.swift */,
 				B10000000000000000000013 /* HomeOverviewViewModelTests.swift */,
+				B20000000000000000000013 /* QuickActionsViewModelTests.swift */,
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
 			);
 			path = LevyHomeTests;
@@ -476,6 +485,8 @@
 				A80000000000000000000004 /* EventCardView.swift in Sources */,
 				B10000000000000000000001 /* HomeStatusService.swift in Sources */,
 				B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */,
+				B20000000000000000000001 /* QuickActionService.swift in Sources */,
+				B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */,
 				A90000000000000000000001 /* NotificationPreferencesService.swift in Sources */,
 				A90000000000000000000002 /* NotificationPreferencesViewModel.swift in Sources */,
 				A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */,
@@ -492,6 +503,7 @@
 				A70000000000000000000002 /* APIClientTests.swift in Sources */,
 				A80000000000000000000005 /* ActivityViewModelTests.swift in Sources */,
 				B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */,
+				B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */,
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

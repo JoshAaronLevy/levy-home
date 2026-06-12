@@ -1,7 +1,8 @@
 import SwiftUI
 
-enum BannerTone {
+enum BannerTone: Equatable {
     case info
+    case success
     case warning
     case error
 
@@ -9,6 +10,8 @@ enum BannerTone {
         switch self {
         case .info:
             return "info.circle"
+        case .success:
+            return "checkmark.circle"
         case .warning:
             return "exclamationmark.triangle"
         case .error:
@@ -20,6 +23,8 @@ enum BannerTone {
         switch self {
         case .info:
             return AppColors.accent
+        case .success:
+            return AppColors.success
         case .warning:
             return AppColors.warning
         case .error:
@@ -31,6 +36,8 @@ enum BannerTone {
         switch self {
         case .info:
             return AppColors.accentSoft
+        case .success:
+            return AppColors.successSoft
         case .warning:
             return AppColors.warningSoft
         case .error:
