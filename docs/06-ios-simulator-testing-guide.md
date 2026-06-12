@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 3 has added the initial theme and shared UI primitives. The current app builds and launches in Simulator with Home, Activity, and Notifications tabs using styled placeholder content only.
+Stage 4 has added the static Home command center. The current app builds and launches in Simulator with sample Home status cards, a recent event summary, and disabled quick actions.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 

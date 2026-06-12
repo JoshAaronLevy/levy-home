@@ -24,6 +24,11 @@
 		A20000000000000000000004 /* ErrorBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* ErrorBannerView.swift */; };
 		A20000000000000000000005 /* PrimaryActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* PrimaryActionButton.swift */; };
 		A20000000000000000000006 /* StatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* StatusBadgeView.swift */; };
+		A30000000000000000000001 /* GarageStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* GarageStatusCard.swift */; };
+		A30000000000000000000002 /* LightSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* LightSummaryCard.swift */; };
+		A30000000000000000000003 /* RecentImportantEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* RecentImportantEventView.swift */; };
+		A30000000000000000000004 /* QuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* QuickActionsView.swift */; };
+		A30000000000000000000005 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PreviewData.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +51,11 @@
 		A20000000000000000000014 /* ErrorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBannerView.swift; sourceTree = "<group>"; };
 		A20000000000000000000015 /* PrimaryActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryActionButton.swift; sourceTree = "<group>"; };
 		A20000000000000000000016 /* StatusBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgeView.swift; sourceTree = "<group>"; };
+		A30000000000000000000011 /* GarageStatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageStatusCard.swift; sourceTree = "<group>"; };
+		A30000000000000000000012 /* LightSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightSummaryCard.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* RecentImportantEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentImportantEventView.swift; sourceTree = "<group>"; };
+		A30000000000000000000014 /* QuickActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsView.swift; sourceTree = "<group>"; };
+		A30000000000000000000015 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,6 +83,7 @@
 				A10000000000000000000033 /* App */,
 				A20000000000000000000021 /* Theme */,
 				A10000000000000000000035 /* Views */,
+				A30000000000000000000021 /* PreviewSupport */,
 				A10000000000000000000034 /* Resources */,
 			);
 			path = LevyHome;
@@ -131,6 +142,10 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000018 /* HomeView.swift */,
+				A30000000000000000000011 /* GarageStatusCard.swift */,
+				A30000000000000000000012 /* LightSummaryCard.swift */,
+				A30000000000000000000013 /* RecentImportantEventView.swift */,
+				A30000000000000000000014 /* QuickActionsView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -170,6 +185,14 @@
 				A20000000000000000000016 /* StatusBadgeView.swift */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000021 /* PreviewSupport */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000015 /* PreviewData.swift */,
+			);
+			path = PreviewSupport;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -257,6 +280,11 @@
 				A20000000000000000000004 /* ErrorBannerView.swift in Sources */,
 				A20000000000000000000005 /* PrimaryActionButton.swift in Sources */,
 				A20000000000000000000006 /* StatusBadgeView.swift in Sources */,
+				A30000000000000000000001 /* GarageStatusCard.swift in Sources */,
+				A30000000000000000000002 /* LightSummaryCard.swift in Sources */,
+				A30000000000000000000003 /* RecentImportantEventView.swift in Sources */,
+				A30000000000000000000004 /* QuickActionsView.swift in Sources */,
+				A30000000000000000000005 /* PreviewData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
