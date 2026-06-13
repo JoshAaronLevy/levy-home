@@ -3,7 +3,9 @@ import { afterEach, beforeEach, test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 
+import type { PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
+import type { APNsSendRequest, APNsSendResult } from './contracts.js';
 import { createApp } from './server.js';
 
 let server: Server | undefined;
@@ -12,6 +14,10 @@ let baseURL: string;
 const testConfig: AppConfig = {
   port: 0,
   haWebhookSecret: 'test-secret',
+  apns: {
+    bundleId: 'com.levy.home',
+    defaultEnvironment: 'sandbox',
+  },
   homeAssistant: {
     mode: 'mock',
     garageCoverEntityId: 'cover.test_garage',
@@ -23,6 +29,26 @@ const testConfig: AppConfig = {
     mockTotalLightCount: 12,
   },
 };
+
+class FakePushSender implements PushSender {
+  readonly requests: APNsSendRequest[] = [];
+
+  constructor(private readonly results: Partial<APNsSendResult>[] = []) {}
+
+  async send(request: APNsSendRequest): Promise<APNsSendResult> {
+    this.requests.push(request);
+    const result = this.results.shift();
+
+    return {
+      provider: 'apns',
+      deviceId: request.device.id,
+      success: true,
+      statusCode: 200,
+      isInvalidToken: false,
+      ...result,
+    };
+  }
+}
 
 beforeEach(async () => {
   const app = createApp({ config: testConfig });
@@ -217,6 +243,85 @@ test('notification preferences can be synced and fetched by device token or devi
   );
 });
 
+test('POST /api/debug/send-test-push sends APNs test pushes with provider-neutral counts', async () => {
+  const pushSender = new FakePushSender();
+
+  await withTestServer(pushSender, async () => {
+    await postJSON('/api/devices/register', {
+      token: 'sample-apns-token',
+      platform: 'ios',
+      provider: 'apns',
+      environment: 'sandbox',
+    });
+
+    const response = await postJSON('/api/debug/send-test-push', {
+      title: 'Kitchen test',
+      body: 'Testing Levy Home APNs.',
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(response.provider, 'apns');
+    assert.equal(response.registeredDeviceCount, 1);
+    assert.equal(response.eligibleDeviceCount, 1);
+    assert.equal(response.sentNotificationCount, 1);
+    assert.equal(response.sentTicketCount, 1);
+    assert.equal(response.failedNotificationCount, 0);
+    assert.equal(response.invalidTokenCount, 0);
+    assert.equal(pushSender.requests.length, 1);
+    assert.equal(pushSender.requests[0].title, 'Kitchen test');
+  });
+});
+
+test('garage event pushes honor per-device notification preferences', async () => {
+  const pushSender = new FakePushSender();
+
+  await withTestServer(pushSender, async () => {
+    await postJSON('/api/devices/register', {
+      token: 'sample-apns-token',
+      platform: 'ios',
+      provider: 'apns',
+      environment: 'sandbox',
+    });
+    await putJSON('/api/notification-preferences', {
+      deviceToken: 'sample-apns-token',
+      provider: 'apns',
+      environment: 'sandbox',
+      preferences: [{ category: 'garage_opened', isEnabled: false }],
+    });
+
+    const disabledEvent = await postJSON(
+      '/api/ha/events',
+      {
+        type: 'garage_opened',
+        category: 'garage',
+        severity: 'normal',
+        entityId: 'cover.test_garage',
+        source: 'home_assistant',
+      },
+      { Authorization: 'Bearer test-secret' },
+    );
+    const enabledEvent = await postJSON(
+      '/api/ha/events',
+      {
+        type: 'garage_closed',
+        category: 'garage',
+        severity: 'normal',
+        entityId: 'cover.test_garage',
+        source: 'home_assistant',
+      },
+      { Authorization: 'Bearer test-secret' },
+    );
+
+    assert.equal(disabledEvent.event.push.attempted, false);
+    assert.equal(disabledEvent.event.push.skipped, true);
+    assert.equal(disabledEvent.event.push.reason, 'All registered APNs devices have this notification disabled.');
+    assert.equal(enabledEvent.event.push.attempted, true);
+    assert.equal(enabledEvent.event.push.sentNotificationCount, 1);
+    assert.equal(pushSender.requests.length, 1);
+    assert.equal(pushSender.requests[0].title, 'Garage closed');
+  });
+});
+
 test('event webhook stores events and /api/events returns them', async () => {
   const created = await postJSON(
     '/api/ha/events',
@@ -236,10 +341,45 @@ test('event webhook stores events and /api/events returns them', async () => {
   assert.equal(events.events[0].type, 'garage_opened');
 });
 
+async function withTestServer(pushSender: PushSender, action: () => Promise<void>): Promise<void> {
+  await closeServer();
+  const app = createApp({ config: testConfig, pushSender });
+
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, () => {
+      resolve();
+    });
+  });
+
+  const address = server?.address() as AddressInfo;
+  baseURL = `http://127.0.0.1:${address.port}`;
+
+  await action();
+}
+
 async function getJSON(path: string): Promise<any> {
   const response = await fetch(`${baseURL}${path}`);
   assert.equal(response.ok, true);
   return response.json();
+}
+
+async function closeServer(): Promise<void> {
+  if (!server) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    server?.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+  server = undefined;
 }
 
 async function postJSON(

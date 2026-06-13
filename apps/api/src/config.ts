@@ -1,6 +1,7 @@
 import type { LightGroupStatus } from './contracts.js';
 
 export type HomeAssistantMode = 'mock' | 'live';
+export type APNsDefaultEnvironment = 'sandbox' | 'production';
 
 export type CuratedLightGroup = Pick<LightGroupStatus, 'id' | 'name'> & {
   entityId: string;
@@ -9,6 +10,14 @@ export type CuratedLightGroup = Pick<LightGroupStatus, 'id' | 'name'> & {
 export type AppConfig = {
   port: number;
   haWebhookSecret?: string;
+  apns: {
+    keyId?: string;
+    teamId?: string;
+    bundleId?: string;
+    privateKey?: string;
+    privateKeyPath?: string;
+    defaultEnvironment: APNsDefaultEnvironment;
+  };
   homeAssistant: {
     mode: HomeAssistantMode;
     baseURL?: string;
@@ -24,6 +33,14 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readNumber(env.PORT, 4000),
     haWebhookSecret: readOptionalString(env.LEVY_HOME_HA_WEBHOOK_SECRET),
+    apns: {
+      keyId: readOptionalString(env.APNS_KEY_ID),
+      teamId: readOptionalString(env.APNS_TEAM_ID),
+      bundleId: readOptionalString(env.APNS_BUNDLE_ID) ?? 'com.levy.home',
+      privateKey: readOptionalString(env.APNS_PRIVATE_KEY)?.replace(/\\n/g, '\n'),
+      privateKeyPath: readOptionalString(env.APNS_PRIVATE_KEY_PATH),
+      defaultEnvironment: readAPNsDefaultEnvironment(env.APNS_ENVIRONMENT),
+    },
     homeAssistant: {
       mode: readHomeAssistantMode(env.HOME_ASSISTANT_MODE),
       baseURL: readOptionalString(env.HOME_ASSISTANT_BASE_URL),
@@ -34,6 +51,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       mockTotalLightCount: readNumber(env.MOCK_TOTAL_LIGHT_COUNT, 12),
     },
   };
+}
+
+function readAPNsDefaultEnvironment(value: string | undefined): APNsDefaultEnvironment {
+  return value === 'production' ? 'production' : 'sandbox';
 }
 
 function readHomeAssistantMode(value: string | undefined): HomeAssistantMode {

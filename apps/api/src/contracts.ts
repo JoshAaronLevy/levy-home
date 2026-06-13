@@ -38,6 +38,8 @@ export type EventPushStatus = {
   skipped: boolean;
   reason?: string;
   ticketCount?: number;
+  sentNotificationCount?: number;
+  failedNotificationCount?: number;
   invalidTokenCount?: number;
 };
 
@@ -113,6 +115,40 @@ export type RegisteredDevice = {
   deviceName?: string;
   registeredAt: string;
   lastSeenAt: string;
+};
+
+export type TestPushPayload = {
+  title: string;
+  body: string;
+};
+
+export type APNsSendRequest = {
+  device: RegisteredDevice;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+};
+
+export type APNsSendResult = {
+  provider: 'apns';
+  deviceId: string;
+  success: boolean;
+  statusCode?: number;
+  apnsId?: string;
+  reason?: string;
+  isInvalidToken: boolean;
+};
+
+export type PushSendSummary = {
+  provider: 'apns';
+  registeredDeviceCount: number;
+  eligibleDeviceCount: number;
+  sentNotificationCount: number;
+  failedNotificationCount: number;
+  invalidTokenCount: number;
+  skippedDeviceCount: number;
+  configurationError?: string;
+  results: APNsSendResult[];
 };
 
 export type RegisterDeviceRequest = {

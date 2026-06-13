@@ -10,6 +10,7 @@ import type {
   PushProvider,
   QuickActionId,
   RegisterDeviceRequest,
+  TestPushPayload,
 } from './contracts.js';
 import {
   isLevyHomeEventType,
@@ -39,6 +40,22 @@ export type QuickActionBody = {
   actionId: QuickActionId;
   groupId?: string;
 };
+
+export function validateTestPushBody(input: unknown): TestPushPayload {
+  if (input === undefined || input === null) {
+    return defaultTestPushPayload();
+  }
+
+  if (!isPlainRecord(input)) {
+    throw new HTTPError(400, 'Expected a JSON object test-push payload.', 'invalid_test_push_payload');
+  }
+
+  const title = readOptionalStringOrThrow(input.title, 'title') ?? 'Levy Home test';
+  const body =
+    readOptionalStringOrThrow(input.body, 'body') ?? 'This is a test notification from Levy Home.';
+
+  return { title, body };
+}
 
 export function validateHomeAssistantEventPayload(input: unknown): ValidationResult<HomeAssistantEventPayload> {
   if (!isPlainRecord(input)) {
@@ -321,6 +338,13 @@ function readOptionalStringOrThrow(value: unknown, fieldName: string): string | 
   }
 
   return result.value;
+}
+
+function defaultTestPushPayload(): TestPushPayload {
+  return {
+    title: 'Levy Home test',
+    body: 'This is a test notification from Levy Home.',
+  };
 }
 
 function readDevicePreferenceLocator(input: Record<string, unknown>): DevicePreferenceLocator {

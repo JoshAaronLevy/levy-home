@@ -5,20 +5,26 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
+import { APNsConfigurationError, createAPNsPushSender, type PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
 import {
   buildEventDedupeKey,
   GARAGE_NOTIFICATION_PREFERENCES,
   getEventDisplayMetadata,
+  isNotificationPreferenceCategory,
+  type APNsSendResult,
   type DevicePreferenceLocator,
   type EventPushStatus,
   type HomeAssistantEventPayload,
   type LevyHomeEvent,
   type NotificationPreference,
+  type NotificationPreferenceCategory,
   type NotificationPreferenceUpdate,
+  type PushSendSummary,
   type QuickActionId,
   type RegisteredDevice,
+  type TestPushPayload,
 } from './contracts.js';
 import { createHomeAssistantFacade } from './homeAssistantClient.js';
 import { HomeService } from './homeService.js';
@@ -29,10 +35,12 @@ import {
   validateNotificationPreferencesQuery,
   validateQuickActionBody,
   validateRegisterDeviceBody,
+  validateTestPushBody,
 } from './validation.js';
 
 export type CreateAppOptions = {
   config?: AppConfig;
+  pushSender?: PushSender;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -44,6 +52,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const preferencesByDeviceKey = new Map<string, NotificationPreference[]>();
   const homeAssistant = createHomeAssistantFacade(config);
   const homeService = new HomeService(config, homeAssistant, () => recentEvents);
+  const pushSender = options.pushSender ?? createAPNsPushSender(config);
 
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
@@ -114,6 +123,38 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     });
   });
 
+  app.post(
+    '/api/debug/send-test-push',
+    asyncHandler(async (req, res) => {
+      const payload = validateTestPushBody(req.body);
+      const summary = await sendPushToRegisteredDevices({
+        devices: Array.from(registeredDevicesById.values()),
+        preferencesByDeviceKey,
+        pushSender,
+        payload,
+        preferenceCategory: undefined,
+      });
+
+      if (summary.configurationError) {
+        throw new HTTPError(503, summary.configurationError, 'apns_credentials_not_configured');
+      }
+
+      res.json({
+        ok: true,
+        message: testPushMessage(summary),
+        provider: 'apns',
+        registeredDeviceCount: summary.registeredDeviceCount,
+        eligibleDeviceCount: summary.eligibleDeviceCount,
+        sentNotificationCount: summary.sentNotificationCount,
+        sentTicketCount: summary.sentNotificationCount,
+        failedNotificationCount: summary.failedNotificationCount,
+        invalidTokenCount: summary.invalidTokenCount,
+        skippedDeviceCount: summary.skippedDeviceCount,
+        results: summary.results,
+      });
+    }),
+  );
+
   app.get(
     '/api/home/overview',
     asyncHandler(async (_req, res) => {
@@ -182,7 +223,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     }),
   );
 
-  app.post('/api/ha/events', requireHaWebhookSecret(config), (req, res) => {
+  app.post(
+    '/api/ha/events',
+    requireHaWebhookSecret(config),
+    asyncHandler(async (req, res) => {
     const validation = validateHomeAssistantEventPayload(req.body);
 
     if (!validation.ok) {
@@ -190,7 +234,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       return;
     }
 
-    const event = createStoredEvent(validation.value);
+    const event = await createStoredEvent(validation.value, {
+      devices: Array.from(registeredDevicesById.values()),
+      preferencesByDeviceKey,
+      pushSender,
+    });
     recentEvents.unshift(event);
 
     if (recentEvents.length > 100) {
@@ -203,7 +251,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       dedupeKey: buildEventDedupeKey(event),
       storedEventCount: recentEvents.length,
     });
-  });
+    }),
+  );
 
   app.get('/api/events', (req, res) => {
     const requestedLimit = Number(req.query.limit ?? 50);
@@ -282,6 +331,139 @@ function applyPreferenceUpdates(
   }));
 }
 
+type PushSendOptions = {
+  devices: RegisteredDevice[];
+  preferencesByDeviceKey: Map<string, NotificationPreference[]>;
+  pushSender: PushSender;
+  payload: TestPushPayload;
+  preferenceCategory?: NotificationPreferenceCategory;
+};
+
+async function sendPushToRegisteredDevices(options: PushSendOptions): Promise<PushSendSummary> {
+  const apnsDevices = options.devices.filter((device) => device.provider === 'apns');
+  const preferenceCategory = options.preferenceCategory;
+  const enabledDevices = preferenceCategory
+    ? apnsDevices.filter((device) =>
+        isNotificationPreferenceEnabled(device, preferenceCategory, options.preferencesByDeviceKey),
+      )
+    : apnsDevices;
+  const results: APNsSendResult[] = [];
+  let configurationError: string | undefined;
+
+  for (const device of enabledDevices) {
+    try {
+      results.push(
+        await options.pushSender.send({
+          device,
+          title: options.payload.title,
+          body: options.payload.body,
+          data: options.preferenceCategory ? { category: options.preferenceCategory } : { debug: 'true' },
+        }),
+      );
+    } catch (error) {
+      if (error instanceof APNsConfigurationError) {
+        configurationError = error.message;
+        break;
+      }
+
+      results.push({
+        provider: 'apns',
+        deviceId: device.id,
+        success: false,
+        reason: error instanceof Error ? error.message : String(error),
+        isInvalidToken: false,
+      });
+    }
+  }
+
+  const invalidTokenCount = results.filter((result) => result.isInvalidToken).length;
+
+  return {
+    provider: 'apns',
+    registeredDeviceCount: options.devices.length,
+    eligibleDeviceCount: enabledDevices.length,
+    sentNotificationCount: results.filter((result) => result.success).length,
+    failedNotificationCount: results.filter((result) => !result.success).length,
+    invalidTokenCount,
+    skippedDeviceCount: apnsDevices.length - enabledDevices.length,
+    ...(configurationError ? { configurationError } : {}),
+    results,
+  };
+}
+
+function isNotificationPreferenceEnabled(
+  device: RegisteredDevice,
+  category: NotificationPreferenceCategory,
+  preferencesByDeviceKey: Map<string, NotificationPreference[]>,
+): boolean {
+  const preferences =
+    preferencesByDeviceKey.get(preferenceKeyForLocator({ token: device.token, provider: device.provider, environment: device.environment }, new Map())) ??
+    GARAGE_NOTIFICATION_PREFERENCES;
+  const preference = preferences.find((entry) => entry.category === category);
+
+  return preference?.isEnabled ?? true;
+}
+
+function testPushMessage(summary: PushSendSummary): string {
+  if (summary.registeredDeviceCount === 0) {
+    return 'No registered devices are available for test push.';
+  }
+
+  if (summary.eligibleDeviceCount === 0) {
+    return 'No registered APNs devices are available for test push.';
+  }
+
+  return `Sent ${summary.sentNotificationCount} APNs test notification(s).`;
+}
+
+function pushStatusFromSummary(summary: PushSendSummary, preferenceCategory?: NotificationPreferenceCategory): EventPushStatus {
+  if (summary.configurationError) {
+    return {
+      attempted: false,
+      skipped: true,
+      reason: summary.configurationError,
+    };
+  }
+
+  if (summary.registeredDeviceCount === 0 || summary.eligibleDeviceCount === 0) {
+    return {
+      attempted: false,
+      skipped: true,
+      reason:
+        preferenceCategory && summary.skippedDeviceCount > 0
+          ? 'All registered APNs devices have this notification disabled.'
+          : 'No registered APNs devices are available for push delivery.',
+    };
+  }
+
+  return {
+    attempted: true,
+    skipped: false,
+    ticketCount: summary.sentNotificationCount,
+    sentNotificationCount: summary.sentNotificationCount,
+    failedNotificationCount: summary.failedNotificationCount,
+    invalidTokenCount: summary.invalidTokenCount,
+    ...(summary.failedNotificationCount > 0
+      ? { reason: `${summary.failedNotificationCount} APNs notification(s) failed to send.` }
+      : {}),
+  };
+}
+
+function notificationCategoryForEvent(
+  payload: HomeAssistantEventPayload,
+): NotificationPreferenceCategory | undefined {
+  const categoryByEventType: Partial<Record<HomeAssistantEventPayload['type'], NotificationPreferenceCategory>> = {
+    garage_opened: 'garage_opened',
+    garage_closed: 'garage_closed',
+    garage_left_open_10_min: 'garage_left_open',
+    garage_opened_after_hours: 'garage_after_hours',
+    garage_still_open_at_10pm: 'garage_still_open_at_10pm',
+  };
+  const category = categoryByEventType[payload.type];
+
+  return isNotificationPreferenceCategory(category) ? category : undefined;
+}
+
 export function startServer(config = readConfig()): void {
   const app = createApp({ config });
 
@@ -290,13 +472,29 @@ export function startServer(config = readConfig()): void {
   });
 }
 
-function createStoredEvent(payload: HomeAssistantEventPayload): LevyHomeEvent {
+async function createStoredEvent(
+  payload: HomeAssistantEventPayload,
+  pushOptions: Pick<PushSendOptions, 'devices' | 'preferencesByDeviceKey' | 'pushSender'>,
+): Promise<LevyHomeEvent> {
   const display = getEventDisplayMetadata(payload.type);
-  const push: EventPushStatus = {
-    attempted: false,
-    skipped: true,
-    reason: 'Push delivery is not configured in this backend stage.',
-  };
+  const preferenceCategory = notificationCategoryForEvent(payload);
+  const push = preferenceCategory
+    ? pushStatusFromSummary(
+        await sendPushToRegisteredDevices({
+          ...pushOptions,
+          payload: {
+            title: payload.title ?? display.title,
+            body: payload.message ?? display.body,
+          },
+          preferenceCategory,
+        }),
+        preferenceCategory,
+      )
+    : {
+        attempted: false,
+        skipped: true,
+        reason: 'No APNs notification preference category is configured for this event type.',
+      };
 
   return {
     id: crypto.randomUUID(),

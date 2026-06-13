@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, and Stage 15 backend provider-aware device registration plus per-device garage notification preference sync. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, Stage 15 backend provider-aware device registration plus per-device garage notification preference sync, and Stage 16 backend APNs sender/debug push support. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 75% by staged roadmap count, or roughly 65-70% by remaining risk. The biggest remaining work is backend APNs sending, physical-device verification, backend preference enforcement, TestFlight readiness, and the newly planned post-readiness theme/dark-mode pass.
+Estimated completion percentage: approximately 80% by staged roadmap count, or roughly 70-75% by remaining risk. The biggest remaining work is physical-device garage notification/control verification, production/TestFlight readiness, durable persistence/security hardening if needed, and the newly planned post-readiness theme/dark-mode pass.
 
 Work already completed:
 
@@ -26,6 +26,8 @@ Work already completed:
 - Client-side API registration and preference-sync adapters exist for APNs device registration and garage notification preferences, with technical failure reporting in Developer Tools and product-safe degraded status in Preferences.
 - Backend provider-aware device registration exists for native APNs tokens, with APNs sandbox/production separation and legacy Expo push-token compatibility.
 - Backend garage notification preferences can be synced and fetched per device by provider-aware token or registered device ID.
+- Backend APNs sending exists through an environment-configured APNs provider, with provider-neutral debug/test push response counts.
+- Garage Home Assistant events now attempt APNs delivery for mapped garage preference categories and honor per-device garage preferences.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -38,13 +40,12 @@ Work partially completed:
 
 Work unfinished:
 
-- Backend APNs sender and debug/test push delivery.
-- Backend notification preference enforcement during push delivery.
+- Physical-device APNs delivery verification with real credentials and a real iPhone.
 - Durable backend persistence for events, devices, and preferences if/when required for production.
 - End-to-end physical-device verification.
 - TestFlight/release readiness.
 - Theme preference and dark mode styling planned for Stage 19.
-- Backend/API code needed for APNs sending and notification preference enforcement in `levy-home`.
+- Backend/API hardening still needed for production exposure, persistence, and protected debug/action endpoints.
 
 ## Documentation Audit
 
@@ -79,10 +80,10 @@ Remaining product gaps:
 | Garage status | Yes | Backend `/api/home/overview` exists with garage status; iOS `HomeStatusService` and `HomeOverviewViewModel` now load and display live Home overview data. |
 | Light status | Yes | Backend overview/facade support exists with light summary; iOS live Home wiring now displays live/partial/unknown light status. |
 | Quick actions | Yes | Backend curated quick-action endpoints exist; iOS `QuickActionService`, `QuickActionsViewModel`, confirmation/progress/error states, duplicate-tap protection, and post-action overview refresh are implemented. |
-| Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, Preferences UI, provider-aware sync request construction, product-safe sync status, and backend per-device preference sync are implemented; backend delivery enforcement is still planned. |
+| Notification preferences | Yes | `NotificationPreference`, `NotificationPreferencesService`, `NotificationPreferencesViewModel`, local `UserDefaults`, Preferences UI, provider-aware sync request construction, product-safe sync status, backend per-device preference sync, and garage event push filtering are implemented. |
 | Theme preference | Planned | Architecture now calls for `ThemePreference`, `ThemePreferenceService`, `ThemePreferenceViewModel`, a Preferences detail screen, app-wide preferred color scheme binding, and light/dark styling updates in Stage 19. |
 | Event timeline | Yes | `ActivityView`, `ActivityViewModel`, event models, `APIClient.fetchRecentEvents`, event cards, empty/error/refresh states are implemented. |
-| APNs migration | Yes | Native `NotificationService`, `AppDelegate`, `PushRegistrationViewModel`, debug registration controls, simulator unavailable handling, entitlements, client API registration adapter, and backend provider-aware device registration are implemented. Backend APNs sending and physical-device end-to-end verification remain planned. |
+| APNs migration | Yes | Native `NotificationService`, `AppDelegate`, `PushRegistrationViewModel`, debug registration controls, simulator unavailable handling, entitlements, client API registration adapter, backend provider-aware device registration, APNs sender, and provider-neutral debug push endpoint are implemented. Physical-device end-to-end verification remains planned. |
 
 Missing architecture details to settle during future stages:
 
@@ -131,9 +132,9 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 16: backend APNs sender and debug push.
+Implement Stage 17: end-to-end garage notification and control verification.
 
-Stop condition for the next step: the backend can send provider-neutral debug/test pushes through APNs to registered native devices without committing APNs credentials or breaking existing routes.
+Stop condition for the next step: a physical iPhone can register, receive expected APNs garage/debug notifications according to preferences, load Activity/Home updates, and safely verify curated controls.
 
 ## Documentation Updates Made
 
@@ -149,5 +150,6 @@ Stop condition for the next step: the backend can send provider-neutral debug/te
 - Updated docs after Stage 14 to mark client API registration/preference-sync adapters complete and move the recommended next action to Stage 15.
 - Updated docs after Stage 15 to mark backend provider-aware device registration and per-device garage preference sync complete and move the recommended next action to Stage 16.
 - Updated docs to add Stage 19 for a Preferences Theme setting and dark mode styling, including architecture and product-scope alignment.
+- Updated docs after Stage 16 to mark backend APNs sender/debug push support complete and move the recommended next action to Stage 17.
 
-Application code has since been implemented through the Stage 15 backend provider-aware device registration and preferences milestone.
+Application code has since been implemented through the Stage 16 backend APNs sender and debug push milestone.
