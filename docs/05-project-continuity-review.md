@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, Stage 15 backend provider-aware device registration plus per-device garage notification preference sync, Stage 16 backend APNs sender/debug push support, and a Stage 17 manual QA evidence guide. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, Stage 15 backend provider-aware device registration plus per-device garage notification preference sync, Stage 16 backend APNs sender/debug push support, a Stage 17 manual QA evidence guide, and a Stage 18 TestFlight readiness guide. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
-Estimated completion percentage: approximately 80% by staged roadmap count, or roughly 70-75% by remaining risk. The biggest remaining work is physical-device garage notification/control verification, production/TestFlight readiness, durable persistence/security hardening if needed, and the newly planned post-readiness theme/dark-mode pass.
+Estimated completion percentage: approximately 85% by staged roadmap count, or roughly 75% by remaining risk. The biggest remaining work is physical-device garage notification/control verification, completing production/TestFlight readiness with real signing/backend/APNs inputs, durable persistence/security hardening if needed, and the newly planned post-readiness theme/dark-mode pass.
 
 Work already completed:
 
@@ -29,6 +29,8 @@ Work already completed:
 - Backend APNs sending exists through an environment-configured APNs provider, with provider-neutral debug/test push response counts.
 - Garage Home Assistant events now attempt APNs delivery for mapped garage preference categories and honor per-device garage preferences.
 - Stage 17 manual QA guidance exists in `docs/manual-qa-garage-notifications.md`.
+- Stage 18 TestFlight readiness guidance exists in `docs/08-testflight-readiness.md`.
+- The app privacy manifest now declares app-specific `UserDefaults` usage.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -43,9 +45,9 @@ Work unfinished:
 
 - Physical-device APNs delivery verification with real credentials and a real iPhone.
 - Stage 17 evidence checklist execution.
+- Stage 18 archive/TestFlight execution with Apple Developer signing, a non-localhost release API URL, production APNs, and a safe production Home Assistant facade.
 - Durable backend persistence for events, devices, and preferences if/when required for production.
 - End-to-end physical-device verification.
-- TestFlight/release readiness.
 - Theme preference and dark mode styling planned for Stage 19.
 - Backend/API hardening still needed for production exposure, persistence, and protected debug/action endpoints.
 
@@ -57,6 +59,7 @@ Work unfinished:
 | `docs/02-swiftui-architecture.md` | Mostly complete as target architecture | Minor revisions applied | Earlier versions had stale Events/Settings/Debug references and treated Notifications as the place for preferences. | Notifications history and Preferences are now separate. Theme preference architecture has been added for a later post-readiness implementation. Real backend contract shapes for status/actions/preferences still need finalization during implementation stages. |
 | `docs/03-implementation-roadmap.md` | Mostly complete as staged roadmap | Minor revisions applied | Earlier versions supported preferences inside Notifications and explicitly deferred dark mode. | Stage 2 and Stage 9 now reflect a four-tab product shell. Stage 19 now covers theme preference and dark mode styling. Exact backend route shapes, APNs credential strategy, real HA entity/action configuration, and release security decisions remain intentionally deferred to their stages. |
 | `docs/04-product-scope-update.md` | Complete as product direction update | Minor revisions applied | No material conflict with architecture/roadmap after this update. | Notification history and Preferences clarification was added. Theme preference is now planned after production/TestFlight readiness. Broader future categories remain deferred. |
+| `docs/08-testflight-readiness.md` | Complete as a Stage 18 readiness checklist | No | No conflicts found | It intentionally records external blockers instead of claiming archive/TestFlight completion without signing, release API, production APNs, and physical-device validation. |
 
 ## Product Scope Alignment
 
@@ -134,7 +137,7 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Run Stage 17 physical-device end-to-end garage notification and control verification using `docs/manual-qa-garage-notifications.md`.
+Run Stage 17 physical-device end-to-end garage notification and control verification using `docs/manual-qa-garage-notifications.md`, then execute the Stage 18 archive/TestFlight checklist in `docs/08-testflight-readiness.md`.
 
 Stop condition for the next step: a physical iPhone can register, receive expected APNs garage/debug notifications according to preferences, load Activity/Home updates, and safely verify curated controls.
 
@@ -154,5 +157,7 @@ Stop condition for the next step: a physical iPhone can register, receive expect
 - Updated docs to add Stage 19 for a Preferences Theme setting and dark mode styling, including architecture and product-scope alignment.
 - Updated docs after Stage 16 to mark backend APNs sender/debug push support complete and move the recommended next action to Stage 17.
 - Added `docs/manual-qa-garage-notifications.md` to prepare Stage 17 physical-device verification and record evidence.
+- Added `docs/08-testflight-readiness.md` to prepare Stage 18 internal TestFlight readiness checks and record the external blockers.
+- Updated `LevyHome/Resources/PrivacyInfo.xcprivacy` to declare app-specific `UserDefaults` usage.
 
-Application code has since been implemented through the Stage 16 backend APNs sender and debug push milestone. Stage 17 physical-device verification is prepared but not yet completed.
+Application code has since been implemented through the Stage 16 backend APNs sender and debug push milestone. Stage 17 physical-device verification is prepared but not yet completed. Stage 18 release-readiness documentation is prepared, but archive/TestFlight acceptance is not complete until signing, release API URL, production APNs, safe Home Assistant facade configuration, and physical-device validation are supplied and verified.
