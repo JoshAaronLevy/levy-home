@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, Stage 15 backend provider-aware device registration plus per-device garage notification preference sync, and Stage 16 backend APNs sender/debug push support. `levy-home` remains the working project for all new implementation.
+Current project state: `levy-home` now contains the native SwiftUI iOS project, core app composition, primary tab shell, theme primitives, live Home overview plumbing, live Home quick actions, typed models/API client, live Activity timeline plumbing, local notification preference UI, native APNs permission/token plumbing, client-side APNs API registration/preference-sync adapters, the Stage 10 backend Home status/action facade, Stage 15 backend provider-aware device registration plus per-device garage notification preference sync, Stage 16 backend APNs sender/debug push support, and a Stage 17 manual QA evidence guide. `levy-home` remains the working project for all new implementation.
 
 The deprecated reference project, `levy-home-app`, is the existing Expo/React Native + Node/Express implementation. It has four Expo tabs: Home, Events, Settings, and Debug. The backend currently supports event ingestion, in-memory event history, Expo push token registration, Expo push sending, and debug test push. It does not currently expose Home overview/status, quick-action, notification-preference, or APNs endpoints. Because Expo issues prevented full validation, treat it as conceptual reference only, not an absolute source of truth.
 
@@ -28,6 +28,7 @@ Work already completed:
 - Backend garage notification preferences can be synced and fetched per device by provider-aware token or registered device ID.
 - Backend APNs sending exists through an environment-configured APNs provider, with provider-neutral debug/test push response counts.
 - Garage Home Assistant events now attempt APNs delivery for mapped garage preference categories and honor per-device garage preferences.
+- Stage 17 manual QA guidance exists in `docs/manual-qa-garage-notifications.md`.
 - Product direction has shifted from notification timeline only to family-focused notifications plus lightweight status/control.
 - Product north star is a single Josh-and-Mallory family app over Home Assistant that replaces scattered vendor notifications and common control tasks across Hue/Lutron, Meross, SmartThings, LG ThinQ, and future integrations.
 
@@ -41,6 +42,7 @@ Work partially completed:
 Work unfinished:
 
 - Physical-device APNs delivery verification with real credentials and a real iPhone.
+- Stage 17 evidence checklist execution.
 - Durable backend persistence for events, devices, and preferences if/when required for production.
 - End-to-end physical-device verification.
 - TestFlight/release readiness.
@@ -132,7 +134,7 @@ Stages that should be removed:
 
 ## Recommended Next Action
 
-Implement Stage 17: end-to-end garage notification and control verification.
+Run Stage 17 physical-device end-to-end garage notification and control verification using `docs/manual-qa-garage-notifications.md`.
 
 Stop condition for the next step: a physical iPhone can register, receive expected APNs garage/debug notifications according to preferences, load Activity/Home updates, and safely verify curated controls.
 
@@ -151,5 +153,6 @@ Stop condition for the next step: a physical iPhone can register, receive expect
 - Updated docs after Stage 15 to mark backend provider-aware device registration and per-device garage preference sync complete and move the recommended next action to Stage 16.
 - Updated docs to add Stage 19 for a Preferences Theme setting and dark mode styling, including architecture and product-scope alignment.
 - Updated docs after Stage 16 to mark backend APNs sender/debug push support complete and move the recommended next action to Stage 17.
+- Added `docs/manual-qa-garage-notifications.md` to prepare Stage 17 physical-device verification and record evidence.
 
-Application code has since been implemented through the Stage 16 backend APNs sender and debug push milestone.
+Application code has since been implemented through the Stage 16 backend APNs sender and debug push milestone. Stage 17 physical-device verification is prepared but not yet completed.

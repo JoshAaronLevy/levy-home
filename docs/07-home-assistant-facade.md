@@ -59,7 +59,7 @@ Device registration is provider-aware:
 - Legacy Expo-style registrations are still accepted with `pushToken` and are treated as `provider: "expo"`.
 - Tokens are not returned in registration responses.
 
-Notification preferences are currently in-memory backend state. They can sync from the native app and be fetched for manual verification, but push delivery enforcement begins in a later stage.
+Notification preferences are currently in-memory backend state. They can sync from the native app, be fetched for manual verification, and are used for garage APNs push filtering while the API process is running. They reset when the API restarts until durable backend persistence is added.
 
 Stage 16 APNs behavior:
 
