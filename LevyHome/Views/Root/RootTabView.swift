@@ -37,4 +37,11 @@ struct RootTabView: View {
 #Preview {
     RootTabView()
         .environment(\.appEnvironment, AppEnvironment.live())
+        .environmentObject(
+            ThemePreferenceViewModel(
+                service: ThemePreferenceService(
+                    userDefaults: UserDefaults(suiteName: "RootTabPreview") ?? .standard
+                )
+            )
+        )
 }

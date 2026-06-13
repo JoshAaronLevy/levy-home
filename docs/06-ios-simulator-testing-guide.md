@@ -6,7 +6,7 @@ This is a practical manual-testing cheat sheet for running Levy Home in Xcode Si
 
 ## Current Status
 
-Stage 16 has added backend APNs sender plumbing and a provider-neutral debug/test push endpoint on top of provider-aware device registration and per-device garage notification preference sync. The current iOS app builds and launches in Simulator with live Home overview loading/error/refresh states, live curated Home quick actions with confirmation/progress/result states, the live Activity timeline from Stage 8, the Preferences tab from Stage 9, product-safe push registration status, product-safe API sync status, and local garage preference sync state. Simulator intentionally reports APNs registration as unavailable and skips API device sync until a physical-device APNs token exists; a native APNs token and APNs delivery require a signed build on a physical iPhone plus backend APNs credentials. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
+Stage 19 has added a Preferences Theme setting with System, Light, and Dark options plus app-wide light/dark styling. The current iOS app builds and launches in Simulator with live Home overview loading/error/refresh states, live curated Home quick actions with confirmation/progress/result states, the live Activity timeline from Stage 8, the Preferences tab from Stage 9, product-safe push registration status, product-safe API sync status, local garage preference sync state, and persisted theme preference state. Simulator intentionally reports APNs registration as unavailable and skips API device sync until a physical-device APNs token exists; a native APNs token and APNs delivery require a signed build on a physical iPhone plus backend APNs credentials. Model/API client/view-model tests can run with `xcodebuild test` or Xcode's `Cmd-U`.
 
 Update this guide if the project name, scheme name, bundle identifier, or derived-data path changes in a later stage.
 
@@ -189,6 +189,27 @@ xcodebuild \
   -derivedDataPath build/DerivedData \
   test
 ```
+
+## Manual Theme Checks
+
+Use this after Stage 19 or any later visual styling changes.
+
+1. Build, install, and launch the app in Simulator using the command-line flow above or Xcode `Cmd-R`.
+2. Open Preferences.
+3. Confirm the Appearance card shows a Theme row.
+4. Tap Theme.
+5. Confirm System, Light, and Dark rows appear and the selected row has a checkmark.
+6. Choose System, then toggle the simulator appearance:
+
+```sh
+xcrun simctl ui booted appearance light
+xcrun simctl ui booted appearance dark
+```
+
+7. Confirm the app follows the simulator appearance in System mode.
+8. Choose Light and confirm the app stays light when the simulator is dark.
+9. Choose Dark and confirm the app stays dark when the simulator is light.
+10. Quit and relaunch the app, then confirm the last selected Theme value persists.
 
 ## Clean Builds
 

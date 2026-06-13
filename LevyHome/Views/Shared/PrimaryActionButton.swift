@@ -26,7 +26,7 @@ struct PrimaryActionButton: View {
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .foregroundStyle(.white)
-            .background(isDisabled || isLoading ? Color.gray : AppColors.accent)
+            .background(isDisabled || isLoading ? AppColors.disabledControl : AppColors.accent)
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
         }
         .buttonStyle(.plain)

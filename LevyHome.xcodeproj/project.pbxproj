@@ -65,6 +65,11 @@
 		C10000000000000000000003 /* PushRegistrationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* PushRegistrationViewModel.swift */; };
 		C10000000000000000000004 /* DebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000014 /* DebugView.swift */; };
 		C10000000000000000000005 /* PushRegistrationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000015 /* PushRegistrationViewModelTests.swift */; };
+		D10000000000000000000001 /* ThemePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* ThemePreference.swift */; };
+		D10000000000000000000002 /* ThemePreferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000012 /* ThemePreferenceService.swift */; };
+		D10000000000000000000003 /* ThemePreferenceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000013 /* ThemePreferenceViewModel.swift */; };
+		D10000000000000000000004 /* ThemePreferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000014 /* ThemePreferenceView.swift */; };
+		D10000000000000000000005 /* ThemePreferenceViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -140,6 +145,11 @@
 		C10000000000000000000013 /* PushRegistrationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistrationViewModel.swift; sourceTree = "<group>"; };
 		C10000000000000000000014 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
 		C10000000000000000000015 /* PushRegistrationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistrationViewModelTests.swift; sourceTree = "<group>"; };
+		D10000000000000000000011 /* ThemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreference.swift; sourceTree = "<group>"; };
+		D10000000000000000000012 /* ThemePreferenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreferenceService.swift; sourceTree = "<group>"; };
+		D10000000000000000000013 /* ThemePreferenceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreferenceViewModel.swift; sourceTree = "<group>"; };
+		D10000000000000000000014 /* ThemePreferenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreferenceView.swift; sourceTree = "<group>"; };
+		D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePreferenceViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -274,6 +284,7 @@
 				AA0000000000000000000011 /* PreferencesView.swift */,
 				A90000000000000000000013 /* NotificationDeliveryStatusView.swift */,
 				A1000000000000000000001B /* NotificationPreferencesView.swift */,
+				D10000000000000000000014 /* ThemePreferenceView.swift */,
 			);
 			path = Preferences;
 			sourceTree = "<group>";
@@ -325,6 +336,7 @@
 				A40000000000000000000016 /* LightSummary.swift */,
 				A40000000000000000000017 /* QuickAction.swift */,
 				A40000000000000000000018 /* NotificationPreference.swift */,
+				D10000000000000000000011 /* ThemePreference.swift */,
 				A60000000000000000000011 /* APIError.swift */,
 				A60000000000000000000012 /* APIRequests.swift */,
 				A60000000000000000000013 /* APIResponses.swift */,
@@ -340,6 +352,7 @@
 				B10000000000000000000011 /* HomeStatusService.swift */,
 				B20000000000000000000011 /* QuickActionService.swift */,
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
+				D10000000000000000000012 /* ThemePreferenceService.swift */,
 				C10000000000000000000012 /* NotificationService.swift */,
 			);
 			path = Services;
@@ -352,6 +365,7 @@
 				B10000000000000000000012 /* HomeOverviewViewModel.swift */,
 				B20000000000000000000012 /* QuickActionsViewModel.swift */,
 				A90000000000000000000012 /* NotificationPreferencesViewModel.swift */,
+				D10000000000000000000013 /* ThemePreferenceViewModel.swift */,
 				C10000000000000000000013 /* PushRegistrationViewModel.swift */,
 			);
 			path = ViewModels;
@@ -367,6 +381,7 @@
 				B10000000000000000000013 /* HomeOverviewViewModelTests.swift */,
 				B20000000000000000000013 /* QuickActionsViewModelTests.swift */,
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
+				D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */,
 				C10000000000000000000015 /* PushRegistrationViewModelTests.swift */,
 			);
 			path = LevyHomeTests;
@@ -506,6 +521,7 @@
 				A40000000000000000000006 /* LightSummary.swift in Sources */,
 				A40000000000000000000007 /* QuickAction.swift in Sources */,
 				A40000000000000000000008 /* NotificationPreference.swift in Sources */,
+				D10000000000000000000001 /* ThemePreference.swift in Sources */,
 				A60000000000000000000001 /* APIError.swift in Sources */,
 				A60000000000000000000002 /* APIRequests.swift in Sources */,
 				A60000000000000000000003 /* APIResponses.swift in Sources */,
@@ -521,6 +537,9 @@
 				A90000000000000000000001 /* NotificationPreferencesService.swift in Sources */,
 				A90000000000000000000002 /* NotificationPreferencesViewModel.swift in Sources */,
 				A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */,
+				D10000000000000000000002 /* ThemePreferenceService.swift in Sources */,
+				D10000000000000000000003 /* ThemePreferenceViewModel.swift in Sources */,
+				D10000000000000000000004 /* ThemePreferenceView.swift in Sources */,
 				C10000000000000000000002 /* NotificationService.swift in Sources */,
 				C10000000000000000000003 /* PushRegistrationViewModel.swift in Sources */,
 				C10000000000000000000004 /* DebugView.swift in Sources */,
@@ -539,6 +558,7 @@
 				B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */,
 				B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */,
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
+				D10000000000000000000005 /* ThemePreferenceViewModelTests.swift in Sources */,
 				C10000000000000000000005 /* PushRegistrationViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

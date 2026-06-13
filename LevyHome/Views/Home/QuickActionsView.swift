@@ -146,7 +146,7 @@ struct QuickActionsView: View {
 
     private func iconBackground(for action: QuickActionDisplayData) -> Color {
         if viewModel.isBusy || !action.isEnabled {
-            return Color.gray
+            return AppColors.disabledControl
         }
 
         return AppColors.accent

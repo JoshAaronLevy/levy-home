@@ -157,7 +157,7 @@ struct DebugView: View {
         }
         .padding(AppSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(AppColors.insetPanelBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
     }
 }

@@ -6,6 +6,7 @@ struct AppEnvironment {
     let homeStatusService: HomeStatusServicing
     let quickActionService: QuickActionServicing
     let notificationPreferencesService: NotificationPreferencesService
+    let themePreferenceService: ThemePreferenceService
     let notificationService: NotificationServicing
 
     init(
@@ -14,6 +15,7 @@ struct AppEnvironment {
         homeStatusService: HomeStatusServicing? = nil,
         quickActionService: QuickActionServicing? = nil,
         notificationPreferencesService: NotificationPreferencesService? = nil,
+        themePreferenceService: ThemePreferenceService? = nil,
         notificationService: NotificationServicing? = nil
     ) {
         self.config = config
@@ -24,6 +26,7 @@ struct AppEnvironment {
         self.notificationPreferencesService = notificationPreferencesService ?? NotificationPreferencesService(
             apiClient: resolvedAPIClient
         )
+        self.themePreferenceService = themePreferenceService ?? ThemePreferenceService()
         if let notificationService {
             self.notificationService = notificationService
         } else {
