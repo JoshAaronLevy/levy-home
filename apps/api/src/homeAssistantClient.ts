@@ -1,4 +1,4 @@
-import type { AppConfig, CuratedLightGroup } from './config.js';
+import type { AppConfig, CuratedLightEntity, CuratedLightGroup } from './config.js';
 import type { GarageStatus, GarageState, LightGroupStatus, LightState } from './contracts.js';
 import { HTTPError } from './httpError.js';
 
@@ -125,6 +125,17 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
   }
 
   async getLightSummaryInputs(): Promise<{ allLights: LightGroupStatus; groups: LightGroupStatus[] }> {
+    if (this.config.homeAssistant.lightEntities.length > 0) {
+      const groups = await Promise.all(
+        this.config.homeAssistant.lightEntities.map((entity) => this.fetchSingleLightState(entity)),
+      );
+
+      return {
+        allLights: summarizeLightEntities(groups),
+        groups,
+      };
+    }
+
     const [allLights, groups] = await Promise.all([
       this.fetchLightGroupState({
         id: 'all_lights',
@@ -144,12 +155,28 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
   }
 
   async turnOffAllLights(): Promise<void> {
+    if (this.config.homeAssistant.lightEntities.length > 0) {
+      await this.callService('light', 'turn_off', {
+        entity_id: this.config.homeAssistant.lightEntities.map((entity) => entity.entityId),
+      });
+      return;
+    }
+
     await this.callService('light', 'turn_off', {
       entity_id: this.config.homeAssistant.allLightsEntityId,
     });
   }
 
   async turnOffLightGroup(groupId: string): Promise<void> {
+    const entity = this.config.homeAssistant.lightEntities.find((candidate) => candidate.id === groupId);
+
+    if (entity) {
+      await this.callService('light', 'turn_off', {
+        entity_id: entity.entityId,
+      });
+      return;
+    }
+
     const group = this.config.homeAssistant.lightGroups.find((candidate) => candidate.id === groupId);
 
     if (!group) {
@@ -159,6 +186,18 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
     await this.callService('light', 'turn_off', {
       entity_id: group.entityId,
     });
+  }
+
+  private async fetchSingleLightState(entity: CuratedLightEntity): Promise<LightGroupStatus> {
+    const state = await this.fetchEntityState(entity.entityId);
+
+    return {
+      id: entity.id,
+      name: entity.name,
+      state: mapLightState(state.state),
+      lightsOnCount: state.state === 'on' ? 1 : 0,
+      totalLightCount: 1,
+    };
   }
 
   private async fetchLightGroupState(group: CuratedLightGroup): Promise<LightGroupStatus> {
@@ -178,7 +217,7 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
     return this.request<HomeAssistantStateResponse>(`/api/states/${encodeURIComponent(entityId)}`);
   }
 
-  private async callService(domain: 'cover' | 'light', service: string, body: { entity_id: string }): Promise<void> {
+  private async callService(domain: 'cover' | 'light', service: string, body: { entity_id: string | string[] }): Promise<void> {
     await this.request<unknown>(`/api/services/${domain}/${service}`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -213,6 +252,39 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
 
     return (await response.json()) as T;
   }
+}
+
+function summarizeLightEntities(groups: LightGroupStatus[]): LightGroupStatus {
+  const lightsOnCount = groups.filter((group) => group.state === 'on').length;
+  const totalLightCount = groups.length;
+
+  return {
+    id: 'all_lights',
+    name: 'All lights',
+    state: mapLightCollectionState(groups.map((group) => group.state)),
+    lightsOnCount,
+    totalLightCount,
+  };
+}
+
+function mapLightCollectionState(states: LightState[]): LightState {
+  if (states.length === 0) {
+    return 'unknown';
+  }
+
+  if (states.every((state) => state === 'off')) {
+    return 'off';
+  }
+
+  if (states.every((state) => state === 'on')) {
+    return 'on';
+  }
+
+  if (states.some((state) => state === 'on')) {
+    return 'partially_on';
+  }
+
+  return 'unknown';
 }
 
 function mapGarageState(state: string): GarageState {

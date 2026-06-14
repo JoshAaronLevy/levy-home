@@ -38,9 +38,10 @@ export class HomeService {
   }
 
   listQuickActions(): QuickAction[] {
+    const lightTargets = this.lightActionTargets();
     const lightGroupTarget =
-      this.config.homeAssistant.lightGroups.length === 1
-        ? this.config.homeAssistant.lightGroups[0]?.name
+      lightTargets.length === 1
+        ? lightTargets[0]?.name
         : 'Curated light groups';
 
     return [
@@ -64,7 +65,7 @@ export class HomeService {
         id: 'turn_off_light_group',
         title: 'Turn Off Light Group',
         subtitle: 'Turn off one configured light group.',
-        isEnabled: this.config.homeAssistant.lightGroups.length > 0,
+        isEnabled: lightTargets.length > 0,
         requiresConfirmation: false,
         targetName: lightGroupTarget,
       },
@@ -103,6 +104,12 @@ export class HomeService {
       this.getRecentEvents().find((event) => importantSeverities.has(event.display.severity) || event.category === 'garage') ??
       null
     );
+  }
+
+  private lightActionTargets(): Array<{ id: string; name: string }> {
+    return this.config.homeAssistant.lightEntities.length > 0
+      ? this.config.homeAssistant.lightEntities
+      : this.config.homeAssistant.lightGroups;
   }
 }
 

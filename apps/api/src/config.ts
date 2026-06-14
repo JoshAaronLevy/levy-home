@@ -7,6 +7,10 @@ export type CuratedLightGroup = Pick<LightGroupStatus, 'id' | 'name'> & {
   entityId: string;
 };
 
+export type CuratedLightEntity = Pick<LightGroupStatus, 'id' | 'name'> & {
+  entityId: string;
+};
+
 export type AppConfig = {
   port: number;
   haWebhookSecret?: string;
@@ -25,6 +29,7 @@ export type AppConfig = {
     garageCoverEntityId: string;
     allLightsEntityId: string;
     lightGroups: CuratedLightGroup[];
+    lightEntities: CuratedLightEntity[];
     mockTotalLightCount: number;
   };
 };
@@ -48,6 +53,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       garageCoverEntityId: readOptionalString(env.HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID) ?? 'cover.main_garage_door',
       allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID) ?? 'light.all_lights',
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
+      lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
       mockTotalLightCount: readNumber(env.MOCK_TOTAL_LIGHT_COUNT, 12),
     },
   };
@@ -98,4 +104,44 @@ function readLightGroups(value: string | undefined): CuratedLightGroup[] {
 
       return { id, name, entityId };
     });
+}
+
+function readLightEntities(value: string | undefined): CuratedLightEntity[] {
+  const rawEntities = readOptionalString(value);
+
+  if (!rawEntities) {
+    return [];
+  }
+
+  return rawEntities
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const separatorIndex = entry.indexOf(':');
+
+      if (separatorIndex === -1) {
+        throw new Error(`Invalid HOME_ASSISTANT_LIGHT_ENTITIES entry: ${entry}`);
+      }
+
+      const entityId = entry.slice(0, separatorIndex).trim();
+      const name = entry.slice(separatorIndex + 1).trim();
+
+      if (!entityId || !name) {
+        throw new Error(`Invalid HOME_ASSISTANT_LIGHT_ENTITIES entry: ${entry}`);
+      }
+
+      return {
+        id: lightEntityIdToTargetId(entityId),
+        name,
+        entityId,
+      };
+    });
+}
+
+function lightEntityIdToTargetId(entityId: string): string {
+  return entityId
+    .replace(/^[^.]+\./, '')
+    .replace(/[^a-zA-Z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }

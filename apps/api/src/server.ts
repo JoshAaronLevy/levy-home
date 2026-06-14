@@ -169,7 +169,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     res.json({
       ok: true,
       actions: homeService.listQuickActions(),
-      lightGroups: config.homeAssistant.lightGroups.map(({ id, name }) => ({ id, name })),
+      lightGroups: lightActionTargets(config).map(({ id, name }) => ({ id, name })),
     });
   });
 
@@ -278,6 +278,12 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   });
 
   return app;
+}
+
+function lightActionTargets(config: AppConfig): Array<{ id: string; name: string }> {
+  return config.homeAssistant.lightEntities.length > 0
+    ? config.homeAssistant.lightEntities
+    : config.homeAssistant.lightGroups;
 }
 
 function createDeviceLookupKey(registration: Pick<RegisteredDevice, 'token' | 'provider' | 'environment'>): string {

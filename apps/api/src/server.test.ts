@@ -26,6 +26,7 @@ const testConfig: AppConfig = {
       { id: 'downstairs', name: 'Downstairs lights', entityId: 'light.downstairs' },
       { id: 'bedrooms', name: 'Bedroom lights', entityId: 'light.bedrooms' },
     ],
+    lightEntities: [],
     mockTotalLightCount: 12,
   },
 };
