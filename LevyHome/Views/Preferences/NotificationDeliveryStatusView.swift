@@ -6,52 +6,178 @@ struct NotificationDeliveryStatusView: View {
 
     var body: some View {
         InfoPanel(
-            title: "Delivery Status",
-            subtitle: "Current notification readiness for this device.",
+            title: "Notifications",
+            subtitle: nil,
             systemImage: "bell.badge"
         ) {
-            VStack(alignment: .leading, spacing: AppSpacing.medium) {
-                deliveryRow(
-                    title: "Notifications",
-                    detail: viewModel.permissionDetail,
-                    badge: StatusBadgeView(
-                        label: viewModel.permissionLabel,
-                        systemImage: viewModel.permissionSystemImage,
-                        tone: viewModel.permissionTone
-                    )
+            NavigationLink {
+                NotificationDeliveryStatusDetailView(
+                    viewModel: viewModel,
+                    preferencesViewModel: preferencesViewModel
                 )
+            } label: {
+                HStack(spacing: AppSpacing.medium) {
+                    Image(systemName: deliveryStatusIcon)
+                        .font(.title3)
+                        .foregroundStyle(deliveryStatusColor)
+                        .frame(width: 28)
 
-                deliveryRow(
-                    title: "APNs token",
-                    detail: viewModel.registrationDetail,
-                    badge: StatusBadgeView(
-                        label: viewModel.registrationLabel,
-                        systemImage: viewModel.registrationSystemImage,
-                        tone: viewModel.registrationTone
-                    )
-                )
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                        HStack(spacing: AppSpacing.xSmall) {
+                            Text("Delivery Status")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
 
-                deliveryRow(
-                    title: "API sync",
-                    detail: viewModel.apiRegistrationDetail,
-                    badge: StatusBadgeView(
-                        label: viewModel.apiRegistrationLabel,
-                        systemImage: viewModel.apiRegistrationSystemImage,
-                        tone: productSafeAPITone
-                    )
-                )
+                            if needsAttention {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AppColors.warning)
+                                    .accessibilityLabel("Needs attention")
+                            }
+                        }
 
-                deliveryRow(
-                    title: "Preferences",
-                    detail: preferencesViewModel.syncDetail,
-                    badge: StatusBadgeView(
-                        label: preferencesViewModel.syncLabel,
-                        systemImage: preferencesViewModel.syncSystemImage,
-                        tone: preferencesViewModel.syncTone
-                    )
-                )
+                        Text(deliveryStatusSummary)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .task {
+            await viewModel.refreshStatus()
+        }
+    }
+
+    private var deliveryStatusIcon: String {
+        needsAttention ? "bell.badge" : "checkmark.circle"
+    }
+
+    private var deliveryStatusColor: Color {
+        needsAttention ? AppColors.warning : AppColors.success
+    }
+
+    private var deliveryStatusSummary: String {
+        needsAttention ? "Setup needed" : "Ready"
+    }
+
+    private var needsAttention: Bool {
+        deliveryRows.contains { row in
+            switch row.tone {
+            case .success:
+                return false
+            case .neutral, .accent, .warning, .critical:
+                return row.requiresAttention
             }
         }
+    }
+
+    private var deliveryRows: [DeliveryStatusRow] {
+        [
+            DeliveryStatusRow(
+                title: "Notifications",
+                detail: viewModel.permissionDetail,
+                badgeLabel: viewModel.permissionLabel,
+                badgeImage: viewModel.permissionSystemImage,
+                tone: viewModel.permissionTone,
+                requiresAttention: viewModel.permissionTone != .success
+            ),
+            DeliveryStatusRow(
+                title: "APNs token",
+                detail: viewModel.registrationDetail,
+                badgeLabel: viewModel.registrationLabel,
+                badgeImage: viewModel.registrationSystemImage,
+                tone: viewModel.registrationTone,
+                requiresAttention: viewModel.registrationTone != .success
+            ),
+            DeliveryStatusRow(
+                title: "API sync",
+                detail: viewModel.apiRegistrationDetail,
+                badgeLabel: viewModel.apiRegistrationLabel,
+                badgeImage: viewModel.apiRegistrationSystemImage,
+                tone: productSafeAPITone,
+                requiresAttention: productSafeAPITone != .success
+            ),
+            DeliveryStatusRow(
+                title: "Preferences",
+                detail: preferencesViewModel.syncDetail,
+                badgeLabel: preferencesViewModel.syncLabel,
+                badgeImage: preferencesViewModel.syncSystemImage,
+                tone: preferencesViewModel.syncTone,
+                requiresAttention: preferencesViewModel.syncTone == .warning || preferencesViewModel.syncTone == .critical
+            )
+        ]
+    }
+
+    private var productSafeAPITone: StatusBadgeTone {
+        viewModel.apiRegistrationTone == .critical ? .warning : viewModel.apiRegistrationTone
+    }
+}
+
+private struct NotificationDeliveryStatusDetailView: View {
+    @ObservedObject var viewModel: PushRegistrationViewModel
+    @ObservedObject var preferencesViewModel: NotificationPreferencesViewModel
+
+    var body: some View {
+        ScrollView {
+            InfoPanel(
+                title: "Delivery Status",
+                subtitle: "Current notification readiness for this device.",
+                systemImage: "bell.badge"
+            ) {
+                VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                    deliveryRow(
+                        title: "Notifications",
+                        detail: viewModel.permissionDetail,
+                        badge: StatusBadgeView(
+                            label: viewModel.permissionLabel,
+                            systemImage: viewModel.permissionSystemImage,
+                            tone: viewModel.permissionTone
+                        )
+                    )
+
+                    deliveryRow(
+                        title: "APNs token",
+                        detail: viewModel.registrationDetail,
+                        badge: StatusBadgeView(
+                            label: viewModel.registrationLabel,
+                            systemImage: viewModel.registrationSystemImage,
+                            tone: viewModel.registrationTone
+                        )
+                    )
+
+                    deliveryRow(
+                        title: "API sync",
+                        detail: viewModel.apiRegistrationDetail,
+                        badge: StatusBadgeView(
+                            label: viewModel.apiRegistrationLabel,
+                            systemImage: viewModel.apiRegistrationSystemImage,
+                            tone: productSafeAPITone
+                        )
+                    )
+
+                    deliveryRow(
+                        title: "Preferences",
+                        detail: preferencesViewModel.syncDetail,
+                        badge: StatusBadgeView(
+                            label: preferencesViewModel.syncLabel,
+                            systemImage: preferencesViewModel.syncSystemImage,
+                            tone: preferencesViewModel.syncTone
+                        )
+                    )
+                }
+            }
+            .padding(AppSpacing.screen)
+        }
+        .background(AppColors.pageBackground)
+        .navigationTitle("Delivery Status")
         .task {
             await viewModel.refreshStatus()
         }
@@ -82,6 +208,15 @@ struct NotificationDeliveryStatusView: View {
             badge
         }
     }
+}
+
+private struct DeliveryStatusRow {
+    let title: String
+    let detail: String
+    let badgeLabel: String
+    let badgeImage: String
+    let tone: StatusBadgeTone
+    let requiresAttention: Bool
 }
 
 #Preview {
