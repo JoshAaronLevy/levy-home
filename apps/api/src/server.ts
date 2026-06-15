@@ -6,6 +6,11 @@ import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 import { normalizePhoneStateChangedEvent } from './activityNormalizer.js';
+import {
+  clampRecentActivityLimit,
+  createRecentActivityStore,
+  type RecentActivityStore,
+} from './activityStore.js';
 import { APNsConfigurationError, createAPNsPushSender, type PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
@@ -42,18 +47,19 @@ import {
 
 export type CreateAppOptions = {
   config?: AppConfig;
+  activityStore?: RecentActivityStore;
   pushSender?: PushSender;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
   const config = options.config ?? readConfig();
   const app = express();
-  const recentEvents: LevyHomeEvent[] = [];
+  const activityStore = options.activityStore ?? createRecentActivityStore();
   const registeredDevicesById = new Map<string, RegisteredDevice>();
   const registeredDeviceIdsByLookupKey = new Map<string, string>();
   const preferencesByDeviceKey = new Map<string, NotificationPreference[]>();
   const homeAssistant = createHomeAssistantFacade(config);
-  const homeService = new HomeService(config, homeAssistant, () => recentEvents);
+  const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
 
   app.use(cors());
@@ -65,7 +71,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       service: 'levy-home-api',
       homeAssistantMode: config.homeAssistant.mode,
       registeredDeviceCount: registeredDevicesById.size,
-      recentEventCount: recentEvents.length,
+      recentEventCount: activityStore.count(),
       uptimeSeconds: Math.round(process.uptime()),
     });
   });
@@ -256,28 +262,23 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       preferencesByDeviceKey,
       pushSender,
     });
-    recentEvents.unshift(event);
-
-    if (recentEvents.length > 100) {
-      recentEvents.length = 100;
-    }
+    activityStore.add(event);
 
     res.status(201).json({
       ok: true,
       event,
       dedupeKey: buildEventDedupeKey(event),
-      storedEventCount: recentEvents.length,
+      storedEventCount: activityStore.count(),
     });
     }),
   );
 
   app.get('/api/events', (req, res) => {
-    const requestedLimit = Number(req.query.limit ?? 50);
-    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50;
+    const limit = clampRecentActivityLimit(req.query.limit);
 
     res.json({
       ok: true,
-      events: recentEvents.slice(0, limit),
+      events: activityStore.list(limit),
     });
   });
 
@@ -501,11 +502,13 @@ function notificationCategoryForEvent(
 }
 
 export function startServer(config = readConfig()): void {
-  const app = createApp({ config });
+  const activityStore = createRecentActivityStore();
+  const app = createApp({ config, activityStore });
   const activityListener = createHomeAssistantActivityListener(config, {
     onStateChanged: (event) => {
       const normalizedEvent = normalizePhoneStateChangedEvent(event);
-      console.info(`Home Assistant phone activity normalized ${normalizedEvent.entityId}.`);
+      activityStore.add(normalizedEvent);
+      console.info(`Home Assistant phone activity stored ${normalizedEvent.entityId}.`);
     },
   });
 

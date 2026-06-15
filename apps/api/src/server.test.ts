@@ -3,9 +3,12 @@ import { afterEach, beforeEach, test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import { createServer, type Server } from 'node:http';
 
+import { normalizePhoneStateChangedEvent } from './activityNormalizer.js';
+import { createRecentActivityStore } from './activityStore.js';
 import type { PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import type { APNsSendRequest, APNsSendResult } from './contracts.js';
+import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClient.js';
 import { createApp } from './server.js';
 
 let server: Server | undefined;
@@ -369,6 +372,33 @@ test('phone activity webhook events omit push metadata', async () => {
   assert.equal(created.event.push, undefined);
 });
 
+test('/api/events returns normalized Home Assistant phone activity from the shared activity store', async () => {
+  await closeServer();
+  const activityStore = createRecentActivityStore();
+  const app = createApp({ config: testConfig, activityStore });
+
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, () => {
+      resolve();
+    });
+  });
+
+  const address = server?.address() as AddressInfo;
+  baseURL = `http://127.0.0.1:${address.port}`;
+
+  activityStore.add(normalizePhoneStateChangedEvent(sampleStateChangedEvent()));
+
+  const response = await getJSON('/api/events?limit=50');
+
+  assert.equal(response.ok, true);
+  assert.equal(response.events.length, 1);
+  assert.equal(response.events[0].type, 'phone_state_changed');
+  assert.equal(response.events[0].category, 'phone');
+  assert.equal(response.events[0].entityId, 'sensor.joshs_iphone_battery_level');
+  assert.equal(response.events[0].metadata.person, 'Josh');
+  assert.equal(response.events[0].push, undefined);
+});
+
 test('phone entity discovery route requires the Home Assistant webhook secret', async () => {
   const response = await fetch(`${baseURL}/api/debug/home-assistant/phone-entities`);
   const body = (await response.json()) as { code: string };
@@ -550,6 +580,45 @@ async function withLiveHomeAssistantStates(
       });
     });
   }
+}
+
+function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
+  return {
+    entityId: 'sensor.joshs_iphone_battery_level',
+    person: 'Josh',
+    deviceName: "Josh's iPhone",
+    oldState: '82',
+    newState: '81',
+    occurredAt: '2026-06-15T17:00:00.000Z',
+    friendlyName: "Josh's iPhone Battery Level",
+    rawEvent: {
+      event_type: 'state_changed',
+      time_fired: '2026-06-15T17:00:00.000Z',
+      context: {
+        id: 'event-context-id',
+      },
+      data: {
+        entity_id: 'sensor.joshs_iphone_battery_level',
+        old_state: {
+          entity_id: 'sensor.joshs_iphone_battery_level',
+          state: '82',
+          attributes: {
+            friendly_name: "Josh's iPhone Battery Level",
+            unit_of_measurement: '%',
+          },
+        },
+        new_state: {
+          entity_id: 'sensor.joshs_iphone_battery_level',
+          state: '81',
+          attributes: {
+            friendly_name: "Josh's iPhone Battery Level",
+            unit_of_measurement: '%',
+            device_class: 'battery',
+          },
+        },
+      },
+    },
+  };
 }
 
 async function getJSON(path: string): Promise<any> {
