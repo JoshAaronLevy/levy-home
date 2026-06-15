@@ -11,6 +11,18 @@ export type CuratedLightEntity = Pick<LightGroupStatus, 'id' | 'name'> & {
   entityId: string;
 };
 
+export type TrackedPhoneEntity = {
+  entityId: string;
+  person: string;
+  deviceName?: string;
+};
+
+export type TrackedPhoneEntityPattern = {
+  pattern: string;
+  person: string;
+  deviceName?: string;
+};
+
 export type AppConfig = {
   port: number;
   haWebhookSecret?: string;
@@ -31,6 +43,12 @@ export type AppConfig = {
     lightGroups: CuratedLightGroup[];
     lightEntities: CuratedLightEntity[];
     mockTotalLightCount: number;
+    activity: {
+      isEnabled: boolean;
+      webSocketURL?: string;
+      trackedPhoneEntities: TrackedPhoneEntity[];
+      trackedPhoneEntityPatterns: TrackedPhoneEntityPattern[];
+    };
   };
 };
 
@@ -55,6 +73,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
       lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
       mockTotalLightCount: readNumber(env.MOCK_TOTAL_LIGHT_COUNT, 12),
+      activity: {
+        isEnabled: readBoolean(env.HOME_ASSISTANT_ACTIVITY_ENABLED, false, 'HOME_ASSISTANT_ACTIVITY_ENABLED'),
+        webSocketURL: readOptionalString(env.HOME_ASSISTANT_WEBSOCKET_URL),
+        trackedPhoneEntities: readTrackedPhoneEntities(env.HOME_ASSISTANT_PHONE_ENTITIES),
+        trackedPhoneEntityPatterns: readTrackedPhoneEntityPatterns(env.HOME_ASSISTANT_PHONE_ENTITY_PATTERNS),
+      },
     },
   };
 }
@@ -74,6 +98,24 @@ function readNumber(value: string | undefined, fallback: number): number {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function readBoolean(value: string | undefined, fallback: boolean, envName: string): boolean {
+  const normalized = readOptionalString(value)?.toLowerCase();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  throw new Error(`Invalid ${envName} value: expected true or false.`);
 }
 
 function readOptionalString(value: string | undefined): string | undefined {
@@ -139,9 +181,71 @@ function readLightEntities(value: string | undefined): CuratedLightEntity[] {
     });
 }
 
+function readTrackedPhoneEntities(value: string | undefined): TrackedPhoneEntity[] {
+  const rawEntities = readOptionalString(value);
+
+  if (!rawEntities) {
+    return [];
+  }
+
+  return rawEntities
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [entityId, person, ...deviceNameParts] = entry.split(':').map((part) => part.trim());
+      const deviceName = readOptionalString(deviceNameParts.join(':'));
+
+      if (!entityId || !person || !isHomeAssistantEntityId(entityId)) {
+        throw new Error(`Invalid HOME_ASSISTANT_PHONE_ENTITIES entry: ${entry}`);
+      }
+
+      return {
+        entityId,
+        person,
+        ...(deviceName ? { deviceName } : {}),
+      };
+    });
+}
+
+function readTrackedPhoneEntityPatterns(value: string | undefined): TrackedPhoneEntityPattern[] {
+  const rawPatterns = readOptionalString(value);
+
+  if (!rawPatterns) {
+    return [];
+  }
+
+  return rawPatterns
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [pattern, person, ...deviceNameParts] = entry.split(':').map((part) => part.trim());
+      const deviceName = readOptionalString(deviceNameParts.join(':'));
+
+      if (!pattern || !person || !isHomeAssistantEntityPattern(pattern)) {
+        throw new Error(`Invalid HOME_ASSISTANT_PHONE_ENTITY_PATTERNS entry: ${entry}`);
+      }
+
+      return {
+        pattern,
+        person,
+        ...(deviceName ? { deviceName } : {}),
+      };
+    });
+}
+
 function lightEntityIdToTargetId(entityId: string): string {
   return entityId
     .replace(/^[^.]+\./, '')
     .replace(/[^a-zA-Z0-9_]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+function isHomeAssistantEntityId(value: string): boolean {
+  return /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/.test(value);
+}
+
+function isHomeAssistantEntityPattern(value: string): boolean {
+  return /^[a-zA-Z0-9_*]+\.[a-zA-Z0-9_*]+$/.test(value);
 }

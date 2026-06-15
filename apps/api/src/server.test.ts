@@ -28,6 +28,11 @@ const testConfig: AppConfig = {
     ],
     lightEntities: [],
     mockTotalLightCount: 12,
+    activity: {
+      isEnabled: false,
+      trackedPhoneEntities: [],
+      trackedPhoneEntityPatterns: [],
+    },
   },
 };
 

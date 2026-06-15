@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery** is now implemented in the backend.
+This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery** and **Phase 2 — Configure tracked phone entities** are now implemented in the backend.
 
-The next actual implementation task should be **Phase 2 — Configure tracked phone entities**.
+The next actual implementation task should be **Phase 3 — Backend WebSocket listener**.
 
-`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. There is still no Home Assistant WebSocket listener, no configured Josh/Mallory phone entity filter, no phone activity normalizer, and no verified real phone activity in the simulator Activity tab.
+`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. There is still no Home Assistant WebSocket listener, no runtime phone activity ingestion, no phone activity normalizer, and no verified real phone activity in the simulator Activity tab.
 
 ## 1. Current State
 
@@ -74,6 +74,10 @@ From `apps/api/src/config.ts` and `apps/api/.env.example`, the backend expects:
 - `HOME_ASSISTANT_MODE`
 - `HOME_ASSISTANT_BASE_URL`
 - `HOME_ASSISTANT_TOKEN`
+- `HOME_ASSISTANT_ACTIVITY_ENABLED`
+- `HOME_ASSISTANT_WEBSOCKET_URL`
+- `HOME_ASSISTANT_PHONE_ENTITIES`
+- `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS`
 - `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID`
 - `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID`
 - `HOME_ASSISTANT_LIGHT_GROUPS`
@@ -197,7 +201,7 @@ Yes. The app’s Activity tab calls `/api/events`, and the backend serves `/api/
 | Home Assistant REST client | Present for states, service calls, and Phase 1 safe phone-entity discovery; not used for activity ingestion. |
 | Persistent backend listener process | Missing. The Express server is long-running locally/Docker, but no listener starts with it. |
 | Reconnect/backoff logic | Missing. |
-| Phone entity filtering | Partially present for discovery only. Runtime ingestion still has no configured phone entity IDs, patterns, device registry lookup, or owner mapping. |
+| Phone entity filtering | Server-side tracked phone entity IDs, explicit patterns, person mapping, and device names are configurable. Runtime filtering is still pending the WebSocket listener. |
 | Activity/event persistence model | Mostly missing. There is `LevyHomeEvent` and in-memory `recentEvents`, but no durable store or phone-specific model. |
 | API endpoint SwiftUI can call | Present: `GET /api/events`; reusable only if the contract can support Activity-only phone records cleanly. |
 | Working SwiftUI Activity UI | Mostly present. It can render records matching `LevyHomeEvent`, but phone-specific icons/copy may need small updates. |
@@ -210,6 +214,7 @@ Additional gaps:
 - Backend `HomeAssistantEventCategory` currently allows only `garage` and `doorbell`.
 - `createStoredEvent()` couples event storage to push-status calculation.
 - Phase 1 code discovers sanitized Home Assistant phone-entity candidates through `GET /api/debug/home-assistant/phone-entities`.
+- Phase 2 code parses tracked phone entity config, but no listener consumes it yet.
 - No dependency currently provides a WebSocket client. Node 22 may expose a global WebSocket, but a stable dependency such as `ws` may be more predictable.
 
 ## 5. Recommended Architecture
@@ -397,9 +402,11 @@ Steps:
 
 ### Phase 2 — Configure tracked phone entities
 
+Status: implemented.
+
 Goal: add explicit server-side config for what should be ingested.
 
-Example concepts:
+Implemented concepts:
 
 - activity ingestion enabled flag
 - tracked entity IDs
@@ -407,11 +414,22 @@ Example concepts:
 - owner/person mapping
 - optional WebSocket URL override
 
-Likely files:
+Implemented files:
 
 - `apps/api/src/config.ts`
 - `apps/api/.env.example`
-- related docs
+- `apps/api/src/config.test.ts`
+- `apps/api/src/server.test.ts`
+- `docs/07-home-assistant-facade.md`
+
+Environment variables:
+
+- `HOME_ASSISTANT_ACTIVITY_ENABLED`
+- `HOME_ASSISTANT_WEBSOCKET_URL`
+- `HOME_ASSISTANT_PHONE_ENTITIES`
+- `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS`
+
+This phase intentionally does not start the WebSocket listener. The configured entity IDs and patterns are the safe allowlist that Phase 3 should consume.
 
 ### Phase 3 — Backend WebSocket listener
 
