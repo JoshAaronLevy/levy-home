@@ -5,6 +5,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
+import { normalizePhoneStateChangedEvent } from './activityNormalizer.js';
 import { APNsConfigurationError, createAPNsPushSender, type PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
@@ -501,7 +502,12 @@ function notificationCategoryForEvent(
 
 export function startServer(config = readConfig()): void {
   const app = createApp({ config });
-  const activityListener = createHomeAssistantActivityListener(config);
+  const activityListener = createHomeAssistantActivityListener(config, {
+    onStateChanged: (event) => {
+      const normalizedEvent = normalizePhoneStateChangedEvent(event);
+      console.info(`Home Assistant phone activity normalized ${normalizedEvent.entityId}.`);
+    },
+  });
 
   const server = app.listen(config.port, () => {
     console.log(`Levy Home API listening on http://localhost:${config.port}`);
@@ -536,6 +542,7 @@ async function createStoredEvent(
         skipped: true,
         reason: 'No APNs notification preference category is configured for this event type.',
       };
+  const isActivityOnlyPhoneEvent = payload.type === 'phone_state_changed' || payload.category === 'phone';
 
   return {
     id: crypto.randomUUID(),
@@ -550,7 +557,7 @@ async function createStoredEvent(
     metadata: payload.metadata,
     receivedAt: new Date().toISOString(),
     display,
-    push,
+    ...(isActivityOnlyPhoneEvent ? {} : { push }),
   };
 }
 

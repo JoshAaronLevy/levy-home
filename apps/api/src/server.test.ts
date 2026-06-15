@@ -347,6 +347,28 @@ test('event webhook stores events and /api/events returns them', async () => {
   assert.equal(events.events[0].type, 'garage_opened');
 });
 
+test('phone activity webhook events omit push metadata', async () => {
+  const created = await postJSON(
+    '/api/ha/events',
+    {
+      type: 'phone_state_changed',
+      category: 'phone',
+      severity: 'normal',
+      entityId: 'sensor.joshs_iphone_battery_level',
+      source: 'home_assistant',
+      title: "Josh's iPhone changed",
+      message: '82 -> 81',
+    },
+    { Authorization: 'Bearer test-secret' },
+  );
+
+  assert.equal(created.ok, true);
+  assert.equal(created.event.type, 'phone_state_changed');
+  assert.equal(created.event.category, 'phone');
+  assert.equal(created.event.display.title, 'Phone changed');
+  assert.equal(created.event.push, undefined);
+});
+
 test('phone entity discovery route requires the Home Assistant webhook secret', async () => {
   const response = await fetch(`${baseURL}/api/debug/home-assistant/phone-entities`);
   const body = (await response.json()) as { code: string };

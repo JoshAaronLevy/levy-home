@@ -185,4 +185,6 @@ HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=sensor.joshs_iphone_*:Josh:Josh's iPhone,se
 
 When `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`, the API process starts a background Home Assistant WebSocket listener at startup. It authenticates with `HOME_ASSISTANT_TOKEN`, subscribes to `state_changed`, filters to the configured exact entities and patterns, and reconnects with backoff after unexpected disconnects. The listener does not log tokens, request headers, raw Home Assistant events, or Home Assistant URLs.
 
-Phase 3 does not yet store matching phone events in `/api/events`; normalization and storage are handled by later phases.
+Matching phone state changes are normalized into generic `phone_state_changed` Activity records with `category: "phone"`, `source: "home_assistant"`, safe Home Assistant metadata, and no `push` object. Phone activity is not sent through APNs and is not represented as skipped notification delivery.
+
+Phase 4 does not yet store matching phone events in `/api/events`; storage is handled by a later phase.

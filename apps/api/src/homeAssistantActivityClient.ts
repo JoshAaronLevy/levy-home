@@ -45,9 +45,10 @@ type HomeAssistantWebSocketMessage =
   | { type: 'event'; id?: number; event?: HomeAssistantWebSocketEvent }
   | { type: string; [key: string]: unknown };
 
-type HomeAssistantWebSocketEvent = {
+export type HomeAssistantWebSocketEvent = {
   event_type?: string;
   time_fired?: string;
+  context?: HomeAssistantContext;
   data?: {
     entity_id?: string;
     old_state?: HomeAssistantEntityState | null;
@@ -55,14 +56,22 @@ type HomeAssistantWebSocketEvent = {
   };
 };
 
-type HomeAssistantEntityState = {
+export type HomeAssistantEntityState = {
   entity_id?: string;
   state?: string;
   last_changed?: string;
   last_updated?: string;
+  context?: HomeAssistantContext;
   attributes?: {
     friendly_name?: string;
+    [key: string]: unknown;
   };
+};
+
+export type HomeAssistantContext = {
+  id?: string;
+  parent_id?: string | null;
+  user_id?: string | null;
 };
 
 type ActivityMatch = {

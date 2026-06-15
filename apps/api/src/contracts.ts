@@ -7,12 +7,13 @@ export const LEVY_HOME_EVENT_TYPES = [
   'doorbell_pressed',
   'doorbell_person_detected',
   'doorbell_motion_detected',
+  'phone_state_changed',
 ] as const;
 
 export type LevyHomeEventType = (typeof LEVY_HOME_EVENT_TYPES)[number];
 
 export type DisplaySeverity = 'info' | 'warning' | 'critical';
-export type HomeAssistantEventCategory = 'garage' | 'doorbell';
+export type HomeAssistantEventCategory = 'garage' | 'doorbell' | 'phone';
 export type HomeAssistantEventSeverity = 'normal' | 'high';
 
 export type HomeAssistantEntityDiscoveryCandidate = {
@@ -57,7 +58,7 @@ export type LevyHomeEvent = HomeAssistantEventPayload & {
   id: string;
   receivedAt: string;
   display: EventDisplayMetadata;
-  push: EventPushStatus;
+  push?: EventPushStatus;
 };
 
 export type GarageState = 'open' | 'closed' | 'opening' | 'closing' | 'unknown';
@@ -274,6 +275,11 @@ export const EVENT_DISPLAY_METADATA: Record<LevyHomeEventType, EventDisplayMetad
   doorbell_motion_detected: {
     title: 'Motion detected',
     body: 'The doorbell detected motion.',
+    severity: 'info',
+  },
+  phone_state_changed: {
+    title: 'Phone changed',
+    body: 'A tracked phone entity changed state.',
     severity: 'info',
   },
 };
