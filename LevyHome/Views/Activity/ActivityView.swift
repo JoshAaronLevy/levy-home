@@ -119,6 +119,24 @@ private struct ActivityContentView: View {
                                 ticketCount: 1,
                                 invalidTokenCount: 0
                             )
+                        ),
+                        LevyHomeEvent(
+                            id: "event-2",
+                            type: .phoneStateChanged,
+                            entityId: "sensor.joshs_iphone_battery_level",
+                            category: .phone,
+                            severity: .normal,
+                            source: "home_assistant",
+                            occurredAt: "2026-06-15T17:00:00Z",
+                            title: "Josh's iPhone changed",
+                            message: "82 -> 81",
+                            receivedAt: "2026-06-15T17:00:01Z",
+                            display: EventDisplayMetadata(
+                                title: "Josh's iPhone changed",
+                                body: "82 -> 81",
+                                severity: .info
+                            ),
+                            push: nil
                         )
                     ]
                 )

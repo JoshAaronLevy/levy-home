@@ -36,6 +36,37 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(event.display.severity, .warning)
     }
 
+    func testDecodesPhoneActivityEventWithoutPushMetadata() throws {
+        let json = """
+        {
+          "id": "event-phone",
+          "type": "phone_state_changed",
+          "entityId": "sensor.joshs_iphone_battery_level",
+          "category": "phone",
+          "severity": "normal",
+          "source": "home_assistant",
+          "occurredAt": "2026-06-15T17:00:00Z",
+          "title": "Josh's iPhone changed",
+          "message": "82 -> 81",
+          "receivedAt": "2026-06-15T17:00:01Z",
+          "display": {
+            "title": "Josh's iPhone changed",
+            "body": "82 -> 81",
+            "severity": "info"
+          }
+        }
+        """
+
+        let event = try decode(LevyHomeEvent.self, from: json)
+
+        XCTAssertEqual(event.type, .phoneStateChanged)
+        XCTAssertEqual(event.category, .phone)
+        XCTAssertEqual(event.entityId, "sensor.joshs_iphone_battery_level")
+        XCTAssertEqual(event.display.title, "Josh's iPhone changed")
+        XCTAssertEqual(event.display.body, "82 -> 81")
+        XCTAssertNil(event.push)
+    }
+
     func testUnknownEventAndSeverityFallbacksPreserveRawValues() throws {
         let event = try decodeEvent(
             type: "future_water_leak",

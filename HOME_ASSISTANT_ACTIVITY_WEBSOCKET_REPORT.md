@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, **Phase 3 — Backend WebSocket listener**, **Phase 4 — Generic phone activity normalization**, and **Phase 5 — Store and expose recent activity** are now implemented in the backend.
+This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, **Phase 3 — Backend WebSocket listener**, **Phase 4 — Generic phone activity normalization**, **Phase 5 — Store and expose recent activity**, and **Phase 6 — Minimal SwiftUI adjustments** are now implemented.
 
-The next actual implementation task should be **Phase 6 — Minimal SwiftUI adjustments only if needed**, followed by simulator verification with real Home Assistant phone activity.
+The next actual implementation task should be **Phase 7 — Simulator verification** with real Home Assistant phone activity.
 
-`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. Phase 4 added a generic `phone_state_changed` normalizer that produces Activity-first `LevyHomeEvent` records without push metadata. Phase 5 stores those normalized records in the same in-memory recent activity feed used by webhook events and exposes them through `GET /api/events`. There is still no durable activity storage and no verified real phone activity in the simulator Activity tab.
+`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. Phase 4 added a generic `phone_state_changed` normalizer that produces Activity-first `LevyHomeEvent` records without push metadata. Phase 5 stores those normalized records in the same in-memory recent activity feed used by webhook events and exposes them through `GET /api/events`. Phase 6 added iOS-side recognition for `phone_state_changed` and `category: "phone"` plus a phone icon in the Activity card. There is still no durable activity storage and no verified real phone activity in the simulator Activity tab.
 
 ## 1. Current State
 
@@ -15,9 +15,9 @@ The next actual implementation task should be **Phase 6 — Minimal SwiftUI adju
 - The app has an **Activity** tab in `LevyHome/Views/Root/RootTabView.swift`, wired to `ActivityView()`.
 - `LevyHome/Views/Activity/ActivityView.swift` creates `ActivityViewModel(apiClient:)`, loads once with `.task`, supports pull-to-refresh, and renders loading, error, empty, and event-list states.
 - `LevyHome/ViewModels/ActivityViewModel.swift` fetches up to 50 events by default through `apiClient.fetchRecentEvents(limit:)`.
-- `LevyHome/Views/Activity/EventCardView.swift` renders `LevyHomeEvent` records with display title/body/severity, occurred time, entity id, source, and optional push status.
+- `LevyHome/Views/Activity/EventCardView.swift` renders `LevyHomeEvent` records with display title/body/severity, occurred time, entity id, source, optional push status, and a phone icon for `phone_state_changed`.
 - `LevyHome/Models/LevyHomeEvent.swift` defines the app-side event model with `id`, `type`, `entityId`, `category`, `severity`, `source`, `occurredAt`, `title`, `message`, `receivedAt`, `display`, and optional `push`.
-- `LevyHome/Models/EventType.swift` and `LevyHome/Models/EventSeverity.swift` support unknown enum values on the iOS side, which helps future event types decode safely.
+- `LevyHome/Models/EventType.swift` and `LevyHome/Models/EventSeverity.swift` support `phone_state_changed` / `phone` and preserve unknown enum values for future event types.
 
 ### API Client
 
@@ -205,13 +205,15 @@ Yes. The app’s Activity tab calls `/api/events`, and the backend serves `/api/
 | Phone entity filtering | Present for configured exact entity IDs and explicit glob-style patterns. |
 | Activity/event persistence model | Present for the MVP. `LevyHomeEvent` supports Activity-only phone records without `push`, and the shared in-memory recent activity store includes WebSocket phone records. Durable storage is still pending. |
 | API endpoint SwiftUI can call | Present: `GET /api/events`; reusable only if the contract can support Activity-only phone records cleanly. |
-| Working SwiftUI Activity UI | Mostly present. It can render records matching `LevyHomeEvent`, but phone-specific icons/copy may need small updates. |
+| Working SwiftUI Activity UI | Present for the MVP. It renders `LevyHomeEvent` records, recognizes phone activity, and uses a phone icon for `phone_state_changed`. |
 | Error/loading/empty states | Present in `ActivityView` and `ActivityViewModel`. |
 | Simulator API config | Mostly present. Simulator can call `http://localhost:4000`; physical iPhones need LAN/deployed URL. |
 
 Additional gaps:
 
 - Backend `LEVY_HOME_EVENT_TYPES` now includes `phone_state_changed`.
+- Swift `EventType` now includes `phoneStateChanged`.
+- Swift `HomeAssistantCategory` now includes `phone`.
 - Backend `HomeAssistantEventCategory` now allows `garage`, `doorbell`, and `phone`.
 - `createStoredEvent()` still handles garage push behavior, but Activity-only phone records omit `push`.
 - Phase 1 code discovers sanitized Home Assistant phone-entity candidates through `GET /api/debug/home-assistant/phone-entities`.
@@ -510,10 +512,24 @@ Temporary limitation: storage is still process-local and resets on API restart o
 
 Goal: keep SwiftUI changes minimal.
 
-- Do not rebuild the Activity UI.
-- If the backend response still matches what `ActivityView` expects, minimal or no SwiftUI changes should be needed.
-- If generic phone events need cleaner display, update decoding/icons/copy carefully.
-- If a new `/api/activity` endpoint/model is used, update `LevyHome/Services/APIClient.swift`, response models, and `ActivityViewModel` carefully.
+Status: implemented.
+
+Implemented MVP:
+
+- Did not rebuild the Activity UI.
+- Kept `ActivityViewModel` and `APIClient.fetchRecentEvents(limit:)` on the existing `/api/events` path.
+- Added `phoneStateChanged` to Swift `EventType`.
+- Added `phone` to Swift `HomeAssistantCategory`.
+- Added a phone icon for `phone_state_changed` Activity cards.
+- Added model decoding coverage for phone activity records that omit `push`.
+
+Files changed:
+
+- `LevyHome/Models/EventType.swift`
+- `LevyHome/Models/EventSeverity.swift`
+- `LevyHome/Views/Activity/EventCardView.swift`
+- `LevyHome/Views/Activity/ActivityView.swift`
+- `LevyHomeTests/ModelDecodingTests.swift`
 
 ### Phase 7 — Simulator verification
 
@@ -657,7 +673,7 @@ The MVP should prefer the lowest-churn path that gets real Home Assistant phone 
 - Durable idempotency: later durable storage should consider a stable unique key to prevent duplicates across restarts or multiple instances.
 - No durable storage: the current in-memory recent activity store loses activity when the API restarts.
 - Current event contract began garage/doorbell-centric; backend types now support phone activity, but future categories may still need careful contract expansion.
-- Current Activity UI can decode unknown event types but uses generic icons for unknown types.
+- Current Activity UI recognizes `phone_state_changed`; truly unknown future event types still use generic icons.
 - Entity IDs are unknown and may be unstable. Home Assistant Companion App entities can change with device rename/reintegration.
 - One phone may simply be named `iPhone`, so discovery and config should not rely only on friendly name.
 - iOS/Home Assistant Companion background updates are opportunistic. Battery/location/sensor updates may be delayed by iOS background execution rules and Companion App settings.
@@ -678,4 +694,4 @@ The MVP should prefer the lowest-churn path that gets real Home Assistant phone 
 
 ## Bottom Line
 
-Phases 1-5 are complete. The SwiftUI Activity tab and `/api/events` endpoint are already connected, and the backend can now discover candidate phone entities, read explicit phone tracking config, connect to Home Assistant WebSocket, filter configured phone entities, normalize matching state changes as generic `phone_state_changed` Activity records without push metadata, and store those records in the shared in-memory recent activity feed. The next task is Phase 6: make only the minimal SwiftUI adjustments needed, then verify real Home Assistant phone activity in the simulator Activity tab.
+Phases 1-6 are complete. The SwiftUI Activity tab and `/api/events` endpoint are already connected, and the backend can now discover candidate phone entities, read explicit phone tracking config, connect to Home Assistant WebSocket, filter configured phone entities, normalize matching state changes as generic `phone_state_changed` Activity records without push metadata, store those records in the shared in-memory recent activity feed, and render them in the Activity tab with phone-specific decoding and iconography. The next task is Phase 7: verify real Home Assistant phone activity in the simulator Activity tab.

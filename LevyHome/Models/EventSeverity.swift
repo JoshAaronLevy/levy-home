@@ -48,6 +48,7 @@ typealias EventSeverity = DisplaySeverity
 enum HomeAssistantCategory: Codable, Equatable, Hashable {
     case garage
     case doorbell
+    case phone
     case unknown(String)
 
     var rawValue: String {
@@ -56,6 +57,8 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
             return "garage"
         case .doorbell:
             return "doorbell"
+        case .phone:
+            return "phone"
         case .unknown(let rawValue):
             return rawValue
         }
@@ -67,6 +70,8 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
             self = .garage
         case "doorbell":
             self = .doorbell
+        case "phone":
+            self = .phone
         default:
             self = .unknown(rawValue)
         }

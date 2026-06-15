@@ -188,3 +188,5 @@ When `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`, the 
 Matching phone state changes are normalized into generic `phone_state_changed` Activity records with `category: "phone"`, `source: "home_assistant"`, safe Home Assistant metadata, and no `push` object. Phone activity is not sent through APNs and is not represented as skipped notification delivery.
 
 Matching phone activity is stored in the same process-local recent activity feed as webhook-created events and returned from `GET /api/events`. This storage is temporary for the simulator proof and resets when the API process restarts or redeploys.
+
+The iOS Activity tab decodes `phone_state_changed` and `category: "phone"` directly and renders those records with phone-specific iconography.

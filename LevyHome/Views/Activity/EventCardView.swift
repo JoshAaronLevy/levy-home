@@ -74,6 +74,8 @@ struct EventCardView: View {
             return "person.crop.circle"
         case .doorbellMotionDetected:
             return "figure.walk.motion"
+        case .phoneStateChanged:
+            return "iphone"
         case .unknown:
             return "clock"
         }
