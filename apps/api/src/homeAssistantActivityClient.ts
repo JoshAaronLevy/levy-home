@@ -1,6 +1,7 @@
 import type { AppConfig, TrackedPhoneEntity, TrackedPhoneEntityPattern } from './config.js';
 
 export type HomeAssistantStateChangedEvent = {
+  id?: string;
   entityId: string;
   person: string;
   deviceName?: string;
@@ -8,6 +9,8 @@ export type HomeAssistantStateChangedEvent = {
   newState?: string;
   occurredAt?: string;
   friendlyName?: string;
+  ingestionSource?: 'websocket' | 'history';
+  isInitialBackfillState?: boolean;
   rawEvent: HomeAssistantWebSocketEvent;
 };
 
@@ -74,7 +77,7 @@ export type HomeAssistantContext = {
   user_id?: string | null;
 };
 
-type ActivityMatch = {
+export type ActivityMatch = {
   person: string;
   deviceName?: string;
 };
@@ -286,6 +289,7 @@ class DefaultHomeAssistantActivityListener implements HomeAssistantActivityListe
       ...(event.data?.new_state?.attributes?.friendly_name
         ? { friendlyName: event.data.new_state.attributes.friendly_name }
         : {}),
+      ingestionSource: 'websocket',
       rawEvent: event,
     });
   }
@@ -314,7 +318,7 @@ class DefaultHomeAssistantActivityListener implements HomeAssistantActivityListe
   }
 }
 
-function matchTrackedPhoneEntity(
+export function matchTrackedPhoneEntity(
   entityId: string,
   entities: TrackedPhoneEntity[],
   patterns: TrackedPhoneEntityPattern[],

@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, **Phase 3 — Backend WebSocket listener**, **Phase 4 — Generic phone activity normalization**, **Phase 5 — Store and expose recent activity**, **Phase 6 — Minimal SwiftUI adjustments**, and **Phase 7 — Simulator verification workflow** are now implemented.
+This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, **Phase 3 — Backend WebSocket listener**, **Phase 4 — Generic phone activity normalization**, **Phase 5 — Store and expose recent activity**, **Phase 6 — Minimal SwiftUI adjustments**, **Phase 7 — Simulator verification workflow**, temporary **24-hour Home Assistant history backfill**, and **24-hour lazy Activity paging** are now implemented.
 
 The next actual implementation task should be a real Phase 7 run with selected phone entities/patterns configured in the local or deployed environment, then recording the observed phone activity result.
 
-`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. Phase 4 added a generic `phone_state_changed` normalizer that produces Activity-first `LevyHomeEvent` records without push metadata. Phase 5 stores those normalized records in the same in-memory recent activity feed used by webhook events and exposes them through `GET /api/events`. Phase 6 added iOS-side recognition for `phone_state_changed` and `category: "phone"` plus a phone icon in the Activity card. Phase 7 added a repeatable script that starts a known local API process with activity enabled, verifies listener authenticated/subscribed logs, waits for `phone_state_changed` in `/api/events`, and builds/installs/launches the simulator app against `http://localhost:4000`. There is still no durable activity storage. A real phone activity observation is pending because this checkout's local `.env` does not yet include `HOME_ASSISTANT_ACTIVITY_ENABLED`, `HOME_ASSISTANT_PHONE_ENTITIES`, or `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS`.
+`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. Phase 4 added a generic `phone_state_changed` normalizer that produces Activity-first `LevyHomeEvent` records without push metadata. Phase 5 stores those normalized records in the same in-memory recent activity feed used by webhook events and exposes them through `GET /api/events`. Phase 6 added iOS-side recognition for `phone_state_changed` and `category: "phone"` plus a phone icon in the Activity card. Phase 7 added a repeatable script that starts a known local API process with activity enabled, verifies listener authenticated/subscribed logs, waits for `phone_state_changed` in `/api/events`, and builds/installs/launches the simulator app against `http://localhost:4000`. The temporary backfill added a startup REST history request for the configured phone entities over the last 24 hours. The Activity tab now asks `/api/events` for explicit 24-hour `start`/`end` windows: app open and pull-to-refresh load the newest 24 hours, while scrolling to the bottom fetches the previous 24 hours and appends them. There is still no durable activity storage. A real phone activity observation is pending because this checkout's local `.env` does not yet include `HOME_ASSISTANT_ACTIVITY_ENABLED`, `HOME_ASSISTANT_PHONE_ENTITIES`, or `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS`.
 
 ## 1. Current State
 
@@ -14,15 +14,15 @@ The next actual implementation task should be a real Phase 7 run with selected p
 
 - The app has an **Activity** tab in `LevyHome/Views/Root/RootTabView.swift`, wired to `ActivityView()`.
 - `LevyHome/Views/Activity/ActivityView.swift` creates `ActivityViewModel(apiClient:)`, loads once with `.task`, supports pull-to-refresh, and renders loading, error, empty, and event-list states.
-- `LevyHome/ViewModels/ActivityViewModel.swift` fetches up to 50 events by default through `apiClient.fetchRecentEvents(limit:)`.
+- `LevyHome/ViewModels/ActivityViewModel.swift` fetches up to 500 events per 24-hour window by default through `apiClient.fetchRecentEvents(limit:start:end:)`, refreshes the latest window, and lazy-loads older windows when the user reaches the bottom.
 - `LevyHome/Views/Activity/EventCardView.swift` renders `LevyHomeEvent` records with display title/body/severity, occurred time, entity id, source, optional push status, and a phone icon for `phone_state_changed`.
 - `LevyHome/Models/LevyHomeEvent.swift` defines the app-side event model with `id`, `type`, `entityId`, `category`, `severity`, `source`, `occurredAt`, `title`, `message`, `receivedAt`, `display`, and optional `push`.
 - `LevyHome/Models/EventType.swift` and `LevyHome/Models/EventSeverity.swift` support `phone_state_changed` / `phone` and preserve unknown enum values for future event types.
 
 ### API Client
 
-- `LevyHome/Services/APIClient.swift` has `fetchRecentEvents(limit:)`.
-- It sends `GET /api/events`, with an optional `limit` query item.
+- `LevyHome/Services/APIClient.swift` has `fetchRecentEvents(limit:start:end:)`.
+- It sends `GET /api/events`, with optional `limit`, `start`, and `end` query items.
 - The response type is `EventsResponse` from `LevyHome/Models/APIResponses.swift`:
 
 ```json
@@ -51,7 +51,7 @@ The next actual implementation task should be a real Phase 7 run with selected p
 
 `POST /api/ha/events` is the current Home Assistant event ingestion path. It requires a bearer token based on `LEVY_HOME_HA_WEBHOOK_SECRET`, validates a narrow event payload, creates a stored event, optionally attempts APNs for garage categories, stores the event in memory, and returns the stored event.
 
-`GET /api/events` returns recent in-memory events, newest first, clamped to 1-100 records. It now includes both `POST /api/ha/events` webhook records and normalized Home Assistant WebSocket phone activity records. `GET /api/debug/home-assistant/phone-entities` is a protected Phase 1 discovery helper for sanitized Home Assistant phone-entity candidates. There is still no route dedicated to raw Home Assistant events or durable activity logs.
+`GET /api/events` returns activity records newest first, clamped to 1-500 records. It supports explicit `start`/`end` activity windows and a legacy `since` filter. For explicit windows, it merges process-local activity with temporary Home Assistant REST history records for configured phone entities. It now includes `POST /api/ha/events` webhook records, normalized Home Assistant WebSocket phone activity records, and temporary startup/on-demand Home Assistant REST history records. `GET /api/debug/home-assistant/phone-entities` is a protected Phase 1 discovery helper for sanitized Home Assistant phone-entity candidates. There is still no route dedicated to raw Home Assistant events or durable activity logs.
 
 ### Home Assistant Integration
 
@@ -95,8 +95,8 @@ The real `apps/api/.env` exists and includes these kinds of keys, plus `HOME_ASS
 ### Storage
 
 - I did not find an application database, ORM, migrations directory, SQLite/Postgres/Redis configuration, or durable activity storage.
-- `apps/api/src/activityStore.ts` provides a process-local recent activity store capped at 100 events.
-- `apps/api/src/server.ts` shares that store between webhook-created events, Home Assistant WebSocket phone activity, health counts, home overview recent-event lookup, and `GET /api/events`.
+- `apps/api/src/activityStore.ts` provides a process-local recent activity store capped at 500 events for the temporary inspection phase.
+- `apps/api/src/server.ts` shares that store between webhook-created events, Home Assistant WebSocket phone activity, temporary Home Assistant REST history backfill activity, health counts, home overview recent-event lookup, and `GET /api/events`.
 - Device registrations and notification preferences are also process-local maps.
 - `docs/07-home-assistant-facade.md` explicitly says notification preferences reset when the API restarts. The same limitation applies to current recent activity events.
 
@@ -125,14 +125,14 @@ The goal is not to capture every iOS internal event. The goal is to capture ever
 
 ### What the Activity tab currently calls
 
-`ActivityView` creates `ActivityViewModel`, which calls `APIClient.fetchRecentEvents(limit: 50)`.
+`ActivityView` creates `ActivityViewModel`, which calls `APIClient.fetchRecentEvents(limit: 500, start: <window-start>, end: <window-end>)`.
 
 ### What endpoint it expects
 
 The iOS app expects:
 
 ```text
-GET {LEVY_HOME_API_BASE_URL}/api/events?limit=50
+GET {LEVY_HOME_API_BASE_URL}/api/events?limit=500&start=<window-start>&end=<window-end>
 ```
 
 The app’s default API base URL is `http://localhost:4000`, unless overridden by the `LEVY_HOME_API_BASE_URL` environment/build setting or the `LevyHomeAPIBaseURL` Info.plist value.
@@ -175,11 +175,12 @@ Important contract note: the Swift model makes `push` optional, and Phase 4 made
 
 ### Does the API currently return real Home Assistant activity?
 
-- `GET /api/events` returns webhook-created events and normalized Home Assistant WebSocket phone activity stored during the current API process lifetime.
-- Fresh process, no webhook posts, and no matching WebSocket phone activity yet: returns `events: []`.
+- `GET /api/events` returns webhook-created events, normalized Home Assistant WebSocket phone activity, and temporary Home Assistant REST history records stored or fetched during the current API process lifetime.
+- Fresh process with live activity configured: startup requests the last 24 hours of Home Assistant history for the configured phone entities and stores matching records in memory. Explicit `start`/`end` requests can also fetch older 24-hour windows directly from Home Assistant while persistence is deferred.
+- Fresh process without live activity config, no webhook posts, and no matching WebSocket phone activity yet: returns `events: []`.
 - Manual webhook posts: returns those stored in-memory events.
 - Live Home Assistant activity ingestion subscribes to `state_changed` over `/api/websocket` when `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`.
-- It does not pull historical activity/events/logs from Home Assistant.
+- It also pulls a temporary 24-hour Home Assistant history backfill at API startup while durable activity storage is deferred.
 - Existing Home Assistant live mode still uses REST for Home overview and quick actions.
 
 ### Is Home Assistant wired to the API?
@@ -270,8 +271,8 @@ The first working milestone is intentionally narrow:
 - Backend can subscribe to `state_changed`.
 - Backend can filter to explicitly configured phone entities.
 - Backend can normalize matching events as `phone_state_changed`.
-- Backend can store those records in the existing recent activity/events feed if compatible.
-- `GET /api/events?limit=50` returns real phone activity records, unless `/api/activity` is chosen due to contract problems.
+- Backend can store those records in the existing recent activity/events feed.
+- `GET /api/events?limit=500&start=<window-start>&end=<window-end>` returns real phone activity records when live activity config and/or Home Assistant history are available.
 - The SwiftUI simulator Activity tab displays those records.
 
 The first milestone does **not** require:
@@ -495,8 +496,8 @@ Status: implemented.
 Implemented MVP:
 
 - Reuses `GET /api/events`; no parallel `/api/activity` endpoint was needed.
-- Adds a small shared in-memory recent activity store capped at 100 events.
-- Stores both webhook-created events and normalized Home Assistant WebSocket phone activity in that store.
+- Adds a shared in-memory recent activity store capped at 500 events for the temporary inspection phase.
+- Stores webhook-created events, normalized Home Assistant WebSocket phone activity, and temporary Home Assistant REST history backfill activity in that store.
 - Keeps phone activity as Activity-only records with no `push` object and no APNs attempt.
 
 Files changed:
@@ -518,7 +519,7 @@ Status: implemented.
 Implemented MVP:
 
 - Did not rebuild the Activity UI.
-- Kept `ActivityViewModel` and `APIClient.fetchRecentEvents(limit:)` on the existing `/api/events` path.
+- Kept `ActivityViewModel` and `APIClient.fetchRecentEvents(limit:start:end:)` on the existing `/api/events` path.
 - Added `phoneStateChanged` to Swift `EventType`.
 - Added `phone` to Swift `HomeAssistantCategory`.
 - Added a phone icon for `phone_state_changed` Activity cards.
@@ -550,7 +551,7 @@ The script:
 2. Requires live Home Assistant mode, base URL, token, webhook secret, and at least one selected exact phone entity or explicit phone entity pattern.
 3. Starts a known local API process with `HOME_ASSISTANT_ACTIVITY_ENABLED=true`.
 4. Confirms listener logs show authenticated and subscribed.
-5. Waits for `phone_state_changed` records in `GET /api/events?limit=50`.
+5. Waits for `phone_state_changed` records in `GET /api/events?limit=500`.
 6. Builds, installs, and launches the simulator app with `LEVY_HOME_API_BASE_URL=http://localhost:4000`.
 
 Useful options:
@@ -564,7 +565,7 @@ PHASE7_DRY_RUN=true PHASE7_SKIP_HA_PREFLIGHT=true scripts/verify-home-assistant-
 Manual endpoint check:
 
 ```sh
-curl 'http://localhost:4000/api/events?limit=50'
+curl 'http://localhost:4000/api/events?limit=500&start=2026-06-14T17:00:00.000Z&end=2026-06-15T17:00:00.000Z'
 ```
 
 Then open Activity and confirm phone records render newest first.
@@ -662,7 +663,7 @@ The MVP should prefer the lowest-churn path that gets real Home Assistant phone 
 - Backend filters only explicitly configured Josh/Mallory phone-related entities.
 - At least one real Home Assistant phone state change appears in the backend activity feed.
 - Matching records are normalized as `phone_state_changed`.
-- `GET /api/events?limit=50` or the chosen endpoint returns real phone activity records.
+- `GET /api/events?limit=500&start=<window-start>&end=<window-end>` returns real phone activity records.
 - SwiftUI simulator Activity tab displays those records.
 - Phone activity does not attempt APNs/push notification delivery.
 - Phone activity records do not contain misleading skipped-notification metadata.

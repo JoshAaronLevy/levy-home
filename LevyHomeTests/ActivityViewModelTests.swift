@@ -5,8 +5,11 @@ import XCTest
 final class ActivityViewModelTests: XCTestCase {
     func testLoadIfNeededLoadsEventsSuccessfully() async {
         let expectedEvent = Self.event(id: "event-1", title: "Garage opened")
-        let viewModel = ActivityViewModel { limit in
-            XCTAssertEqual(limit, 50)
+        let now = Self.date("2026-06-15T17:00:00Z")
+        let viewModel = ActivityViewModel(now: { now }) { limit, start, end in
+            XCTAssertEqual(limit, 500)
+            XCTAssertEqual(start, Self.date("2026-06-14T17:00:00Z"))
+            XCTAssertEqual(end, now)
             return EventsResponse(ok: true, events: [expectedEvent])
         }
 
@@ -16,12 +19,13 @@ final class ActivityViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertFalse(viewModel.isLoading)
         XCTAssertFalse(viewModel.isRefreshing)
+        XCTAssertFalse(viewModel.isLoadingOlder)
         XCTAssertFalse(viewModel.isEmpty)
     }
 
     func testLoadIfNeededDoesNotReloadAfterFirstSuccess() async {
         var loadCount = 0
-        let viewModel = ActivityViewModel { _ in
+        let viewModel = ActivityViewModel { _, _, _ in
             loadCount += 1
             return EventsResponse(ok: true, events: [Self.event(id: "event-\(loadCount)")])
         }
@@ -34,7 +38,7 @@ final class ActivityViewModelTests: XCTestCase {
     }
 
     func testEmptyResponseShowsEmptyState() async {
-        let viewModel = ActivityViewModel { _ in
+        let viewModel = ActivityViewModel { _, _, _ in
             EventsResponse(ok: true, events: [])
         }
 
@@ -46,7 +50,7 @@ final class ActivityViewModelTests: XCTestCase {
     }
 
     func testFailureShowsErrorMessage() async {
-        let viewModel = ActivityViewModel { _ in
+        let viewModel = ActivityViewModel { _, _, _ in
             throw APIError.server(statusCode: 503, message: "Events are unavailable.")
         }
 
@@ -65,7 +69,7 @@ final class ActivityViewModelTests: XCTestCase {
             .success(EventsResponse(ok: true, events: [Self.event(id: "event-2", title: "Garage closed")]))
         ]
 
-        let viewModel = ActivityViewModel { _ in
+        let viewModel = ActivityViewModel { _, _, _ in
             try responses.removeFirst().get()
         }
 
@@ -84,7 +88,7 @@ final class ActivityViewModelTests: XCTestCase {
             .failure(APIError.httpStatus(500))
         ]
 
-        let viewModel = ActivityViewModel { _ in
+        let viewModel = ActivityViewModel { _, _, _ in
             try responses.removeFirst().get()
         }
 
@@ -95,7 +99,77 @@ final class ActivityViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "The API returned HTTP 500.")
     }
 
-    private static func event(id: String, title: String = "Garage opened") -> LevyHomeEvent {
+    func testLoadOlderAppendsPreviousWindowWithoutDuplicatingEvents() async {
+        let now = Self.date("2026-06-15T17:00:00Z")
+        var requestedWindows: [(Date, Date)] = []
+        let viewModel = ActivityViewModel(now: { now }) { _, start, end in
+            requestedWindows.append((start, end))
+
+            if requestedWindows.count == 1 {
+                return EventsResponse(
+                    ok: true,
+                    events: [
+                        Self.event(id: "latest", occurredAt: "2026-06-15T16:00:00Z"),
+                        Self.event(id: "duplicate", occurredAt: "2026-06-14T18:00:00Z")
+                    ]
+                )
+            }
+
+            return EventsResponse(
+                ok: true,
+                events: [
+                    Self.event(id: "older", occurredAt: "2026-06-14T10:00:00Z"),
+                    Self.event(id: "duplicate", occurredAt: "2026-06-14T18:00:00Z")
+                ]
+            )
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.loadOlder()
+
+        XCTAssertEqual(requestedWindows.count, 2)
+        XCTAssertEqual(requestedWindows[0].0, Self.date("2026-06-14T17:00:00Z"))
+        XCTAssertEqual(requestedWindows[0].1, Self.date("2026-06-15T17:00:00Z"))
+        XCTAssertEqual(requestedWindows[1].0, Self.date("2026-06-13T17:00:00Z"))
+        XCTAssertEqual(requestedWindows[1].1, Self.date("2026-06-14T17:00:00Z"))
+        XCTAssertEqual(viewModel.events.map(\.id), ["latest", "duplicate", "older"])
+        XCTAssertFalse(viewModel.isLoadingOlder)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testLoadOlderIfNeededOnlyRunsForLastVisibleEvent() async {
+        let now = Self.date("2026-06-15T17:00:00Z")
+        var loadCount = 0
+        let viewModel = ActivityViewModel(now: { now }) { _, _, _ in
+            loadCount += 1
+
+            if loadCount == 1 {
+                return EventsResponse(
+                    ok: true,
+                    events: [
+                        Self.event(id: "newer", occurredAt: "2026-06-15T16:00:00Z"),
+                        Self.event(id: "older-visible", occurredAt: "2026-06-15T15:00:00Z")
+                    ]
+                )
+            }
+
+            return EventsResponse(ok: true, events: [Self.event(id: "older-page", occurredAt: "2026-06-14T10:00:00Z")])
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.loadOlderIfNeeded(currentEvent: viewModel.events[0])
+        XCTAssertEqual(loadCount, 1)
+
+        await viewModel.loadOlderIfNeeded(currentEvent: viewModel.events[1])
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(viewModel.events.map(\.id), ["newer", "older-visible", "older-page"])
+    }
+
+    private static func event(
+        id: String,
+        title: String = "Garage opened",
+        occurredAt: String = "2026-06-12T14:00:00Z"
+    ) -> LevyHomeEvent {
         LevyHomeEvent(
             id: id,
             type: .garageOpened,
@@ -103,7 +177,7 @@ final class ActivityViewModelTests: XCTestCase {
             category: .garage,
             severity: .normal,
             source: "home_assistant",
-            occurredAt: "2026-06-12T14:00:00Z",
+            occurredAt: occurredAt,
             title: title,
             message: "\(title) message.",
             receivedAt: "2026-06-12T14:00:01Z",
@@ -120,5 +194,9 @@ final class ActivityViewModelTests: XCTestCase {
                 invalidTokenCount: 0
             )
         )
+    }
+
+    private static func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
     }
 }

@@ -55,18 +55,53 @@ private struct ActivityContentView: View {
 
         if viewModel.isEmpty {
             InfoPanel(
-                title: "No Activity Yet",
-                subtitle: "Recent home events will appear here after Home Assistant sends them.",
+                title: "No Activity in the Latest 24 Hours",
+                subtitle: "Earlier Home Assistant activity may still be available.",
                 systemImage: "clock"
             ) {
-                Text("Pull to refresh after sending a test event from the local API.")
-                    .font(.body)
-                    .foregroundStyle(AppColors.mutedText)
-                    .fixedSize(horizontal: false, vertical: true)
+                PrimaryActionButton(
+                    title: "Load Earlier Activity",
+                    systemImage: "clock.arrow.circlepath",
+                    isLoading: viewModel.isLoadingOlder
+                ) {
+                    Task {
+                        await viewModel.loadOlder()
+                    }
+                }
             }
         } else {
             ForEach(viewModel.events) { event in
                 EventCardView(event: event)
+                    .task {
+                        await viewModel.loadOlderIfNeeded(currentEvent: event)
+                    }
+            }
+
+            olderActivityFooter
+        }
+    }
+
+    @ViewBuilder
+    private var olderActivityFooter: some View {
+        if viewModel.isLoadingOlder {
+            HStack(spacing: AppSpacing.medium) {
+                ProgressView()
+
+                Text("Loading earlier activity...")
+                    .font(.body)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, AppSpacing.medium)
+        } else {
+            PrimaryActionButton(
+                title: "Load Earlier Activity",
+                systemImage: "clock.arrow.circlepath"
+            ) {
+                Task {
+                    await viewModel.loadOlder()
+                }
             }
         }
     }
@@ -92,7 +127,7 @@ private struct ActivityContentView: View {
 #Preview("Loaded") {
     NavigationStack {
         ActivityContentView(
-            viewModel: ActivityViewModel { _ in
+            viewModel: ActivityViewModel { _, _, _ in
                 EventsResponse(
                     ok: true,
                     events: [
@@ -148,7 +183,7 @@ private struct ActivityContentView: View {
 #Preview("Empty") {
     NavigationStack {
         ActivityContentView(
-            viewModel: ActivityViewModel { _ in
+            viewModel: ActivityViewModel { _, _, _ in
                 EventsResponse(ok: true, events: [])
             }
         )

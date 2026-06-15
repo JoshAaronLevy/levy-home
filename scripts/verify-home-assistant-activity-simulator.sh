@@ -170,7 +170,7 @@ wait_for_log "subscribed to state_changed" "Home Assistant activity listener sub
 echo "==> Waiting up to ${EVENT_WAIT_SECONDS}s for phone activity in /api/events"
 for _ in $(seq 1 "$EVENT_WAIT_SECONDS"); do
   if API_BASE_URL="$API_BASE_URL" node --input-type=module - <<'NODE'
-const response = await fetch(`${process.env.API_BASE_URL}/api/events?limit=50`);
+const response = await fetch(`${process.env.API_BASE_URL}/api/events?limit=500`);
 if (!response.ok) {
   process.exit(1);
 }
@@ -194,7 +194,7 @@ NODE
 done
 
 if ! API_BASE_URL="$API_BASE_URL" node --input-type=module - <<'NODE'
-const response = await fetch(`${process.env.API_BASE_URL}/api/events?limit=50`);
+const response = await fetch(`${process.env.API_BASE_URL}/api/events?limit=500`);
 if (!response.ok) {
   process.exit(1);
 }

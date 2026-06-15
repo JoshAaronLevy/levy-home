@@ -12,7 +12,13 @@ export function createRecentActivityStore(capacity = 100): RecentActivityStore {
 
   return {
     add(event) {
-      events.unshift(event);
+      const insertIndex = events.findIndex((existingEvent) => eventTimestamp(event) > eventTimestamp(existingEvent));
+
+      if (insertIndex === -1) {
+        events.push(event);
+      } else {
+        events.splice(insertIndex, 0, event);
+      }
 
       if (events.length > maxEvents) {
         events.length = maxEvents;
@@ -28,7 +34,13 @@ export function createRecentActivityStore(capacity = 100): RecentActivityStore {
 }
 
 export function clampRecentActivityLimit(value: unknown, fallback = 50): number {
-  return clampInteger(value, 1, 100, fallback);
+  return clampInteger(value, 1, 500, fallback);
+}
+
+function eventTimestamp(event: LevyHomeEvent): number {
+  const timestamp = Date.parse(event.occurredAt ?? '');
+
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
 
 function clampInteger(value: unknown, min: number, max: number, fallback: number): number {

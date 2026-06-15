@@ -8,6 +8,7 @@ import { createRecentActivityStore } from './activityStore.js';
 import type { PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import type { APNsSendRequest, APNsSendResult } from './contracts.js';
+import type { LevyHomeEvent } from './contracts.js';
 import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClient.js';
 import { createApp } from './server.js';
 
@@ -350,6 +351,23 @@ test('event webhook stores events and /api/events returns them', async () => {
   assert.equal(events.events[0].type, 'garage_opened');
 });
 
+test('/api/events disables HTTP caching for the live timeline', async () => {
+  const firstResponse = await fetch(`${baseURL}/api/events?limit=50`);
+  const etag = firstResponse.headers.get('etag');
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(firstResponse.headers.get('cache-control'), 'no-store');
+  assert.equal(etag, null);
+
+  const conditionalResponse = await fetch(`${baseURL}/api/events?limit=50`, {
+    headers: { 'If-None-Match': etag ?? '"stale-event-feed"' },
+  });
+
+  assert.equal(conditionalResponse.status, 200);
+  assert.equal(conditionalResponse.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await conditionalResponse.json(), { ok: true, events: [] });
+});
+
 test('phone activity webhook events omit push metadata', async () => {
   const created = await postJSON(
     '/api/ha/events',
@@ -397,6 +415,156 @@ test('/api/events returns normalized Home Assistant phone activity from the shar
   assert.equal(response.events[0].entityId, 'sensor.joshs_iphone_battery_level');
   assert.equal(response.events[0].metadata.person, 'Josh');
   assert.equal(response.events[0].push, undefined);
+});
+
+test('/api/events filters recent activity by since timestamp', async () => {
+  await closeServer();
+  const activityStore = createRecentActivityStore(500);
+  const app = createApp({ config: testConfig, activityStore });
+
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, () => {
+      resolve();
+    });
+  });
+
+  const address = server?.address() as AddressInfo;
+  baseURL = `http://127.0.0.1:${address.port}`;
+
+  activityStore.add(testActivityEvent('old', '2026-06-14T16:59:59.000Z'));
+  activityStore.add(testActivityEvent('first-recent', '2026-06-14T17:00:00.000Z'));
+  activityStore.add(testActivityEvent('newest', '2026-06-15T17:00:00.000Z'));
+
+  const response = await getJSON('/api/events?limit=500&since=2026-06-14T17:00:00.000Z');
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(
+    response.events.map((event: LevyHomeEvent) => event.id),
+    ['newest', 'first-recent'],
+  );
+});
+
+test('/api/events returns local events and Home Assistant history for an explicit time window', async () => {
+  await closeServer();
+
+  const homeAssistantRequests: string[] = [];
+  const homeAssistantServer = createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://home-assistant.test');
+    homeAssistantRequests.push(`${url.pathname}?${url.searchParams.toString()}`);
+
+    if (req.headers.authorization !== 'Bearer test-home-assistant-token') {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    if (url.pathname === '/api/history/period/2026-06-14T18:00:00.000Z') {
+      assert.equal(url.searchParams.get('end_time'), '2026-06-15T18:00:00.000Z');
+      assert.equal(url.searchParams.get('filter_entity_id'), 'sensor.joshs_iphone_battery_level');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify([
+        [
+          {
+            entity_id: 'sensor.joshs_iphone_battery_level',
+            state: '81',
+            last_changed: '2026-06-14T18:30:00.000Z',
+            attributes: { friendly_name: "Josh's iPhone Battery Level", unit_of_measurement: '%' },
+          },
+          {
+            entity_id: 'sensor.joshs_iphone_battery_level',
+            state: '80',
+            last_changed: '2026-06-14T19:00:00.000Z',
+            attributes: { friendly_name: "Josh's iPhone Battery Level", unit_of_measurement: '%' },
+          },
+        ],
+      ]));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found' }));
+  });
+
+  await new Promise<void>((resolve) => {
+    homeAssistantServer.listen(0, '127.0.0.1', () => {
+      resolve();
+    });
+  });
+
+  const homeAssistantAddress = homeAssistantServer.address() as AddressInfo;
+  const activityStore = createRecentActivityStore(500);
+  activityStore.add(testActivityEvent('local-event', '2026-06-14T18:45:00.000Z'));
+
+  const app = createApp({
+    config: {
+      ...testConfig,
+      homeAssistant: {
+        ...testConfig.homeAssistant,
+        mode: 'live',
+        baseURL: `http://127.0.0.1:${homeAssistantAddress.port}`,
+        token: 'test-home-assistant-token',
+        activity: {
+          isEnabled: true,
+          trackedPhoneEntities: [
+            { entityId: 'sensor.joshs_iphone_battery_level', person: 'Josh', deviceName: "Josh's iPhone" },
+          ],
+          trackedPhoneEntityPatterns: [],
+        },
+      },
+    },
+    activityStore,
+  });
+
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, () => {
+      resolve();
+    });
+  });
+
+  const address = server?.address() as AddressInfo;
+  baseURL = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const response = await getJSON(
+      '/api/events?limit=500&start=2026-06-14T18:00:00.000Z&end=2026-06-15T18:00:00.000Z',
+    );
+
+    assert.equal(response.ok, true);
+    assert.deepEqual(
+      response.events.map((event: LevyHomeEvent) => event.occurredAt),
+      [
+        '2026-06-14T19:00:00.000Z',
+        '2026-06-14T18:45:00.000Z',
+        '2026-06-14T18:30:00.000Z',
+      ],
+    );
+    assert.equal(response.events[0].type, 'phone_state_changed');
+    assert.equal(response.events[0].metadata.ingestionSource, 'history');
+    assert.equal(response.events[1].id, 'local-event');
+    assert.deepEqual(homeAssistantRequests, [
+      '/api/history/period/2026-06-14T18:00:00.000Z?end_time=2026-06-15T18%3A00%3A00.000Z&filter_entity_id=sensor.joshs_iphone_battery_level',
+    ]);
+  } finally {
+    await closeServer();
+    await new Promise<void>((resolve, reject) => {
+      homeAssistantServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test('/api/events rejects invalid explicit activity windows', async () => {
+  const response = await fetch(`${baseURL}/api/events?start=2026-06-15T18:00:00.000Z&end=2026-06-14T18:00:00.000Z`);
+  const body = (await response.json()) as { code: string };
+
+  assert.equal(response.status, 400);
+  assert.equal(body.code, 'invalid_activity_window');
 });
 
 test('phone entity discovery route requires the Home Assistant webhook secret', async () => {
@@ -617,6 +785,24 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
           },
         },
       },
+    },
+  };
+}
+
+function testActivityEvent(id: string, occurredAt: string): LevyHomeEvent {
+  return {
+    id,
+    type: 'phone_state_changed',
+    category: 'phone',
+    severity: 'normal',
+    entityId: `sensor.${id}`,
+    source: 'home_assistant',
+    occurredAt,
+    receivedAt: occurredAt,
+    display: {
+      title: 'Phone changed',
+      body: 'State changed',
+      severity: 'info',
     },
   };
 }

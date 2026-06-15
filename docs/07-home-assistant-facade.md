@@ -53,7 +53,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `POST` | `/api/debug/send-test-push` | Debug APNs test push to registered APNs devices with provider-neutral counts. |
 | `GET` | `/api/debug/home-assistant/phone-entities` | Protected Home Assistant phone-entity discovery helper for Phase 1 activity setup. |
 | `POST` | `/api/ha/events` | Home Assistant event webhook. |
-| `GET` | `/api/events` | Recent event timeline. |
+| `GET` | `/api/events` | Recent event timeline. Supports optional `limit`, legacy `since`, and explicit `start`/`end` query params. |
 
 The API rejects arbitrary Home Assistant service/entity payloads from the app. Do not send fields such as `domain`, `service`, `entity_id`, or `target` to `/api/home/actions`.
 
@@ -185,9 +185,11 @@ HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=sensor.joshs_iphone_*:Josh:Josh's iPhone,se
 
 When `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`, the API process starts a background Home Assistant WebSocket listener at startup. It authenticates with `HOME_ASSISTANT_TOKEN`, subscribes to `state_changed`, filters to the configured exact entities and patterns, and reconnects with backoff after unexpected disconnects. The listener does not log tokens, request headers, raw Home Assistant events, or Home Assistant URLs.
 
+At startup, the API also performs a temporary 24-hour Home Assistant REST history backfill for the configured phone entities. Exact `HOME_ASSISTANT_PHONE_ENTITIES` are requested directly; `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` are first resolved through `/api/states`, then requested through `/api/history/period/<timestamp>` with `filter_entity_id`. This is an inspection aid for the simulator phase and is not durable storage.
+
 Matching phone state changes are normalized into generic `phone_state_changed` Activity records with `category: "phone"`, `source: "home_assistant"`, safe Home Assistant metadata, and no `push` object. Phone activity is not sent through APNs and is not represented as skipped notification delivery.
 
-Matching phone activity is stored in the same process-local recent activity feed as webhook-created events and returned from `GET /api/events`. This storage is temporary for the simulator proof and resets when the API process restarts or redeploys.
+Matching phone activity is stored in the same process-local recent activity feed as webhook-created events and returned from `GET /api/events`. The temporary feed is capped at 500 process-local records, sorted newest first by `occurredAt`, and resets when the API process restarts or redeploys. The iOS Activity tab requests `GET /api/events?limit=500&start=<window-start>&end=<window-end>`: app open and pull-to-refresh load the newest 24-hour window, and scrolling to the bottom requests the previous 24-hour window.
 
 The iOS Activity tab decodes `phone_state_changed` and `category: "phone"` directly and renders those records with phone-specific iconography.
 

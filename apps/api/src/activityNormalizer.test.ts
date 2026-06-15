@@ -33,6 +33,7 @@ test('normalizePhoneStateChangedEvent stores safe Home Assistant metadata only',
     friendlyName: "Josh's iPhone Battery Level",
     oldState: '82',
     newState: '81',
+    ingestionSource: 'websocket',
     oldAttributes: {
       friendly_name: "Josh's iPhone Battery Level",
       unit_of_measurement: '%',
@@ -75,6 +76,7 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
     newState: '81',
     occurredAt: '2026-06-15T17:00:00.000Z',
     friendlyName: "Josh's iPhone Battery Level",
+    ingestionSource: 'websocket',
     rawEvent: {
       event_type: 'state_changed',
       time_fired: '2026-06-15T17:00:00.000Z',

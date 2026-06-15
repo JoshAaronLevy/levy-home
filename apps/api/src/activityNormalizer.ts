@@ -10,6 +10,8 @@ type NormalizedPhoneActivityMetadata = {
   friendlyName?: string;
   oldState?: string;
   newState?: string;
+  ingestionSource?: 'websocket' | 'history';
+  isInitialBackfillState?: boolean;
   oldAttributes?: Record<string, unknown>;
   newAttributes?: Record<string, unknown>;
   homeAssistantContextId?: string;
@@ -25,7 +27,7 @@ export function normalizePhoneStateChangedEvent(event: HomeAssistantStateChanged
   };
 
   return {
-    id: crypto.randomUUID(),
+    id: event.id ?? crypto.randomUUID(),
     type: 'phone_state_changed',
     entityId: event.entityId,
     category: 'phone',
@@ -79,6 +81,10 @@ function phoneActivityMetadata(event: HomeAssistantStateChangedEvent): Normalize
     ...(event.friendlyName ? { friendlyName: event.friendlyName } : {}),
     ...(event.oldState !== undefined ? { oldState: event.oldState } : {}),
     ...(event.newState !== undefined ? { newState: event.newState } : {}),
+    ...(event.ingestionSource ? { ingestionSource: event.ingestionSource } : {}),
+    ...(event.isInitialBackfillState !== undefined
+      ? { isInitialBackfillState: event.isInitialBackfillState }
+      : {}),
     ...(oldAttributes ? { oldAttributes } : {}),
     ...(newAttributes ? { newAttributes } : {}),
     ...(contextId ? { homeAssistantContextId: contextId } : {}),

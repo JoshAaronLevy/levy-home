@@ -11,6 +11,10 @@ import {
   createRecentActivityStore,
   type RecentActivityStore,
 } from './activityStore.js';
+import {
+  backfillHomeAssistantActivity,
+  fetchHomeAssistantActivityWindow,
+} from './homeAssistantActivityBackfill.js';
 import { APNsConfigurationError, createAPNsPushSender, type PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
@@ -32,7 +36,10 @@ import {
   type RegisteredDevice,
   type TestPushPayload,
 } from './contracts.js';
-import { createHomeAssistantActivityListener } from './homeAssistantActivityClient.js';
+import {
+  createHomeAssistantActivityListener,
+  type HomeAssistantStateChangedEvent,
+} from './homeAssistantActivityClient.js';
 import { createHomeAssistantFacade } from './homeAssistantClient.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
@@ -54,7 +61,7 @@ export type CreateAppOptions = {
 export function createApp(options: CreateAppOptions = {}): express.Express {
   const config = options.config ?? readConfig();
   const app = express();
-  const activityStore = options.activityStore ?? createRecentActivityStore();
+  const activityStore = options.activityStore ?? createRecentActivityStore(500);
   const registeredDevicesById = new Map<string, RegisteredDevice>();
   const registeredDeviceIdsByLookupKey = new Map<string, string>();
   const preferencesByDeviceKey = new Map<string, NotificationPreference[]>();
@@ -62,7 +69,12 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
 
+  app.set('etag', false);
   app.use(cors());
+  app.use((_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/health', (_req, res) => {
@@ -273,14 +285,26 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     }),
   );
 
-  app.get('/api/events', (req, res) => {
+  app.get('/api/events', asyncHandler(async (req, res) => {
     const limit = clampRecentActivityLimit(req.query.limit);
+    const window = parseActivityWindow(req.query);
+    const storedEvents = activityStore
+      .list(500)
+      .filter((event) => isEventInWindow(event, window))
+      .slice(0, limit);
+    const historyEvents = window?.startTime && window.endTime
+      ? (await fetchHomeAssistantActivityWindow(config, {
+          startTime: window.startTime,
+          endTime: window.endTime,
+        })).map((event) => normalizePhoneStateChangedEvent(event))
+      : [];
+    const events = mergeActivityEvents([...storedEvents, ...historyEvents], limit);
 
     res.json({
       ok: true,
-      events: activityStore.list(limit),
+      events,
     });
-  });
+  }));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HTTPError) {
@@ -315,6 +339,99 @@ function readPhoneDiscoveryKeywords(value: unknown): string[] | undefined {
     .filter(Boolean);
 
   return keywords.length > 0 ? keywords : undefined;
+}
+
+type ActivityWindow = {
+  startTime?: Date;
+  endTime?: Date;
+};
+
+function parseActivityWindow(query: Request['query']): ActivityWindow | undefined {
+  const hasStartOrEnd = typeof query.start === 'string' || typeof query.end === 'string';
+
+  if (hasStartOrEnd) {
+    if (typeof query.start !== 'string' || typeof query.end !== 'string') {
+      throw new HTTPError(400, '`start` and `end` query parameters must be provided together.', 'invalid_activity_window');
+    }
+
+    const startTime = parseTimestamp(query.start);
+    const endTime = parseTimestamp(query.end);
+
+    if (!startTime || !endTime || startTime >= endTime) {
+      throw new HTTPError(400, '`start` and `end` must be valid ISO timestamps with start before end.', 'invalid_activity_window');
+    }
+
+    if (endTime.getTime() - startTime.getTime() > 7 * 24 * 60 * 60 * 1_000) {
+      throw new HTTPError(400, 'Activity windows cannot be longer than 7 days.', 'activity_window_too_large');
+    }
+
+    return { startTime, endTime };
+  }
+
+  const sinceTime = typeof query.since === 'string' ? parseTimestamp(query.since) : undefined;
+
+  return sinceTime ? { startTime: sinceTime } : undefined;
+}
+
+function parseTimestamp(value: string): Date | undefined {
+  const timestamp = Date.parse(value);
+
+  if (!Number.isFinite(timestamp)) {
+    return undefined;
+  }
+
+  return new Date(timestamp);
+}
+
+function isEventInWindow(event: LevyHomeEvent, window: ActivityWindow | undefined): boolean {
+  if (!window) {
+    return true;
+  }
+
+  const timestamp = eventTimestamp(event);
+
+  if (window.startTime && timestamp < window.startTime.getTime()) {
+    return false;
+  }
+
+  if (window.endTime && timestamp >= window.endTime.getTime()) {
+    return false;
+  }
+
+  return true;
+}
+
+function eventTimestamp(event: LevyHomeEvent): number {
+  const timestamp = Date.parse(event.occurredAt ?? '');
+
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+function mergeActivityEvents(events: LevyHomeEvent[], limit: number): LevyHomeEvent[] {
+  const eventsByKey = new Map<string, LevyHomeEvent>();
+
+  for (const event of events) {
+    const key = activityEventKey(event);
+    const existing = eventsByKey.get(key);
+
+    if (!existing || event.receivedAt < existing.receivedAt) {
+      eventsByKey.set(key, event);
+    }
+  }
+
+  return Array.from(eventsByKey.values())
+    .sort((a, b) => eventTimestamp(b) - eventTimestamp(a))
+    .slice(0, limit);
+}
+
+function activityEventKey(event: LevyHomeEvent): string {
+  return [
+    event.type,
+    event.entityId,
+    event.occurredAt,
+    event.display.title,
+    event.display.body,
+  ].join('|');
 }
 
 function createDeviceLookupKey(registration: Pick<RegisteredDevice, 'token' | 'provider' | 'environment'>): string {
@@ -502,24 +619,44 @@ function notificationCategoryForEvent(
 }
 
 export function startServer(config = readConfig()): void {
-  const activityStore = createRecentActivityStore();
+  const activityStore = createRecentActivityStore(500);
   const app = createApp({ config, activityStore });
-  const activityListener = createHomeAssistantActivityListener(config, {
-    onStateChanged: (event) => {
-      const normalizedEvent = normalizePhoneStateChangedEvent(event);
-      activityStore.add(normalizedEvent);
+  const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
+    const normalizedEvent = normalizePhoneStateChangedEvent(event);
+
+    activityStore.add(normalizedEvent);
+
+    if (event.ingestionSource !== 'history') {
       console.info(`Home Assistant phone activity stored ${normalizedEvent.entityId}.`);
-    },
+    }
+  };
+  const activityListener = createHomeAssistantActivityListener(config, {
+    onStateChanged: storeHomeAssistantPhoneActivity,
   });
 
   const server = app.listen(config.port, () => {
     console.log(`Levy Home API listening on http://localhost:${config.port}`);
     activityListener?.start();
+    void backfillHomeAssistantActivity(config, {
+      onStateChanged: storeHomeAssistantPhoneActivity,
+    })
+      .then((eventCount) => {
+        if (eventCount > 0) {
+          console.info(`Home Assistant activity backfill stored ${eventCount} event(s) from the last 24 hours.`);
+        }
+      })
+      .catch((error) => {
+        console.warn(`Home Assistant activity backfill failed: ${safeErrorMessage(error)}`);
+      });
   });
 
   server.on('close', () => {
     activityListener?.stop();
   });
+}
+
+function safeErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error.';
 }
 
 async function createStoredEvent(

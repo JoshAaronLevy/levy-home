@@ -46,12 +46,26 @@ final class APIClientTests: XCTestCase {
             )
         }
 
-        let response = try await client.fetchRecentEvents(limit: 25)
+        let formatter = ISO8601DateFormatter()
+        let start = formatter.date(from: "2026-06-14T17:00:00Z")!
+        let end = formatter.date(from: "2026-06-15T17:00:00Z")!
+        let response = try await client.fetchRecentEvents(limit: 25, start: start, end: end)
+        let queryItems = Dictionary(
+            uniqueKeysWithValues: (URLComponents(
+                url: try XCTUnwrap(capturedRequests.first?.url),
+                resolvingAgainstBaseURL: false
+            )?.queryItems ?? []).map { ($0.name, $0.value) }
+        )
 
         XCTAssertEqual(response.events.map(\.type), [.garageOpened])
         XCTAssertEqual(capturedRequests.first?.httpMethod, "GET")
         XCTAssertEqual(capturedRequests.first?.url?.path, "/api-base/api/events")
-        XCTAssertEqual(capturedRequests.first?.url?.query, "limit=25")
+        XCTAssertEqual(queryItems["limit"] ?? nil, "25")
+        XCTAssertEqual(queryItems["start"] ?? nil, "2026-06-14T17:00:00.000Z")
+        XCTAssertEqual(queryItems["end"] ?? nil, "2026-06-15T17:00:00.000Z")
+        XCTAssertEqual(capturedRequests.first?.cachePolicy, .reloadIgnoringLocalCacheData)
+        XCTAssertEqual(capturedRequests.first?.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+        XCTAssertEqual(capturedRequests.first?.value(forHTTPHeaderField: "Pragma"), "no-cache")
         XCTAssertNil(capturedRequests.first?.httpBody)
     }
 

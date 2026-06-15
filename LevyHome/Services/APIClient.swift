@@ -24,8 +24,21 @@ final class APIClient {
         self.encoder = encoder
     }
 
-    func fetchRecentEvents(limit: Int? = nil) async throws -> EventsResponse {
-        let queryItems = limit.map { [URLQueryItem(name: "limit", value: String($0))] } ?? []
+    func fetchRecentEvents(limit: Int? = nil, start: Date? = nil, end: Date? = nil) async throws -> EventsResponse {
+        var queryItems: [URLQueryItem] = []
+
+        if let limit {
+            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+
+        if let start {
+            queryItems.append(URLQueryItem(name: "start", value: Self.iso8601Formatter.string(from: start)))
+        }
+
+        if let end {
+            queryItems.append(URLQueryItem(name: "end", value: Self.iso8601Formatter.string(from: end)))
+        }
+
         return try await send(path: "/api/events", queryItems: queryItems)
     }
 
@@ -99,9 +112,11 @@ final class APIClient {
         bodyData: Data?
     ) async throws -> Response {
         let url = try makeURL(path: path, queryItems: queryItems)
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
 
         if let bodyData {
             request.httpBody = bodyData
@@ -169,3 +184,11 @@ protocol DeviceRegistrationServicing {
 }
 
 extension APIClient: DeviceRegistrationServicing {}
+
+private extension APIClient {
+    static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
