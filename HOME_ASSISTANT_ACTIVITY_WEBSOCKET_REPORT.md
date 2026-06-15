@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, **Phase 3 — Backend WebSocket listener**, **Phase 4 — Generic phone activity normalization**, **Phase 5 — Store and expose recent activity**, and **Phase 6 — Minimal SwiftUI adjustments** are now implemented.
+This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, **Phase 3 — Backend WebSocket listener**, **Phase 4 — Generic phone activity normalization**, **Phase 5 — Store and expose recent activity**, **Phase 6 — Minimal SwiftUI adjustments**, and **Phase 7 — Simulator verification workflow** are now implemented.
 
-The next actual implementation task should be **Phase 7 — Simulator verification** with real Home Assistant phone activity.
+The next actual implementation task should be a real Phase 7 run with selected phone entities/patterns configured in the local or deployed environment, then recording the observed phone activity result.
 
-`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. Phase 4 added a generic `phone_state_changed` normalizer that produces Activity-first `LevyHomeEvent` records without push metadata. Phase 5 stores those normalized records in the same in-memory recent activity feed used by webhook events and exposes them through `GET /api/events`. Phase 6 added iOS-side recognition for `phone_state_changed` and `category: "phone"` plus a phone icon in the Activity card. There is still no durable activity storage and no verified real phone activity in the simulator Activity tab.
+`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. Phase 4 added a generic `phone_state_changed` normalizer that produces Activity-first `LevyHomeEvent` records without push metadata. Phase 5 stores those normalized records in the same in-memory recent activity feed used by webhook events and exposes them through `GET /api/events`. Phase 6 added iOS-side recognition for `phone_state_changed` and `category: "phone"` plus a phone icon in the Activity card. Phase 7 added a repeatable script that starts a known local API process with activity enabled, verifies listener authenticated/subscribed logs, waits for `phone_state_changed` in `/api/events`, and builds/installs/launches the simulator app against `http://localhost:4000`. There is still no durable activity storage. A real phone activity observation is pending because this checkout's local `.env` does not yet include `HOME_ASSISTANT_ACTIVITY_ENABLED`, `HOME_ASSISTANT_PHONE_ENTITIES`, or `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS`.
 
 ## 1. Current State
 
@@ -207,7 +207,7 @@ Yes. The app’s Activity tab calls `/api/events`, and the backend serves `/api/
 | API endpoint SwiftUI can call | Present: `GET /api/events`; reusable only if the contract can support Activity-only phone records cleanly. |
 | Working SwiftUI Activity UI | Present for the MVP. It renders `LevyHomeEvent` records, recognizes phone activity, and uses a phone icon for `phone_state_changed`. |
 | Error/loading/empty states | Present in `ActivityView` and `ActivityViewModel`. |
-| Simulator API config | Mostly present. Simulator can call `http://localhost:4000`; physical iPhones need LAN/deployed URL. |
+| Simulator API config | Present for local Phase 7 runs through `scripts/verify-home-assistant-activity-simulator.sh`, which builds the simulator app with `LEVY_HOME_API_BASE_URL=http://localhost:4000`. Physical iPhones still need LAN/deployed URL. |
 
 Additional gaps:
 
@@ -220,6 +220,7 @@ Additional gaps:
 - Phase 2 code parses tracked phone entity config, and Phase 3 consumes it for WebSocket filtering.
 - Phase 3 uses the runtime WebSocket implementation. No `ws` package dependency was added.
 - Phase 5 stores matching normalized phone state changes in the shared recent activity store and exposes them through `GET /api/events`.
+- Phase 7 local preflight confirmed Home Assistant REST was reachable with the local `.env`, but tracked phone activity env keys were not configured yet.
 
 ## 5. Recommended Architecture
 
@@ -535,26 +536,44 @@ Files changed:
 
 Goal: prove real Home Assistant phone activity appears in the simulator Activity tab.
 
-Steps:
+Status: verification workflow implemented; real phone activity observation pending selected phone entity config.
 
-1. Start the backend.
-2. Confirm the backend starts without exposing secrets.
-3. Confirm listener logs show connected/authenticated/subscribed.
-4. Trigger or wait for Josh/Mallory iPhone entity changes.
-5. Confirm the selected endpoint returns real phone activity:
+Use the dedicated runner:
+
+```sh
+scripts/verify-home-assistant-activity-simulator.sh
+```
+
+The script:
+
+1. Loads env from `apps/api/.env` without printing secret values.
+2. Requires live Home Assistant mode, base URL, token, webhook secret, and at least one selected exact phone entity or explicit phone entity pattern.
+3. Starts a known local API process with `HOME_ASSISTANT_ACTIVITY_ENABLED=true`.
+4. Confirms listener logs show authenticated and subscribed.
+5. Waits for `phone_state_changed` records in `GET /api/events?limit=50`.
+6. Builds, installs, and launches the simulator app with `LEVY_HOME_API_BASE_URL=http://localhost:4000`.
+
+Useful options:
+
+```sh
+PHASE7_EVENT_WAIT_SECONDS=300 scripts/verify-home-assistant-activity-simulator.sh
+SIMULATOR_NAME='iPhone 17 Pro' scripts/verify-home-assistant-activity-simulator.sh
+PHASE7_DRY_RUN=true PHASE7_SKIP_HA_PREFLIGHT=true scripts/verify-home-assistant-activity-simulator.sh
+```
+
+Manual endpoint check:
 
 ```sh
 curl 'http://localhost:4000/api/events?limit=50'
 ```
 
-or, only if chosen:
+Then open Activity and confirm phone records render newest first.
 
-```sh
-curl 'http://localhost:4000/api/activity?limit=50'
-```
+Current local preflight:
 
-6. Run the app in the simulator with API base URL `http://localhost:4000`.
-7. Open Activity and confirm phone records render newest first.
+- Home Assistant REST was reachable from this checkout.
+- Candidate phone-like Home Assistant entities were present.
+- `HOME_ASSISTANT_ACTIVITY_ENABLED`, `HOME_ASSISTANT_PHONE_ENTITIES`, and `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` were not present in the local `.env`, so the real phone-event wait was not run to completion.
 
 ## 10. Proposed Data Shapes
 
@@ -694,4 +713,4 @@ The MVP should prefer the lowest-churn path that gets real Home Assistant phone 
 
 ## Bottom Line
 
-Phases 1-6 are complete. The SwiftUI Activity tab and `/api/events` endpoint are already connected, and the backend can now discover candidate phone entities, read explicit phone tracking config, connect to Home Assistant WebSocket, filter configured phone entities, normalize matching state changes as generic `phone_state_changed` Activity records without push metadata, store those records in the shared in-memory recent activity feed, and render them in the Activity tab with phone-specific decoding and iconography. The next task is Phase 7: verify real Home Assistant phone activity in the simulator Activity tab.
+Phases 1-7 are complete as an implementation workflow. The SwiftUI Activity tab and `/api/events` endpoint are already connected, and the backend can now discover candidate phone entities, read explicit phone tracking config, connect to Home Assistant WebSocket, filter configured phone entities, normalize matching state changes as generic `phone_state_changed` Activity records without push metadata, store those records in the shared in-memory recent activity feed, render them in the Activity tab with phone-specific decoding and iconography, and run a repeatable simulator verification script. The remaining milestone proof is to add selected phone entity config to the environment and capture a real `phone_state_changed` event in the simulator Activity tab.

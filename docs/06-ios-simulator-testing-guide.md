@@ -319,7 +319,20 @@ Find your Mac's LAN IP:
 ipconfig getifaddr en0
 ```
 
-Later, when the `levy-home` backend/API exists, this guide should be updated with the exact command for starting it.
+The backend lives in `apps/api`. For local simulator testing, start it on port `4000`:
+
+```sh
+npm run api:build
+npm run api:start
+```
+
+For Home Assistant phone activity verification, first configure the live Home Assistant env values plus either `HOME_ASSISTANT_PHONE_ENTITIES` or `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS`, then run:
+
+```sh
+scripts/verify-home-assistant-activity-simulator.sh
+```
+
+That Phase 7 runner starts a known local API process with activity ingestion enabled, waits for a `phone_state_changed` record in `/api/events`, then builds, installs, and launches the simulator app with `LEVY_HOME_API_BASE_URL=http://localhost:4000`.
 
 ## Stage-By-Stage Manual Testing Pattern
 
@@ -358,6 +371,14 @@ open -a Simulator
 
 # Build
 xcodebuild -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -derivedDataPath build/DerivedData build
+
+# Build and install latest app, optionally overriding the API URL for one run
+LEVY_HOME_API_BASE_URL=http://localhost:4000 scripts/build-install-simulator.sh
+
+# Choose an exact simulator if duplicate names exist
+SIMULATOR_DEVICE_ID='099E306C-A087-4E2F-9CFE-289EFFE62AAA' \
+  LEVY_HOME_API_BASE_URL=http://localhost:4000 \
+  scripts/build-install-simulator.sh
 
 # Install
 xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulator/LevyHome.app

@@ -190,3 +190,11 @@ Matching phone state changes are normalized into generic `phone_state_changed` A
 Matching phone activity is stored in the same process-local recent activity feed as webhook-created events and returned from `GET /api/events`. This storage is temporary for the simulator proof and resets when the API process restarts or redeploys.
 
 The iOS Activity tab decodes `phone_state_changed` and `category: "phone"` directly and renders those records with phone-specific iconography.
+
+To run the full local simulator verification workflow after selecting tracked phone entities, use:
+
+```sh
+scripts/verify-home-assistant-activity-simulator.sh
+```
+
+The script checks live activity env configuration, starts the local API with activity ingestion enabled, waits for phone activity in `/api/events`, then builds, installs, and launches the simulator app against `http://localhost:4000`.
