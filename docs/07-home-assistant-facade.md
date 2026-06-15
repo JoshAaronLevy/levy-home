@@ -47,6 +47,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `GET` | `/api/notification-preferences` | Garage notification preferences, optionally scoped by `deviceId` or provider-aware device token query params. |
 | `PUT` | `/api/notification-preferences` | Sync per-device garage notification preferences by registered `deviceId` or provider-aware token. |
 | `POST` | `/api/debug/send-test-push` | Debug APNs test push to registered APNs devices with provider-neutral counts. |
+| `GET` | `/api/debug/home-assistant/phone-entities` | Protected Home Assistant phone-entity discovery helper for Phase 1 activity setup. |
 | `POST` | `/api/ha/events` | Home Assistant event webhook. |
 | `GET` | `/api/events` | Recent event timeline. |
 
@@ -152,4 +153,18 @@ curl -X POST http://localhost:4000/api/ha/events \
   }'
 
 curl http://localhost:4000/api/events
+```
+
+To safely discover candidate Josh/Mallory iPhone entities from Home Assistant live mode:
+
+```sh
+curl 'http://localhost:4000/api/debug/home-assistant/phone-entities' \
+  -H "Authorization: Bearer dev-secret"
+```
+
+The discovery response is intentionally sanitized. It includes entity IDs, domains, friendly names, bounded state summaries, timestamps, and matched search terms; it does not return Home Assistant tokens, headers, raw attributes, or full state dumps. Optional comma-separated `keywords` can narrow a one-off search:
+
+```sh
+curl 'http://localhost:4000/api/debug/home-assistant/phone-entities?keywords=josh,mallory,iphone' \
+  -H "Authorization: Bearer dev-secret"
 ```

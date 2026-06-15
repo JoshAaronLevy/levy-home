@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
+import { createServer, type Server } from 'node:http';
 
 import type { PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
@@ -342,6 +342,105 @@ test('event webhook stores events and /api/events returns them', async () => {
   assert.equal(events.events[0].type, 'garage_opened');
 });
 
+test('phone entity discovery route requires the Home Assistant webhook secret', async () => {
+  const response = await fetch(`${baseURL}/api/debug/home-assistant/phone-entities`);
+  const body = (await response.json()) as { code: string };
+
+  assert.equal(response.status, 401);
+  assert.equal(body.code, 'unauthorized_home_assistant_webhook');
+});
+
+test('phone entity discovery returns sanitized Home Assistant candidates', async () => {
+  await withLiveHomeAssistantStates(
+    [
+      {
+        entity_id: 'sensor.joshs_iphone_battery_level',
+        state: '82',
+        last_changed: '2026-06-15T17:00:00.000Z',
+        last_updated: '2026-06-15T17:00:01.000Z',
+        attributes: {
+          friendly_name: "Josh's iPhone Battery Level",
+          unit_of_measurement: '%',
+          private_detail: 'should not be returned',
+        },
+      },
+      {
+        entity_id: 'device_tracker.mallorys_iphone',
+        state: 'home',
+        last_changed: '2026-06-15T17:01:00.000Z',
+        last_updated: '2026-06-15T17:01:01.000Z',
+        attributes: {
+          friendly_name: "Mallory's iPhone",
+        },
+      },
+      {
+        entity_id: 'light.kitchen',
+        state: 'on',
+        last_changed: '2026-06-15T17:02:00.000Z',
+        last_updated: '2026-06-15T17:02:01.000Z',
+        attributes: {
+          friendly_name: 'Kitchen',
+        },
+      },
+    ],
+    async () => {
+      const response = await fetch(`${baseURL}/api/debug/home-assistant/phone-entities`, {
+        headers: { Authorization: 'Bearer test-secret' },
+      });
+      const body = await response.json() as {
+        ok: boolean;
+        candidateCount: number;
+        candidates: Array<Record<string, unknown>>;
+      };
+
+      assert.equal(response.ok, true);
+      assert.equal(body.ok, true);
+      assert.equal(body.candidateCount, 2);
+      assert.deepEqual(
+        body.candidates.map((candidate) => candidate.entityId),
+        ['device_tracker.mallorys_iphone', 'sensor.joshs_iphone_battery_level'],
+      );
+      assert.equal(body.candidates[0].domain, 'device_tracker');
+      assert.equal(body.candidates[0].stateSummary, 'home');
+      assert.equal(body.candidates[1].friendlyName, "Josh's iPhone Battery Level");
+      assert.equal('attributes' in body.candidates[1], false);
+      assert.equal(JSON.stringify(body).includes('test-home-assistant-token'), false);
+      assert.equal(JSON.stringify(body).includes('should not be returned'), false);
+    },
+  );
+});
+
+test('phone entity discovery supports narrow keyword searches', async () => {
+  await withLiveHomeAssistantStates(
+    [
+      {
+        entity_id: 'sensor.joshs_iphone_battery_level',
+        state: '82',
+        attributes: { friendly_name: "Josh's iPhone Battery Level" },
+      },
+      {
+        entity_id: 'device_tracker.mallorys_iphone',
+        state: 'home',
+        attributes: { friendly_name: "Mallory's iPhone" },
+      },
+    ],
+    async () => {
+      const response = await fetch(`${baseURL}/api/debug/home-assistant/phone-entities?keywords=mallory`, {
+        headers: { Authorization: 'Bearer test-secret' },
+      });
+      const body = await response.json() as {
+        candidateCount: number;
+        candidates: Array<Record<string, unknown>>;
+      };
+
+      assert.equal(response.ok, true);
+      assert.equal(body.candidateCount, 1);
+      assert.equal(body.candidates[0].entityId, 'device_tracker.mallorys_iphone');
+      assert.deepEqual(body.candidates[0].matchedTerms, ['mallory']);
+    },
+  );
+});
+
 async function withTestServer(pushSender: PushSender, action: () => Promise<void>): Promise<void> {
   await closeServer();
   const app = createApp({ config: testConfig, pushSender });
@@ -356,6 +455,74 @@ async function withTestServer(pushSender: PushSender, action: () => Promise<void
   baseURL = `http://127.0.0.1:${address.port}`;
 
   await action();
+}
+
+async function withLiveHomeAssistantStates(
+  states: Record<string, unknown>[],
+  action: () => Promise<void>,
+): Promise<void> {
+  await closeServer();
+
+  const homeAssistantServer = createServer((req, res) => {
+    if (req.url !== '/api/states') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    if (req.headers.authorization !== 'Bearer test-home-assistant-token') {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(states));
+  });
+
+  await new Promise<void>((resolve) => {
+    homeAssistantServer.listen(0, '127.0.0.1', () => {
+      resolve();
+    });
+  });
+
+  const homeAssistantAddress = homeAssistantServer.address() as AddressInfo;
+  const app = createApp({
+    config: {
+      ...testConfig,
+      homeAssistant: {
+        ...testConfig.homeAssistant,
+        mode: 'live',
+        baseURL: `http://127.0.0.1:${homeAssistantAddress.port}`,
+        token: 'test-home-assistant-token',
+      },
+    },
+  });
+
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, () => {
+      resolve();
+    });
+  });
+
+  const address = server?.address() as AddressInfo;
+  baseURL = `http://127.0.0.1:${address.port}`;
+
+  try {
+    await action();
+  } finally {
+    await closeServer();
+    await new Promise<void>((resolve, reject) => {
+      homeAssistantServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
 }
 
 async function getJSON(path: string): Promise<any> {

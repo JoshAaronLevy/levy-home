@@ -15,6 +15,16 @@ export type DisplaySeverity = 'info' | 'warning' | 'critical';
 export type HomeAssistantEventCategory = 'garage' | 'doorbell';
 export type HomeAssistantEventSeverity = 'normal' | 'high';
 
+export type HomeAssistantEntityDiscoveryCandidate = {
+  entityId: string;
+  domain: string;
+  friendlyName?: string;
+  stateSummary: string;
+  lastChangedAt?: string;
+  lastUpdatedAt?: string;
+  matchedTerms: string[];
+};
+
 export type EventDisplayMetadata = {
   title: string;
   body: string;

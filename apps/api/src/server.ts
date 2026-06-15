@@ -156,6 +156,21 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   );
 
   app.get(
+    '/api/debug/home-assistant/phone-entities',
+    requireHaWebhookSecret(config),
+    asyncHandler(async (req, res) => {
+      const candidates = await homeAssistant.discoverPhoneEntities(readPhoneDiscoveryKeywords(req.query.keywords));
+
+      res.json({
+        ok: true,
+        candidates,
+        candidateCount: candidates.length,
+        generatedAt: new Date().toISOString(),
+      });
+    }),
+  );
+
+  app.get(
     '/api/home/overview',
     asyncHandler(async (_req, res) => {
       res.json({
@@ -284,6 +299,19 @@ function lightActionTargets(config: AppConfig): Array<{ id: string; name: string
   return config.homeAssistant.lightEntities.length > 0
     ? config.homeAssistant.lightEntities
     : config.homeAssistant.lightGroups;
+}
+
+function readPhoneDiscoveryKeywords(value: unknown): string[] | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const keywords = value
+    .split(',')
+    .map((keyword) => keyword.trim())
+    .filter(Boolean);
+
+  return keywords.length > 0 ? keywords : undefined;
 }
 
 function createDeviceLookupKey(registration: Pick<RegisteredDevice, 'token' | 'provider' | 'environment'>): string {

@@ -1,5 +1,11 @@
 import type { AppConfig, CuratedLightEntity, CuratedLightGroup } from './config.js';
-import type { GarageStatus, GarageState, LightGroupStatus, LightState } from './contracts.js';
+import type {
+  GarageStatus,
+  GarageState,
+  HomeAssistantEntityDiscoveryCandidate,
+  LightGroupStatus,
+  LightState,
+} from './contracts.js';
 import { HTTPError } from './httpError.js';
 
 export type HomeAssistantFacade = {
@@ -8,6 +14,7 @@ export type HomeAssistantFacade = {
     allLights: LightGroupStatus;
     groups: LightGroupStatus[];
   }>;
+  discoverPhoneEntities(keywords?: string[]): Promise<HomeAssistantEntityDiscoveryCandidate[]>;
   closeGarage(): Promise<void>;
   turnOffAllLights(): Promise<void>;
   turnOffLightGroup(groupId: string): Promise<void>;
@@ -16,12 +23,28 @@ export type HomeAssistantFacade = {
 type HomeAssistantStateResponse = {
   entity_id: string;
   state: string;
+  last_changed?: string;
   last_updated?: string;
   attributes?: {
+    device_class?: string;
     friendly_name?: string;
     entity_id?: string[];
   };
 };
+
+const DEFAULT_PHONE_DISCOVERY_TERMS = [
+  'iphone',
+  'josh',
+  'mallory',
+  'mobile_app',
+  'battery_level',
+  'battery_state',
+  'geocoded_location',
+  'connection_type',
+  'activity',
+  'ssid',
+  'bssid',
+];
 
 export function createHomeAssistantFacade(config: AppConfig): HomeAssistantFacade {
   if (config.homeAssistant.mode === 'live') {
@@ -73,6 +96,30 @@ class MockHomeAssistantFacade implements HomeAssistantFacade {
       },
       groups,
     };
+  }
+
+  async discoverPhoneEntities(keywords?: string[]): Promise<HomeAssistantEntityDiscoveryCandidate[]> {
+    const terms = normalizePhoneDiscoveryTerms(keywords);
+    const mockStates: HomeAssistantStateResponse[] = [
+      {
+        entity_id: 'sensor.joshs_iphone_battery_level',
+        state: '82',
+        last_changed: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+        attributes: { friendly_name: "Josh's iPhone Battery Level" },
+      },
+      {
+        entity_id: 'device_tracker.mallorys_iphone',
+        state: 'home',
+        last_changed: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+        attributes: { friendly_name: "Mallory's iPhone" },
+      },
+    ];
+
+    return mockStates
+      .map((state) => toPhoneDiscoveryCandidate(state, terms))
+      .filter((candidate): candidate is HomeAssistantEntityDiscoveryCandidate => candidate !== null);
   }
 
   async closeGarage(): Promise<void> {
@@ -188,6 +235,16 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
     });
   }
 
+  async discoverPhoneEntities(keywords?: string[]): Promise<HomeAssistantEntityDiscoveryCandidate[]> {
+    const terms = normalizePhoneDiscoveryTerms(keywords);
+    const states = await this.request<HomeAssistantStateResponse[]>('/api/states');
+
+    return states
+      .map((state) => toPhoneDiscoveryCandidate(state, terms))
+      .filter((candidate): candidate is HomeAssistantEntityDiscoveryCandidate => candidate !== null)
+      .sort((a, b) => a.entityId.localeCompare(b.entityId));
+  }
+
   private async fetchSingleLightState(entity: CuratedLightEntity): Promise<LightGroupStatus> {
     const state = await this.fetchEntityState(entity.entityId);
 
@@ -265,6 +322,66 @@ function summarizeLightEntities(groups: LightGroupStatus[]): LightGroupStatus {
     lightsOnCount,
     totalLightCount,
   };
+}
+
+function normalizePhoneDiscoveryTerms(keywords: string[] | undefined): string[] {
+  const terms = keywords?.length ? keywords : DEFAULT_PHONE_DISCOVERY_TERMS;
+  const normalizedTerms = terms
+    .map((term) => normalizeDiscoveryText(term))
+    .filter(Boolean);
+
+  return Array.from(new Set(normalizedTerms));
+}
+
+function toPhoneDiscoveryCandidate(
+  state: HomeAssistantStateResponse,
+  terms: string[],
+): HomeAssistantEntityDiscoveryCandidate | null {
+  const matchedTerms = matchingPhoneDiscoveryTerms(state, terms);
+
+  if (matchedTerms.length === 0) {
+    return null;
+  }
+
+  return {
+    entityId: state.entity_id,
+    domain: state.entity_id.split('.')[0] ?? 'unknown',
+    ...(state.attributes?.friendly_name ? { friendlyName: state.attributes.friendly_name } : {}),
+    stateSummary: summarizeHomeAssistantState(state.state),
+    ...(state.last_changed ? { lastChangedAt: state.last_changed } : {}),
+    ...(state.last_updated ? { lastUpdatedAt: state.last_updated } : {}),
+    matchedTerms,
+  };
+}
+
+function matchingPhoneDiscoveryTerms(state: HomeAssistantStateResponse, terms: string[]): string[] {
+  const haystack = [
+    state.entity_id,
+    state.attributes?.friendly_name,
+    state.attributes?.device_class,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => normalizeDiscoveryText(value))
+    .join(' ');
+
+  return terms.filter((term) => haystack.includes(term));
+}
+
+function normalizeDiscoveryText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function summarizeHomeAssistantState(value: unknown): string {
+  const state = typeof value === 'string' ? value : String(value);
+
+  if (state.length <= 80) {
+    return state;
+  }
+
+  return `${state.slice(0, 77)}...`;
 }
 
 function mapLightCollectionState(states: LightState[]): LightState {

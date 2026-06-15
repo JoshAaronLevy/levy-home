@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-This document is a planning/report document only. No backend, WebSocket, entity discovery, config, storage, SwiftUI, or test implementation phases have been completed yet.
+This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery** is now implemented in the backend.
 
-The next actual implementation task should be **Phase 1 — Safe Home Assistant entity discovery**.
+The next actual implementation task should be **Phase 2 — Configure tracked phone entities**.
 
-`Phase 0 — Planning report only` is the current state. It should not be treated as a completed engineering phase beyond the markdown report itself. In particular, there is still no Home Assistant WebSocket listener, no configured Josh/Mallory phone entity filter, no phone activity normalizer, and no verified real phone activity in the simulator Activity tab.
+`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. There is still no Home Assistant WebSocket listener, no configured Josh/Mallory phone entity filter, no phone activity normalizer, and no verified real phone activity in the simulator Activity tab.
 
 ## 1. Current State
 
@@ -45,12 +45,13 @@ The next actual implementation task should be **Phase 1 — Safe Home Assistant 
 - `GET /api/notification-preferences`
 - `PUT /api/notification-preferences`
 - `POST /api/debug/send-test-push`
+- `GET /api/debug/home-assistant/phone-entities`
 - `POST /api/ha/events`
 - `GET /api/events`
 
 `POST /api/ha/events` is the current Home Assistant event ingestion path. It requires a bearer token based on `LEVY_HOME_HA_WEBHOOK_SECRET`, validates a narrow event payload, creates a stored event, optionally attempts APNs for garage categories, stores the event in memory, and returns the stored event.
 
-`GET /api/events` returns recent in-memory events, newest first, clamped to 1-100 records. There is no current route dedicated to Home Assistant WebSocket discovery, phone entities, raw Home Assistant events, or activity logs.
+`GET /api/events` returns recent in-memory events, newest first, clamped to 1-100 records. `GET /api/debug/home-assistant/phone-entities` is a protected Phase 1 discovery helper for sanitized Home Assistant phone-entity candidates. There is still no route dedicated to Home Assistant WebSocket activity ingestion, raw Home Assistant events, or durable activity logs.
 
 ### Home Assistant Integration
 
@@ -61,7 +62,8 @@ The next actual implementation task should be **Phase 1 — Safe Home Assistant 
   - `POST /api/services/cover/close_cover`
   - `POST /api/services/light/turn_off`
 - The live facade uses `HOME_ASSISTANT_BASE_URL` and `HOME_ASSISTANT_TOKEN`.
-- I did not find a Home Assistant WebSocket client, `subscribe_events` handling, reconnect/backoff logic, or phone-entity filtering.
+- The live facade now includes safe phone-entity discovery through Home Assistant REST `/api/states`.
+- I did not find a Home Assistant WebSocket client, `subscribe_events` handling, reconnect/backoff logic, or runtime phone-entity filtering.
 
 ### Environment Variables
 
@@ -192,10 +194,10 @@ Yes. The app’s Activity tab calls `/api/events`, and the backend serves `/api/
 | Capability | Current status |
 | --- | --- |
 | Home Assistant WebSocket client | Missing. No `/api/websocket`, auth handshake, or `subscribe_events`. |
-| Home Assistant REST client | Present for states and service calls in `LiveHomeAssistantFacade`; not used for activity ingestion. |
+| Home Assistant REST client | Present for states, service calls, and Phase 1 safe phone-entity discovery; not used for activity ingestion. |
 | Persistent backend listener process | Missing. The Express server is long-running locally/Docker, but no listener starts with it. |
 | Reconnect/backoff logic | Missing. |
-| Phone entity filtering | Missing. No configured phone entity IDs, patterns, device registry lookup, or owner mapping. |
+| Phone entity filtering | Partially present for discovery only. Runtime ingestion still has no configured phone entity IDs, patterns, device registry lookup, or owner mapping. |
 | Activity/event persistence model | Mostly missing. There is `LevyHomeEvent` and in-memory `recentEvents`, but no durable store or phone-specific model. |
 | API endpoint SwiftUI can call | Present: `GET /api/events`; reusable only if the contract can support Activity-only phone records cleanly. |
 | Working SwiftUI Activity UI | Mostly present. It can render records matching `LevyHomeEvent`, but phone-specific icons/copy may need small updates. |
@@ -207,7 +209,7 @@ Additional gaps:
 - Backend `LEVY_HOME_EVENT_TYPES` currently allows only garage and doorbell event types.
 - Backend `HomeAssistantEventCategory` currently allows only `garage` and `doorbell`.
 - `createStoredEvent()` couples event storage to push-status calculation.
-- No code discovers Home Assistant phone entities.
+- Phase 1 code discovers sanitized Home Assistant phone-entity candidates through `GET /api/debug/home-assistant/phone-entities`.
 - No dependency currently provides a WebSocket client. Node 22 may expose a global WebSocket, but a stable dependency such as `ws` may be more predictable.
 
 ## 5. Recommended Architecture
@@ -374,21 +376,24 @@ This keeps the first implementation focused on proving the pipeline rather than 
 
 ### Phase 1 — Safe Home Assistant entity discovery
 
+Status: implemented.
+
 Goal: identify Home Assistant entities related to Josh’s iPhone and Mallory’s iPhone.
 
-Likely files/areas when implementation begins:
+Implemented files/areas:
 
 - `apps/api/src/homeAssistantClient.ts`
-- `apps/api/src/config.ts`
-- temporary backend-side script or debug route
+- `apps/api/src/server.ts`
+- `apps/api/src/server.test.ts`
+- `docs/07-home-assistant-facade.md`
 
 Steps:
 
-1. Use backend-side REST `/api/states`.
-2. Filter candidates by entity id/friendly name containing `iphone`, `josh`, `mallory`, `mobile_app`, or known Companion App sensor patterns.
-3. Produce safe output only: entity IDs, friendly names, domains, current state summaries, and timestamps.
-4. Do not print tokens, Nabu Casa URL values, headers, or raw secrets.
-5. Do not store or expose raw Home Assistant state dumps beyond what is needed for discovery.
+1. Uses backend-side REST `/api/states`.
+2. Filters candidates by entity id/friendly name/device class containing `iphone`, `josh`, `mallory`, `mobile_app`, or known Companion App sensor patterns.
+3. Produces safe output only: entity IDs, friendly names, domains, bounded current state summaries, timestamps, and matched terms.
+4. Does not print or return tokens, Nabu Casa URL values, headers, raw secrets, raw attributes, or full state dumps.
+5. Exposes discovery through protected `GET /api/debug/home-assistant/phone-entities`, using the existing `LEVY_HOME_HA_WEBHOOK_SECRET` bearer check.
 
 ### Phase 2 — Configure tracked phone entities
 
