@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery** and **Phase 2 — Configure tracked phone entities** are now implemented in the backend.
+This document began as a planning/report document. **Phase 1 — Safe Home Assistant entity discovery**, **Phase 2 — Configure tracked phone entities**, and **Phase 3 — Backend WebSocket listener** are now implemented in the backend.
 
-The next actual implementation task should be **Phase 3 — Backend WebSocket listener**.
+The next actual implementation task should be **Phase 4 — Generic phone activity normalization**.
 
-`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. There is still no Home Assistant WebSocket listener, no runtime phone activity ingestion, no phone activity normalizer, and no verified real phone activity in the simulator Activity tab.
+`Phase 0 — Planning report only` is no longer the current state. Phase 1 added a protected backend discovery route that queries Home Assistant REST `/api/states` in live mode and returns sanitized candidate phone entities. Phase 2 added explicit server-side config for activity enablement, tracked phone entity IDs, tracked phone entity patterns, owner/device metadata, and an optional WebSocket URL override. Phase 3 added a backend startup WebSocket listener that connects, authenticates, subscribes to `state_changed`, filters configured phone entities/patterns, and reconnects with backoff. There is still no phone activity normalizer, no storage of phone activity in `/api/events`, and no verified real phone activity in the simulator Activity tab.
 
 ## 1. Current State
 
@@ -63,7 +63,7 @@ The next actual implementation task should be **Phase 3 — Backend WebSocket li
   - `POST /api/services/light/turn_off`
 - The live facade uses `HOME_ASSISTANT_BASE_URL` and `HOME_ASSISTANT_TOKEN`.
 - The live facade now includes safe phone-entity discovery through Home Assistant REST `/api/states`.
-- I did not find a Home Assistant WebSocket client, `subscribe_events` handling, reconnect/backoff logic, or runtime phone-entity filtering.
+- The backend now includes a Home Assistant WebSocket listener for live activity ingestion startup, authentication, `subscribe_events`, reconnect/backoff, and runtime phone-entity filtering.
 
 ### Environment Variables
 
@@ -197,11 +197,11 @@ Yes. The app’s Activity tab calls `/api/events`, and the backend serves `/api/
 
 | Capability | Current status |
 | --- | --- |
-| Home Assistant WebSocket client | Missing. No `/api/websocket`, auth handshake, or `subscribe_events`. |
+| Home Assistant WebSocket client | Present for `/api/websocket` connection, auth handshake, and `subscribe_events`. |
 | Home Assistant REST client | Present for states, service calls, and Phase 1 safe phone-entity discovery; not used for activity ingestion. |
-| Persistent backend listener process | Missing. The Express server is long-running locally/Docker, but no listener starts with it. |
-| Reconnect/backoff logic | Missing. |
-| Phone entity filtering | Server-side tracked phone entity IDs, explicit patterns, person mapping, and device names are configurable. Runtime filtering is still pending the WebSocket listener. |
+| Persistent backend listener process | Present in `startServer()` when `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`. |
+| Reconnect/backoff logic | Present with bounded backoff delays. |
+| Phone entity filtering | Present for configured exact entity IDs and explicit glob-style patterns. |
 | Activity/event persistence model | Mostly missing. There is `LevyHomeEvent` and in-memory `recentEvents`, but no durable store or phone-specific model. |
 | API endpoint SwiftUI can call | Present: `GET /api/events`; reusable only if the contract can support Activity-only phone records cleanly. |
 | Working SwiftUI Activity UI | Mostly present. It can render records matching `LevyHomeEvent`, but phone-specific icons/copy may need small updates. |
@@ -214,8 +214,8 @@ Additional gaps:
 - Backend `HomeAssistantEventCategory` currently allows only `garage` and `doorbell`.
 - `createStoredEvent()` couples event storage to push-status calculation.
 - Phase 1 code discovers sanitized Home Assistant phone-entity candidates through `GET /api/debug/home-assistant/phone-entities`.
-- Phase 2 code parses tracked phone entity config, but no listener consumes it yet.
-- No dependency currently provides a WebSocket client. Node 22 may expose a global WebSocket, but a stable dependency such as `ws` may be more predictable.
+- Phase 2 code parses tracked phone entity config, and Phase 3 consumes it for WebSocket filtering.
+- Phase 3 uses the runtime WebSocket implementation. No `ws` package dependency was added.
 
 ## 5. Recommended Architecture
 
@@ -433,25 +433,28 @@ This phase intentionally does not start the WebSocket listener. The configured e
 
 ### Phase 3 — Backend WebSocket listener
 
+Status: implemented.
+
 Goal: connect, authenticate, subscribe, filter, and reconnect safely.
 
-Likely files:
+Implemented files:
 
-- `apps/api/package.json`
-- new `apps/api/src/homeAssistantActivityClient.ts` or `apps/api/src/homeAssistantWebSocketClient.ts`
+- `apps/api/src/homeAssistantActivityClient.ts`
+- `apps/api/src/homeAssistantActivityClient.test.ts`
 - `apps/api/src/server.ts`
-- tests under `apps/api/src/`
 
 Steps:
 
-1. Connect to Home Assistant `/api/websocket`.
-2. Authenticate with the server-side token.
-3. Subscribe to `state_changed`.
-4. Filter to configured phone entities/patterns.
-5. Handle reconnect/backoff.
-6. Redact secrets from all logs/errors.
-7. Start the listener from backend startup, not from route handlers.
-8. Avoid starting the listener in tests unless explicitly enabled or mocked.
+1. Connects to Home Assistant `/api/websocket`, deriving the URL from `HOME_ASSISTANT_BASE_URL` or honoring `HOME_ASSISTANT_WEBSOCKET_URL`.
+2. Authenticates with the server-side token.
+3. Subscribes to `state_changed`.
+4. Filters to configured phone entities/patterns.
+5. Handles reconnect/backoff.
+6. Avoids logging tokens, headers, raw events, or Home Assistant URLs.
+7. Starts the listener from backend startup, not from route handlers.
+8. Avoids starting the listener in route tests because `createApp()` remains side-effect-free; listener startup lives in `startServer()`.
+
+This phase intentionally does not normalize or store phone activity records yet. Matching state changes currently flow to a listener callback/default safe log only. Phase 4 should turn matching state changes into `phone_state_changed` records.
 
 ### Phase 4 — Generic phone activity normalization
 

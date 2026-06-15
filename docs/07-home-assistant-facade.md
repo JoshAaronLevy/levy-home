@@ -21,10 +21,10 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_MODE` | `mock` for local safe mode or `live` for Home Assistant REST calls. |
 | `HOME_ASSISTANT_BASE_URL` | Home Assistant base URL, required only in live mode. |
 | `HOME_ASSISTANT_TOKEN` | Home Assistant long-lived access token, required only in live mode. Do not commit it. |
-| `HOME_ASSISTANT_ACTIVITY_ENABLED` | Enables backend phone activity ingestion when the WebSocket listener phase is implemented. Defaults to `false`. |
-| `HOME_ASSISTANT_WEBSOCKET_URL` | Optional explicit Home Assistant WebSocket URL override. Leave blank to derive it from `HOME_ASSISTANT_BASE_URL` later. |
-| `HOME_ASSISTANT_PHONE_ENTITIES` | Exact phone-related entity IDs to ingest, in `entity_id:Person:Device name` comma-separated format. |
-| `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` | Explicit glob-style phone entity patterns, in `entity_id_glob:Person:Device name` comma-separated format. Use `*` as the wildcard. |
+| `HOME_ASSISTANT_ACTIVITY_ENABLED` | Enables the backend Home Assistant WebSocket activity listener. Defaults to `false`. |
+| `HOME_ASSISTANT_WEBSOCKET_URL` | Optional explicit Home Assistant WebSocket URL override. Leave blank to derive `/api/websocket` from `HOME_ASSISTANT_BASE_URL`. |
+| `HOME_ASSISTANT_PHONE_ENTITIES` | Exact phone-related entity IDs to listen for, in `entity_id:Person:Device name` comma-separated format. |
+| `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` | Explicit glob-style phone entity patterns to listen for, in `entity_id_glob:Person:Device name` comma-separated format. Use `*` as the wildcard. |
 | `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID` | Server-side garage cover entity. |
 | `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Server-side all-lights entity/group. |
 | `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. |
@@ -181,4 +181,8 @@ HOME_ASSISTANT_PHONE_ENTITIES=sensor.joshs_iphone_battery_level:Josh:Josh's iPho
 HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=sensor.joshs_iphone_*:Josh:Josh's iPhone,sensor.mallorys_iphone_*:Mallory:Mallory's iPhone
 ```
 
-`HOME_ASSISTANT_WEBSOCKET_URL` is optional. Leave it blank unless the later WebSocket listener phase needs to connect to a different URL than the one derived from `HOME_ASSISTANT_BASE_URL`. These values stay server-side and are not returned to the iOS app.
+`HOME_ASSISTANT_WEBSOCKET_URL` is optional. Leave it blank unless the WebSocket listener needs to connect to a different URL than the one derived from `HOME_ASSISTANT_BASE_URL`. These values stay server-side and are not returned to the iOS app.
+
+When `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`, the API process starts a background Home Assistant WebSocket listener at startup. It authenticates with `HOME_ASSISTANT_TOKEN`, subscribes to `state_changed`, filters to the configured exact entities and patterns, and reconnects with backoff after unexpected disconnects. The listener does not log tokens, request headers, raw Home Assistant events, or Home Assistant URLs.
+
+Phase 3 does not yet store matching phone events in `/api/events`; normalization and storage are handled by later phases.

@@ -26,6 +26,7 @@ import {
   type RegisteredDevice,
   type TestPushPayload,
 } from './contracts.js';
+import { createHomeAssistantActivityListener } from './homeAssistantActivityClient.js';
 import { createHomeAssistantFacade } from './homeAssistantClient.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
@@ -500,9 +501,15 @@ function notificationCategoryForEvent(
 
 export function startServer(config = readConfig()): void {
   const app = createApp({ config });
+  const activityListener = createHomeAssistantActivityListener(config);
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     console.log(`Levy Home API listening on http://localhost:${config.port}`);
+    activityListener?.start();
+  });
+
+  server.on('close', () => {
+    activityListener?.stop();
   });
 }
 
