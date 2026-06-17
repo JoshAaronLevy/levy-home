@@ -177,9 +177,11 @@ After reviewing discovery output, configure only the exact entities and explicit
 
 ```sh
 HOME_ASSISTANT_ACTIVITY_ENABLED=true
-HOME_ASSISTANT_PHONE_ENTITIES=sensor.joshs_iphone_battery_level:Josh:Josh's iPhone,device_tracker.mallorys_iphone:Mallory:Mallory's iPhone
-HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=sensor.joshs_iphone_*:Josh:Josh's iPhone,sensor.mallorys_iphone_*:Mallory:Mallory's iPhone
+HOME_ASSISTANT_PHONE_ENTITIES=device_tracker.josh_iphone:Josh:Joshs iPhone,device_tracker.mallorys_iphone:Mallory:Mallorys iPhone,person.josh_levy:Josh:Joshs iPhone,person.mallory:Mallory:Mallorys iPhone
+HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=sensor.josh_iphone_*:Josh:Joshs iPhone,sensor.iphone_*:Mallory:Mallorys iPhone
 ```
+
+As of the current Home Assistant catalog, the display names are `Joshs iPhone` and `Mallorys iPhone`, but several underlying IDs did not change after the rename. Josh's phone still uses `josh_iphone` IDs, Mallory's tracker/notify IDs use `mallorys_iphone`, and Mallory's Companion App sensors still use generic `sensor.iphone_*` IDs. Re-run discovery after future HA renames before changing these values.
 
 `HOME_ASSISTANT_WEBSOCKET_URL` is optional. Leave it blank unless the WebSocket listener needs to connect to a different URL than the one derived from `HOME_ASSISTANT_BASE_URL`. These values stay server-side and are not returned to the iOS app.
 

@@ -5,3 +5,4 @@ DerivedData/
 node_modules/
 apps/api/dist/
 apps/api/.env
+ha-*
