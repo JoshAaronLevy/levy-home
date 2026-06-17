@@ -28,6 +28,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID` | Server-side garage cover entity. |
 | `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Server-side all-lights entity/group. |
 | `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. |
+| `HOME_ASSISTANT_LIGHT_ENTITIES` | Curated individual light entities in `entity_id:Display name` comma-separated format. When set, these are used instead of light groups. |
 | `MOCK_TOTAL_LIGHT_COUNT` | Mock-mode total light count. |
 | `APNS_KEY_ID` | Apple APNs Auth Key ID. Required only for APNs sending. |
 | `APNS_TEAM_ID` | Apple Developer Team ID for APNs JWT auth. Required only for APNs sending. |
@@ -86,10 +87,12 @@ curl -X POST http://localhost:4000/api/home/actions \
 
 curl -X POST http://localhost:4000/api/home/actions \
   -H "Content-Type: application/json" \
-  -d '{"actionId":"turn_off_light_group","groupId":"downstairs"}'
+  -d '{"actionId":"turn_off_light_group","groupId":"upstairs_hallway"}'
 
-curl -X POST http://localhost:4000/api/home/actions/light-groups/downstairs/off
+curl -X POST http://localhost:4000/api/home/actions/light-groups/upstairs_hallway/off
 ```
+
+As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves `HOME_ASSISTANT_LIGHT_GROUPS` blank. The older `downstairs` and `bedrooms` group examples were demo values and do not exist in the live catalog.
 
 To verify arbitrary Home Assistant payloads are rejected:
 
@@ -177,11 +180,11 @@ After reviewing discovery output, configure only the exact entities and explicit
 
 ```sh
 HOME_ASSISTANT_ACTIVITY_ENABLED=true
-HOME_ASSISTANT_PHONE_ENTITIES=device_tracker.josh_iphone:Josh:Joshs iPhone,device_tracker.mallorys_iphone:Mallory:Mallorys iPhone,person.josh_levy:Josh:Joshs iPhone,person.mallory:Mallory:Mallorys iPhone
-HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=sensor.josh_iphone_*:Josh:Joshs iPhone,sensor.iphone_*:Mallory:Mallorys iPhone
+HOME_ASSISTANT_PHONE_ENTITIES=device_tracker.josh_iphone:Josh:Joshs iPhone,device_tracker.mallorys_iphone:Mallory:Mallorys iPhone,binary_sensor.josh_iphone_focus:Josh:Joshs iPhone,sensor.josh_iphone_activity:Josh:Joshs iPhone,sensor.josh_iphone_battery_level:Josh:Joshs iPhone,sensor.josh_iphone_battery_state:Josh:Joshs iPhone,sensor.josh_iphone_last_update_trigger:Josh:Joshs iPhone,sensor.iphone_battery_level:Mallory:Mallorys iPhone,sensor.iphone_battery_state:Mallory:Mallorys iPhone
+HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=
 ```
 
-As of the current Home Assistant catalog, the display names are `Joshs iPhone` and `Mallorys iPhone`, but several underlying IDs did not change after the rename. Josh's phone still uses `josh_iphone` IDs, Mallory's tracker/notify IDs use `mallorys_iphone`, and Mallory's Companion App sensors still use generic `sensor.iphone_*` IDs. Re-run discovery after future HA renames before changing these values.
+As of the current Home Assistant catalog, the display names are `Joshs iPhone` and `Mallorys iPhone`, but several underlying IDs did not change after the rename. Josh's phone still uses `josh_iphone` IDs, Mallory's tracker/notify IDs use `mallorys_iphone`, and Mallory's Companion App sensors still use generic `sensor.iphone_*` IDs. The Levy Home default uses exact entities and leaves `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` blank because broad phone patterns also ingest noisy/private telemetry such as geocoded location, SSID/BSSID, pressure, storage, and step counters. Re-run discovery after future HA renames before changing these values.
 
 `HOME_ASSISTANT_WEBSOCKET_URL` is optional. Leave it blank unless the WebSocket listener needs to connect to a different URL than the one derived from `HOME_ASSISTANT_BASE_URL`. These values stay server-side and are not returned to the iOS app.
 

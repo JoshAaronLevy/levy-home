@@ -26,10 +26,10 @@ const baseConfig: AppConfig = {
     activity: {
       isEnabled: true,
       trackedPhoneEntities: [
-        { entityId: 'device_tracker.mallorys_iphone', person: 'Mallory', deviceName: "Mallory's iPhone" },
+        { entityId: 'device_tracker.mallorys_iphone', person: 'Mallory', deviceName: "Mallorys iPhone" },
       ],
       trackedPhoneEntityPatterns: [
-        { pattern: 'sensor.joshs_iphone_*', person: 'Josh', deviceName: "Josh's iPhone" },
+        { pattern: 'sensor.josh_iphone_*', person: 'Josh', deviceName: "Joshs iPhone" },
       ],
     },
   },
@@ -46,8 +46,8 @@ test('backfills matching phone activity from Home Assistant history', async () =
 
     if (url.pathname === '/api/states') {
       return jsonResponse([
-        { entity_id: 'sensor.joshs_iphone_activity', state: 'stationary' },
-        { entity_id: 'sensor.joshs_iphone_battery_level', state: '81' },
+        { entity_id: 'sensor.josh_iphone_activity', state: 'stationary' },
+        { entity_id: 'sensor.josh_iphone_battery_level', state: '81' },
         { entity_id: 'light.kitchen', state: 'on' },
       ]);
     }
@@ -56,7 +56,7 @@ test('backfills matching phone activity from Home Assistant history', async () =
       assert.equal(url.searchParams.get('end_time'), '2026-06-15T18:00:00.000Z');
       assert.equal(
         url.searchParams.get('filter_entity_id'),
-        'device_tracker.mallorys_iphone,sensor.joshs_iphone_activity,sensor.joshs_iphone_battery_level',
+        'device_tracker.mallorys_iphone,sensor.josh_iphone_activity,sensor.josh_iphone_battery_level',
       );
 
       return jsonResponse([
@@ -65,29 +65,29 @@ test('backfills matching phone activity from Home Assistant history', async () =
             entity_id: 'device_tracker.mallorys_iphone',
             state: 'home',
             last_changed: '2026-06-15T17:00:00.000Z',
-            attributes: { friendly_name: "Mallory's iPhone" },
+            attributes: { friendly_name: "Mallorys iPhone" },
           },
         ],
         [
           {
-            entity_id: 'sensor.joshs_iphone_activity',
+            entity_id: 'sensor.josh_iphone_activity',
             state: 'stationary',
             last_changed: '2026-06-15T16:00:00.000Z',
-            attributes: { friendly_name: "Josh's iPhone Activity" },
+            attributes: { friendly_name: "Joshs iPhone Activity" },
           },
           {
-            entity_id: 'sensor.joshs_iphone_activity',
+            entity_id: 'sensor.josh_iphone_activity',
             state: 'walking',
             last_changed: '2026-06-15T17:30:00.000Z',
-            attributes: { friendly_name: "Josh's iPhone Activity" },
+            attributes: { friendly_name: "Joshs iPhone Activity" },
           },
         ],
         [
           {
-            entity_id: 'sensor.joshs_iphone_battery_level',
+            entity_id: 'sensor.josh_iphone_battery_level',
             state: '81',
             last_changed: '2026-06-15T15:30:00.000Z',
-            attributes: { friendly_name: "Josh's iPhone Battery Level", unit_of_measurement: '%' },
+            attributes: { friendly_name: "Joshs iPhone Battery Level", unit_of_measurement: '%' },
           },
         ],
       ]);
@@ -110,10 +110,10 @@ test('backfills matching phone activity from Home Assistant history', async () =
   assert.deepEqual(
     events.map((event) => event.entityId),
     [
-      'sensor.joshs_iphone_battery_level',
-      'sensor.joshs_iphone_activity',
+      'sensor.josh_iphone_battery_level',
+      'sensor.josh_iphone_activity',
       'device_tracker.mallorys_iphone',
-      'sensor.joshs_iphone_activity',
+      'sensor.josh_iphone_activity',
     ],
   );
   assert.deepEqual(

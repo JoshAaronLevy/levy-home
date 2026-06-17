@@ -97,7 +97,7 @@ final class APIClientTests: XCTestCase {
 
         _ = try await client.fetchHomeOverview()
         _ = try await client.fetchQuickActions()
-        _ = try await client.performQuickAction(.turnOffLightGroup(groupId: "downstairs"))
+        _ = try await client.performQuickAction(.turnOffLightGroup(groupId: "upstairs_hallway"))
         _ = try await client.fetchNotificationPreferences()
         _ = try await client.updateNotificationPreferences(
             NotificationPreferencesUpdateRequest(
@@ -113,7 +113,7 @@ final class APIClientTests: XCTestCase {
                 provider: .apns,
                 environment: .sandbox,
                 appVersion: "0.1.0",
-                deviceName: "Josh's iPhone"
+                deviceName: "Joshs iPhone"
             )
         )
         _ = try await client.sendTestPush(TestPushRequest(title: "Test", body: "Body"))
@@ -121,9 +121,9 @@ final class APIClientTests: XCTestCase {
 
         XCTAssertEqual(capturedRequests.count, 8)
         let quickActions = try await client.fetchQuickActions()
-        XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["downstairs"])
+        XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["upstairs_hallway"])
         XCTAssertEqual(capturedRequests[2].jsonBody["actionId"] as? String, "turn_off_light_group")
-        XCTAssertEqual(capturedRequests[2].jsonBody["groupId"] as? String, "downstairs")
+        XCTAssertEqual(capturedRequests[2].jsonBody["groupId"] as? String, "upstairs_hallway")
         XCTAssertEqual(capturedRequests[4].jsonBody["preferences"] as? [[String: Any]] != nil, true)
         XCTAssertEqual(capturedRequests[5].jsonBody["provider"] as? String, "apns")
         XCTAssertEqual(capturedRequests[6].jsonBody["title"] as? String, "Test")
@@ -282,8 +282,8 @@ final class APIClientTests: XCTestCase {
           ],
           "lightGroups": [
             {
-              "id": "downstairs",
-              "name": "Downstairs lights"
+              "id": "upstairs_hallway",
+              "name": "Upstairs Hallway"
             }
           ]
         }

@@ -61,7 +61,7 @@ final class HomeOverviewViewModelTests: XCTestCase {
                     totalLightCount: nil,
                     groups: [
                         LightGroupStatus(
-                            id: "downstairs",
+                            id: "upstairs_hallway",
                             name: "Downstairs",
                             state: .unknown,
                             lightsOnCount: nil,

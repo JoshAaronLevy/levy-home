@@ -8,15 +8,15 @@ test('normalizePhoneStateChangedEvent creates a generic Activity-first phone eve
   const event = normalizePhoneStateChangedEvent(sampleStateChangedEvent());
 
   assert.equal(event.type, 'phone_state_changed');
-  assert.equal(event.entityId, 'sensor.joshs_iphone_battery_level');
+  assert.equal(event.entityId, 'sensor.josh_iphone_battery_level');
   assert.equal(event.category, 'phone');
   assert.equal(event.severity, 'normal');
   assert.equal(event.source, 'home_assistant');
   assert.equal(event.occurredAt, '2026-06-15T17:00:00.000Z');
-  assert.equal(event.title, "Josh's iPhone changed");
+  assert.equal(event.title, "Joshs iPhone changed");
   assert.equal(event.message, '82 -> 81');
   assert.deepEqual(event.display, {
-    title: "Josh's iPhone changed",
+    title: "Joshs iPhone changed",
     body: '82 -> 81',
     severity: 'info',
   });
@@ -29,17 +29,17 @@ test('normalizePhoneStateChangedEvent stores safe Home Assistant metadata only',
   assert.deepEqual(event.metadata, {
     homeAssistantEventType: 'state_changed',
     person: 'Josh',
-    deviceName: "Josh's iPhone",
-    friendlyName: "Josh's iPhone Battery Level",
+    deviceName: "Joshs iPhone",
+    friendlyName: "Joshs iPhone Battery Level",
     oldState: '82',
     newState: '81',
     ingestionSource: 'websocket',
     oldAttributes: {
-      friendly_name: "Josh's iPhone Battery Level",
+      friendly_name: "Joshs iPhone Battery Level",
       unit_of_measurement: '%',
     },
     newAttributes: {
-      friendly_name: "Josh's iPhone Battery Level",
+      friendly_name: "Joshs iPhone Battery Level",
       unit_of_measurement: '%',
       device_class: 'battery',
     },
@@ -52,6 +52,7 @@ test('normalizePhoneStateChangedEvent falls back to simple copy when states are 
   const event = normalizePhoneStateChangedEvent({
     entityId: 'device_tracker.mallorys_iphone',
     person: 'Mallory',
+    deviceName: "Mallorys iPhone",
     occurredAt: '2026-06-15T17:05:00.000Z',
     rawEvent: {
       event_type: 'state_changed',
@@ -62,20 +63,20 @@ test('normalizePhoneStateChangedEvent falls back to simple copy when states are 
     },
   });
 
-  assert.equal(event.title, "Mallory's iPhone changed");
+  assert.equal(event.title, "Mallorys iPhone changed");
   assert.equal(event.message, 'State changed');
   assert.equal(event.push, undefined);
 });
 
 function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
   return {
-    entityId: 'sensor.joshs_iphone_battery_level',
+    entityId: 'sensor.josh_iphone_battery_level',
     person: 'Josh',
-    deviceName: "Josh's iPhone",
+    deviceName: "Joshs iPhone",
     oldState: '82',
     newState: '81',
     occurredAt: '2026-06-15T17:00:00.000Z',
-    friendlyName: "Josh's iPhone Battery Level",
+    friendlyName: "Joshs iPhone Battery Level",
     ingestionSource: 'websocket',
     rawEvent: {
       event_type: 'state_changed',
@@ -84,12 +85,12 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
         id: 'event-context-id',
       },
       data: {
-        entity_id: 'sensor.joshs_iphone_battery_level',
+        entity_id: 'sensor.josh_iphone_battery_level',
         old_state: {
-          entity_id: 'sensor.joshs_iphone_battery_level',
+          entity_id: 'sensor.josh_iphone_battery_level',
           state: '82',
           attributes: {
-            friendly_name: "Josh's iPhone Battery Level",
+            friendly_name: "Joshs iPhone Battery Level",
             unit_of_measurement: '%',
             private_detail: 'should not be copied',
           },
@@ -98,10 +99,10 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
           },
         },
         new_state: {
-          entity_id: 'sensor.joshs_iphone_battery_level',
+          entity_id: 'sensor.josh_iphone_battery_level',
           state: '81',
           attributes: {
-            friendly_name: "Josh's iPhone Battery Level",
+            friendly_name: "Joshs iPhone Battery Level",
             unit_of_measurement: '%',
             device_class: 'battery',
             private_detail: 'should not be copied',

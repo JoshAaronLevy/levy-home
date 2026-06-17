@@ -102,18 +102,18 @@ class MockHomeAssistantFacade implements HomeAssistantFacade {
     const terms = normalizePhoneDiscoveryTerms(keywords);
     const mockStates: HomeAssistantStateResponse[] = [
       {
-        entity_id: 'sensor.joshs_iphone_battery_level',
+        entity_id: 'sensor.josh_iphone_battery_level',
         state: '82',
         last_changed: new Date().toISOString(),
         last_updated: new Date().toISOString(),
-        attributes: { friendly_name: "Josh's iPhone Battery Level" },
+        attributes: { friendly_name: "Joshs iPhone Battery Level" },
       },
       {
         entity_id: 'device_tracker.mallorys_iphone',
         state: 'home',
         last_changed: new Date().toISOString(),
         last_updated: new Date().toISOString(),
-        attributes: { friendly_name: "Mallory's iPhone" },
+        attributes: { friendly_name: "Mallorys iPhone" },
       },
     ];
 

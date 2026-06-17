@@ -31,16 +31,16 @@ const baseConfig: AppConfig = {
       isEnabled: true,
       trackedPhoneEntities: [
         {
-          entityId: 'sensor.joshs_iphone_battery_level',
+          entityId: 'sensor.josh_iphone_battery_level',
           person: 'Josh',
-          deviceName: "Josh's iPhone",
+          deviceName: "Joshs iPhone",
         },
       ],
       trackedPhoneEntityPatterns: [
         {
-          pattern: 'sensor.mallorys_iphone_*',
+          pattern: 'sensor.iphone_*',
           person: 'Mallory',
-          deviceName: "Mallory's iPhone",
+          deviceName: "Mallorys iPhone",
         },
       ],
     },
@@ -197,16 +197,16 @@ test('listener filters state_changed events to configured phone entities and pat
   const socket = FakeWebSocket.instances[0];
 
   socket.emitMessage(stateChangedMessage('light.kitchen', 'off', 'on'));
-  socket.emitMessage(stateChangedMessage('sensor.joshs_iphone_battery_level', '82', '81'));
-  socket.emitMessage(stateChangedMessage('sensor.mallorys_iphone_activity', 'Stationary', 'Walking'));
+  socket.emitMessage(stateChangedMessage('sensor.josh_iphone_battery_level', '82', '81'));
+  socket.emitMessage(stateChangedMessage('sensor.iphone_activity', 'Stationary', 'Walking'));
 
   assert.equal(receivedEvents.length, 2);
-  assert.equal(receivedEvents[0].entityId, 'sensor.joshs_iphone_battery_level');
+  assert.equal(receivedEvents[0].entityId, 'sensor.josh_iphone_battery_level');
   assert.equal(receivedEvents[0].person, 'Josh');
-  assert.equal(receivedEvents[0].deviceName, "Josh's iPhone");
+  assert.equal(receivedEvents[0].deviceName, "Joshs iPhone");
   assert.equal(receivedEvents[0].oldState, '82');
   assert.equal(receivedEvents[0].newState, '81');
-  assert.equal(receivedEvents[1].entityId, 'sensor.mallorys_iphone_activity');
+  assert.equal(receivedEvents[1].entityId, 'sensor.iphone_activity');
   assert.equal(receivedEvents[1].person, 'Mallory');
 });
 

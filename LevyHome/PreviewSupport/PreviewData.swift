@@ -44,8 +44,8 @@ enum PreviewData {
             requiresConfirmation: false
         ),
         QuickActionDisplayData(
-            id: "\(QuickActionID.turnOffLightGroup.rawValue).downstairs",
-            request: .turnOffLightGroup(groupId: "downstairs"),
+            id: "\(QuickActionID.turnOffLightGroup.rawValue).upstairs_hallway",
+            request: .turnOffLightGroup(groupId: "upstairs_hallway"),
             title: "Turn Off Kitchen + Living Room",
             subtitle: "Turn off this curated light group.",
             systemImage: "lightswitch.off",

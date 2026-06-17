@@ -203,7 +203,7 @@ private struct QuickActionsPreviewService: QuickActionServicing {
                 )
             ],
             lightGroups: [
-                LightActionGroup(id: "downstairs", name: "Downstairs lights")
+                LightActionGroup(id: "upstairs_hallway", name: "Upstairs Hallway")
             ]
         )
     }

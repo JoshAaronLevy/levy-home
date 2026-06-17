@@ -12,40 +12,59 @@ test('readConfig defaults Home Assistant activity ingestion to disabled with no 
   assert.deepEqual(config.homeAssistant.activity.trackedPhoneEntityPatterns, []);
 });
 
+test('readConfig defaults Home Assistant light groups to empty instead of demo entities', () => {
+  const config = readConfig({});
+
+  assert.deepEqual(config.homeAssistant.lightGroups, []);
+});
+
+test('readConfig parses curated Home Assistant light entities', () => {
+  const config = readConfig({
+    HOME_ASSISTANT_LIGHT_ENTITIES:
+      'light.foyer_lights: Foyer, light.upstairs_hallway: Upstairs Hallway, light.playroom_lamp: Playroom',
+  });
+
+  assert.deepEqual(config.homeAssistant.lightEntities, [
+    { id: 'foyer_lights', name: 'Foyer', entityId: 'light.foyer_lights' },
+    { id: 'upstairs_hallway', name: 'Upstairs Hallway', entityId: 'light.upstairs_hallway' },
+    { id: 'playroom_lamp', name: 'Playroom', entityId: 'light.playroom_lamp' },
+  ]);
+});
+
 test('readConfig parses tracked Home Assistant phone activity configuration', () => {
   const config = readConfig({
     HOME_ASSISTANT_ACTIVITY_ENABLED: 'true',
     HOME_ASSISTANT_WEBSOCKET_URL: 'wss://example.ui.nabu.casa/api/websocket',
     HOME_ASSISTANT_PHONE_ENTITIES:
-      "sensor.joshs_iphone_battery_level:Josh:Josh's iPhone,device_tracker.mallorys_iphone:Mallory:Mallory's iPhone",
+      "sensor.josh_iphone_battery_level:Josh:Joshs iPhone,device_tracker.mallorys_iphone:Mallory:Mallorys iPhone",
     HOME_ASSISTANT_PHONE_ENTITY_PATTERNS:
-      "sensor.joshs_iphone_*:Josh:Josh's iPhone,sensor.mallorys_iphone_*:Mallory:Mallory's iPhone",
+      "sensor.josh_iphone_*:Josh:Joshs iPhone,sensor.iphone_*:Mallory:Mallorys iPhone",
   });
 
   assert.equal(config.homeAssistant.activity.isEnabled, true);
   assert.equal(config.homeAssistant.activity.webSocketURL, 'wss://example.ui.nabu.casa/api/websocket');
   assert.deepEqual(config.homeAssistant.activity.trackedPhoneEntities, [
     {
-      entityId: 'sensor.joshs_iphone_battery_level',
+      entityId: 'sensor.josh_iphone_battery_level',
       person: 'Josh',
-      deviceName: "Josh's iPhone",
+      deviceName: "Joshs iPhone",
     },
     {
       entityId: 'device_tracker.mallorys_iphone',
       person: 'Mallory',
-      deviceName: "Mallory's iPhone",
+      deviceName: "Mallorys iPhone",
     },
   ]);
   assert.deepEqual(config.homeAssistant.activity.trackedPhoneEntityPatterns, [
     {
-      pattern: 'sensor.joshs_iphone_*',
+      pattern: 'sensor.josh_iphone_*',
       person: 'Josh',
-      deviceName: "Josh's iPhone",
+      deviceName: "Joshs iPhone",
     },
     {
-      pattern: 'sensor.mallorys_iphone_*',
+      pattern: 'sensor.iphone_*',
       person: 'Mallory',
-      deviceName: "Mallory's iPhone",
+      deviceName: "Mallorys iPhone",
     },
   ]);
 });

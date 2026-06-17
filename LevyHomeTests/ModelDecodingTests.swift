@@ -41,16 +41,16 @@ final class ModelDecodingTests: XCTestCase {
         {
           "id": "event-phone",
           "type": "phone_state_changed",
-          "entityId": "sensor.joshs_iphone_battery_level",
+          "entityId": "sensor.josh_iphone_battery_level",
           "category": "phone",
           "severity": "normal",
           "source": "home_assistant",
           "occurredAt": "2026-06-15T17:00:00Z",
-          "title": "Josh's iPhone changed",
+          "title": "Joshs iPhone changed",
           "message": "82 -> 81",
           "receivedAt": "2026-06-15T17:00:01Z",
           "display": {
-            "title": "Josh's iPhone changed",
+            "title": "Joshs iPhone changed",
             "body": "82 -> 81",
             "severity": "info"
           }
@@ -61,8 +61,8 @@ final class ModelDecodingTests: XCTestCase {
 
         XCTAssertEqual(event.type, .phoneStateChanged)
         XCTAssertEqual(event.category, .phone)
-        XCTAssertEqual(event.entityId, "sensor.joshs_iphone_battery_level")
-        XCTAssertEqual(event.display.title, "Josh's iPhone changed")
+        XCTAssertEqual(event.entityId, "sensor.josh_iphone_battery_level")
+        XCTAssertEqual(event.display.title, "Joshs iPhone changed")
         XCTAssertEqual(event.display.body, "82 -> 81")
         XCTAssertNil(event.push)
     }

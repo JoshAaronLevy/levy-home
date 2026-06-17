@@ -27,8 +27,8 @@ const testConfig: AppConfig = {
     garageCoverEntityId: 'cover.test_garage',
     allLightsEntityId: 'light.test_all_lights',
     lightGroups: [
-      { id: 'downstairs', name: 'Downstairs lights', entityId: 'light.downstairs' },
-      { id: 'bedrooms', name: 'Bedroom lights', entityId: 'light.bedrooms' },
+      { id: 'upstairs_hallway', name: 'Upstairs Hallway', entityId: 'light.upstairs_hallway' },
+      { id: 'playroom_lamp', name: 'Playroom', entityId: 'light.playroom_lamp' },
     ],
     lightEntities: [],
     mockTotalLightCount: 12,
@@ -109,15 +109,15 @@ test('GET /api/home/actions returns curated action IDs and light groups', async 
     ['close_garage', 'turn_off_all_lights', 'turn_off_light_group'],
   );
   assert.deepEqual(response.lightGroups, [
-    { id: 'downstairs', name: 'Downstairs lights' },
-    { id: 'bedrooms', name: 'Bedroom lights' },
+    { id: 'upstairs_hallway', name: 'Upstairs Hallway' },
+    { id: 'playroom_lamp', name: 'Playroom' },
   ]);
 });
 
 test('POST /api/home/actions performs only curated actions', async () => {
   const response = await postJSON('/api/home/actions', {
     actionId: 'turn_off_light_group',
-    groupId: 'downstairs',
+    groupId: 'upstairs_hallway',
   });
 
   assert.equal(response.ok, true);
@@ -145,7 +145,7 @@ test('POST /api/home/actions rejects arbitrary Home Assistant payloads', async (
 test('explicit curated action endpoints work', async () => {
   const closeGarage = await postJSON('/api/home/actions/close-garage');
   const lightsOff = await postJSON('/api/home/actions/lights-off');
-  const lightGroup = await postJSON('/api/home/actions/light-groups/bedrooms/off');
+  const lightGroup = await postJSON('/api/home/actions/light-groups/playroom_lamp/off');
 
   assert.equal(closeGarage.result.actionId, 'close_garage');
   assert.equal(lightsOff.result.actionId, 'turn_off_all_lights');
@@ -375,9 +375,9 @@ test('phone activity webhook events omit push metadata', async () => {
       type: 'phone_state_changed',
       category: 'phone',
       severity: 'normal',
-      entityId: 'sensor.joshs_iphone_battery_level',
+      entityId: 'sensor.josh_iphone_battery_level',
       source: 'home_assistant',
-      title: "Josh's iPhone changed",
+      title: "Joshs iPhone changed",
       message: '82 -> 81',
     },
     { Authorization: 'Bearer test-secret' },
@@ -412,7 +412,7 @@ test('/api/events returns normalized Home Assistant phone activity from the shar
   assert.equal(response.events.length, 1);
   assert.equal(response.events[0].type, 'phone_state_changed');
   assert.equal(response.events[0].category, 'phone');
-  assert.equal(response.events[0].entityId, 'sensor.joshs_iphone_battery_level');
+  assert.equal(response.events[0].entityId, 'sensor.josh_iphone_battery_level');
   assert.equal(response.events[0].metadata.person, 'Josh');
   assert.equal(response.events[0].push, undefined);
 });
@@ -460,21 +460,21 @@ test('/api/events returns local events and Home Assistant history for an explici
 
     if (url.pathname === '/api/history/period/2026-06-14T18:00:00.000Z') {
       assert.equal(url.searchParams.get('end_time'), '2026-06-15T18:00:00.000Z');
-      assert.equal(url.searchParams.get('filter_entity_id'), 'sensor.joshs_iphone_battery_level');
+      assert.equal(url.searchParams.get('filter_entity_id'), 'sensor.josh_iphone_battery_level');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify([
         [
           {
-            entity_id: 'sensor.joshs_iphone_battery_level',
+            entity_id: 'sensor.josh_iphone_battery_level',
             state: '81',
             last_changed: '2026-06-14T18:30:00.000Z',
-            attributes: { friendly_name: "Josh's iPhone Battery Level", unit_of_measurement: '%' },
+            attributes: { friendly_name: "Joshs iPhone Battery Level", unit_of_measurement: '%' },
           },
           {
-            entity_id: 'sensor.joshs_iphone_battery_level',
+            entity_id: 'sensor.josh_iphone_battery_level',
             state: '80',
             last_changed: '2026-06-14T19:00:00.000Z',
-            attributes: { friendly_name: "Josh's iPhone Battery Level", unit_of_measurement: '%' },
+            attributes: { friendly_name: "Joshs iPhone Battery Level", unit_of_measurement: '%' },
           },
         ],
       ]));
@@ -506,7 +506,7 @@ test('/api/events returns local events and Home Assistant history for an explici
         activity: {
           isEnabled: true,
           trackedPhoneEntities: [
-            { entityId: 'sensor.joshs_iphone_battery_level', person: 'Josh', deviceName: "Josh's iPhone" },
+            { entityId: 'sensor.josh_iphone_battery_level', person: 'Josh', deviceName: "Joshs iPhone" },
           ],
           trackedPhoneEntityPatterns: [],
         },
@@ -542,7 +542,7 @@ test('/api/events returns local events and Home Assistant history for an explici
     assert.equal(response.events[0].metadata.ingestionSource, 'history');
     assert.equal(response.events[1].id, 'local-event');
     assert.deepEqual(homeAssistantRequests, [
-      '/api/history/period/2026-06-14T18:00:00.000Z?end_time=2026-06-15T18%3A00%3A00.000Z&filter_entity_id=sensor.joshs_iphone_battery_level',
+      '/api/history/period/2026-06-14T18:00:00.000Z?end_time=2026-06-15T18%3A00%3A00.000Z&filter_entity_id=sensor.josh_iphone_battery_level',
     ]);
   } finally {
     await closeServer();
@@ -579,12 +579,12 @@ test('phone entity discovery returns sanitized Home Assistant candidates', async
   await withLiveHomeAssistantStates(
     [
       {
-        entity_id: 'sensor.joshs_iphone_battery_level',
+        entity_id: 'sensor.josh_iphone_battery_level',
         state: '82',
         last_changed: '2026-06-15T17:00:00.000Z',
         last_updated: '2026-06-15T17:00:01.000Z',
         attributes: {
-          friendly_name: "Josh's iPhone Battery Level",
+          friendly_name: "Joshs iPhone Battery Level",
           unit_of_measurement: '%',
           private_detail: 'should not be returned',
         },
@@ -595,7 +595,7 @@ test('phone entity discovery returns sanitized Home Assistant candidates', async
         last_changed: '2026-06-15T17:01:00.000Z',
         last_updated: '2026-06-15T17:01:01.000Z',
         attributes: {
-          friendly_name: "Mallory's iPhone",
+          friendly_name: "Mallorys iPhone",
         },
       },
       {
@@ -623,11 +623,11 @@ test('phone entity discovery returns sanitized Home Assistant candidates', async
       assert.equal(body.candidateCount, 2);
       assert.deepEqual(
         body.candidates.map((candidate) => candidate.entityId),
-        ['device_tracker.mallorys_iphone', 'sensor.joshs_iphone_battery_level'],
+        ['device_tracker.mallorys_iphone', 'sensor.josh_iphone_battery_level'],
       );
       assert.equal(body.candidates[0].domain, 'device_tracker');
       assert.equal(body.candidates[0].stateSummary, 'home');
-      assert.equal(body.candidates[1].friendlyName, "Josh's iPhone Battery Level");
+      assert.equal(body.candidates[1].friendlyName, "Joshs iPhone Battery Level");
       assert.equal('attributes' in body.candidates[1], false);
       assert.equal(JSON.stringify(body).includes('test-home-assistant-token'), false);
       assert.equal(JSON.stringify(body).includes('should not be returned'), false);
@@ -639,14 +639,14 @@ test('phone entity discovery supports narrow keyword searches', async () => {
   await withLiveHomeAssistantStates(
     [
       {
-        entity_id: 'sensor.joshs_iphone_battery_level',
+        entity_id: 'sensor.josh_iphone_battery_level',
         state: '82',
-        attributes: { friendly_name: "Josh's iPhone Battery Level" },
+        attributes: { friendly_name: "Joshs iPhone Battery Level" },
       },
       {
         entity_id: 'device_tracker.mallorys_iphone',
         state: 'home',
-        attributes: { friendly_name: "Mallory's iPhone" },
+        attributes: { friendly_name: "Mallorys iPhone" },
       },
     ],
     async () => {
@@ -752,13 +752,13 @@ async function withLiveHomeAssistantStates(
 
 function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
   return {
-    entityId: 'sensor.joshs_iphone_battery_level',
+    entityId: 'sensor.josh_iphone_battery_level',
     person: 'Josh',
-    deviceName: "Josh's iPhone",
+    deviceName: "Joshs iPhone",
     oldState: '82',
     newState: '81',
     occurredAt: '2026-06-15T17:00:00.000Z',
-    friendlyName: "Josh's iPhone Battery Level",
+    friendlyName: "Joshs iPhone Battery Level",
     rawEvent: {
       event_type: 'state_changed',
       time_fired: '2026-06-15T17:00:00.000Z',
@@ -766,20 +766,20 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
         id: 'event-context-id',
       },
       data: {
-        entity_id: 'sensor.joshs_iphone_battery_level',
+        entity_id: 'sensor.josh_iphone_battery_level',
         old_state: {
-          entity_id: 'sensor.joshs_iphone_battery_level',
+          entity_id: 'sensor.josh_iphone_battery_level',
           state: '82',
           attributes: {
-            friendly_name: "Josh's iPhone Battery Level",
+            friendly_name: "Joshs iPhone Battery Level",
             unit_of_measurement: '%',
           },
         },
         new_state: {
-          entity_id: 'sensor.joshs_iphone_battery_level',
+          entity_id: 'sensor.josh_iphone_battery_level',
           state: '81',
           attributes: {
-            friendly_name: "Josh's iPhone Battery Level",
+            friendly_name: "Joshs iPhone Battery Level",
             unit_of_measurement: '%',
             device_class: 'battery',
           },

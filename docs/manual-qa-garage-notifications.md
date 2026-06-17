@@ -51,7 +51,8 @@ HOME_ASSISTANT_BASE_URL=http://homeassistant.local:8123
 HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_TOKEN
 HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID=cover.main_garage_door
 HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID=light.all_lights
-HOME_ASSISTANT_LIGHT_GROUPS=downstairs:Downstairs lights:light.downstairs_lights,bedrooms:Bedroom lights:light.bedroom_lights
+HOME_ASSISTANT_LIGHT_GROUPS=
+HOME_ASSISTANT_LIGHT_ENTITIES=light.foyer_lights: Foyer, light.kitchen_cans: Kitchen Cans, light.kitchen_nook: Kitchen Nook, light.upstairs_hallway: Upstairs Hallway, light.study_lamp_3: Study, light.playroom_lamp: Playroom
 ```
 
 Start the API:
@@ -218,7 +219,7 @@ curl -X POST http://localhost:4000/api/home/actions \
   -d '{"actionId":"turn_off_all_lights"}'
 curl -X POST http://localhost:4000/api/home/actions \
   -H "Content-Type: application/json" \
-  -d '{"actionId":"turn_off_light_group","groupId":"downstairs"}'
+  -d '{"actionId":"turn_off_light_group","groupId":"upstairs_hallway"}'
 ```
 
 On the iPhone:

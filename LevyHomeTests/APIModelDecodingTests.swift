@@ -170,14 +170,14 @@ final class APIModelDecodingTests: XCTestCase {
     func testEncodesCuratedQuickActionRequestsOnly() throws {
         let closeGarage = try encodeJSON(QuickActionRequest.closeGarage)
         let turnOffAllLights = try encodeJSON(QuickActionRequest.turnOffAllLights)
-        let turnOffLightGroup = try encodeJSON(QuickActionRequest.turnOffLightGroup(groupId: "downstairs"))
+        let turnOffLightGroup = try encodeJSON(QuickActionRequest.turnOffLightGroup(groupId: "upstairs_hallway"))
 
         XCTAssertEqual(closeGarage["actionId"] as? String, "close_garage")
         XCTAssertNil(closeGarage["groupId"])
         XCTAssertEqual(turnOffAllLights["actionId"] as? String, "turn_off_all_lights")
         XCTAssertNil(turnOffAllLights["groupId"])
         XCTAssertEqual(turnOffLightGroup["actionId"] as? String, "turn_off_light_group")
-        XCTAssertEqual(turnOffLightGroup["groupId"] as? String, "downstairs")
+        XCTAssertEqual(turnOffLightGroup["groupId"] as? String, "upstairs_hallway")
     }
 
     func testEncodesProviderAwareRegisterDeviceRequest() throws {
@@ -187,7 +187,7 @@ final class APIModelDecodingTests: XCTestCase {
             provider: .apns,
             environment: .sandbox,
             appVersion: "0.1.0",
-            deviceName: "Josh's iPhone"
+            deviceName: "Joshs iPhone"
         )
 
         let json = try encodeJSON(request)

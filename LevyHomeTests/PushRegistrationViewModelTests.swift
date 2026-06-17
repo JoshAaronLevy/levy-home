@@ -73,7 +73,7 @@ final class PushRegistrationViewModelTests: XCTestCase {
             deviceRegistrationService: apiService,
             apnsEnvironment: .sandbox,
             appVersion: "0.1.0",
-            deviceName: "Josh's iPhone"
+            deviceName: "Joshs iPhone"
         )
 
         await viewModel.requestRegistration()
@@ -89,7 +89,7 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 provider: .apns,
                 environment: .sandbox,
                 appVersion: "0.1.0",
-                deviceName: "Josh's iPhone"
+                deviceName: "Joshs iPhone"
             )
         ])
     }

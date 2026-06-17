@@ -127,10 +127,7 @@ function readLightGroups(value: string | undefined): CuratedLightGroup[] {
   const rawGroups = readOptionalString(value);
 
   if (!rawGroups) {
-    return [
-      { id: 'downstairs', name: 'Downstairs lights', entityId: 'light.downstairs_lights' },
-      { id: 'bedrooms', name: 'Bedroom lights', entityId: 'light.bedroom_lights' },
-    ];
+    return [];
   }
 
   return rawGroups

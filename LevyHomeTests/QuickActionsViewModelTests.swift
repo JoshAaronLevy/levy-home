@@ -16,13 +16,13 @@ final class QuickActionsViewModelTests: XCTestCase {
             [
                 "close_garage",
                 "turn_off_all_lights",
-                "turn_off_light_group.downstairs",
-                "turn_off_light_group.bedrooms"
+                "turn_off_light_group.upstairs_hallway",
+                "turn_off_light_group.playroom_lamp"
             ]
         )
         XCTAssertEqual(viewModel.actions[0].request, .closeGarage)
         XCTAssertEqual(viewModel.actions[1].request, .turnOffAllLights)
-        XCTAssertEqual(viewModel.actions[2].request, .turnOffLightGroup(groupId: "downstairs"))
+        XCTAssertEqual(viewModel.actions[2].request, .turnOffLightGroup(groupId: "upstairs_hallway"))
         XCTAssertTrue(viewModel.actions[0].requiresConfirmation)
         XCTAssertEqual(viewModel.subtitle, "Curated Home Assistant actions")
     }
@@ -171,8 +171,8 @@ final class QuickActionsViewModelTests: XCTestCase {
                 )
             ],
             lightGroups: [
-                LightActionGroup(id: "downstairs", name: "Downstairs lights"),
-                LightActionGroup(id: "bedrooms", name: "Bedroom lights")
+                LightActionGroup(id: "upstairs_hallway", name: "Upstairs Hallway"),
+                LightActionGroup(id: "playroom_lamp", name: "Playroom")
             ]
         )
     }
