@@ -346,7 +346,9 @@ Discovery and runtime matching should be separate:
 
 Discovery is a one-time or occasional developer tool/helper. It should not be the runtime matching strategy for the MVP.
 
-Runtime ingestion should use explicit configured entity IDs and/or explicit patterns. Fuzzy matching is acceptable for discovery only, not as the primary long-term ingestion filter, because multiple devices may simply be named `iPhone`.
+Runtime ingestion should use explicit configured entity IDs and/or explicit patterns. Fuzzy matching is acceptable for discovery only, not as the primary long-term ingestion filter.
+
+Current Home Assistant catalog note: the phone display names are now `Joshs iPhone` and `Mallorys iPhone`, but the underlying IDs did not all change after the rename. The current key IDs are `device_tracker.josh_iphone`, `device_tracker.mallorys_iphone`, `notify.josh_iphone`, `notify.mallorys_iphone`, Josh's `sensor.josh_iphone_*` sensors, and Mallory's mostly generic `sensor.iphone_*` sensors. Re-run discovery before changing the backend env values again.
 
 ### WebSocket Worker Decision
 
@@ -372,7 +374,7 @@ Start with a generic normalizer:
 
 Simple title formats are enough:
 
-- `Josh's iPhone changed`
+- `Joshs iPhone changed`
 - `{friendlyName} changed`
 
 Simple message format is enough:
@@ -589,24 +591,24 @@ This keeps compatibility with the existing SwiftUI Activity tab while treating p
     {
       "id": "01HZPHONEEVENTEXAMPLE",
       "type": "phone_state_changed",
-      "entityId": "sensor.joshs_iphone_battery_level",
+      "entityId": "sensor.josh_iphone_battery_level",
       "category": "phone",
       "severity": "normal",
       "source": "home_assistant",
       "occurredAt": "2026-06-15T22:30:00Z",
       "receivedAt": "2026-06-15T22:30:01Z",
-      "title": "Josh's iPhone changed",
+      "title": "Joshs iPhone changed",
       "message": "82 -> 81",
       "display": {
-        "title": "Josh's iPhone changed",
+        "title": "Joshs iPhone changed",
         "body": "82 -> 81",
         "severity": "info"
       },
       "metadata": {
         "homeAssistantEventType": "state_changed",
         "person": "Josh",
-        "deviceName": "Josh's iPhone",
-        "friendlyName": "Josh's iPhone Battery Level",
+        "deviceName": "Joshs iPhone",
+        "friendlyName": "Joshs iPhone Battery Level",
         "oldState": "82",
         "newState": "81",
         "oldAttributes": {},
@@ -635,13 +637,13 @@ If `/api/events` remains too tied to push/garage semantics, a dedicated activity
       "source": "home_assistant",
       "eventType": "state_changed",
       "activityType": "phone_state_changed",
-      "entityId": "sensor.joshs_iphone_battery_level",
-      "deviceName": "Josh's iPhone",
+      "entityId": "sensor.josh_iphone_battery_level",
+      "deviceName": "Joshs iPhone",
       "person": "Josh",
-      "friendlyName": "Josh's iPhone Battery Level",
+      "friendlyName": "Joshs iPhone Battery Level",
       "oldState": "82",
       "newState": "81",
-      "summary": "Josh's iPhone changed: 82 -> 81.",
+      "summary": "Joshs iPhone changed: 82 -> 81.",
       "occurredAt": "2026-06-15T22:30:00Z",
       "receivedAt": "2026-06-15T22:30:01Z",
       "metadata": {
