@@ -412,7 +412,8 @@ test('/api/events returns normalized Home Assistant phone activity from the shar
   assert.equal(response.events.length, 1);
   assert.equal(response.events[0].type, 'phone_state_changed');
   assert.equal(response.events[0].category, 'phone');
-  assert.equal(response.events[0].entityId, 'sensor.josh_iphone_battery_level');
+  assert.equal(response.events[0].entityId, 'device_tracker.josh_iphone');
+  assert.equal(response.events[0].title, 'Josh arrived home');
   assert.equal(response.events[0].metadata.person, 'Josh');
   assert.equal(response.events[0].push, undefined);
 });
@@ -460,21 +461,21 @@ test('/api/events returns local events and Home Assistant history for an explici
 
     if (url.pathname === '/api/history/period/2026-06-14T18:00:00.000Z') {
       assert.equal(url.searchParams.get('end_time'), '2026-06-15T18:00:00.000Z');
-      assert.equal(url.searchParams.get('filter_entity_id'), 'sensor.josh_iphone_battery_level');
+      assert.equal(url.searchParams.get('filter_entity_id'), 'device_tracker.josh_iphone');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify([
         [
           {
-            entity_id: 'sensor.josh_iphone_battery_level',
-            state: '81',
+            entity_id: 'device_tracker.josh_iphone',
+            state: 'not_home',
             last_changed: '2026-06-14T18:30:00.000Z',
-            attributes: { friendly_name: "Joshs iPhone Battery Level", unit_of_measurement: '%' },
+            attributes: { friendly_name: "Joshs iPhone" },
           },
           {
-            entity_id: 'sensor.josh_iphone_battery_level',
-            state: '80',
+            entity_id: 'device_tracker.josh_iphone',
+            state: 'home',
             last_changed: '2026-06-14T19:00:00.000Z',
-            attributes: { friendly_name: "Joshs iPhone Battery Level", unit_of_measurement: '%' },
+            attributes: { friendly_name: "Joshs iPhone" },
           },
         ],
       ]));
@@ -506,6 +507,7 @@ test('/api/events returns local events and Home Assistant history for an explici
         activity: {
           isEnabled: true,
           trackedPhoneEntities: [
+            { entityId: 'device_tracker.josh_iphone', person: 'Josh', deviceName: "Joshs iPhone" },
             { entityId: 'sensor.josh_iphone_battery_level', person: 'Josh', deviceName: "Joshs iPhone" },
           ],
           trackedPhoneEntityPatterns: [],
@@ -535,14 +537,14 @@ test('/api/events returns local events and Home Assistant history for an explici
       [
         '2026-06-14T19:00:00.000Z',
         '2026-06-14T18:45:00.000Z',
-        '2026-06-14T18:30:00.000Z',
       ],
     );
     assert.equal(response.events[0].type, 'phone_state_changed');
     assert.equal(response.events[0].metadata.ingestionSource, 'history');
+    assert.equal(response.events[0].title, 'Josh arrived home');
     assert.equal(response.events[1].id, 'local-event');
     assert.deepEqual(homeAssistantRequests, [
-      '/api/history/period/2026-06-14T18:00:00.000Z?end_time=2026-06-15T18%3A00%3A00.000Z&filter_entity_id=sensor.josh_iphone_battery_level',
+      '/api/history/period/2026-06-14T18:00:00.000Z?end_time=2026-06-15T18%3A00%3A00.000Z&filter_entity_id=device_tracker.josh_iphone',
     ]);
   } finally {
     await closeServer();
@@ -752,13 +754,13 @@ async function withLiveHomeAssistantStates(
 
 function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
   return {
-    entityId: 'sensor.josh_iphone_battery_level',
+    entityId: 'device_tracker.josh_iphone',
     person: 'Josh',
     deviceName: "Joshs iPhone",
-    oldState: '82',
-    newState: '81',
+    oldState: 'not_home',
+    newState: 'home',
     occurredAt: '2026-06-15T17:00:00.000Z',
-    friendlyName: "Joshs iPhone Battery Level",
+    friendlyName: "Joshs iPhone",
     rawEvent: {
       event_type: 'state_changed',
       time_fired: '2026-06-15T17:00:00.000Z',
@@ -766,22 +768,19 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
         id: 'event-context-id',
       },
       data: {
-        entity_id: 'sensor.josh_iphone_battery_level',
+        entity_id: 'device_tracker.josh_iphone',
         old_state: {
-          entity_id: 'sensor.josh_iphone_battery_level',
-          state: '82',
+          entity_id: 'device_tracker.josh_iphone',
+          state: 'not_home',
           attributes: {
-            friendly_name: "Joshs iPhone Battery Level",
-            unit_of_measurement: '%',
+            friendly_name: "Joshs iPhone",
           },
         },
         new_state: {
-          entity_id: 'sensor.josh_iphone_battery_level',
-          state: '81',
+          entity_id: 'device_tracker.josh_iphone',
+          state: 'home',
           attributes: {
-            friendly_name: "Joshs iPhone Battery Level",
-            unit_of_measurement: '%',
-            device_class: 'battery',
+            friendly_name: "Joshs iPhone",
           },
         },
       },

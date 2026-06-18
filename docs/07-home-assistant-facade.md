@@ -23,8 +23,8 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_TOKEN` | Home Assistant long-lived access token, required only in live mode. Do not commit it. |
 | `HOME_ASSISTANT_ACTIVITY_ENABLED` | Enables the backend Home Assistant WebSocket activity listener. Defaults to `false`. |
 | `HOME_ASSISTANT_WEBSOCKET_URL` | Optional explicit Home Assistant WebSocket URL override. Leave blank to derive `/api/websocket` from `HOME_ASSISTANT_BASE_URL`. |
-| `HOME_ASSISTANT_PHONE_ENTITIES` | Exact phone-related entity IDs to listen for, in `entity_id:Person:Device name` comma-separated format. |
-| `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` | Explicit glob-style phone entity patterns to listen for, in `entity_id_glob:Person:Device name` comma-separated format. Use `*` as the wildcard. |
+| `HOME_ASSISTANT_PHONE_ENTITIES` | Exact phone home-presence entity IDs to listen for, in `entity_id:Person:Device name` comma-separated format. |
+| `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` | Explicit glob-style phone entity patterns to listen for, in `entity_id_glob:Person:Device name` comma-separated format. Use `*` as the wildcard; Activity only stores `device_tracker` home transitions. |
 | `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID` | Server-side garage cover entity. |
 | `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Server-side all-lights entity/group. |
 | `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. |
@@ -176,23 +176,23 @@ curl 'http://localhost:4000/api/debug/home-assistant/phone-entities?keywords=jos
   -H "Authorization: Bearer dev-secret"
 ```
 
-After reviewing discovery output, configure only the exact entities and explicit patterns you want the backend to ingest:
+After reviewing discovery output, configure the exact home-presence tracker entities you want the Activity tab to ingest:
 
 ```sh
 HOME_ASSISTANT_ACTIVITY_ENABLED=true
-HOME_ASSISTANT_PHONE_ENTITIES=device_tracker.josh_iphone:Josh:Joshs iPhone,device_tracker.mallorys_iphone:Mallory:Mallorys iPhone,binary_sensor.josh_iphone_focus:Josh:Joshs iPhone,sensor.josh_iphone_activity:Josh:Joshs iPhone,sensor.josh_iphone_battery_level:Josh:Joshs iPhone,sensor.josh_iphone_battery_state:Josh:Joshs iPhone,sensor.josh_iphone_last_update_trigger:Josh:Joshs iPhone,sensor.iphone_battery_level:Mallory:Mallorys iPhone,sensor.iphone_battery_state:Mallory:Mallorys iPhone
+HOME_ASSISTANT_PHONE_ENTITIES=device_tracker.josh_iphone:Josh:Joshs iPhone,device_tracker.mallorys_iphone:Mallory:Mallorys iPhone
 HOME_ASSISTANT_PHONE_ENTITY_PATTERNS=
 ```
 
-As of the current Home Assistant catalog, the display names are `Joshs iPhone` and `Mallorys iPhone`, but several underlying IDs did not change after the rename. Josh's phone still uses `josh_iphone` IDs, Mallory's tracker/notify IDs use `mallorys_iphone`, and Mallory's Companion App sensors still use generic `sensor.iphone_*` IDs. The Levy Home default uses exact entities and leaves `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` blank because broad phone patterns also ingest noisy/private telemetry such as geocoded location, SSID/BSSID, pressure, storage, and step counters. Re-run discovery after future HA renames before changing these values.
+As of the current Home Assistant catalog, the display names are `Joshs iPhone` and `Mallorys iPhone`, but several underlying IDs did not change after the rename. Josh's phone still uses `josh_iphone` IDs, Mallory's tracker/notify IDs use `mallorys_iphone`, and Mallory's Companion App sensors still use generic `sensor.iphone_*` IDs. The Levy Home Activity feed intentionally keeps only `device_tracker` transitions involving `home`, because the Home Assistant automations use those presence changes. Battery, activity, focus, last-update-trigger, geocoded location, SSID/BSSID, pressure, storage, and step counter sensors are too noisy for the user-facing Activity timeline. Re-run discovery after future HA renames before changing these values.
 
 `HOME_ASSISTANT_WEBSOCKET_URL` is optional. Leave it blank unless the WebSocket listener needs to connect to a different URL than the one derived from `HOME_ASSISTANT_BASE_URL`. These values stay server-side and are not returned to the iOS app.
 
 When `HOME_ASSISTANT_MODE=live` and `HOME_ASSISTANT_ACTIVITY_ENABLED=true`, the API process starts a background Home Assistant WebSocket listener at startup. It authenticates with `HOME_ASSISTANT_TOKEN`, subscribes to `state_changed`, filters to the configured exact entities and patterns, and reconnects with backoff after unexpected disconnects. The listener does not log tokens, request headers, raw Home Assistant events, or Home Assistant URLs.
 
-At startup, the API also performs a temporary 24-hour Home Assistant REST history backfill for the configured phone entities. Exact `HOME_ASSISTANT_PHONE_ENTITIES` are requested directly; `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` are first resolved through `/api/states`, then requested through `/api/history/period/<timestamp>` with `filter_entity_id`. This is an inspection aid for the simulator phase and is not durable storage.
+At startup, the API also performs a temporary 24-hour Home Assistant REST history backfill for the configured phone entities. Exact `HOME_ASSISTANT_PHONE_ENTITIES` are requested directly; `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` are first resolved through `/api/states`, then requested through `/api/history/period/<timestamp>` with `filter_entity_id`. The backfill narrows that set to `device_tracker` entities before requesting history. This is an inspection aid for the simulator phase and is not durable storage.
 
-Matching phone state changes are normalized into generic `phone_state_changed` Activity records with `category: "phone"`, `source: "home_assistant"`, safe Home Assistant metadata, and no `push` object. Phone activity is not sent through APNs and is not represented as skipped notification delivery.
+Matching phone home-presence changes are normalized into `phone_state_changed` Activity records with clear display titles such as `Josh arrived home` or `Mallory left home`, `category: "phone"`, `source: "home_assistant"`, safe Home Assistant metadata, and no `push` object. Phone activity is not sent through APNs and is not represented as skipped notification delivery.
 
 Matching phone activity is stored in the same process-local recent activity feed as webhook-created events and returned from `GET /api/events`. The temporary feed is capped at 500 process-local records, sorted newest first by `occurredAt`, and resets when the API process restarts or redeploys. The iOS Activity tab requests `GET /api/events?limit=500&start=<window-start>&end=<window-end>`: app open and pull-to-refresh load the newest 24-hour window, and scrolling to the bottom requests the previous 24-hour window.
 

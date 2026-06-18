@@ -1,23 +1,26 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { normalizePhoneStateChangedEvent } from './activityNormalizer.js';
+import {
+  normalizePhoneStateChangedEvent,
+  shouldIncludePhoneStateChangedEvent,
+} from './activityNormalizer.js';
 import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClient.js';
 
-test('normalizePhoneStateChangedEvent creates a generic Activity-first phone event', () => {
+test('normalizePhoneStateChangedEvent creates a home-arrival Activity event', () => {
   const event = normalizePhoneStateChangedEvent(sampleStateChangedEvent());
 
   assert.equal(event.type, 'phone_state_changed');
-  assert.equal(event.entityId, 'sensor.josh_iphone_battery_level');
+  assert.equal(event.entityId, 'device_tracker.josh_iphone');
   assert.equal(event.category, 'phone');
   assert.equal(event.severity, 'normal');
   assert.equal(event.source, 'home_assistant');
   assert.equal(event.occurredAt, '2026-06-15T17:00:00.000Z');
-  assert.equal(event.title, "Joshs iPhone changed");
-  assert.equal(event.message, '82 -> 81');
+  assert.equal(event.title, 'Josh arrived home');
+  assert.equal(event.message, 'Away -> Home');
   assert.deepEqual(event.display, {
-    title: "Joshs iPhone changed",
-    body: '82 -> 81',
+    title: 'Josh arrived home',
+    body: 'Away -> Home',
     severity: 'info',
   });
   assert.equal(event.push, undefined);
@@ -29,23 +32,32 @@ test('normalizePhoneStateChangedEvent stores safe Home Assistant metadata only',
   assert.deepEqual(event.metadata, {
     homeAssistantEventType: 'state_changed',
     person: 'Josh',
+    activityKind: 'arrived_home',
     deviceName: "Joshs iPhone",
-    friendlyName: "Joshs iPhone Battery Level",
-    oldState: '82',
-    newState: '81',
+    friendlyName: "Joshs iPhone",
+    oldState: 'not_home',
+    newState: 'home',
     ingestionSource: 'websocket',
     oldAttributes: {
-      friendly_name: "Joshs iPhone Battery Level",
-      unit_of_measurement: '%',
+      friendly_name: "Joshs iPhone",
     },
     newAttributes: {
-      friendly_name: "Joshs iPhone Battery Level",
-      unit_of_measurement: '%',
-      device_class: 'battery',
+      friendly_name: "Joshs iPhone",
     },
     homeAssistantContextId: 'event-context-id',
   });
   assert.equal(JSON.stringify(event.metadata).includes('should not be copied'), false);
+});
+
+test('normalizePhoneStateChangedEvent names home departures clearly', () => {
+  const event = normalizePhoneStateChangedEvent(sampleStateChangedEvent({
+    oldState: 'home',
+    newState: 'not_home',
+  }));
+
+  assert.equal(event.title, 'Josh left home');
+  assert.equal(event.message, 'Home -> Away');
+  assert.equal(event.metadata?.activityKind, 'left_home');
 });
 
 test('normalizePhoneStateChangedEvent falls back to simple copy when states are missing', () => {
@@ -63,21 +75,52 @@ test('normalizePhoneStateChangedEvent falls back to simple copy when states are 
     },
   });
 
-  assert.equal(event.title, "Mallorys iPhone changed");
+  assert.equal(event.title, "Mallory's location changed");
   assert.equal(event.message, 'State changed');
   assert.equal(event.push, undefined);
 });
 
-function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
+test('shouldIncludePhoneStateChangedEvent keeps only real home presence changes', () => {
+  assert.equal(shouldIncludePhoneStateChangedEvent(sampleStateChangedEvent()), true);
+  assert.equal(
+    shouldIncludePhoneStateChangedEvent(sampleStateChangedEvent({ entityId: 'sensor.josh_iphone_battery_level' })),
+    false,
+  );
+  assert.equal(
+    shouldIncludePhoneStateChangedEvent(sampleStateChangedEvent({ oldState: 'home', newState: 'home' })),
+    false,
+  );
+  assert.equal(
+    shouldIncludePhoneStateChangedEvent(sampleStateChangedEvent({ oldState: 'unknown', newState: 'home' })),
+    false,
+  );
+  assert.equal(
+    shouldIncludePhoneStateChangedEvent(sampleStateChangedEvent({ oldState: 'not_home', newState: 'Work' })),
+    false,
+  );
+  assert.equal(
+    shouldIncludePhoneStateChangedEvent(sampleStateChangedEvent({ isInitialBackfillState: true })),
+    false,
+  );
+});
+
+function sampleStateChangedEvent(
+  overrides: Partial<HomeAssistantStateChangedEvent> = {},
+): HomeAssistantStateChangedEvent {
+  const entityId = overrides.entityId ?? 'device_tracker.josh_iphone';
+  const oldState = overrides.oldState ?? 'not_home';
+  const newState = overrides.newState ?? 'home';
+
   return {
-    entityId: 'sensor.josh_iphone_battery_level',
+    entityId,
     person: 'Josh',
     deviceName: "Joshs iPhone",
-    oldState: '82',
-    newState: '81',
+    oldState,
+    newState,
     occurredAt: '2026-06-15T17:00:00.000Z',
-    friendlyName: "Joshs iPhone Battery Level",
+    friendlyName: "Joshs iPhone",
     ingestionSource: 'websocket',
+    ...overrides,
     rawEvent: {
       event_type: 'state_changed',
       time_fired: '2026-06-15T17:00:00.000Z',
@@ -85,13 +128,12 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
         id: 'event-context-id',
       },
       data: {
-        entity_id: 'sensor.josh_iphone_battery_level',
+        entity_id: entityId,
         old_state: {
-          entity_id: 'sensor.josh_iphone_battery_level',
-          state: '82',
+          entity_id: entityId,
+          state: oldState,
           attributes: {
-            friendly_name: "Joshs iPhone Battery Level",
-            unit_of_measurement: '%',
+            friendly_name: "Joshs iPhone",
             private_detail: 'should not be copied',
           },
           context: {
@@ -99,12 +141,10 @@ function sampleStateChangedEvent(): HomeAssistantStateChangedEvent {
           },
         },
         new_state: {
-          entity_id: 'sensor.josh_iphone_battery_level',
-          state: '81',
+          entity_id: entityId,
+          state: newState,
           attributes: {
-            friendly_name: "Joshs iPhone Battery Level",
-            unit_of_measurement: '%',
-            device_class: 'battery',
+            friendly_name: "Joshs iPhone",
             private_detail: 'should not be copied',
           },
           context: {

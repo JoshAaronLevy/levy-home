@@ -5,7 +5,10 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-import { normalizePhoneStateChangedEvent } from './activityNormalizer.js';
+import {
+  normalizePhoneStateChangedEvent,
+  shouldIncludePhoneStateChangedEvent,
+} from './activityNormalizer.js';
 import {
   clampRecentActivityLimit,
   createRecentActivityStore,
@@ -296,7 +299,9 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       ? (await fetchHomeAssistantActivityWindow(config, {
           startTime: window.startTime,
           endTime: window.endTime,
-        })).map((event) => normalizePhoneStateChangedEvent(event))
+        }))
+          .filter(shouldIncludePhoneStateChangedEvent)
+          .map((event) => normalizePhoneStateChangedEvent(event))
       : [];
     const events = mergeActivityEvents([...storedEvents, ...historyEvents], limit);
 
@@ -622,6 +627,10 @@ export function startServer(config = readConfig()): void {
   const activityStore = createRecentActivityStore(500);
   const app = createApp({ config, activityStore });
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
+    if (!shouldIncludePhoneStateChangedEvent(event)) {
+      return;
+    }
+
     const normalizedEvent = normalizePhoneStateChangedEvent(event);
 
     activityStore.add(normalizedEvent);

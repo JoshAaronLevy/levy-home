@@ -1,5 +1,9 @@
 import crypto from 'node:crypto';
 
+import {
+  isHomePresenceEntityId,
+  shouldIncludePhoneStateChangedEvent,
+} from './activityNormalizer.js';
 import type { AppConfig } from './config.js';
 import {
   type HomeAssistantEntityState,
@@ -87,6 +91,7 @@ export async function fetchHomeAssistantActivityWindow(
 
   const events = history
     .flatMap((timeline) => timelineToStateChangedEvents(config, Array.isArray(timeline) ? timeline : []))
+    .filter(shouldIncludePhoneStateChangedEvent)
     .sort((a, b) => eventTimestamp(a) - eventTimestamp(b));
 
   return events;
@@ -107,6 +112,11 @@ async function resolveBackfillEntityIds(
   fetchImpl: typeof fetch,
 ): Promise<string[]> {
   const entityIds = new Set(config.homeAssistant.activity.trackedPhoneEntities.map((entity) => entity.entityId));
+  for (const entityId of Array.from(entityIds)) {
+    if (!isHomePresenceEntityId(entityId)) {
+      entityIds.delete(entityId);
+    }
+  }
 
   if (config.homeAssistant.activity.trackedPhoneEntityPatterns.length > 0) {
     const states = await requestHomeAssistant<HomeAssistantEntityState[]>(baseURL, token, fetchImpl, '/api/states');
@@ -118,6 +128,7 @@ async function resolveBackfillEntityIds(
     for (const state of states) {
       if (
         state.entity_id &&
+        isHomePresenceEntityId(state.entity_id) &&
         matchTrackedPhoneEntity(state.entity_id, [], config.homeAssistant.activity.trackedPhoneEntityPatterns)
       ) {
         entityIds.add(state.entity_id);

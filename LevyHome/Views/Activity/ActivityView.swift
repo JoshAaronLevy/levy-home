@@ -158,17 +158,17 @@ private struct ActivityContentView: View {
                         LevyHomeEvent(
                             id: "event-2",
                             type: .phoneStateChanged,
-                            entityId: "sensor.josh_iphone_battery_level",
+                            entityId: "device_tracker.josh_iphone",
                             category: .phone,
                             severity: .normal,
                             source: "home_assistant",
                             occurredAt: "2026-06-15T17:00:00Z",
-                            title: "Joshs iPhone changed",
-                            message: "82 -> 81",
+                            title: "Josh arrived home",
+                            message: "Away -> Home",
                             receivedAt: "2026-06-15T17:00:01Z",
                             display: EventDisplayMetadata(
-                                title: "Joshs iPhone changed",
-                                body: "82 -> 81",
+                                title: "Josh arrived home",
+                                body: "Away -> Home",
                                 severity: .info
                             ),
                             push: nil

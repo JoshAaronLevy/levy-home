@@ -6,6 +6,7 @@ import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClie
 type NormalizedPhoneActivityMetadata = {
   homeAssistantEventType: 'state_changed';
   person: string;
+  activityKind?: 'arrived_home' | 'left_home' | 'location_changed';
   deviceName?: string;
   friendlyName?: string;
   oldState?: string;
@@ -16,6 +17,36 @@ type NormalizedPhoneActivityMetadata = {
   newAttributes?: Record<string, unknown>;
   homeAssistantContextId?: string;
 };
+
+const IGNORED_PRESENCE_STATES = new Set(['unknown', 'unavailable']);
+
+export function isHomePresenceEntityId(entityId: string): boolean {
+  return entityId.startsWith('device_tracker.');
+}
+
+export function shouldIncludePhoneStateChangedEvent(event: HomeAssistantStateChangedEvent): boolean {
+  if (!isHomePresenceEntityId(event.entityId)) {
+    return false;
+  }
+
+  if (event.isInitialBackfillState) {
+    return false;
+  }
+
+  if (event.oldState === undefined || event.newState === undefined) {
+    return false;
+  }
+
+  if (event.oldState === event.newState) {
+    return false;
+  }
+
+  if (IGNORED_PRESENCE_STATES.has(event.oldState) || IGNORED_PRESENCE_STATES.has(event.newState)) {
+    return false;
+  }
+
+  return event.oldState === 'home' || event.newState === 'home';
+}
 
 export function normalizePhoneStateChangedEvent(event: HomeAssistantStateChangedEvent): LevyHomeEvent {
   const title = phoneActivityTitle(event);
@@ -43,27 +74,57 @@ export function normalizePhoneStateChangedEvent(event: HomeAssistantStateChanged
 }
 
 function phoneActivityTitle(event: HomeAssistantStateChangedEvent): string {
-  if (event.deviceName) {
-    return `${event.deviceName} changed`;
+  const activityKind = phoneActivityKind(event);
+
+  if (activityKind === 'arrived_home') {
+    return `${event.person} arrived home`;
   }
 
-  if (event.friendlyName) {
-    return `${event.friendlyName} changed`;
+  if (activityKind === 'left_home') {
+    return `${event.person} left home`;
   }
 
-  return `${event.person}'s iPhone changed`;
+  return `${event.person}'s location changed`;
+}
+
+function phoneActivityKind(
+  event: HomeAssistantStateChangedEvent,
+): NormalizedPhoneActivityMetadata['activityKind'] {
+  if (event.oldState !== 'home' && event.newState === 'home') {
+    return 'arrived_home';
+  }
+
+  if (event.oldState === 'home' && event.newState !== 'home') {
+    return 'left_home';
+  }
+
+  return 'location_changed';
 }
 
 function phoneActivityBody(oldState: string | undefined, newState: string | undefined): string {
   if (oldState !== undefined && newState !== undefined) {
-    return `${oldState} -> ${newState}`;
+    return `${displayPresenceState(oldState)} -> ${displayPresenceState(newState)}`;
   }
 
   if (newState !== undefined) {
-    return `New state: ${newState}`;
+    return `New state: ${displayPresenceState(newState)}`;
   }
 
   return 'State changed';
+}
+
+function displayPresenceState(state: string): string {
+  if (state === 'home') {
+    return 'Home';
+  }
+
+  if (state === 'not_home') {
+    return 'Away';
+  }
+
+  return state
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function phoneActivityMetadata(event: HomeAssistantStateChangedEvent): NormalizedPhoneActivityMetadata {
@@ -77,6 +138,7 @@ function phoneActivityMetadata(event: HomeAssistantStateChangedEvent): Normalize
   return {
     homeAssistantEventType: 'state_changed',
     person: event.person,
+    activityKind: phoneActivityKind(event),
     ...(event.deviceName ? { deviceName: event.deviceName } : {}),
     ...(event.friendlyName ? { friendlyName: event.friendlyName } : {}),
     ...(event.oldState !== undefined ? { oldState: event.oldState } : {}),
