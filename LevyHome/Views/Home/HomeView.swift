@@ -16,6 +16,7 @@ private struct HomeContentView: View {
     @StateObject private var quickActionsViewModel: QuickActionsViewModel
     @State private var selectedMode: HomeMode = .now
     @State private var searchText = ""
+    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     init(
         homeViewModel: HomeOverviewViewModel,
@@ -39,7 +40,8 @@ private struct HomeContentView: View {
                 HomeBlueprintView(
                     garageData: homeViewModel.garageCardData,
                     lightSummaryData: homeViewModel.lightSummaryCardData,
-                    garageAction: garageAction,
+                    garageToggleAction: garageToggleAction,
+                    showsGarageWarning: showsGarageAwayWarning,
                     isBusy: quickActionsViewModel.isBusy,
                     performingActionID: quickActionsViewModel.performingActionID
                 ) { action in
@@ -132,8 +134,41 @@ private struct HomeContentView: View {
         }
     }
 
-    private var garageAction: QuickActionDisplayData? {
+    private var openGarageAction: QuickActionDisplayData? {
+        quickActionsViewModel.actions.first { $0.request.actionId == .openGarage }
+    }
+
+    private var closeGarageAction: QuickActionDisplayData? {
         quickActionsViewModel.actions.first { $0.request.actionId == .closeGarage }
+    }
+
+    private var garageToggleAction: QuickActionDisplayData? {
+        guard let state = homeViewModel.overview?.garageStatus.state else {
+            return nil
+        }
+
+        switch state {
+        case .open:
+            return closeGarageAction
+        case .closed:
+            return openGarageAction
+        case .opening, .closing, .unknown, .unrecognized:
+            return nil
+        }
+    }
+
+    private var showsGarageAwayWarning: Bool {
+        guard
+            homeViewModel.overview?.garageStatus.state == .open,
+            !currentResidentName.isEmpty,
+            let currentPresence = homeViewModel.overview?.presence?.first(where: {
+                $0.person.localizedCaseInsensitiveCompare(currentResidentName) == .orderedSame
+            })
+        else {
+            return false
+        }
+
+        return currentPresence.state == .away
     }
 
     private var allLightsAction: QuickActionDisplayData? {
@@ -372,7 +407,8 @@ private struct HomeSearchRow: View {
 private struct HomeBlueprintView: View {
     let garageData: GarageStatusCardData
     let lightSummaryData: LightSummaryCardData
-    let garageAction: QuickActionDisplayData?
+    let garageToggleAction: QuickActionDisplayData?
+    let showsGarageWarning: Bool
     let isBusy: Bool
     let performingActionID: String?
     let onActionSelected: (QuickActionDisplayData) -> Void
@@ -471,14 +507,26 @@ private struct HomeBlueprintView: View {
                 )
                 .position(positions.entry)
 
-                BlueprintNodeView(
-                    title: "Garage",
-                    subtitle: garageSubtitle,
-                    systemImage: garageData.systemImage,
-                    tone: garageData.tone,
-                    size: garageSize,
-                    isPriority: true
-                )
+                Button {
+                    if let garageToggleAction {
+                        onActionSelected(garageToggleAction)
+                    }
+                } label: {
+                    BlueprintNodeView(
+                        title: "Garage",
+                        subtitle: garageSubtitle,
+                        systemImage: garageData.systemImage,
+                        tone: garageData.tone,
+                        size: garageSize,
+                        isPriority: true,
+                        showsWarningBadge: showsGarageWarning,
+                        isPerforming: garageToggleAction?.id == performingActionID
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(garageToggleAction == nil || (!canToggleGarage && garageToggleAction?.id != performingActionID))
+                .accessibilityLabel(garageAccessibilityLabel)
+                .accessibilityHint(garageAccessibilityHint)
                 .position(positions.garage)
 
                 garageCommandButton
@@ -515,28 +563,46 @@ private struct HomeBlueprintView: View {
         return garageData.status.lowercased()
     }
 
+    private var canToggleGarage: Bool {
+        garageToggleAction?.isEnabled == true && !isBusy
+    }
+
+    private var garageAccessibilityLabel: String {
+        let warning = showsGarageWarning ? ", open while you are away" : ""
+        return "Garage, \(garageData.status.lowercased())\(warning)"
+    }
+
+    private var garageAccessibilityHint: String {
+        guard let garageToggleAction else {
+            return "Garage control is unavailable."
+        }
+
+        if garageToggleAction.id == performingActionID {
+            return "\(garageToggleAction.title) is in progress."
+        }
+
+        return "Double tap to \(garageToggleAction.title.lowercased())."
+    }
+
     @ViewBuilder
     private var garageCommandButton: some View {
-        let isOpen = garageData.status.localizedCaseInsensitiveCompare("Open") == .orderedSame
-        let canRun = isOpen && garageAction?.isEnabled == true && !isBusy
-        let isPerforming = garageAction?.id == performingActionID
+        let canRun = canToggleGarage
+        let isPerforming = garageToggleAction?.id == performingActionID
 
-        if isOpen {
+        if let garageToggleAction {
             Button {
-                if let garageAction {
-                    onActionSelected(garageAction)
-                }
+                onActionSelected(garageToggleAction)
             } label: {
                 HStack(spacing: AppSpacing.small) {
                     if isPerforming {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Image(systemName: "door.garage.closed")
+                        Image(systemName: garageCommandSystemImage)
                             .font(.headline.weight(.semibold))
                     }
 
-                    Text("Close Garage")
+                    Text(garageToggleAction.title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -554,8 +620,16 @@ private struct HomeBlueprintView: View {
             }
             .buttonStyle(.plain)
             .disabled(!canRun && !isPerforming)
-            .accessibilityLabel("Close garage")
+            .accessibilityLabel(garageToggleAction.title)
         }
+    }
+
+    private var garageCommandSystemImage: String {
+        if garageData.status.localizedCaseInsensitiveCompare("Open") == .orderedSame {
+            return "door.garage.closed"
+        }
+
+        return "door.garage.open"
     }
 }
 
@@ -584,6 +658,8 @@ private struct BlueprintNodeView: View {
     let tone: StatusBadgeTone
     let size: CGFloat
     var isPriority = false
+    var showsWarningBadge = false
+    var isPerforming = false
 
     var body: some View {
         ZStack {
@@ -604,20 +680,17 @@ private struct BlueprintNodeView: View {
                 .rotationEffect(.degrees(28))
                 .padding(isPriority ? 8 : 6)
 
-            if isPriority && tone == .warning {
-                Image(systemName: "exclamationmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 24, height: 24)
-                    .background(HomePalette.coral, in: Circle())
-                    .position(x: size * 0.86, y: size * 0.18)
-            }
-
             VStack(spacing: isPriority ? AppSpacing.small : AppSpacing.xSmall) {
-                Image(systemName: systemImage)
-                    .font(.system(size: isPriority ? 34 : 25, weight: .medium))
-                    .foregroundStyle(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
-                    .frame(height: isPriority ? 34 : 28)
+                if isPerforming {
+                    ProgressView()
+                        .tint(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
+                        .frame(height: isPriority ? 34 : 28)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: isPriority ? 34 : 25, weight: .medium))
+                        .foregroundStyle(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
+                        .frame(height: isPriority ? 34 : 28)
+                }
 
                 VStack(spacing: 1) {
                     Text(title)
@@ -635,6 +708,20 @@ private struct BlueprintNodeView: View {
                 }
             }
             .padding(.horizontal, AppSpacing.small)
+
+            if showsWarningBadge {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: isPriority ? 18 : 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: isPriority ? 34 : 28, height: isPriority ? 34 : 28)
+                    .background(HomePalette.coral, in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(.white.opacity(0.88), lineWidth: 2)
+                    }
+                    .shadow(color: HomePalette.coral.opacity(0.34), radius: 8, y: 3)
+                    .offset(x: size * 0.32, y: -size * 0.32)
+            }
         }
         .frame(width: size, height: size)
         .accessibilityElement(children: .combine)
@@ -1194,6 +1281,16 @@ private enum HomePalette {
                             )
                         ]
                     ),
+                    presence: [
+                        HomePresenceStatus(
+                            person: "Josh",
+                            state: .away,
+                            entityId: "device_tracker.josh_iphone",
+                            deviceName: "Joshs iPhone",
+                            lastUpdatedAt: "2026-06-12T13:55:00Z",
+                            isStale: false
+                        )
+                    ],
                     recentImportantEvent: nil,
                     generatedAt: "2026-06-12T14:00:02Z",
                     isPartial: false
@@ -1210,6 +1307,14 @@ private struct PreviewQuickActionService: QuickActionServicing {
     func fetchCatalog() async throws -> QuickActionCatalog {
         QuickActionCatalog(
             actions: [
+                QuickAction(
+                    id: .openGarage,
+                    title: "Open Garage",
+                    subtitle: "Open the main garage door.",
+                    isEnabled: true,
+                    requiresConfirmation: true,
+                    targetName: "Main garage"
+                ),
                 QuickAction(
                     id: .closeGarage,
                     title: "Close Garage",

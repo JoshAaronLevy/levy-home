@@ -14,16 +14,19 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertEqual(
             viewModel.actions.map(\.id),
             [
+                "open_garage",
                 "close_garage",
                 "turn_off_all_lights",
                 "turn_off_light_group.upstairs_hallway",
                 "turn_off_light_group.playroom_lamp"
             ]
         )
-        XCTAssertEqual(viewModel.actions[0].request, .closeGarage)
-        XCTAssertEqual(viewModel.actions[1].request, .turnOffAllLights)
-        XCTAssertEqual(viewModel.actions[2].request, .turnOffLightGroup(groupId: "upstairs_hallway"))
+        XCTAssertEqual(viewModel.actions[0].request, .openGarage)
+        XCTAssertEqual(viewModel.actions[1].request, .closeGarage)
+        XCTAssertEqual(viewModel.actions[2].request, .turnOffAllLights)
+        XCTAssertEqual(viewModel.actions[3].request, .turnOffLightGroup(groupId: "upstairs_hallway"))
         XCTAssertTrue(viewModel.actions[0].requiresConfirmation)
+        XCTAssertTrue(viewModel.actions[1].requiresConfirmation)
         XCTAssertEqual(viewModel.subtitle, "Curated Home Assistant actions")
     }
 
@@ -33,7 +36,7 @@ final class QuickActionsViewModelTests: XCTestCase {
         let viewModel = QuickActionsViewModel(service: service)
 
         await viewModel.loadIfNeeded()
-        let closeGarage = try! XCTUnwrap(viewModel.actions.first)
+        let closeGarage = try! XCTUnwrap(viewModel.actions.first { $0.request == .closeGarage })
 
         let overview = await viewModel.select(closeGarage)
 
@@ -60,7 +63,7 @@ final class QuickActionsViewModelTests: XCTestCase {
         let viewModel = QuickActionsViewModel(service: service)
 
         await viewModel.loadIfNeeded()
-        _ = await viewModel.select(try! XCTUnwrap(viewModel.actions.first))
+        _ = await viewModel.select(try! XCTUnwrap(viewModel.actions.first { $0.request == .closeGarage }))
         let overview = await viewModel.confirmPendingAction()
 
         XCTAssertEqual(service.performedRequests, [.closeGarage])
@@ -146,6 +149,14 @@ final class QuickActionsViewModelTests: XCTestCase {
         QuickActionCatalog(
             actions: [
                 QuickAction(
+                    id: .openGarage,
+                    title: "Open Garage",
+                    subtitle: "Open the main garage door.",
+                    isEnabled: true,
+                    requiresConfirmation: true,
+                    targetName: "Main garage"
+                ),
+                QuickAction(
                     id: .closeGarage,
                     title: "Close Garage",
                     subtitle: "Close the main garage door.",
@@ -191,6 +202,7 @@ final class QuickActionsViewModelTests: XCTestCase {
                 totalLightCount: 12,
                 groups: []
             ),
+            presence: nil,
             recentImportantEvent: nil,
             generatedAt: "2026-06-12T14:00:02Z",
             isPartial: false

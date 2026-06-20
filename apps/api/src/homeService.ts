@@ -21,9 +21,10 @@ export class HomeService {
   ) {}
 
   async getOverview(): Promise<HomeOverview> {
-    const [garageStatus, lightSummaryInputs] = await Promise.all([
+    const [garageStatus, lightSummaryInputs, presence] = await Promise.all([
       this.homeAssistant.getGarageStatus(),
       this.homeAssistant.getLightSummaryInputs(),
+      this.homeAssistant.getPresenceStatuses(),
     ]);
 
     const lightSummary = summarizeLights(lightSummaryInputs.allLights, lightSummaryInputs.groups);
@@ -31,6 +32,7 @@ export class HomeService {
     return {
       garageStatus,
       lightSummary,
+      presence,
       recentImportantEvent: this.findRecentImportantEvent(),
       generatedAt: new Date().toISOString(),
       isPartial: false,
@@ -45,6 +47,14 @@ export class HomeService {
         : 'Curated light groups';
 
     return [
+      {
+        id: 'open_garage',
+        title: 'Open Garage',
+        subtitle: 'Open the main garage door.',
+        isEnabled: true,
+        requiresConfirmation: true,
+        targetName: 'Main garage',
+      },
       {
         id: 'close_garage',
         title: 'Close Garage',
@@ -74,6 +84,9 @@ export class HomeService {
 
   async performAction(actionId: QuickActionId, groupId?: string): Promise<QuickActionResult> {
     switch (actionId) {
+    case 'open_garage':
+      await this.homeAssistant.openGarage();
+      return this.result(actionId, 'Garage open requested.');
     case 'close_garage':
       await this.homeAssistant.closeGarage();
       return this.result(actionId, 'Garage close requested.');

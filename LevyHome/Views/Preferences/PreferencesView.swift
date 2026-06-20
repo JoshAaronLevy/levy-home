@@ -25,6 +25,7 @@ private struct PreferencesContentView: View {
     @StateObject private var viewModel: NotificationPreferencesViewModel
     @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
     @ObservedObject private var themePreferenceViewModel: ThemePreferenceViewModel
+    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     private let apnsEnvironment: APNsEnvironment
 
     init(
@@ -49,6 +50,8 @@ private struct PreferencesContentView: View {
 
                 ThemePreferenceRowView(viewModel: themePreferenceViewModel)
 
+                ResidentPreferenceRowView(currentResidentName: $currentResidentName)
+
                 NotificationPreferencesView(viewModel: viewModel)
             }
             .padding(AppSpacing.screen)
@@ -69,6 +72,107 @@ private struct PreferencesContentView: View {
                 .accessibilityLabel("Developer Tools")
             }
         }
+    }
+}
+
+private struct ResidentPreferenceRowView: View {
+    @Binding var currentResidentName: String
+
+    var body: some View {
+        InfoPanel(
+            title: "Device Owner",
+            subtitle: nil,
+            systemImage: "person.crop.circle"
+        ) {
+            NavigationLink {
+                ResidentPreferenceView(currentResidentName: $currentResidentName)
+            } label: {
+                HStack(spacing: AppSpacing.medium) {
+                    Image(systemName: selectedResident?.systemImage ?? "person.crop.circle.badge.questionmark")
+                        .font(.title3)
+                        .foregroundStyle(AppColors.accent)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                        Text("This iPhone")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+
+                        Text(selectedResident?.rawValue ?? "Choose resident")
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var selectedResident: ResidentIdentity? {
+        ResidentIdentity(rawValue: currentResidentName)
+    }
+}
+
+private struct ResidentPreferenceView: View {
+    @Binding var currentResidentName: String
+
+    var body: some View {
+        ScrollView {
+            InfoPanel(
+                title: "Device Owner",
+                subtitle: nil,
+                systemImage: "person.crop.circle"
+            ) {
+                VStack(spacing: 0) {
+                    ForEach(ResidentIdentity.allCases) { resident in
+                        residentButton(resident)
+
+                        if resident.id != ResidentIdentity.allCases.last?.id {
+                            Divider()
+                                .padding(.vertical, AppSpacing.medium)
+                        }
+                    }
+                }
+            }
+            .padding(AppSpacing.screen)
+        }
+        .background(AppColors.pageBackground)
+        .navigationTitle("Device Owner")
+    }
+
+    private func residentButton(_ resident: ResidentIdentity) -> some View {
+        Button {
+            currentResidentName = resident.rawValue
+        } label: {
+            HStack(spacing: AppSpacing.medium) {
+                Image(systemName: resident.systemImage)
+                    .font(.title3)
+                    .foregroundStyle(AppColors.accent)
+                    .frame(width: 28)
+
+                Text(resident.rawValue)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                if currentResidentName == resident.rawValue {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.accent)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(resident.rawValue)
     }
 }
 

@@ -225,6 +225,18 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   );
 
   app.post(
+    '/api/home/actions/open-garage',
+    asyncHandler(async (_req, res) => {
+      const result = await homeService.performAction('open_garage');
+
+      res.json({
+        ok: true,
+        result,
+      });
+    }),
+  );
+
+  app.post(
     '/api/home/actions/close-garage',
     asyncHandler(async (_req, res) => {
       const result = await homeService.performAction('close_garage');

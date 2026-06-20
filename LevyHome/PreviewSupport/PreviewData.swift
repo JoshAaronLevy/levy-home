@@ -26,6 +26,15 @@ enum PreviewData {
 
     static let quickActions = [
         QuickActionDisplayData(
+            id: QuickActionID.openGarage.rawValue,
+            request: .openGarage,
+            title: "Open Garage",
+            subtitle: "Open the main garage door.",
+            systemImage: "door.garage.open",
+            isEnabled: true,
+            requiresConfirmation: true
+        ),
+        QuickActionDisplayData(
             id: QuickActionID.closeGarage.rawValue,
             request: .closeGarage,
             title: "Close Garage",

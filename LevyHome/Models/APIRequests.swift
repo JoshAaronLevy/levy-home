@@ -5,6 +5,7 @@ struct FetchEventsRequest: Encodable, Equatable {
 }
 
 enum QuickActionRequest: Encodable, Equatable {
+    case openGarage
     case closeGarage
     case turnOffAllLights
     case turnOffLightGroup(groupId: String)
@@ -16,6 +17,8 @@ enum QuickActionRequest: Encodable, Equatable {
 
     var actionId: QuickActionID {
         switch self {
+        case .openGarage:
+            return .openGarage
         case .closeGarage:
             return .closeGarage
         case .turnOffAllLights:

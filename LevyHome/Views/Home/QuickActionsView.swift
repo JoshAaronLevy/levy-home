@@ -178,6 +178,14 @@ private struct QuickActionsPreviewService: QuickActionServicing {
         QuickActionCatalog(
             actions: [
                 QuickAction(
+                    id: .openGarage,
+                    title: "Open Garage",
+                    subtitle: "Open the main garage door.",
+                    isEnabled: true,
+                    requiresConfirmation: true,
+                    targetName: "Main garage"
+                ),
+                QuickAction(
                     id: .closeGarage,
                     title: "Close Garage",
                     subtitle: "Close the main garage door.",

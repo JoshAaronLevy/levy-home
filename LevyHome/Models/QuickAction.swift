@@ -1,6 +1,7 @@
 import Foundation
 
 enum QuickActionID: Codable, Equatable, Hashable {
+    case openGarage
     case closeGarage
     case turnOffAllLights
     case turnOffLightGroup
@@ -8,6 +9,8 @@ enum QuickActionID: Codable, Equatable, Hashable {
 
     var rawValue: String {
         switch self {
+        case .openGarage:
+            return "open_garage"
         case .closeGarage:
             return "close_garage"
         case .turnOffAllLights:
@@ -21,6 +24,8 @@ enum QuickActionID: Codable, Equatable, Hashable {
 
     init(rawValue: String) {
         switch rawValue {
+        case "open_garage":
+            self = .openGarage
         case "close_garage":
             self = .closeGarage
         case "turn_off_all_lights":

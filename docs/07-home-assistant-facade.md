@@ -45,6 +45,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `GET` | `/api/home/overview` | Garage status, light summary, recent important event, generated time. |
 | `GET` | `/api/home/actions` | Curated quick actions and configured light groups. |
 | `POST` | `/api/home/actions` | Generic curated action endpoint using `actionId` and optional `groupId`. |
+| `POST` | `/api/home/actions/open-garage` | Explicit open-garage action. |
 | `POST` | `/api/home/actions/close-garage` | Explicit close-garage action. |
 | `POST` | `/api/home/actions/lights-off` | Explicit all-lights-off action. |
 | `POST` | `/api/home/actions/light-groups/:groupId/off` | Explicit curated light-group off action. |
@@ -83,7 +84,7 @@ curl http://localhost:4000/api/home/actions
 
 curl -X POST http://localhost:4000/api/home/actions \
   -H "Content-Type: application/json" \
-  -d '{"actionId":"close_garage"}'
+  -d '{"actionId":"open_garage"}'
 
 curl -X POST http://localhost:4000/api/home/actions \
   -H "Content-Type: application/json" \

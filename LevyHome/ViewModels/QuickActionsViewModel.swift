@@ -143,6 +143,18 @@ final class QuickActionsViewModel: ObservableObject {
     private static func displayActions(from catalog: QuickActionCatalog) -> [QuickActionDisplayData] {
         catalog.actions.flatMap { action -> [QuickActionDisplayData] in
             switch action.id {
+            case .openGarage:
+                return [
+                    QuickActionDisplayData(
+                        id: action.id.rawValue,
+                        request: .openGarage,
+                        title: action.title,
+                        subtitle: action.subtitle ?? "Open the main garage door.",
+                        systemImage: "door.garage.open",
+                        isEnabled: action.isEnabled,
+                        requiresConfirmation: action.requiresConfirmation
+                    )
+                ]
             case .closeGarage:
                 return [
                     QuickActionDisplayData(

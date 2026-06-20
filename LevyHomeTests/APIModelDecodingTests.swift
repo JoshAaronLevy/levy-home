@@ -42,6 +42,16 @@ final class APIModelDecodingTests: XCTestCase {
                   "totalLightCount": 12,
                   "groups": []
                 },
+                "presence": [
+                  {
+                    "person": "Josh",
+                    "state": "away",
+                    "entityId": "device_tracker.josh_iphone",
+                    "deviceName": "Joshs iPhone",
+                    "lastUpdatedAt": "2026-06-12T13:59:00Z",
+                    "isStale": false
+                  }
+                ],
                 "recentImportantEvent": null,
                 "generatedAt": "2026-06-12T14:00:02Z",
                 "isPartial": false
@@ -52,6 +62,8 @@ final class APIModelDecodingTests: XCTestCase {
 
         XCTAssertEqual(response.overview.garageStatus.state, .open)
         XCTAssertEqual(response.overview.lightSummary.state, .partiallyOn)
+        XCTAssertEqual(response.overview.presence?.first?.person, "Josh")
+        XCTAssertEqual(response.overview.presence?.first?.state, .away)
     }
 
     func testDecodesQuickActionResponse() throws {
@@ -168,10 +180,13 @@ final class APIModelDecodingTests: XCTestCase {
     }
 
     func testEncodesCuratedQuickActionRequestsOnly() throws {
+        let openGarage = try encodeJSON(QuickActionRequest.openGarage)
         let closeGarage = try encodeJSON(QuickActionRequest.closeGarage)
         let turnOffAllLights = try encodeJSON(QuickActionRequest.turnOffAllLights)
         let turnOffLightGroup = try encodeJSON(QuickActionRequest.turnOffLightGroup(groupId: "upstairs_hallway"))
 
+        XCTAssertEqual(openGarage["actionId"] as? String, "open_garage")
+        XCTAssertNil(openGarage["groupId"])
         XCTAssertEqual(closeGarage["actionId"] as? String, "close_garage")
         XCTAssertNil(closeGarage["groupId"])
         XCTAssertEqual(turnOffAllLights["actionId"] as? String, "turn_off_all_lights")

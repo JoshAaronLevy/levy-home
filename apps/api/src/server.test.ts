@@ -99,6 +99,7 @@ test('GET /api/home/overview returns a narrow home overview', async () => {
   assert.equal(response.overview.garageStatus.state, 'closed');
   assert.equal(response.overview.lightSummary.state, 'off');
   assert.equal(response.overview.lightSummary.groups.length, 2);
+  assert.deepEqual(response.overview.presence, []);
 });
 
 test('GET /api/home/actions returns curated action IDs and light groups', async () => {
@@ -106,7 +107,7 @@ test('GET /api/home/actions returns curated action IDs and light groups', async 
 
   assert.deepEqual(
     response.actions.map((action: { id: string }) => action.id),
-    ['close_garage', 'turn_off_all_lights', 'turn_off_light_group'],
+    ['open_garage', 'close_garage', 'turn_off_all_lights', 'turn_off_light_group'],
   );
   assert.deepEqual(response.lightGroups, [
     { id: 'upstairs_hallway', name: 'Upstairs Hallway' },
@@ -116,6 +117,17 @@ test('GET /api/home/actions returns curated action IDs and light groups', async 
 
 test('POST /api/home/actions performs only curated actions', async () => {
   const response = await postJSON('/api/home/actions', {
+    actionId: 'open_garage',
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.result.actionId, 'open_garage');
+  assert.equal(response.result.status, 'success');
+  assert.equal(response.result.refreshedHomeOverview.garageStatus.state, 'open');
+});
+
+test('POST /api/home/actions performs curated light group actions', async () => {
+  const response = await postJSON('/api/home/actions', {
     actionId: 'turn_off_light_group',
     groupId: 'upstairs_hallway',
   });
@@ -123,7 +135,6 @@ test('POST /api/home/actions performs only curated actions', async () => {
   assert.equal(response.ok, true);
   assert.equal(response.result.actionId, 'turn_off_light_group');
   assert.equal(response.result.status, 'success');
-  assert.equal(response.result.refreshedHomeOverview.garageStatus.state, 'closed');
 });
 
 test('POST /api/home/actions rejects arbitrary Home Assistant payloads', async () => {
@@ -143,10 +154,12 @@ test('POST /api/home/actions rejects arbitrary Home Assistant payloads', async (
 });
 
 test('explicit curated action endpoints work', async () => {
+  const openGarage = await postJSON('/api/home/actions/open-garage');
   const closeGarage = await postJSON('/api/home/actions/close-garage');
   const lightsOff = await postJSON('/api/home/actions/lights-off');
   const lightGroup = await postJSON('/api/home/actions/light-groups/playroom_lamp/off');
 
+  assert.equal(openGarage.result.actionId, 'open_garage');
   assert.equal(closeGarage.result.actionId, 'close_garage');
   assert.equal(lightsOff.result.actionId, 'turn_off_all_lights');
   assert.equal(lightGroup.result.actionId, 'turn_off_light_group');

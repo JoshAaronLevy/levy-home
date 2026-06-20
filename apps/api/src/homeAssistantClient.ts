@@ -5,6 +5,8 @@ import type {
   HomeAssistantEntityDiscoveryCandidate,
   LightGroupStatus,
   LightState,
+  PersonPresenceStatus,
+  PresenceState,
 } from './contracts.js';
 import { HTTPError } from './httpError.js';
 
@@ -14,7 +16,9 @@ export type HomeAssistantFacade = {
     allLights: LightGroupStatus;
     groups: LightGroupStatus[];
   }>;
+  getPresenceStatuses(): Promise<PersonPresenceStatus[]>;
   discoverPhoneEntities(keywords?: string[]): Promise<HomeAssistantEntityDiscoveryCandidate[]>;
+  openGarage(): Promise<void>;
   closeGarage(): Promise<void>;
   turnOffAllLights(): Promise<void>;
   turnOffLightGroup(groupId: string): Promise<void>;
@@ -122,6 +126,21 @@ class MockHomeAssistantFacade implements HomeAssistantFacade {
       .filter((candidate): candidate is HomeAssistantEntityDiscoveryCandidate => candidate !== null);
   }
 
+  async getPresenceStatuses(): Promise<PersonPresenceStatus[]> {
+    return configuredPresenceTrackers(this.config).map((tracker, index) => ({
+      person: tracker.person,
+      state: index === 0 ? 'away' : 'home',
+      entityId: tracker.entityId,
+      ...(tracker.deviceName ? { deviceName: tracker.deviceName } : {}),
+      lastUpdatedAt: new Date().toISOString(),
+      isStale: false,
+    }));
+  }
+
+  async openGarage(): Promise<void> {
+    this.garageState = 'open';
+  }
+
   async closeGarage(): Promise<void> {
     this.garageState = 'closed';
   }
@@ -201,6 +220,12 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
     });
   }
 
+  async openGarage(): Promise<void> {
+    await this.callService('cover', 'open_cover', {
+      entity_id: this.config.homeAssistant.garageCoverEntityId,
+    });
+  }
+
   async turnOffAllLights(): Promise<void> {
     if (this.config.homeAssistant.lightEntities.length > 0) {
       await this.callService('light', 'turn_off', {
@@ -243,6 +268,33 @@ class LiveHomeAssistantFacade implements HomeAssistantFacade {
       .map((state) => toPhoneDiscoveryCandidate(state, terms))
       .filter((candidate): candidate is HomeAssistantEntityDiscoveryCandidate => candidate !== null)
       .sort((a, b) => a.entityId.localeCompare(b.entityId));
+  }
+
+  async getPresenceStatuses(): Promise<PersonPresenceStatus[]> {
+    return Promise.all(
+      configuredPresenceTrackers(this.config).map(async (tracker) => {
+        try {
+          const state = await this.fetchEntityState(tracker.entityId);
+
+          return {
+            person: tracker.person,
+            state: mapPresenceState(state.state),
+            entityId: tracker.entityId,
+            ...(tracker.deviceName ? { deviceName: tracker.deviceName } : {}),
+            lastUpdatedAt: state.last_updated,
+            isStale: false,
+          };
+        } catch {
+          return {
+            person: tracker.person,
+            state: 'unknown',
+            entityId: tracker.entityId,
+            ...(tracker.deviceName ? { deviceName: tracker.deviceName } : {}),
+            isStale: true,
+          };
+        }
+      }),
+    );
   }
 
   private async fetchSingleLightState(entity: CuratedLightEntity): Promise<LightGroupStatus> {
@@ -322,6 +374,24 @@ function summarizeLightEntities(groups: LightGroupStatus[]): LightGroupStatus {
     lightsOnCount,
     totalLightCount,
   };
+}
+
+function configuredPresenceTrackers(config: AppConfig) {
+  const trackersByPerson = new Map<string, AppConfig['homeAssistant']['activity']['trackedPhoneEntities'][number]>();
+
+  for (const tracker of config.homeAssistant.activity.trackedPhoneEntities) {
+    if (!tracker.entityId.startsWith('device_tracker.')) {
+      continue;
+    }
+
+    const personKey = tracker.person.trim().toLowerCase();
+
+    if (!trackersByPerson.has(personKey)) {
+      trackersByPerson.set(personKey, tracker);
+    }
+  }
+
+  return Array.from(trackersByPerson.values());
 }
 
 function normalizePhoneDiscoveryTerms(keywords: string[] | undefined): string[] {
@@ -411,6 +481,17 @@ function mapGarageState(state: string): GarageState {
   case 'opening':
   case 'closing':
     return state;
+  default:
+    return 'unknown';
+  }
+}
+
+function mapPresenceState(state: string): PresenceState {
+  switch (state) {
+  case 'home':
+    return 'home';
+  case 'not_home':
+    return 'away';
   default:
     return 'unknown';
   }

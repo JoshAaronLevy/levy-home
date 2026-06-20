@@ -21,7 +21,12 @@ import { HTTPError } from './httpError.js';
 
 type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string; code?: string };
 
-const quickActionIds = new Set<QuickActionId>(['close_garage', 'turn_off_all_lights', 'turn_off_light_group']);
+const quickActionIds = new Set<QuickActionId>([
+  'open_garage',
+  'close_garage',
+  'turn_off_all_lights',
+  'turn_off_light_group',
+]);
 const allowedQuickActionBodyKeys = new Set(['actionId', 'groupId']);
 const devicePlatforms = new Set<DevicePlatform>(['ios', 'android', 'unknown']);
 const pushProviders = new Set<PushProvider>(['apns', 'expo']);

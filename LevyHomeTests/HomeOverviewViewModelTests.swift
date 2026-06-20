@@ -173,6 +173,7 @@ final class HomeOverviewViewModelTests: XCTestCase {
         HomeOverview(
             garageStatus: garageStatus,
             lightSummary: lightSummary,
+            presence: nil,
             recentImportantEvent: recentImportantEvent,
             generatedAt: generatedAt,
             isPartial: isPartial
