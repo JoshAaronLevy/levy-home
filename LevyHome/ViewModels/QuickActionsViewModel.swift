@@ -117,6 +117,10 @@ final class QuickActionsViewModel: ObservableObject {
             return nil
         }
 
+        return await confirm(action)
+    }
+
+    func confirm(_ action: QuickActionDisplayData) async -> HomeOverview? {
         pendingConfirmationAction = nil
         appLogStore?.record(
             level: .info,
@@ -146,6 +150,16 @@ final class QuickActionsViewModel: ObservableObject {
             level: .warning,
             category: "Action",
             title: "\(title) unavailable",
+            detail: reason
+        )
+    }
+
+    func reportActionIssue(title: String, reason: String, tone: BannerTone = .error) {
+        message = QuickActionMessage(text: reason, tone: tone)
+        appLogStore?.record(
+            level: tone == .error ? .error : .warning,
+            category: "Action",
+            title: "\(title) needs attention",
             detail: reason
         )
     }
@@ -203,7 +217,7 @@ final class QuickActionsViewModel: ObservableObject {
             let result = try await service.perform(action.request)
             switch result.status {
             case .success:
-                message = QuickActionMessage(text: result.message, tone: .success)
+                message = nil
             case .failure:
                 message = QuickActionMessage(text: result.message, tone: .error)
             case .unknown:

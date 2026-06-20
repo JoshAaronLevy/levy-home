@@ -3,17 +3,7 @@ import SwiftUI
 struct QuickActionsView: View {
     @ObservedObject var viewModel: QuickActionsViewModel
     let onOverviewRefreshed: (HomeOverview) -> Void
-
-    private var confirmationBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.pendingConfirmationAction != nil },
-            set: { isPresented in
-                if !isPresented {
-                    viewModel.cancelPendingConfirmation()
-                }
-            }
-        )
-    }
+    @State private var isShowingConfirmationDialog = false
 
     var body: some View {
         InfoPanel(
@@ -56,13 +46,13 @@ struct QuickActionsView: View {
         }
         .confirmationDialog(
             viewModel.pendingConfirmationAction?.title ?? "Confirm Action",
-            isPresented: confirmationBinding,
+            isPresented: $isShowingConfirmationDialog,
             titleVisibility: .visible,
             presenting: viewModel.pendingConfirmationAction
         ) { action in
             Button(action.title) {
                 Task {
-                    await performConfirmedAction()
+                    await performConfirmedAction(action)
                 }
             }
 
@@ -127,11 +117,15 @@ struct QuickActionsView: View {
     private func select(_ action: QuickActionDisplayData) async {
         if let refreshedOverview = await viewModel.select(action) {
             onOverviewRefreshed(refreshedOverview)
+        } else if viewModel.pendingConfirmationAction != nil {
+            isShowingConfirmationDialog = true
         }
     }
 
-    private func performConfirmedAction() async {
-        if let refreshedOverview = await viewModel.confirmPendingAction() {
+    private func performConfirmedAction(_ action: QuickActionDisplayData) async {
+        isShowingConfirmationDialog = false
+
+        if let refreshedOverview = await viewModel.confirm(action) {
             onOverviewRefreshed(refreshedOverview)
         }
     }

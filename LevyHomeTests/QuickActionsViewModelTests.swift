@@ -49,7 +49,7 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertEqual(service.performedRequests, [.openGarage])
         XCTAssertEqual(overview, refreshedOverview)
         XCTAssertNil(viewModel.pendingConfirmationAction)
-        XCTAssertEqual(viewModel.message, QuickActionMessage(text: "Garage open requested.", tone: .success))
+        XCTAssertNil(viewModel.message)
     }
 
     func testCloseGarageRequiresConfirmationAndCanBeCancelled() async {
@@ -91,7 +91,7 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertEqual(service.performedRequests, [.closeGarage])
         XCTAssertEqual(overview, refreshedOverview)
         XCTAssertNil(viewModel.pendingConfirmationAction)
-        XCTAssertEqual(viewModel.message, QuickActionMessage(text: "Garage close requested.", tone: .success))
+        XCTAssertNil(viewModel.message)
         XCTAssertFalse(viewModel.isPerforming)
         XCTAssertNil(viewModel.performingActionID)
     }

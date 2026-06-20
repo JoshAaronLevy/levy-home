@@ -19,6 +19,7 @@ private struct HomeContentView: View {
     @StateObject private var quickActionsViewModel: QuickActionsViewModel
     @State private var selectedMode: HomeMode = .now
     @State private var searchText = ""
+    @State private var isShowingConfirmationDialog = false
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     init(
@@ -45,7 +46,6 @@ private struct HomeContentView: View {
                     lightSummaryData: homeViewModel.lightSummaryCardData,
                     garageToggleAction: garageToggleAction,
                     showsGarageWarning: showsGarageAwayWarning,
-                    isBusy: quickActionsViewModel.isBusy,
                     performingActionID: quickActionsViewModel.performingActionID
                 ) {
                     Task {
@@ -87,13 +87,13 @@ private struct HomeContentView: View {
         }
         .confirmationDialog(
             quickActionsViewModel.pendingConfirmationAction?.title ?? "Confirm Action",
-            isPresented: confirmationBinding,
+            isPresented: $isShowingConfirmationDialog,
             titleVisibility: .visible,
             presenting: quickActionsViewModel.pendingConfirmationAction
         ) { action in
             Button(action.title) {
                 Task {
-                    await performConfirmedAction()
+                    await performConfirmedAction(action)
                 }
             }
 
@@ -215,20 +215,12 @@ private struct HomeContentView: View {
         ]
     }
 
-    private var confirmationBinding: Binding<Bool> {
-        Binding(
-            get: { quickActionsViewModel.pendingConfirmationAction != nil },
-            set: { isPresented in
-                if !isPresented {
-                    quickActionsViewModel.cancelPendingConfirmation()
-                }
-            }
-        )
-    }
-
     private func select(_ action: QuickActionDisplayData) async {
         if let refreshedOverview = await quickActionsViewModel.select(action) {
             homeViewModel.apply(overview: refreshedOverview)
+            await watchGarageCompletionIfNeeded(for: action)
+        } else if quickActionsViewModel.pendingConfirmationAction != nil {
+            isShowingConfirmationDialog = true
         }
     }
 
@@ -248,9 +240,56 @@ private struct HomeContentView: View {
         await select(garageToggleAction)
     }
 
-    private func performConfirmedAction() async {
-        if let refreshedOverview = await quickActionsViewModel.confirmPendingAction() {
+    private func performConfirmedAction(_ action: QuickActionDisplayData) async {
+        isShowingConfirmationDialog = false
+
+        if let refreshedOverview = await quickActionsViewModel.confirm(action) {
             homeViewModel.apply(overview: refreshedOverview)
+            await watchGarageCompletionIfNeeded(for: action)
+        }
+    }
+
+    private func watchGarageCompletionIfNeeded(for action: QuickActionDisplayData) async {
+        guard let expectedState = expectedGarageState(after: action.request) else {
+            return
+        }
+
+        if homeViewModel.overview?.garageStatus.state == expectedState {
+            return
+        }
+
+        for attempt in 1...8 {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await homeViewModel.refresh()
+
+            guard let currentState = homeViewModel.overview?.garageStatus.state else {
+                continue
+            }
+
+            if currentState == expectedState {
+                return
+            }
+
+            if attempt >= 3 && currentState.isStableGarageState {
+                break
+            }
+        }
+
+        let currentState = homeViewModel.overview?.garageStatus.state.displayText ?? "unknown"
+        quickActionsViewModel.reportActionIssue(
+            title: action.title,
+            reason: "\(action.title) was sent, but Garage still reports \(currentState). Pull to refresh or check Home Assistant."
+        )
+    }
+
+    private func expectedGarageState(after request: QuickActionRequest) -> GarageStatus.State? {
+        switch request {
+        case .openGarage:
+            return .open
+        case .closeGarage:
+            return .closed
+        case .turnOffAllLights, .turnOffLightGroup:
+            return nil
         }
     }
 
@@ -402,6 +441,34 @@ private struct HomeModeRailView: View {
     }
 }
 
+private extension GarageStatus.State {
+    var displayText: String {
+        switch self {
+        case .open:
+            return "open"
+        case .closed:
+            return "closed"
+        case .opening:
+            return "opening"
+        case .closing:
+            return "closing"
+        case .unknown:
+            return "unknown"
+        case .unrecognized(let rawValue):
+            return rawValue
+        }
+    }
+
+    var isStableGarageState: Bool {
+        switch self {
+        case .open, .closed:
+            return true
+        case .opening, .closing, .unknown, .unrecognized:
+            return false
+        }
+    }
+}
+
 private struct HomeSearchRow: View {
     @Binding var searchText: String
 
@@ -447,7 +514,6 @@ private struct HomeBlueprintView: View {
     let lightSummaryData: LightSummaryCardData
     let garageToggleAction: QuickActionDisplayData?
     let showsGarageWarning: Bool
-    let isBusy: Bool
     let performingActionID: String?
     let onGarageTapped: () -> Void
 
@@ -563,9 +629,6 @@ private struct HomeBlueprintView: View {
                 .accessibilityLabel(garageAccessibilityLabel)
                 .accessibilityHint(garageAccessibilityHint)
                 .position(positions.garage)
-
-                garageCommandButton
-                    .position(x: width * 0.86, y: height * 0.98)
             }
         }
         .frame(height: 350)
@@ -585,21 +648,7 @@ private struct HomeBlueprintView: View {
     }
 
     private var garageSubtitle: String {
-        let normalizedStatus = garageData.status.lowercased()
-
-        if normalizedStatus == "open" {
-            return "Open - 12m"
-        }
-
-        if normalizedStatus == "closed" {
-            return "closed"
-        }
-
-        return garageData.status.lowercased()
-    }
-
-    private var canToggleGarage: Bool {
-        garageToggleAction?.isEnabled == true && !isBusy
+        garageData.status.lowercased()
     }
 
     private var garageAccessibilityLabel: String {
@@ -619,53 +668,6 @@ private struct HomeBlueprintView: View {
         return "Double tap to \(garageToggleAction.title.lowercased())."
     }
 
-    @ViewBuilder
-    private var garageCommandButton: some View {
-        let canRun = canToggleGarage
-        let isPerforming = garageToggleAction?.id == performingActionID
-
-        if let garageToggleAction {
-            Button {
-                onGarageTapped()
-            } label: {
-                HStack(spacing: AppSpacing.small) {
-                    if isPerforming {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Image(systemName: garageCommandSystemImage)
-                            .font(.headline.weight(.semibold))
-                    }
-
-                    Text(garageToggleAction.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, AppSpacing.large)
-                .frame(height: 52)
-                .background(HomePalette.garageGradient, in: Capsule(style: .continuous))
-                .overlay {
-                    Capsule(style: .continuous)
-                        .stroke(.white.opacity(0.82), lineWidth: 2)
-                }
-                .shadow(color: HomePalette.amber.opacity(canRun ? 0.36 : 0.12), radius: 12, y: 7)
-                .opacity(canRun || isPerforming ? 1.0 : 0.58)
-            }
-            .buttonStyle(.plain)
-            .disabled(!canRun && !isPerforming)
-            .accessibilityLabel(garageToggleAction.title)
-        }
-    }
-
-    private var garageCommandSystemImage: String {
-        if garageData.status.localizedCaseInsensitiveCompare("Open") == .orderedSame {
-            return "door.garage.closed"
-        }
-
-        return "door.garage.open"
-    }
 }
 
 private struct BlueprintNodePositions {
