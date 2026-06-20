@@ -18,10 +18,10 @@ struct RootTabView: View {
             }
 
             NavigationStack {
-                NotificationHubView()
+                LogsView()
             }
             .tabItem {
-                Label("Notifications", systemImage: "bell")
+                Label("Logs", systemImage: "list.bullet.rectangle")
             }
 
             NavigationStack {

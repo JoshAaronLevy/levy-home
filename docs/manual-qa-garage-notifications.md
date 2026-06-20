@@ -4,7 +4,7 @@ This guide captures the Stage 17 physical-device verification pass for Levy Home
 
 Stage 17 cannot be fully completed on Simulator. It requires:
 
-- A physical iPhone signed for `com.levy.home`.
+- A physical iPhone signed for `com.levyhome.app`.
 - Backend APNs credentials for the same bundle ID and environment.
 - A reachable local or deployed Levy Home API.
 - Safe Home Assistant garage/light entities or mock mode for control checks.
@@ -39,7 +39,7 @@ HOME_ASSISTANT_MODE=mock
 
 APNS_KEY_ID=YOUR_KEY_ID
 APNS_TEAM_ID=YOUR_TEAM_ID
-APNS_BUNDLE_ID=com.levy.home
+APNS_BUNDLE_ID=com.levyhome.app
 APNS_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_YOUR_KEY_ID.p8
 APNS_ENVIRONMENT=sandbox
 ```

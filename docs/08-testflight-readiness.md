@@ -26,7 +26,7 @@ The repo can be locally checked for Release build health, backend compile/test h
 | Scheme | `LevyHome` |
 | App target | `LevyHome` |
 | Test target | `LevyHomeTests` |
-| Bundle ID | `com.levy.home` |
+| Bundle ID | `com.levyhome.app` |
 | Version | `0.1.0` |
 | Build | `1` |
 | Release API build setting | `LEVY_HOME_API_BASE_URL = http://localhost:4000` |
@@ -52,7 +52,7 @@ Do not ship a TestFlight build that still points to `localhost`; a TestFlight-in
 Before archiving:
 
 - Set the Apple Developer Team for the `LevyHome` app target.
-- Confirm the app identifier is `com.levy.home` or update the bundle ID consistently everywhere.
+- Confirm the app identifier is `com.levyhome.app` or update the bundle ID consistently everywhere.
 - Confirm the app identifier has Push Notifications enabled in Apple Developer.
 - Use a distribution provisioning profile suitable for TestFlight.
 - Confirm the archived app is signed for the production APNs environment.

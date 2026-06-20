@@ -15,7 +15,7 @@ const baseConfig: AppConfig = {
   port: 0,
   haWebhookSecret: 'test-secret',
   apns: {
-    bundleId: 'com.levy.home',
+    bundleId: 'com.levyhome.app',
     defaultEnvironment: 'sandbox',
   },
   homeAssistant: {

@@ -32,7 +32,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `MOCK_TOTAL_LIGHT_COUNT` | Mock-mode total light count. |
 | `APNS_KEY_ID` | Apple APNs Auth Key ID. Required only for APNs sending. |
 | `APNS_TEAM_ID` | Apple Developer Team ID for APNs JWT auth. Required only for APNs sending. |
-| `APNS_BUNDLE_ID` | APNs topic/bundle identifier, currently `com.levy.home`. |
+| `APNS_BUNDLE_ID` | APNs topic/bundle identifier, currently `com.levyhome.app`. |
 | `APNS_PRIVATE_KEY_PATH` | Local path to the APNs `.p8` private key file. Do not commit the key. |
 | `APNS_PRIVATE_KEY` | Alternative APNs private key value with newlines escaped as `\n`. Do not commit it. |
 | `APNS_ENVIRONMENT` | Default APNs endpoint for devices without an environment: `sandbox` or `production`. Native registrations should include their own environment. |

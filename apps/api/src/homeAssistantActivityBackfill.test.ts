@@ -11,7 +11,7 @@ import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClie
 const baseConfig: AppConfig = {
   port: 0,
   apns: {
-    bundleId: 'com.levy.home',
+    bundleId: 'com.levyhome.app',
     defaultEnvironment: 'sandbox',
   },
   homeAssistant: {

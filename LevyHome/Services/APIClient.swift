@@ -11,17 +11,20 @@ final class APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
+    private let appLogStore: AppLogStore?
 
     init(
         baseURL: URL,
         session: URLSession = .shared,
         decoder: JSONDecoder = JSONDecoder(),
-        encoder: JSONEncoder = JSONEncoder()
+        encoder: JSONEncoder = JSONEncoder(),
+        appLogStore: AppLogStore? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         self.decoder = decoder
         self.encoder = encoder
+        self.appLogStore = appLogStore
     }
 
     func fetchRecentEvents(limit: Int? = nil, start: Date? = nil, end: Date? = nil) async throws -> EventsResponse {
@@ -99,6 +102,12 @@ final class APIClient {
         do {
             bodyData = try encoder.encode(body)
         } catch {
+            appLogStore?.record(
+                level: .error,
+                category: "API",
+                title: "Failed to encode request",
+                detail: "\(method.rawValue) \(path): \(error.localizedDescription)"
+            )
             throw APIError.decoding(error.localizedDescription)
         }
 
@@ -111,7 +120,28 @@ final class APIClient {
         queryItems: [URLQueryItem],
         bodyData: Data?
     ) async throws -> Response {
-        let url = try makeURL(path: path, queryItems: queryItems)
+        let url: URL
+
+        do {
+            url = try makeURL(path: path, queryItems: queryItems)
+        } catch {
+            appLogStore?.record(
+                level: .error,
+                category: "API",
+                title: "Invalid API request URL",
+                detail: "\(method.rawValue) \(path): \(error.localizedDescription)"
+            )
+            throw error
+        }
+
+        let requestLabel = "\(method.rawValue) \(Self.displayPath(for: url))"
+        appLogStore?.record(
+            level: .info,
+            category: "API",
+            title: "Sending \(requestLabel)",
+            detail: url.host.map { "Host: \($0)" }
+        )
+
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -129,25 +159,62 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            appLogStore?.record(
+                level: .error,
+                category: "API",
+                title: "Network failed for \(requestLabel)",
+                detail: error.localizedDescription
+            )
             throw APIError.transport(error.localizedDescription)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            appLogStore?.record(
+                level: .error,
+                category: "API",
+                title: "Invalid API response",
+                detail: "\(requestLabel): response was not HTTP."
+            )
             throw APIError.transport("The API returned a non-HTTP response.")
         }
 
         guard 200...299 ~= httpResponse.statusCode else {
             if let errorResponse = try? decoder.decode(APIErrorResponse.self, from: data),
                !errorResponse.error.isEmpty {
+                appLogStore?.record(
+                    level: .error,
+                    category: "API",
+                    title: "HTTP \(httpResponse.statusCode) for \(requestLabel)",
+                    detail: errorResponse.error
+                )
                 throw APIError.server(statusCode: httpResponse.statusCode, message: errorResponse.error)
             }
 
+            appLogStore?.record(
+                level: .error,
+                category: "API",
+                title: "HTTP \(httpResponse.statusCode) for \(requestLabel)",
+                detail: "The API returned an unsuccessful status without a readable error body."
+            )
             throw APIError.httpStatus(httpResponse.statusCode)
         }
 
         do {
-            return try decoder.decode(Response.self, from: data)
+            let decodedResponse = try decoder.decode(Response.self, from: data)
+            appLogStore?.record(
+                level: .success,
+                category: "API",
+                title: "Received HTTP \(httpResponse.statusCode)",
+                detail: requestLabel
+            )
+            return decodedResponse
         } catch {
+            appLogStore?.record(
+                level: .error,
+                category: "API",
+                title: "Failed to decode API response",
+                detail: "\(requestLabel): \(error.localizedDescription)"
+            )
             throw APIError.decoding(error.localizedDescription)
         }
     }
@@ -191,4 +258,12 @@ private extension APIClient {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    static func displayPath(for url: URL) -> String {
+        if let query = url.query, !query.isEmpty {
+            return "\(url.path)?\(query)"
+        }
+
+        return url.path
+    }
 }

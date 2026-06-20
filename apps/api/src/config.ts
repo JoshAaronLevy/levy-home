@@ -59,7 +59,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     apns: {
       keyId: readOptionalString(env.APNS_KEY_ID),
       teamId: readOptionalString(env.APNS_TEAM_ID),
-      bundleId: readOptionalString(env.APNS_BUNDLE_ID) ?? 'com.levy.home',
+      bundleId: readOptionalString(env.APNS_BUNDLE_ID) ?? 'com.levyhome.app',
       privateKey: readOptionalString(env.APNS_PRIVATE_KEY)?.replace(/\\n/g, '\n'),
       privateKeyPath: readOptionalString(env.APNS_PRIVATE_KEY_PATH),
       defaultEnvironment: readAPNsDefaultEnvironment(env.APNS_ENVIRONMENT),

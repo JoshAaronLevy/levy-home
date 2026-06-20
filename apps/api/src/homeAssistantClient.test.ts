@@ -124,7 +124,7 @@ function liveConfig(baseURL: string): AppConfig {
   return {
     port: 0,
     apns: {
-      bundleId: 'com.levy.home',
+      bundleId: 'com.levyhome.app',
       defaultEnvironment: 'sandbox',
     },
     homeAssistant: {
