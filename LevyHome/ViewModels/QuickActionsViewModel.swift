@@ -26,6 +26,7 @@ final class QuickActionsViewModel: ObservableObject {
     @Published private(set) var pendingConfirmationAction: QuickActionDisplayData?
 
     private let service: QuickActionServicing
+    private let appLogStore: AppLogStore?
     private var hasLoaded = false
 
     var isBusy: Bool {
@@ -44,8 +45,9 @@ final class QuickActionsViewModel: ObservableObject {
         return "Curated Home Assistant actions"
     }
 
-    init(service: QuickActionServicing) {
+    init(service: QuickActionServicing, appLogStore: AppLogStore? = nil) {
         self.service = service
+        self.appLogStore = appLogStore
     }
 
     func loadIfNeeded() async {
@@ -61,12 +63,43 @@ final class QuickActionsViewModel: ObservableObject {
     }
 
     func select(_ action: QuickActionDisplayData) async -> HomeOverview? {
-        guard action.isEnabled, !isBusy else {
+        appLogStore?.record(
+            level: .info,
+            category: "Action",
+            title: "\(action.title) selected",
+            detail: "Action ID: \(action.id)"
+        )
+
+        guard action.isEnabled else {
+            let reason = "\(action.title) is disabled in the quick-action catalog."
+            message = QuickActionMessage(text: reason, tone: .warning)
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "\(action.title) unavailable",
+                detail: reason
+            )
+            return nil
+        }
+
+        guard !isBusy else {
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "\(action.title) ignored",
+                detail: "Quick actions are busy. Loading: \(isLoading), performing: \(isPerforming)."
+            )
             return nil
         }
 
         if action.requiresConfirmation {
             pendingConfirmationAction = action
+            appLogStore?.record(
+                level: .info,
+                category: "Action",
+                title: "\(action.title) waiting for confirmation",
+                detail: "No request has been sent yet."
+            )
             return nil
         }
 
@@ -75,15 +108,46 @@ final class QuickActionsViewModel: ObservableObject {
 
     func confirmPendingAction() async -> HomeOverview? {
         guard let action = pendingConfirmationAction else {
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "Confirmation ignored",
+                detail: "There was no pending quick action to confirm."
+            )
             return nil
         }
 
         pendingConfirmationAction = nil
+        appLogStore?.record(
+            level: .info,
+            category: "Action",
+            title: "\(action.title) confirmed",
+            detail: "Sending confirmed action to the Levy Home API."
+        )
         return await perform(action)
     }
 
     func cancelPendingConfirmation() {
+        if let pendingConfirmationAction {
+            appLogStore?.record(
+                level: .info,
+                category: "Action",
+                title: "\(pendingConfirmationAction.title) cancelled",
+                detail: "No request was sent."
+            )
+        }
+
         pendingConfirmationAction = nil
+    }
+
+    func reportUnavailableSelection(title: String, reason: String) {
+        message = QuickActionMessage(text: reason, tone: .warning)
+        appLogStore?.record(
+            level: .warning,
+            category: "Action",
+            title: "\(title) unavailable",
+            detail: reason
+        )
     }
 
     private func load() async {
@@ -98,13 +162,26 @@ final class QuickActionsViewModel: ObservableObject {
 
         do {
             let catalog = try await service.fetchCatalog()
-            actions = Self.displayActions(from: catalog)
+            let displayActions = Self.displayActions(from: catalog)
+            actions = displayActions
             message = nil
             hasLoaded = true
+            appLogStore?.record(
+                level: .info,
+                category: "Action",
+                title: "Loaded quick actions",
+                detail: Self.catalogLogDetail(displayActions)
+            )
         } catch {
             actions = []
             message = QuickActionMessage(text: error.localizedDescription, tone: .error)
             hasLoaded = true
+            appLogStore?.record(
+                level: .error,
+                category: "Action",
+                title: "Failed to load quick actions",
+                detail: error.localizedDescription
+            )
         }
     }
 
@@ -152,7 +229,7 @@ final class QuickActionsViewModel: ObservableObject {
                         subtitle: action.subtitle ?? "Open the main garage door.",
                         systemImage: "door.garage.open",
                         isEnabled: action.isEnabled,
-                        requiresConfirmation: action.requiresConfirmation
+                        requiresConfirmation: false
                     )
                 ]
             case .closeGarage:
@@ -209,5 +286,19 @@ final class QuickActionsViewModel: ObservableObject {
                 return []
             }
         }
+    }
+
+    private static func catalogLogDetail(_ actions: [QuickActionDisplayData]) -> String {
+        guard !actions.isEmpty else {
+            return "The API returned no usable quick actions."
+        }
+
+        return actions
+            .map { action in
+                let confirmation = action.requiresConfirmation ? "requires confirmation" : "direct"
+                let enabled = action.isEnabled ? "enabled" : "disabled"
+                return "\(action.id): \(enabled), \(confirmation)"
+            }
+            .joined(separator: "; ")
     }
 }

@@ -25,9 +25,31 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.actions[1].request, .closeGarage)
         XCTAssertEqual(viewModel.actions[2].request, .turnOffAllLights)
         XCTAssertEqual(viewModel.actions[3].request, .turnOffLightGroup(groupId: "upstairs_hallway"))
-        XCTAssertTrue(viewModel.actions[0].requiresConfirmation)
+        XCTAssertFalse(viewModel.actions[0].requiresConfirmation)
         XCTAssertTrue(viewModel.actions[1].requiresConfirmation)
         XCTAssertEqual(viewModel.subtitle, "Curated Home Assistant actions")
+    }
+
+    func testOpenGaragePerformsWithoutConfirmation() async {
+        let refreshedOverview = Self.overview(garageState: .opening)
+        let service = MockQuickActionService()
+        service.catalog = Self.catalog()
+        service.result = QuickActionResult(
+            actionId: .openGarage,
+            status: .success,
+            message: "Garage open requested.",
+            refreshedHomeOverview: refreshedOverview
+        )
+        let viewModel = QuickActionsViewModel(service: service)
+
+        await viewModel.loadIfNeeded()
+        let openGarage = try! XCTUnwrap(viewModel.actions.first { $0.request == .openGarage })
+        let overview = await viewModel.select(openGarage)
+
+        XCTAssertEqual(service.performedRequests, [.openGarage])
+        XCTAssertEqual(overview, refreshedOverview)
+        XCTAssertNil(viewModel.pendingConfirmationAction)
+        XCTAssertEqual(viewModel.message, QuickActionMessage(text: "Garage open requested.", tone: .success))
     }
 
     func testCloseGarageRequiresConfirmationAndCanBeCancelled() async {

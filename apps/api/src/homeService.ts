@@ -52,7 +52,7 @@ export class HomeService {
         title: 'Open Garage',
         subtitle: 'Open the main garage door.',
         isEnabled: true,
-        requiresConfirmation: true,
+        requiresConfirmation: false,
         targetName: 'Main garage',
       },
       {

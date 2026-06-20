@@ -109,6 +109,14 @@ test('GET /api/home/actions returns curated action IDs and light groups', async 
     response.actions.map((action: { id: string }) => action.id),
     ['open_garage', 'close_garage', 'turn_off_all_lights', 'turn_off_light_group'],
   );
+  assert.equal(
+    response.actions.find((action: { id: string }) => action.id === 'open_garage')?.requiresConfirmation,
+    false,
+  );
+  assert.equal(
+    response.actions.find((action: { id: string }) => action.id === 'close_garage')?.requiresConfirmation,
+    true,
+  );
   assert.deepEqual(response.lightGroups, [
     { id: 'upstairs_hallway', name: 'Upstairs Hallway' },
     { id: 'playroom_lamp', name: 'Playroom' },

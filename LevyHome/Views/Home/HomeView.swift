@@ -6,7 +6,10 @@ struct HomeView: View {
     var body: some View {
         HomeContentView(
             homeViewModel: HomeOverviewViewModel(service: appEnvironment.homeStatusService),
-            quickActionsViewModel: QuickActionsViewModel(service: appEnvironment.quickActionService)
+            quickActionsViewModel: QuickActionsViewModel(
+                service: appEnvironment.quickActionService,
+                appLogStore: appEnvironment.appLogStore
+            )
         )
     }
 }
@@ -44,9 +47,9 @@ private struct HomeContentView: View {
                     showsGarageWarning: showsGarageAwayWarning,
                     isBusy: quickActionsViewModel.isBusy,
                     performingActionID: quickActionsViewModel.performingActionID
-                ) { action in
+                ) {
                     Task {
-                        await select(action)
+                        await selectGarageToggle()
                     }
                 }
 
@@ -229,9 +232,44 @@ private struct HomeContentView: View {
         }
     }
 
+    private func selectGarageToggle() async {
+        guard let garageToggleAction else {
+            quickActionsViewModel.reportUnavailableSelection(
+                title: "Garage",
+                reason: garageUnavailableReason
+            )
+
+            if quickActionsViewModel.actions.isEmpty {
+                await quickActionsViewModel.refresh()
+            }
+            return
+        }
+
+        await select(garageToggleAction)
+    }
+
     private func performConfirmedAction() async {
         if let refreshedOverview = await quickActionsViewModel.confirmPendingAction() {
             homeViewModel.apply(overview: refreshedOverview)
+        }
+    }
+
+    private var garageUnavailableReason: String {
+        guard let overview = homeViewModel.overview else {
+            return "Home overview has not loaded yet. Wait for GET /api/home/overview to finish, then try again."
+        }
+
+        switch overview.garageStatus.state {
+        case .closed:
+            return "Open Garage is missing from the quick-action catalog. Check GET /api/home/actions in Logs."
+        case .open:
+            return "Close Garage is missing from the quick-action catalog. Check GET /api/home/actions in Logs."
+        case .opening:
+            return "Garage is already opening. Wait for the next status refresh before sending another command."
+        case .closing:
+            return "Garage is already closing. Wait for the next status refresh before sending another command."
+        case .unknown, .unrecognized:
+            return "Garage status is unknown, so the app is waiting for a stable open or closed state."
         }
     }
 }
@@ -411,7 +449,7 @@ private struct HomeBlueprintView: View {
     let showsGarageWarning: Bool
     let isBusy: Bool
     let performingActionID: String?
-    let onActionSelected: (QuickActionDisplayData) -> Void
+    let onGarageTapped: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -508,9 +546,7 @@ private struct HomeBlueprintView: View {
                 .position(positions.entry)
 
                 Button {
-                    if let garageToggleAction {
-                        onActionSelected(garageToggleAction)
-                    }
+                    onGarageTapped()
                 } label: {
                     BlueprintNodeView(
                         title: "Garage",
@@ -524,7 +560,6 @@ private struct HomeBlueprintView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(garageToggleAction == nil || (!canToggleGarage && garageToggleAction?.id != performingActionID))
                 .accessibilityLabel(garageAccessibilityLabel)
                 .accessibilityHint(garageAccessibilityHint)
                 .position(positions.garage)
@@ -591,7 +626,7 @@ private struct HomeBlueprintView: View {
 
         if let garageToggleAction {
             Button {
-                onActionSelected(garageToggleAction)
+                onGarageTapped()
             } label: {
                 HStack(spacing: AppSpacing.small) {
                     if isPerforming {
