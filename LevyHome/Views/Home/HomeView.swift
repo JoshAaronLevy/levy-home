@@ -189,9 +189,9 @@ private struct HomeContentView: View {
                 isAvailable: false
             ),
             AutomationShortcut(
-                title: "All Lights Off",
-                subtitle: allLightsAction?.isEnabled == true ? "Ready" : "Unavailable",
-                systemImage: "lightbulb",
+                title: "Lights",
+                subtitle: lightsShortcutSubtitle,
+                systemImage: "lightbulb.led",
                 tone: .gold,
                 action: allLightsAction,
                 isAvailable: allLightsAction?.isEnabled == true
@@ -213,6 +213,30 @@ private struct HomeContentView: View {
                 isAvailable: false
             )
         ]
+    }
+
+    private var lightsShortcutSubtitle: String {
+        guard let lightSummary = homeViewModel.overview?.lightSummary else {
+            return "Loading"
+        }
+
+        if let lightsOnCount = lightSummary.lightsOnCount,
+           let totalLightCount = lightSummary.totalLightCount {
+            return "\(lightsOnCount)/\(totalLightCount)"
+        }
+
+        if let lightsOnCount = lightSummary.lightsOnCount {
+            return lightsOnCount == 1 ? "1 on" : "\(lightsOnCount) on"
+        }
+
+        switch lightSummary.state {
+        case .off:
+            return "0 on"
+        case .on, .partiallyOn:
+            return "On"
+        case .unknown, .unrecognized:
+            return "Unknown"
+        }
     }
 
     private func select(_ action: QuickActionDisplayData) async {
@@ -237,7 +261,10 @@ private struct HomeContentView: View {
             return
         }
 
-        await select(garageToggleAction)
+        if let refreshedOverview = await quickActionsViewModel.performImmediately(garageToggleAction) {
+            homeViewModel.apply(overview: refreshedOverview)
+            await watchGarageCompletionIfNeeded(for: garageToggleAction)
+        }
     }
 
     private func performConfirmedAction(_ action: QuickActionDisplayData) async {
@@ -576,7 +603,7 @@ private struct HomeBlueprintView: View {
                 .position(positions.kitchen)
 
                 BlueprintNodeView(
-                    title: "Upstairs Hall",
+                    title: "Upstairs",
                     subtitle: "quiet",
                     systemImage: "stairs",
                     tone: .accent,
@@ -724,7 +751,7 @@ private struct BlueprintNodeView: View {
                         .frame(height: isPriority ? 34 : 28)
                 } else {
                     Image(systemName: systemImage)
-                        .font(.system(size: isPriority ? 34 : 25, weight: .medium))
+                        .font(.system(size: isPriority ? 32 : 22, weight: .medium))
                         .foregroundStyle(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
                         .frame(height: isPriority ? 34 : 28)
                 }
@@ -733,7 +760,7 @@ private struct BlueprintNodeView: View {
                     Text(title)
                         .font(.system(size: isPriority ? 20 : 16, weight: .semibold))
                         .foregroundStyle(HomePalette.ink)
-                        .lineLimit(title == "Upstairs Hall" ? 2 : 1)
+                        .lineLimit(title == "Upstairs" ? 2 : 1)
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.76)
 
@@ -910,7 +937,7 @@ private struct AutomationShortcutStrip: View {
                     ShortcutButton(
                         shortcut: shortcut,
                         isBusy: isBusy,
-                        isPerforming: shortcut.action?.id == performingActionID
+                        isPerforming: isPerforming(shortcut)
                     ) {
                         if let action = shortcut.action {
                             onActionSelected(action)
@@ -932,6 +959,14 @@ private struct AutomationShortcutStrip: View {
             }
             .accessibilityHidden(true)
         }
+    }
+
+    private func isPerforming(_ shortcut: AutomationShortcut) -> Bool {
+        guard let action = shortcut.action, let performingActionID else {
+            return false
+        }
+
+        return action.id == performingActionID
     }
 }
 
@@ -958,9 +993,15 @@ private struct ShortcutButton: View {
                 Text(shortcut.title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(HomePalette.ink)
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.72)
+
+                Text(shortcut.subtitle)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(shortcut.tone.color.opacity(shortcut.isAvailable ? 0.95 : 0.64))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.74)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 92)
@@ -975,7 +1016,11 @@ private struct ShortcutButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!shortcut.isAvailable || isBusy)
-        .accessibilityLabel(shortcut.isAvailable ? shortcut.title : "\(shortcut.title), unavailable")
+        .accessibilityLabel(
+            shortcut.isAvailable
+                ? "\(shortcut.title), \(shortcut.subtitle)"
+                : "\(shortcut.title), \(shortcut.subtitle), unavailable"
+        )
     }
 }
 

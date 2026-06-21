@@ -72,6 +72,28 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertTrue(service.performedRequests.isEmpty)
     }
 
+    func testPerformImmediatelyBypassesConfirmationForDirectControls() async {
+        let refreshedOverview = Self.overview(garageState: .closing)
+        let service = MockQuickActionService()
+        service.catalog = Self.catalog()
+        service.result = QuickActionResult(
+            actionId: .closeGarage,
+            status: .success,
+            message: "Garage close requested.",
+            refreshedHomeOverview: refreshedOverview
+        )
+        let viewModel = QuickActionsViewModel(service: service)
+
+        await viewModel.loadIfNeeded()
+        let closeGarage = try! XCTUnwrap(viewModel.actions.first { $0.request == .closeGarage })
+        let overview = await viewModel.performImmediately(closeGarage)
+
+        XCTAssertEqual(service.performedRequests, [.closeGarage])
+        XCTAssertEqual(overview, refreshedOverview)
+        XCTAssertNil(viewModel.pendingConfirmationAction)
+        XCTAssertNil(viewModel.message)
+    }
+
     func testConfirmingGarageActionPerformsRequestAndReturnsRefreshedOverview() async {
         let refreshedOverview = Self.overview(garageState: .closing)
         let service = MockQuickActionService()

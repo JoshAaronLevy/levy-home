@@ -70,25 +70,7 @@ final class QuickActionsViewModel: ObservableObject {
             detail: "Action ID: \(action.id)"
         )
 
-        guard action.isEnabled else {
-            let reason = "\(action.title) is disabled in the quick-action catalog."
-            message = QuickActionMessage(text: reason, tone: .warning)
-            appLogStore?.record(
-                level: .warning,
-                category: "Action",
-                title: "\(action.title) unavailable",
-                detail: reason
-            )
-            return nil
-        }
-
-        guard !isBusy else {
-            appLogStore?.record(
-                level: .warning,
-                category: "Action",
-                title: "\(action.title) ignored",
-                detail: "Quick actions are busy. Loading: \(isLoading), performing: \(isPerforming)."
-            )
+        guard canStart(action) else {
             return nil
         }
 
@@ -103,6 +85,22 @@ final class QuickActionsViewModel: ObservableObject {
             return nil
         }
 
+        return await perform(action)
+    }
+
+    func performImmediately(_ action: QuickActionDisplayData) async -> HomeOverview? {
+        appLogStore?.record(
+            level: .info,
+            category: "Action",
+            title: "\(action.title) triggered",
+            detail: "Action ID: \(action.id). Sending immediately from a direct control."
+        )
+
+        guard canStart(action) else {
+            return nil
+        }
+
+        pendingConfirmationAction = nil
         return await perform(action)
     }
 
@@ -162,6 +160,32 @@ final class QuickActionsViewModel: ObservableObject {
             title: "\(title) needs attention",
             detail: reason
         )
+    }
+
+    private func canStart(_ action: QuickActionDisplayData) -> Bool {
+        guard action.isEnabled else {
+            let reason = "\(action.title) is disabled in the quick-action catalog."
+            message = QuickActionMessage(text: reason, tone: .warning)
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "\(action.title) unavailable",
+                detail: reason
+            )
+            return false
+        }
+
+        guard !isBusy else {
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "\(action.title) ignored",
+                detail: "Quick actions are busy. Loading: \(isLoading), performing: \(isPerforming)."
+            )
+            return false
+        }
+
+        return true
     }
 
     private func load() async {
