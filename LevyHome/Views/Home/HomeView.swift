@@ -394,34 +394,17 @@ private struct HomeHeaderView: View {
 
 private struct HomeAvatarView: View {
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            HomePalette.blue.opacity(0.72),
-                            HomePalette.amber.opacity(0.72)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-
-            Circle()
-                .fill(HomePalette.ink.opacity(0.18))
-
-            Image(systemName: "house.fill")
-                .font(.system(size: 23, weight: .semibold))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.16), radius: 6, y: 4)
-        }
-        .frame(width: 58, height: 58)
-        .overlay {
-            Circle()
-                .stroke(.white.opacity(0.88), lineWidth: 4)
-        }
-        .shadow(color: HomePalette.shadow, radius: 12, y: 7)
-        .accessibilityLabel("Home profile")
+        Image("HomeAvatar")
+            .resizable()
+            .scaledToFill()
+            .frame(width: 76, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(.white.opacity(0.88), lineWidth: 3)
+            }
+            .shadow(color: HomePalette.shadow, radius: 11, y: 6)
+            .accessibilityLabel("Home profile")
     }
 }
 
@@ -429,22 +412,25 @@ private struct HomeModeRailView: View {
     @Binding var selectedMode: HomeMode
 
     var body: some View {
-        HStack(spacing: AppSpacing.small) {
+        HStack(spacing: AppSpacing.xSmall) {
             ForEach(HomeMode.allCases) { mode in
                 Button {
                     selectedMode = mode
                 } label: {
-                    HStack(spacing: AppSpacing.small) {
+                    HStack(spacing: 6) {
                         Image(systemName: mode.systemImage)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(width: 18)
 
                         Text(mode.title)
-                            .font(.subheadline.weight(.medium))
+                            .font(.system(size: 16, weight: .medium))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                            .minimumScaleFactor(0.68)
                     }
-                    .padding(.horizontal, AppSpacing.small)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, AppSpacing.xSmall)
                     .padding(.vertical, AppSpacing.medium)
+                    .contentShape(Capsule(style: .continuous))
                     .foregroundStyle(selectedMode == mode ? HomePalette.blue : HomePalette.ink)
                     .background {
                         if selectedMode == mode {
@@ -455,6 +441,7 @@ private struct HomeModeRailView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
                 .accessibilityAddTraits(selectedMode == mode ? .isSelected : [])
             }
         }
@@ -991,11 +978,13 @@ private struct ShortcutButton: View {
                 }
 
                 Text(shortcut.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(HomePalette.ink)
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.62)
+                    .allowsTightening(true)
+                    .frame(maxWidth: .infinity, minHeight: 18)
 
                 Text(shortcut.subtitle)
                     .font(.caption.weight(.medium))

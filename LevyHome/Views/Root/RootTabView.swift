@@ -11,6 +11,13 @@ struct RootTabView: View {
             }
 
             NavigationStack {
+                ShoppingListMockupView()
+            }
+            .tabItem {
+                Label("List", systemImage: "cart")
+            }
+
+            NavigationStack {
                 ActivityView()
             }
             .tabItem {
