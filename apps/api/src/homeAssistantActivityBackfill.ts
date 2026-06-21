@@ -13,6 +13,7 @@ import {
 } from './homeAssistantActivityClient.js';
 
 const DEFAULT_BACKFILL_LOOKBACK_HOURS = 24;
+const HOME_ASSISTANT_ACTIVITY_REQUEST_TIMEOUT_MS = 8_000;
 
 export type HomeAssistantActivityBackfillOptions = {
   fetchImpl?: typeof fetch;
@@ -231,18 +232,44 @@ async function requestHomeAssistant<T>(
     url.searchParams.set(key, value);
   }
 
-  const response = await fetchImpl(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, HOME_ASSISTANT_ACTIVITY_REQUEST_TIMEOUT_MS);
+
+  if (typeof timeout === 'object' && 'unref' in timeout) {
+    timeout.unref();
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetchImpl(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Home Assistant activity backfill request timed out.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`Home Assistant activity backfill request failed with status ${response.status}.`);
   }
 
   return (await response.json()) as T;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function normalizedLookbackHours(value: number | undefined): number {

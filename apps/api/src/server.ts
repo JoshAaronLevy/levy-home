@@ -308,12 +308,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       .filter((event) => isEventInWindow(event, window))
       .slice(0, limit);
     const historyEvents = window?.startTime && window.endTime
-      ? (await fetchHomeAssistantActivityWindow(config, {
+      ? await fetchNormalizedHomeAssistantHistoryEvents(config, {
           startTime: window.startTime,
           endTime: window.endTime,
-        }))
-          .filter(shouldIncludePhoneStateChangedEvent)
-          .map((event) => normalizePhoneStateChangedEvent(event))
+        })
       : [];
     const events = mergeActivityEvents([...storedEvents, ...historyEvents], limit);
 
@@ -416,6 +414,20 @@ function isEventInWindow(event: LevyHomeEvent, window: ActivityWindow | undefine
   }
 
   return true;
+}
+
+async function fetchNormalizedHomeAssistantHistoryEvents(
+  config: AppConfig,
+  window: Required<ActivityWindow>,
+): Promise<LevyHomeEvent[]> {
+  try {
+    return (await fetchHomeAssistantActivityWindow(config, window))
+      .filter(shouldIncludePhoneStateChangedEvent)
+      .map((event) => normalizePhoneStateChangedEvent(event));
+  } catch (error) {
+    console.warn(`Home Assistant activity history unavailable for /api/events: ${safeErrorMessage(error)}`);
+    return [];
+  }
 }
 
 function eventTimestamp(event: LevyHomeEvent): number {
@@ -674,6 +686,34 @@ export function startServer(config = readConfig()): void {
   server.on('close', () => {
     activityListener?.stop();
   });
+
+  let isShuttingDown = false;
+  const shutdown = (signal: NodeJS.Signals) => {
+    if (isShuttingDown) {
+      return;
+    }
+
+    isShuttingDown = true;
+    console.info(`Levy Home API received ${signal}; shutting down.`);
+
+    const forceExit = setTimeout(() => {
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref();
+
+    server.close((error) => {
+      if (error) {
+        console.error(`Levy Home API shutdown failed: ${safeErrorMessage(error)}`);
+        process.exit(1);
+      }
+
+      clearTimeout(forceExit);
+      process.exit(0);
+    });
+  };
+
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
 }
 
 function safeErrorMessage(error: unknown): string {

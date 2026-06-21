@@ -25,4 +25,4 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 
 EXPOSE 4000
 
-CMD ["npm", "run", "api:start"]
+CMD ["node", "apps/api/dist/server.js"]

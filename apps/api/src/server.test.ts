@@ -582,6 +582,78 @@ test('/api/events returns local events and Home Assistant history for an explici
   }
 });
 
+test('/api/events returns local events when Home Assistant history is unavailable', async () => {
+  await closeServer();
+
+  const homeAssistantServer = createServer((_req, res) => {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Home Assistant unavailable' }));
+  });
+
+  await new Promise<void>((resolve) => {
+    homeAssistantServer.listen(0, '127.0.0.1', () => {
+      resolve();
+    });
+  });
+
+  const homeAssistantAddress = homeAssistantServer.address() as AddressInfo;
+  const activityStore = createRecentActivityStore(500);
+  activityStore.add(testActivityEvent('local-event', '2026-06-14T18:45:00.000Z'));
+
+  const app = createApp({
+    config: {
+      ...testConfig,
+      homeAssistant: {
+        ...testConfig.homeAssistant,
+        mode: 'live',
+        baseURL: `http://127.0.0.1:${homeAssistantAddress.port}`,
+        token: 'test-home-assistant-token',
+        activity: {
+          isEnabled: true,
+          trackedPhoneEntities: [
+            { entityId: 'device_tracker.josh_iphone', person: 'Josh', deviceName: "Joshs iPhone" },
+          ],
+          trackedPhoneEntityPatterns: [],
+        },
+      },
+    },
+    activityStore,
+  });
+
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, () => {
+      resolve();
+    });
+  });
+
+  const address = server?.address() as AddressInfo;
+  baseURL = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const response = await getJSON(
+      '/api/events?limit=500&start=2026-06-14T18:00:00.000Z&end=2026-06-15T18:00:00.000Z',
+    );
+
+    assert.equal(response.ok, true);
+    assert.deepEqual(
+      response.events.map((event: LevyHomeEvent) => event.id),
+      ['local-event'],
+    );
+  } finally {
+    await closeServer();
+    await new Promise<void>((resolve, reject) => {
+      homeAssistantServer.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
 test('/api/events rejects invalid explicit activity windows', async () => {
   const response = await fetch(`${baseURL}/api/events?start=2026-06-15T18:00:00.000Z&end=2026-06-14T18:00:00.000Z`);
   const body = (await response.json()) as { code: string };

@@ -72,9 +72,6 @@ private struct ActivityContentView: View {
         } else {
             ForEach(viewModel.events) { event in
                 EventCardView(event: event)
-                    .task {
-                        await viewModel.loadOlderIfNeeded(currentEvent: event)
-                    }
             }
 
             olderActivityFooter
