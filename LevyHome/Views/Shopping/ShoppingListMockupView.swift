@@ -5,9 +5,10 @@ import UIKit
 
 struct ShoppingListMockupView: View {
     @Environment(\.appEnvironment) private var appEnvironment
+    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     var body: some View {
-        let viewerIdentity = ShoppingListViewerIdentity.defaultDevice()
+        let viewerIdentity = ShoppingListViewerIdentity.forResidentPreference(currentResidentName)
 
         ShoppingListContentView(
             viewModel: ShoppingListViewModel(
@@ -20,12 +21,33 @@ struct ShoppingListMockupView: View {
                 currentViewerId: viewerIdentity.viewerId
             )
         )
+        .id(viewerIdentity.viewerId)
     }
 }
 
 private extension ShoppingListViewerIdentity {
-    static func defaultDevice(userDefaults: UserDefaults = .standard) -> ShoppingListViewerIdentity {
+    static func forResidentPreference(
+        _ residentName: String,
+        userDefaults: UserDefaults = .standard
+    ) -> ShoppingListViewerIdentity {
         let deviceName = currentDeviceName
+
+        if let resident = ResidentIdentity(rawValue: residentName) {
+            return ShoppingListViewerIdentity(
+                viewerId: resident.shoppingListViewerId,
+                displayName: resident.rawValue,
+                deviceName: deviceName
+            )
+        }
+
+        if let deviceName,
+           let inferredResident = ResidentIdentity.inferred(from: deviceName) {
+            return ShoppingListViewerIdentity(
+                viewerId: inferredResident.shoppingListViewerId,
+                displayName: inferredResident.rawValue,
+                deviceName: deviceName
+            )
+        }
 
         return ShoppingListViewerIdentity(
             viewerId: stableViewerId(userDefaults: userDefaults),
@@ -56,6 +78,17 @@ private extension ShoppingListViewerIdentity {
     }
 }
 
+private extension ResidentIdentity {
+    var shoppingListViewerId: String {
+        switch self {
+        case .josh:
+            return "josh"
+        case .mallory:
+            return "mallory"
+        }
+    }
+}
+
 @MainActor
 final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListLoader = () async throws -> ShoppingListResponse
@@ -82,23 +115,31 @@ final class ShoppingListViewModel: ObservableObject {
 
     var otherActiveViewers: [ShoppingListViewerPresence] {
         activeViewers.filter { viewer in
-            currentViewerId == nil || viewer.viewerId != currentViewerId
+            guard let currentViewerId else {
+                return true
+            }
+
+            return viewer.viewerId.localizedCaseInsensitiveCompare(currentViewerId) != .orderedSame
         }
     }
 
     var otherActiveViewerLabel: String? {
         let names = otherActiveViewers
-            .map(\.displayName)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+            .map { Self.displayName(for: $0) }
+            .reduce(into: [String]()) { uniqueNames, name in
+                guard !uniqueNames.contains(name) else {
+                    return
+                }
+
+                uniqueNames.append(name)
+            }
 
         guard !names.isEmpty else {
             return nil
         }
 
         if names.count == 1 {
-            let name = names[0]
-            return name.count <= 12 ? "\(name) viewing" : "Someone viewing"
+            return "\(names[0]) viewing"
         }
 
         return "\(names.count) viewing"
@@ -182,6 +223,7 @@ final class ShoppingListViewModel: ObservableObject {
         case .presenceChanged(let viewers, _):
             activeViewers = Self.deduplicatedViewers(viewers)
         case .snapshotRequired:
+            activeViewers = []
             await refreshFromLiveSnapshot()
         case .itemCreated(let item, _, _), .itemUpdated(let item, _, _):
             applyCommittedItem(item)
@@ -278,17 +320,35 @@ final class ShoppingListViewModel: ObservableObject {
         var viewersById: [String: ShoppingListViewerPresence] = [:]
 
         for viewer in viewers {
-            if let existingViewer = viewersById[viewer.viewerId],
+            let viewerId = viewer.viewerId.lowercased()
+
+            if let existingViewer = viewersById[viewerId],
                existingViewer.lastSeenAt >= viewer.lastSeenAt {
                 continue
             }
 
-            viewersById[viewer.viewerId] = viewer
+            viewersById[viewerId] = viewer
         }
 
         return viewersById.values.sorted { first, second in
             first.displayName.localizedCaseInsensitiveCompare(second.displayName) == .orderedAscending
         }
+    }
+
+    private static func displayName(for viewer: ShoppingListViewerPresence) -> String {
+        let normalizedViewerId = viewer.viewerId.lowercased()
+
+        if let resident = ResidentIdentity.allCases.first(where: { $0.shoppingListViewerId == normalizedViewerId }) {
+            return resident.rawValue
+        }
+
+        let trimmedDisplayName = viewer.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let resident = ResidentIdentity(rawValue: trimmedDisplayName) {
+            return resident.rawValue
+        }
+
+        return "Someone"
     }
 }
 
@@ -362,16 +422,20 @@ private struct ShoppingListContentView: View {
             subtitle: "\(neededItemCount) \(neededItemCount == 1 ? "item" : "items") needed",
             systemImage: "cart"
         ) {
-            HStack(spacing: AppSpacing.medium) {
-                StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
-                StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
+            VStack(alignment: .leading, spacing: AppSpacing.small) {
+                HStack(spacing: AppSpacing.medium) {
+                    StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
+                    StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
+
+                    Spacer(minLength: 0)
+                }
 
                 if let otherActiveViewerLabel = viewModel.otherActiveViewerLabel {
                     StatusBadgeView(label: otherActiveViewerLabel, systemImage: "person.2", tone: .neutral)
+                        .transition(.opacity)
                 }
-
-                Spacer(minLength: 0)
             }
+            .animation(.easeInOut(duration: 0.16), value: viewModel.otherActiveViewerLabel)
         }
     }
 
