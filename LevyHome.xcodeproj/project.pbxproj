@@ -45,6 +45,7 @@
 		A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* APIModelDecodingTests.swift */; };
 		A70000000000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* APIClient.swift */; };
 		A70000000000000000000002 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* APIClientTests.swift */; };
+		E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70000000000000000000011 /* ShoppingListLiveService.swift */; };
 		A80000000000000000000001 /* ActivityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* ActivityViewModel.swift */; };
 		A80000000000000000000002 /* DateFormattingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* DateFormattingService.swift */; };
 		A80000000000000000000003 /* SeverityBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SeverityBadgeView.swift */; };
@@ -126,6 +127,7 @@
 		A60000000000000000000014 /* APIModelDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelDecodingTests.swift; sourceTree = "<group>"; };
 		A70000000000000000000011 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		A70000000000000000000012 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		E70000000000000000000011 /* ShoppingListLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveService.swift; sourceTree = "<group>"; };
 		A80000000000000000000011 /* ActivityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewModel.swift; sourceTree = "<group>"; };
 		A80000000000000000000012 /* DateFormattingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormattingService.swift; sourceTree = "<group>"; };
 		A80000000000000000000013 /* SeverityBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeverityBadgeView.swift; sourceTree = "<group>"; };
@@ -358,6 +360,7 @@
 			isa = PBXGroup;
 			children = (
 				A70000000000000000000011 /* APIClient.swift */,
+				E70000000000000000000011 /* ShoppingListLiveService.swift */,
 				A80000000000000000000012 /* DateFormattingService.swift */,
 				B10000000000000000000011 /* HomeStatusService.swift */,
 				B20000000000000000000011 /* QuickActionService.swift */,
@@ -535,6 +538,7 @@
 				A60000000000000000000002 /* APIRequests.swift in Sources */,
 				A60000000000000000000003 /* APIResponses.swift in Sources */,
 				A70000000000000000000001 /* APIClient.swift in Sources */,
+				E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */,
 				A80000000000000000000001 /* ActivityViewModel.swift in Sources */,
 				A80000000000000000000002 /* DateFormattingService.swift in Sources */,
 				A80000000000000000000003 /* SeverityBadgeView.swift in Sources */,
