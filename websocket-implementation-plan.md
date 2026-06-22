@@ -645,6 +645,11 @@ User-run verification criteria, when Josh chooses to run them:
 
 Objective: make live updates work outside the local simulator.
 
+Implemented artifacts:
+
+- `docs/10-shopping-list-render-deployment-readiness.md`
+- `scripts/verify-shopping-list-render-readiness.mjs`
+
 Render checks:
 
 - Confirm the Render service supports WebSocket upgrades on the existing API service.

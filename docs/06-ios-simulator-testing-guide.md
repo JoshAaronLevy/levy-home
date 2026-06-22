@@ -336,6 +336,8 @@ That Phase 7 runner starts a known local API process with activity ingestion ena
 
 For shopping list CRUD plus WebSocket local verification, see `docs/09-shopping-list-realtime-local-verification.md`. That Stage 10 guide covers the local API, `scripts/shopping-list-live-client.mjs`, one-simulator and two-simulator proof paths, REST mutation broadcasts, presence, and duplicate-entry UI checks.
 
+For deployed Render verification, see `docs/10-shopping-list-render-deployment-readiness.md`. That Stage 11 guide covers the Render URL, `scripts/verify-shopping-list-render-readiness.mjs`, `wss` connectivity, deployed REST broadcast proof, and physical-device checks.
+
 ## Stage-By-Stage Manual Testing Pattern
 
 For each implementation stage:

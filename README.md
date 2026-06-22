@@ -6,7 +6,7 @@ Native SwiftUI iOS app for a curated family smart-home notification and control 
 
 Open `LevyHome.xcodeproj` in Xcode, select the `LevyHome` scheme, and run on an iPhone simulator. See `docs/06-ios-simulator-testing-guide.md` for command-line and Xcode testing steps.
 
-For the shopping list CRUD plus WebSocket local proof, see `docs/09-shopping-list-realtime-local-verification.md`.
+For the shopping list CRUD plus WebSocket local proof, see `docs/09-shopping-list-realtime-local-verification.md`. For the deployed Render proof, see `docs/10-shopping-list-render-deployment-readiness.md`.
 
 ## Backend API
 
