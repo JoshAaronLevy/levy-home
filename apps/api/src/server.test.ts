@@ -61,8 +61,70 @@ class FakePushSender implements PushSender {
 }
 
 beforeEach(async () => {
-  const app = createApp({ config: testConfig });
+  await startTestServer(createApp({ config: testConfig }));
+});
 
+afterEach(async () => {
+  await stopTestServer();
+});
+
+test('GET /api/shopping-list returns shopping data from the configured store', async () => {
+  await restartTestServer(
+    createApp({
+      config: testConfig,
+      shoppingListStore: {
+        async fetchShoppingList() {
+          return {
+            items: [
+              {
+                id: 1,
+                name: 'Whole milk',
+                brand: 'Horizon',
+                quantity: 2,
+                notes: 'Half gallon',
+                purchased: false,
+                createdAt: '2026-06-22T12:00:00.000Z',
+                updatedAt: '2026-06-22T12:30:00.000Z',
+                storeIds: [1],
+                categoryId: 2,
+              },
+            ],
+            stores: [{ id: 1, name: 'Target', logo: 'target' }],
+            categories: [{ id: 2, name: 'Dairy' }],
+          };
+        },
+      },
+    }),
+  );
+
+  const response = await getJSON('/api/shopping-list');
+
+  assert.equal(response.ok, true);
+  assert.equal(typeof response.generatedAt, 'string');
+  assert.deepEqual(response.items, [
+    {
+      id: 1,
+      name: 'Whole milk',
+      brand: 'Horizon',
+      quantity: 2,
+      notes: 'Half gallon',
+      purchased: false,
+      createdAt: '2026-06-22T12:00:00.000Z',
+      updatedAt: '2026-06-22T12:30:00.000Z',
+      storeIds: [1],
+      categoryId: 2,
+    },
+  ]);
+  assert.deepEqual(response.stores, [{ id: 1, name: 'Target', logo: 'target' }]);
+  assert.deepEqual(response.categories, [{ id: 2, name: 'Dairy' }]);
+});
+
+async function restartTestServer(app: ReturnType<typeof createApp>): Promise<void> {
+  await stopTestServer();
+  await startTestServer(app);
+}
+
+async function startTestServer(app: ReturnType<typeof createApp>): Promise<void> {
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
       resolve();
@@ -71,9 +133,9 @@ beforeEach(async () => {
 
   const address = server?.address() as AddressInfo;
   baseURL = `http://127.0.0.1:${address.port}`;
-});
+}
 
-afterEach(async () => {
+async function stopTestServer(): Promise<void> {
   if (!server) {
     return;
   }
@@ -90,7 +152,7 @@ afterEach(async () => {
   });
 
   server = undefined;
-});
+}
 
 test('GET /api/home/overview returns a narrow home overview', async () => {
   const response = await getJSON('/api/home/overview');

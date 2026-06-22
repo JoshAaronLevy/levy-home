@@ -123,6 +123,36 @@ export type QuickActionResult = {
   refreshedHomeOverview: HomeOverview | null;
 };
 
+export type ShoppingListItem = {
+  id: number;
+  name: string;
+  brand?: string;
+  quantity: number;
+  notes?: string;
+  purchased: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  storeIds: number[];
+  categoryId: number | null;
+};
+
+export type ShoppingStore = {
+  id: number;
+  name: string;
+  logo?: string;
+};
+
+export type ShoppingCategory = {
+  id: number;
+  name: string;
+};
+
+export type ShoppingListData = {
+  items: ShoppingListItem[];
+  stores: ShoppingStore[];
+  categories: ShoppingCategory[];
+};
+
 export type DevicePlatform = 'ios' | 'android' | 'unknown';
 export type PushProvider = 'apns' | 'expo';
 export type APNsEnvironment = 'sandbox' | 'production';

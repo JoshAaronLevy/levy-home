@@ -57,6 +57,10 @@ final class APIClient {
         try await send(path: "/api/home/actions", method: .post, body: request)
     }
 
+    func fetchShoppingList() async throws -> ShoppingListResponse {
+        try await send(path: "/api/shopping-list")
+    }
+
     func fetchNotificationPreferences() async throws -> NotificationPreferencesResponse {
         try await send(path: "/api/notification-preferences")
     }

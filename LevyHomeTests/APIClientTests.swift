@@ -80,6 +80,8 @@ final class APIClientTests: XCTestCase {
                 return Self.response(for: request, json: Self.quickActionsResponseJSON)
             case ("POST", "/api-base/api/home/actions"):
                 return Self.response(for: request, json: Self.quickActionResponseJSON)
+            case ("GET", "/api-base/api/shopping-list"):
+                return Self.response(for: request, json: Self.shoppingListResponseJSON)
             case ("GET", "/api-base/api/notification-preferences"):
                 return Self.response(for: request, json: Self.notificationPreferencesResponseJSON)
             case ("PUT", "/api-base/api/notification-preferences"):
@@ -98,6 +100,7 @@ final class APIClientTests: XCTestCase {
         _ = try await client.fetchHomeOverview()
         _ = try await client.fetchQuickActions()
         _ = try await client.performQuickAction(.turnOffLightGroup(groupId: "upstairs_hallway"))
+        _ = try await client.fetchShoppingList()
         _ = try await client.fetchNotificationPreferences()
         _ = try await client.updateNotificationPreferences(
             NotificationPreferencesUpdateRequest(
@@ -119,14 +122,16 @@ final class APIClientTests: XCTestCase {
         _ = try await client.sendTestPush(TestPushRequest(title: "Test", body: "Body"))
         _ = try await client.fetchHealth()
 
-        XCTAssertEqual(capturedRequests.count, 8)
+        XCTAssertEqual(capturedRequests.count, 9)
         let quickActions = try await client.fetchQuickActions()
         XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["upstairs_hallway"])
         XCTAssertEqual(capturedRequests[2].jsonBody["actionId"] as? String, "turn_off_light_group")
         XCTAssertEqual(capturedRequests[2].jsonBody["groupId"] as? String, "upstairs_hallway")
-        XCTAssertEqual(capturedRequests[4].jsonBody["preferences"] as? [[String: Any]] != nil, true)
-        XCTAssertEqual(capturedRequests[5].jsonBody["provider"] as? String, "apns")
-        XCTAssertEqual(capturedRequests[6].jsonBody["title"] as? String, "Test")
+        XCTAssertEqual(capturedRequests[3].httpMethod, "GET")
+        XCTAssertEqual(capturedRequests[3].url?.path, "/api-base/api/shopping-list")
+        XCTAssertEqual(capturedRequests[5].jsonBody["preferences"] as? [[String: Any]] != nil, true)
+        XCTAssertEqual(capturedRequests[6].jsonBody["provider"] as? String, "apns")
+        XCTAssertEqual(capturedRequests[7].jsonBody["title"] as? String, "Test")
     }
 
     func testDecodesServerErrorEnvelope() async {
@@ -300,6 +305,42 @@ final class APIClientTests: XCTestCase {
             "message": "The selected lights were turned off.",
             "refreshedHomeOverview": null
           }
+        }
+        """
+    }
+
+    private static var shoppingListResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "generatedAt": "2026-06-22T12:31:00.000Z",
+          "items": [
+            {
+              "id": 1,
+              "name": "Whole milk",
+              "brand": "Horizon",
+              "quantity": 2,
+              "notes": "Half gallon",
+              "purchased": false,
+              "createdAt": "2026-06-22T12:00:00.000Z",
+              "updatedAt": "2026-06-22T12:30:00.000Z",
+              "storeIds": [1],
+              "categoryId": 2
+            }
+          ],
+          "stores": [
+            {
+              "id": 1,
+              "name": "Target",
+              "logo": "target"
+            }
+          ],
+          "categories": [
+            {
+              "id": 2,
+              "name": "Dairy"
+            }
+          ]
         }
         """
     }

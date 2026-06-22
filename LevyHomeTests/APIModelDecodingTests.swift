@@ -87,6 +87,52 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.result.status, .success)
     }
 
+    func testDecodesShoppingListResponse() throws {
+        let response = try decode(
+            ShoppingListResponse.self,
+            from: """
+            {
+              "ok": true,
+              "generatedAt": "2026-06-22T12:31:00.000Z",
+              "items": [
+                {
+                  "id": 1,
+                  "name": "Whole milk",
+                  "brand": "Horizon",
+                  "quantity": 2,
+                  "notes": "Half gallon",
+                  "purchased": false,
+                  "createdAt": "2026-06-22T12:00:00.000Z",
+                  "updatedAt": "2026-06-22T12:30:00.000Z",
+                  "storeIds": [1, 2],
+                  "categoryId": 3
+                }
+              ],
+              "stores": [
+                {
+                  "id": 1,
+                  "name": "Target",
+                  "logo": "target"
+                }
+              ],
+              "categories": [
+                {
+                  "id": 3,
+                  "name": "Dairy"
+                }
+              ]
+            }
+            """
+        )
+
+        XCTAssertTrue(response.ok)
+        XCTAssertEqual(response.items.first?.name, "Whole milk")
+        XCTAssertEqual(response.items.first?.storeIds, [1, 2])
+        XCTAssertEqual(response.items.first?.categoryId, 3)
+        XCTAssertEqual(response.stores.first?.name, "Target")
+        XCTAssertEqual(response.categories.first?.name, "Dairy")
+    }
+
     func testDecodesNotificationPreferencesResponse() throws {
         let response = try decode(
             NotificationPreferencesResponse.self,

@@ -39,6 +39,7 @@ import {
   type RegisteredDevice,
   type TestPushPayload,
 } from './contracts.js';
+import { DatabaseConfigurationError } from './dbClient.js';
 import {
   createHomeAssistantActivityListener,
   type HomeAssistantStateChangedEvent,
@@ -46,6 +47,7 @@ import {
 import { createHomeAssistantFacade } from './homeAssistantClient.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
+import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
 import {
   validateHomeAssistantEventPayload,
   validateNotificationPreferencesBody,
@@ -59,6 +61,7 @@ export type CreateAppOptions = {
   config?: AppConfig;
   activityStore?: RecentActivityStore;
   pushSender?: PushSender;
+  shoppingListStore?: ShoppingListStore;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -71,6 +74,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const homeAssistant = createHomeAssistantFacade(config);
   const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
+  const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
 
   app.set('etag', false);
   app.use(cors());
@@ -273,6 +277,16 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     }),
   );
 
+  app.get('/api/shopping-list', asyncHandler(async (_req, res) => {
+    const shoppingList = await shoppingListStore.fetchShoppingList();
+
+    res.json({
+      ok: true,
+      ...shoppingList,
+      generatedAt: new Date().toISOString(),
+    });
+  }));
+
   app.post(
     '/api/ha/events',
     requireHaWebhookSecret(config),
@@ -322,6 +336,14 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   }));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof DatabaseConfigurationError) {
+      res.status(503).json({
+        error: err.message,
+        code: 'database_not_configured',
+      });
+      return;
+    }
+
     if (err instanceof HTTPError) {
       res.status(err.statusCode).json({
         error: err.message,

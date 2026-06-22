@@ -1,66 +1,159 @@
 import SwiftUI
 
 struct ShoppingListMockupView: View {
+    @Environment(\.appEnvironment) private var appEnvironment
+
+    var body: some View {
+        ShoppingListContentView(
+            viewModel: ShoppingListViewModel(apiClient: appEnvironment.apiClient)
+        )
+    }
+}
+
+@MainActor
+private final class ShoppingListViewModel: ObservableObject {
+    typealias ShoppingListLoader = () async throws -> ShoppingListResponse
+
+    @Published private(set) var items: [ShoppingListItem] = []
+    @Published private(set) var stores: [ShoppingStore] = []
+    @Published private(set) var categories: [ShoppingCategory] = []
+    @Published private(set) var generatedAt: String?
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var isLoading = false
+    @Published private(set) var isRefreshing = false
+
+    private let loadShoppingList: ShoppingListLoader
+    private var hasLoaded = false
+
+    var isEmpty: Bool {
+        hasLoaded && items.isEmpty && errorMessage == nil && !isLoading
+    }
+
+    convenience init(apiClient: APIClient) {
+        self.init {
+            try await apiClient.fetchShoppingList()
+        }
+    }
+
+    init(loadShoppingList: @escaping ShoppingListLoader) {
+        self.loadShoppingList = loadShoppingList
+    }
+
+    func loadIfNeeded() async {
+        guard !hasLoaded else {
+            return
+        }
+
+        await load(isRefresh: false)
+    }
+
+    func refresh() async {
+        await load(isRefresh: true)
+    }
+
+    private func load(isRefresh: Bool) async {
+        guard !isLoading, !isRefreshing else {
+            return
+        }
+
+        if isRefresh {
+            isRefreshing = true
+        } else {
+            isLoading = true
+        }
+
+        defer {
+            isLoading = false
+            isRefreshing = false
+        }
+
+        do {
+            let response = try await loadShoppingList()
+            items = response.items
+            stores = response.stores
+            categories = response.categories
+            generatedAt = response.generatedAt
+            errorMessage = nil
+            hasLoaded = true
+        } catch {
+            errorMessage = error.localizedDescription
+            hasLoaded = true
+        }
+    }
+}
+
+private struct ShoppingListContentView: View {
+    @StateObject private var viewModel: ShoppingListViewModel
     @State private var searchText = ""
-    @State private var selectedCategory: ShoppingListCategory?
-    @State private var items = ShoppingListItem.samples
-    @State private var isShowingAddItem = false
-    @State private var draftName = ""
-    @State private var draftQuantity = 1
-    @State private var draftCategory: ShoppingListCategory = .produce
+    @State private var selectedCategory: ShoppingCategory?
+
+    init(viewModel: ShoppingListViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
-                summaryPanel
-
-                ShoppingListSearchField(searchText: $searchText)
-
-                ShoppingCategoryFilterBar(
-                    selectedCategory: $selectedCategory,
-                    counts: categoryCounts
-                )
-
-                if groupedItems.isEmpty {
-                    emptyState
+                if viewModel.isLoading {
+                    loadingView
                 } else {
-                    ForEach(groupedItems) { group in
-                        ShoppingCategorySection(
-                            group: group,
-                            onToggleCompleted: toggleCompleted,
-                            onIncrementQuantity: incrementQuantity,
-                            onDecrementQuantity: decrementQuantity
-                        )
-                    }
+                    contentView
                 }
             }
             .padding(AppSpacing.screen)
         }
         .background(AppColors.pageBackground)
         .navigationTitle("Shopping")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isShowingAddItem = true
-                } label: {
-                    Image(systemName: "plus")
+        .task {
+            await viewModel.loadIfNeeded()
+        }
+        .refreshable {
+            await viewModel.refresh()
+        }
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        summaryPanel
+
+        if let errorMessage = viewModel.errorMessage {
+            ErrorBannerView(message: errorMessage)
+
+            PrimaryActionButton(
+                title: "Retry",
+                systemImage: "arrow.clockwise"
+            ) {
+                Task {
+                    await viewModel.refresh()
                 }
-                .accessibilityLabel("Add shopping item")
             }
         }
-        .sheet(isPresented: $isShowingAddItem) {
-            addItemSheet
+
+        ShoppingListSearchField(searchText: $searchText)
+
+        ShoppingCategoryFilterBar(
+            selectedCategory: $selectedCategory,
+            categories: filterCategories,
+            counts: categoryCounts
+        )
+
+        if viewModel.isEmpty || groupedItems.isEmpty {
+            emptyState
+        } else {
+            ForEach(groupedItems) { group in
+                ShoppingCategorySection(group: group)
+            }
         }
     }
 
     private var summaryPanel: some View {
         InfoPanel(
             title: "Grocery List",
-            subtitle: "\(plannedItemCount) items planned",
+            subtitle: "\(neededItemCount) \(neededItemCount == 1 ? "item" : "items") needed",
             systemImage: "cart"
         ) {
             HStack(spacing: AppSpacing.medium) {
-                StatusBadgeView(label: "Shared", systemImage: "person.2", tone: .accent)
+                StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
                 StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
 
                 Spacer(minLength: 0)
@@ -68,67 +161,46 @@ struct ShoppingListMockupView: View {
         }
     }
 
-    private var emptyState: some View {
+    private var loadingView: some View {
         InfoPanel(
-            title: "No Matching Items",
-            subtitle: "Try a product name or category.",
-            systemImage: "magnifyingglass"
+            title: "Loading Shopping List",
+            subtitle: "Fetching items from the database.",
+            systemImage: "cart"
         ) {
-            Button {
-                searchText = ""
-                selectedCategory = nil
-            } label: {
-                Label("Clear Filter", systemImage: "xmark.circle")
-                    .font(.subheadline.weight(.semibold))
+            HStack(spacing: AppSpacing.medium) {
+                ProgressView()
+
+                Text("Checking the shared list...")
+                    .font(.body)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.borderless)
         }
     }
 
-    private var addItemSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Item") {
-                    TextField("Product name", text: $draftName)
-
-                    Stepper(value: $draftQuantity, in: 1...99) {
-                        Text("Quantity \(draftQuantity)")
-                    }
+    private var emptyState: some View {
+        InfoPanel(
+            title: viewModel.items.isEmpty ? "No Shopping Items" : "No Matching Items",
+            subtitle: viewModel.items.isEmpty ? "The database list is empty." : "Try a product name, store, or category.",
+            systemImage: viewModel.items.isEmpty ? "cart" : "magnifyingglass"
+        ) {
+            if !searchText.isEmpty || selectedCategory != nil {
+                Button {
+                    searchText = ""
+                    selectedCategory = nil
+                } label: {
+                    Label("Clear Filter", systemImage: "xmark.circle")
+                        .font(.subheadline.weight(.semibold))
                 }
-
-                Section("Category") {
-                    Picker("Category", selection: $draftCategory) {
-                        ForEach(ShoppingListCategory.allCases) { category in
-                            Label(category.rawValue, systemImage: category.systemImage)
-                                .tag(category)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Add Item")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        resetDraft()
-                        isShowingAddItem = false
-                    }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        addDraftItem()
-                    }
-                    .disabled(draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+                .buttonStyle(.borderless)
             }
         }
-        .presentationDetents([.medium])
     }
 
     private var groupedItems: [ShoppingCategoryGroup] {
         let itemsByCategory = Dictionary(grouping: filteredItems, by: \.category)
 
-        return ShoppingListCategory.allCases.compactMap { category in
+        return filterCategories.compactMap { category in
             guard let items = itemsByCategory[category], !items.isEmpty else {
                 return nil
             }
@@ -137,93 +209,78 @@ struct ShoppingListMockupView: View {
         }
     }
 
-    private var filteredItems: [ShoppingListItem] {
+    private var filteredItems: [ShoppingListDisplayItem] {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return items
-            .filter { item in
-                selectedCategory == nil || item.category == selectedCategory
+        return displayItems
+            .filter { displayItem in
+                selectedCategory == nil || displayItem.category == selectedCategory
             }
-            .filter { item in
+            .filter { displayItem in
                 guard !trimmedSearch.isEmpty else {
                     return true
                 }
 
-                return item.name.localizedCaseInsensitiveContains(trimmedSearch)
-                    || item.category.rawValue.localizedCaseInsensitiveContains(trimmedSearch)
+                return displayItem.matches(trimmedSearch)
             }
     }
 
-    private var plannedItemCount: Int {
-        items.filter { !$0.isCompleted }.count
+    private var displayItems: [ShoppingListDisplayItem] {
+        let categoriesById = Dictionary(uniqueKeysWithValues: viewModel.categories.map { ($0.id, $0) })
+        let storesById = Dictionary(uniqueKeysWithValues: viewModel.stores.map { ($0.id, $0) })
+
+        return viewModel.items.map { item in
+            ShoppingListDisplayItem(
+                item: item,
+                category: category(for: item, categoriesById: categoriesById),
+                stores: item.storeIds.map { storeId in
+                    storesById[storeId] ?? ShoppingStore(id: storeId, name: "Store \(storeId)", logo: nil)
+                }
+            )
+        }
     }
 
-    private var completedItemCount: Int {
-        items.filter(\.isCompleted).count
+    private var filterCategories: [ShoppingCategory] {
+        let responseCategories = viewModel.categories
+        let categoriesById = Dictionary(uniqueKeysWithValues: responseCategories.map { ($0.id, $0) })
+        let missingCategories = Set(viewModel.items.compactMap(\.categoryId))
+            .filter { categoriesById[$0] == nil }
+            .map { ShoppingCategory(id: $0, name: "Category \($0)") }
+        let needsOther = viewModel.items.contains { $0.categoryId == nil }
+        let allCategories = responseCategories
+            + missingCategories
+            + (needsOther ? [Self.uncategorizedCategory] : [])
+
+        return allCategories.sorted { first, second in
+            first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
+        }
     }
 
-    private var categoryCounts: [ShoppingListCategory: Int] {
-        Dictionary(grouping: items, by: \.category)
+    private var categoryCounts: [ShoppingCategory: Int] {
+        Dictionary(grouping: displayItems, by: \.category)
             .mapValues(\.count)
     }
 
-    private func toggleCompleted(_ item: ShoppingListItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
-            return
-        }
-
-        withAnimation {
-            items[index].isCompleted.toggle()
-        }
+    private var neededItemCount: Int {
+        viewModel.items.filter { !$0.purchased }.count
     }
 
-    private func incrementQuantity(_ item: ShoppingListItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
-            return
-        }
-
-        withAnimation {
-            items[index].quantity += 1
-        }
+    private var completedItemCount: Int {
+        viewModel.items.filter(\.purchased).count
     }
 
-    private func decrementQuantity(_ item: ShoppingListItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
-            return
+    private func category(
+        for item: ShoppingListItem,
+        categoriesById: [Int: ShoppingCategory]
+    ) -> ShoppingCategory {
+        guard let categoryId = item.categoryId else {
+            return Self.uncategorizedCategory
         }
 
-        withAnimation {
-            items[index].quantity = max(1, items[index].quantity - 1)
-        }
+        return categoriesById[categoryId] ?? ShoppingCategory(id: categoryId, name: "Category \(categoryId)")
     }
 
-    private func addDraftItem() {
-        let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !name.isEmpty else {
-            return
-        }
-
-        withAnimation {
-            items.append(
-                ShoppingListItem(
-                    name: name,
-                    quantity: draftQuantity,
-                    category: draftCategory,
-                    isCompleted: false
-                )
-            )
-        }
-
-        resetDraft()
-        isShowingAddItem = false
-    }
-
-    private func resetDraft() {
-        draftName = ""
-        draftQuantity = 1
-        draftCategory = .produce
-    }
+    private static let uncategorizedCategory = ShoppingCategory(id: 0, name: "Other")
 }
 
 private struct ShoppingListSearchField: View {
@@ -236,7 +293,7 @@ private struct ShoppingListSearchField: View {
                 .foregroundStyle(AppColors.mutedText)
                 .frame(width: 24)
 
-            TextField("Filter by item or category", text: $searchText)
+            TextField("Filter by item, store, or category", text: $searchText)
                 .font(.body)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -262,8 +319,9 @@ private struct ShoppingListSearchField: View {
 }
 
 private struct ShoppingCategoryFilterBar: View {
-    @Binding var selectedCategory: ShoppingListCategory?
-    let counts: [ShoppingListCategory: Int]
+    @Binding var selectedCategory: ShoppingCategory?
+    let categories: [ShoppingCategory]
+    let counts: [ShoppingCategory: Int]
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -277,9 +335,9 @@ private struct ShoppingCategoryFilterBar: View {
                     selectedCategory = nil
                 }
 
-                ForEach(ShoppingListCategory.allCases) { category in
+                ForEach(categories) { category in
                     filterButton(
-                        title: category.rawValue,
+                        title: category.name,
                         systemImage: category.systemImage,
                         count: counts[category] ?? 0,
                         isSelected: selectedCategory == category
@@ -324,9 +382,6 @@ private struct ShoppingCategoryFilterBar: View {
 
 private struct ShoppingCategorySection: View {
     let group: ShoppingCategoryGroup
-    let onToggleCompleted: (ShoppingListItem) -> Void
-    let onIncrementQuantity: (ShoppingListItem) -> Void
-    let onDecrementQuantity: (ShoppingListItem) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -338,7 +393,7 @@ private struct ShoppingCategorySection: View {
                     .background(group.category.tone.backgroundColor)
                     .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
 
-                Text(group.category.rawValue)
+                Text(group.category.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
 
@@ -355,12 +410,7 @@ private struct ShoppingCategorySection: View {
                 .padding(.leading, AppSpacing.large)
 
             ForEach(group.items) { item in
-                ShoppingItemRow(
-                    item: item,
-                    onToggleCompleted: { onToggleCompleted(item) },
-                    onIncrementQuantity: { onIncrementQuantity(item) },
-                    onDecrementQuantity: { onDecrementQuantity(item) }
-                )
+                ShoppingItemRow(displayItem: item)
 
                 if item.id != group.items.last?.id {
                     Divider()
@@ -378,157 +428,237 @@ private struct ShoppingCategorySection: View {
 }
 
 private struct ShoppingItemRow: View {
-    let item: ShoppingListItem
-    let onToggleCompleted: () -> Void
-    let onIncrementQuantity: () -> Void
-    let onDecrementQuantity: () -> Void
+    let displayItem: ShoppingListDisplayItem
 
     var body: some View {
-        HStack(spacing: AppSpacing.medium) {
-            Button(action: onToggleCompleted) {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(item.isCompleted ? AppColors.success : AppColors.mutedText)
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(item.isCompleted ? "Mark \(item.name) needed" : "Mark \(item.name) picked up")
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.mutedText)
+                .frame(width: 30, height: 30)
+                .accessibilityHidden(true)
 
-            Text(item.name)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(item.isCompleted ? AppColors.mutedText : .primary)
-                .strikethrough(item.isCompleted, color: AppColors.mutedText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text(displayItem.item.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
+                    .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+
+                if let detailText = displayItem.detailText {
+                    Text(detailText)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !displayItem.stores.isEmpty {
+                    HStack(spacing: AppSpacing.xSmall) {
+                        ForEach(displayItem.stores) { store in
+                            Text(store.name)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .padding(.horizontal, AppSpacing.small)
+                                .frame(height: 24)
+                                .foregroundStyle(AppColors.accent)
+                                .background(AppColors.accentSoft)
+                                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+                        }
+                    }
+                }
+            }
 
             Spacer(minLength: AppSpacing.small)
 
-            QuantityStepper(
-                quantity: item.quantity,
-                isDisabled: item.isCompleted,
-                onDecrement: onDecrementQuantity,
-                onIncrement: onIncrementQuantity
-            )
+            QuantityBadge(quantity: displayItem.item.quantity)
         }
         .padding(AppSpacing.medium)
-        .opacity(item.isCompleted ? 0.72 : 1)
+        .opacity(displayItem.item.purchased ? 0.72 : 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(displayItem.accessibilityLabel)
     }
 }
 
-private struct QuantityStepper: View {
+private struct QuantityBadge: View {
     let quantity: Int
-    let isDisabled: Bool
-    let onDecrement: () -> Void
-    let onIncrement: () -> Void
 
     var body: some View {
-        HStack(spacing: AppSpacing.xSmall) {
-            Button(action: onDecrement) {
-                Image(systemName: "minus")
-                    .font(.caption.weight(.bold))
-                    .frame(width: 28, height: 28)
+        Text("Qty \(quantity)")
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .lineLimit(1)
+            .padding(.horizontal, AppSpacing.small)
+            .frame(height: 32)
+            .foregroundStyle(AppColors.accent)
+            .background(AppColors.accentSoft)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                    .stroke(AppColors.panelBorder, lineWidth: 1)
             }
-            .buttonStyle(.plain)
-            .disabled(isDisabled || quantity <= 1)
-            .accessibilityLabel("Decrease quantity")
-
-            Text("\(quantity)")
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(isDisabled ? AppColors.mutedText : .primary)
-                .frame(minWidth: 26)
-
-            Button(action: onIncrement) {
-                Image(systemName: "plus")
-                    .font(.caption.weight(.bold))
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .disabled(isDisabled)
-            .accessibilityLabel("Increase quantity")
-        }
-        .padding(.horizontal, AppSpacing.xSmall)
-        .frame(height: 36)
-        .foregroundStyle(isDisabled ? AppColors.mutedText : AppColors.accent)
-        .background(isDisabled ? Color(uiColor: .tertiarySystemFill) : AppColors.accentSoft)
-        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
-                .stroke(AppColors.panelBorder, lineWidth: 1)
-        }
     }
 }
 
 private struct ShoppingCategoryGroup: Identifiable {
-    let category: ShoppingListCategory
-    let items: [ShoppingListItem]
+    let category: ShoppingCategory
+    let items: [ShoppingListDisplayItem]
 
-    var id: ShoppingListCategory { category }
+    var id: ShoppingCategory { category }
 }
 
-private struct ShoppingListItem: Identifiable, Comparable {
-    let id = UUID()
-    var name: String
-    var quantity: Int
-    var category: ShoppingListCategory
-    var isCompleted: Bool
+private struct ShoppingListDisplayItem: Identifiable, Comparable {
+    let item: ShoppingListItem
+    let category: ShoppingCategory
+    let stores: [ShoppingStore]
 
-    static func < (lhs: ShoppingListItem, rhs: ShoppingListItem) -> Bool {
-        if lhs.isCompleted != rhs.isCompleted {
-            return !lhs.isCompleted && rhs.isCompleted
+    var id: Int { item.id }
+
+    var detailText: String? {
+        var details: [String] = []
+
+        if let brand = item.brand {
+            details.append(brand)
         }
 
-        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        if let notes = item.notes {
+            details.append(notes)
+        }
+
+        return details.isEmpty ? nil : details.joined(separator: " - ")
     }
 
-    static let samples: [ShoppingListItem] = [
-        ShoppingListItem(name: "Bananas", quantity: 6, category: .produce, isCompleted: false),
-        ShoppingListItem(name: "Avocados", quantity: 4, category: .produce, isCompleted: false),
-        ShoppingListItem(name: "Strawberries", quantity: 2, category: .produce, isCompleted: false),
-        ShoppingListItem(name: "Whole milk", quantity: 1, category: .dairy, isCompleted: false),
-        ShoppingListItem(name: "Greek yogurt", quantity: 4, category: .dairy, isCompleted: false),
-        ShoppingListItem(name: "Oatmeal", quantity: 1, category: .pantry, isCompleted: false),
-        ShoppingListItem(name: "Pasta", quantity: 2, category: .pantry, isCompleted: false),
-        ShoppingListItem(name: "Coffee", quantity: 1, category: .pantry, isCompleted: false),
-        ShoppingListItem(name: "Paper towels", quantity: 1, category: .household, isCompleted: true)
-    ]
+    var accessibilityLabel: String {
+        let state = item.purchased ? "picked up" : "needed"
+        let storeNames = stores.map(\.name).joined(separator: ", ")
+        let storesText = storeNames.isEmpty ? "" : ", stores \(storeNames)"
+
+        return "\(item.name), quantity \(item.quantity), \(category.name), \(state)\(storesText)"
+    }
+
+    func matches(_ searchText: String) -> Bool {
+        let searchableValues = [
+            item.name,
+            item.brand,
+            item.notes,
+            category.name,
+        ] + stores.map(\.name)
+
+        return searchableValues
+            .compactMap { $0 }
+            .contains { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    static func < (lhs: ShoppingListDisplayItem, rhs: ShoppingListDisplayItem) -> Bool {
+        if lhs.item.purchased != rhs.item.purchased {
+            return !lhs.item.purchased && rhs.item.purchased
+        }
+
+        return lhs.item.name.localizedCaseInsensitiveCompare(rhs.item.name) == .orderedAscending
+    }
 }
 
-private enum ShoppingListCategory: String, CaseIterable, Identifiable {
-    case produce = "Produce"
-    case dairy = "Dairy"
-    case pantry = "Pantry"
-    case household = "Home"
-
-    var id: Self { self }
-
+private extension ShoppingCategory {
     var systemImage: String {
-        switch self {
-        case .produce:
+        let normalizedName = name.lowercased()
+
+        if normalizedName.contains("produce")
+            || normalizedName.contains("fruit")
+            || normalizedName.contains("vegetable") {
             return "carrot"
-        case .dairy:
+        }
+
+        if normalizedName.contains("dairy") {
             return "drop"
-        case .pantry:
+        }
+
+        if normalizedName.contains("meat")
+            || normalizedName.contains("seafood") {
+            return "fork.knife"
+        }
+
+        if normalizedName.contains("frozen") {
+            return "snowflake"
+        }
+
+        if normalizedName.contains("pantry")
+            || normalizedName.contains("dry")
+            || normalizedName.contains("canned") {
             return "cabinet"
-        case .household:
+        }
+
+        if normalizedName.contains("home")
+            || normalizedName.contains("household") {
             return "house"
         }
+
+        return "cart"
     }
 
     var tone: StatusBadgeTone {
-        switch self {
-        case .produce:
+        let normalizedName = name.lowercased()
+
+        if normalizedName.contains("produce")
+            || normalizedName.contains("fruit")
+            || normalizedName.contains("vegetable") {
             return .success
-        case .dairy:
-            return .accent
-        case .pantry, .household:
-            return .neutral
         }
+
+        if normalizedName.contains("dairy")
+            || normalizedName.contains("frozen") {
+            return .accent
+        }
+
+        return .neutral
     }
 }
 
-#Preview {
+#Preview("Loaded") {
     NavigationStack {
-        ShoppingListMockupView()
+        ShoppingListContentView(
+            viewModel: ShoppingListViewModel {
+                ShoppingListResponse(
+                    ok: true,
+                    items: [
+                        ShoppingListItem(
+                            id: 1,
+                            name: "Whole milk",
+                            brand: "Horizon",
+                            quantity: 2,
+                            notes: "Half gallon",
+                            purchased: false,
+                            createdAt: "2026-06-22T12:00:00.000Z",
+                            updatedAt: "2026-06-22T12:30:00.000Z",
+                            storeIds: [1],
+                            categoryId: 2
+                        )
+                    ],
+                    stores: [
+                        ShoppingStore(id: 1, name: "Target", logo: "target")
+                    ],
+                    categories: [
+                        ShoppingCategory(id: 2, name: "Dairy")
+                    ],
+                    generatedAt: "2026-06-22T12:31:00.000Z"
+                )
+            }
+        )
+    }
+}
+
+#Preview("Empty") {
+    NavigationStack {
+        ShoppingListContentView(
+            viewModel: ShoppingListViewModel {
+                ShoppingListResponse(
+                    ok: true,
+                    items: [],
+                    stores: [],
+                    categories: [],
+                    generatedAt: "2026-06-22T12:31:00.000Z"
+                )
+            }
+        )
     }
 }

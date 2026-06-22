@@ -1,17 +1,31 @@
-require("dotenv").config();
+import { neon } from '@neondatabase/serverless';
 
-const http = require("http");
-const { neon } = require("@neondatabase/serverless");
+export type DatabaseQuery = <Row extends Record<string, unknown> = Record<string, unknown>>(
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+) => Promise<Row[]>;
 
-const sql = neon(process.env.DATABASE_URL);
+export class DatabaseConfigurationError extends Error {
+  constructor() {
+    super('DATABASE_URL is not configured for the API.');
+    this.name = 'DatabaseConfigurationError';
+  }
+}
 
-const requestHandler = async (_req: any, res: any) => {
-  const result = await sql`SELECT version()`;
-  const { version } = result[0];
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end(version);
-};
+let databaseClient: DatabaseQuery | undefined;
 
-http.createServer(requestHandler).listen(3000, () => {
-  console.log("Server running at http://localhost:3000");
-});
+export function getDatabaseClient(): DatabaseQuery {
+  const databaseURL = process.env.DATABASE_URL?.trim();
+
+  if (!databaseURL) {
+    throw new DatabaseConfigurationError();
+  }
+
+  databaseClient ??= neon(databaseURL) as DatabaseQuery;
+
+  return databaseClient;
+}
+
+export function resetDatabaseClientForTests(): void {
+  databaseClient = undefined;
+}

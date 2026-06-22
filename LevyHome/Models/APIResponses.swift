@@ -21,6 +21,38 @@ struct QuickActionResponse: Codable, Equatable {
     let result: QuickActionResult
 }
 
+struct ShoppingListResponse: Codable, Equatable {
+    let ok: Bool
+    let items: [ShoppingListItem]
+    let stores: [ShoppingStore]
+    let categories: [ShoppingCategory]
+    let generatedAt: String?
+}
+
+struct ShoppingListItem: Codable, Equatable, Identifiable {
+    let id: Int
+    let name: String
+    let brand: String?
+    let quantity: Int
+    let notes: String?
+    let purchased: Bool
+    let createdAt: String?
+    let updatedAt: String?
+    let storeIds: [Int]
+    let categoryId: Int?
+}
+
+struct ShoppingStore: Codable, Equatable, Hashable, Identifiable {
+    let id: Int
+    let name: String
+    let logo: String?
+}
+
+struct ShoppingCategory: Codable, Equatable, Hashable, Identifiable {
+    let id: Int
+    let name: String
+}
+
 struct NotificationPreferencesResponse: Codable, Equatable {
     let ok: Bool
     let preferences: [NotificationPreference]
