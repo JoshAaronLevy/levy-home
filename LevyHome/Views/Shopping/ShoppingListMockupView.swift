@@ -92,6 +92,10 @@ private extension ResidentIdentity {
 @MainActor
 final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListLoader = () async throws -> ShoppingListResponse
+    typealias ShoppingListLookup = (String) async throws -> ShoppingListItemLookupResponse
+    typealias ShoppingListCreator = (CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
+    typealias ShoppingListUpdater = (Int, UpdateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
+    typealias ShoppingListDeleter = (Int) async throws -> DeleteShoppingListItemResponse
 
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
@@ -101,8 +105,14 @@ final class ShoppingListViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
+    @Published private(set) var isCreatingItem = false
+    @Published private(set) var mutatingItemIDs: Set<Int> = []
 
     private let loadShoppingList: ShoppingListLoader
+    private let lookupShoppingListItem: ShoppingListLookup
+    private let createShoppingListItem: ShoppingListCreator
+    private let updateShoppingListItem: ShoppingListUpdater
+    private let deleteShoppingListItem: ShoppingListDeleter
     private let liveService: ShoppingListLiveServicing?
     private let currentViewerId: String?
     private var hasLoaded = false
@@ -152,10 +162,23 @@ final class ShoppingListViewModel: ObservableObject {
     ) {
         self.init(
             liveService: liveService,
-            currentViewerId: currentViewerId
-        ) {
-            try await apiClient.fetchShoppingList()
-        }
+            currentViewerId: currentViewerId,
+            loadShoppingList: {
+                try await apiClient.fetchShoppingList()
+            },
+            lookupShoppingListItem: { name in
+                try await apiClient.lookupShoppingListItem(named: name)
+            },
+            createShoppingListItem: { request in
+                try await apiClient.createShoppingListItem(request)
+            },
+            updateShoppingListItem: { itemId, request in
+                try await apiClient.updateShoppingListItem(id: itemId, request)
+            },
+            deleteShoppingListItem: { itemId in
+                try await apiClient.deleteShoppingListItem(id: itemId)
+            }
+        )
     }
 
     init(
@@ -163,7 +186,39 @@ final class ShoppingListViewModel: ObservableObject {
         currentViewerId: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader
     ) {
+        self.init(
+            liveService: liveService,
+            currentViewerId: currentViewerId,
+            loadShoppingList: loadShoppingList,
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in
+                throw APIError.transport("Shopping list creation is not configured.")
+            },
+            updateShoppingListItem: { _, _ in
+                throw APIError.transport("Shopping list updates are not configured.")
+            },
+            deleteShoppingListItem: { _ in
+                throw APIError.transport("Shopping list deletion is not configured.")
+            }
+        )
+    }
+
+    init(
+        liveService: ShoppingListLiveServicing? = nil,
+        currentViewerId: String? = nil,
+        loadShoppingList: @escaping ShoppingListLoader,
+        lookupShoppingListItem: @escaping ShoppingListLookup,
+        createShoppingListItem: @escaping ShoppingListCreator,
+        updateShoppingListItem: @escaping ShoppingListUpdater,
+        deleteShoppingListItem: @escaping ShoppingListDeleter
+    ) {
         self.loadShoppingList = loadShoppingList
+        self.lookupShoppingListItem = lookupShoppingListItem
+        self.createShoppingListItem = createShoppingListItem
+        self.updateShoppingListItem = updateShoppingListItem
+        self.deleteShoppingListItem = deleteShoppingListItem
         self.liveService = liveService
         self.currentViewerId = currentViewerId
     }
@@ -235,6 +290,97 @@ final class ShoppingListViewModel: ObservableObject {
             self.categories = categories
         case .unknown:
             return
+        }
+    }
+
+    func lookupDuplicate(named name: String) async throws -> ShoppingListItem? {
+        try await lookupShoppingListItem(name).match
+    }
+
+    func isMutatingItem(_ itemId: Int) -> Bool {
+        mutatingItemIDs.contains(itemId)
+    }
+
+    fileprivate func createItem(from draft: ShoppingItemDraft) async throws {
+        guard !isCreatingItem else {
+            return
+        }
+
+        isCreatingItem = true
+
+        defer {
+            isCreatingItem = false
+        }
+
+        do {
+            let response = try await createShoppingListItem(draft.createRequest())
+            applyCommittedItem(response.item)
+            generatedAt = response.generatedAt
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    fileprivate func updateItem(id itemId: Int, with draft: ShoppingItemDraft) async throws {
+        try await updateItem(id: itemId, request: draft.updateRequest())
+    }
+
+    fileprivate func addBackToNeeded(_ item: ShoppingListItem, from draft: ShoppingItemDraft) async throws {
+        try await updateItem(
+            id: item.id,
+            request: draft.addBackRequest()
+        )
+    }
+
+    func setPurchased(_ item: ShoppingListItem, purchased: Bool) async {
+        do {
+            try await updateItem(
+                id: item.id,
+                request: UpdateShoppingListItemRequest(purchased: purchased)
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func adjustQuantity(_ item: ShoppingListItem, by delta: Int) async {
+        let nextQuantity = max(1, item.quantity + delta)
+
+        guard nextQuantity != item.quantity else {
+            return
+        }
+
+        do {
+            try await updateItem(
+                id: item.id,
+                request: UpdateShoppingListItemRequest(quantity: nextQuantity)
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteItem(_ item: ShoppingListItem) async throws {
+        guard !mutatingItemIDs.contains(item.id) else {
+            return
+        }
+
+        mutatingItemIDs.insert(item.id)
+
+        defer {
+            mutatingItemIDs.remove(item.id)
+        }
+
+        do {
+            let response = try await deleteShoppingListItem(item.id)
+            items.removeAll { $0.id == response.itemId }
+            generatedAt = response.generatedAt
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
         }
     }
 
@@ -314,6 +460,28 @@ final class ShoppingListViewModel: ObservableObject {
         return incomingVersion >= existingVersion
     }
 
+    private func updateItem(id itemId: Int, request: UpdateShoppingListItemRequest) async throws {
+        guard !mutatingItemIDs.contains(itemId) else {
+            return
+        }
+
+        mutatingItemIDs.insert(itemId)
+
+        defer {
+            mutatingItemIDs.remove(itemId)
+        }
+
+        do {
+            let response = try await updateShoppingListItem(itemId, request)
+            applyCommittedItem(response.item)
+            generatedAt = response.generatedAt
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
     private static func deduplicatedViewers(
         _ viewers: [ShoppingListViewerPresence]
     ) -> [ShoppingListViewerPresence] {
@@ -352,10 +520,179 @@ final class ShoppingListViewModel: ObservableObject {
     }
 }
 
+fileprivate enum ShoppingItemEditorMode: Identifiable, Equatable {
+    case add
+    case edit(ShoppingListItem)
+
+    var id: String {
+        switch self {
+        case .add:
+            return "add"
+        case .edit(let item):
+            return "edit-\(item.id)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .add:
+            return "Add Item"
+        case .edit:
+            return "Edit Item"
+        }
+    }
+
+    var editingItemID: Int? {
+        switch self {
+        case .add:
+            return nil
+        case .edit(let item):
+            return item.id
+        }
+    }
+
+    var editingItem: ShoppingListItem? {
+        switch self {
+        case .add:
+            return nil
+        case .edit(let item):
+            return item
+        }
+    }
+}
+
+fileprivate struct ShoppingItemDraft: Equatable {
+    var name: String
+    var brand: String
+    var quantity: Int
+    var notes: String
+    var selectedCategoryId: Int?
+    var selectedStoreIds: Set<Int>
+    var purchased: Bool
+
+    init(
+        name: String = "",
+        brand: String = "",
+        quantity: Int = 1,
+        notes: String = "",
+        selectedCategoryId: Int? = nil,
+        selectedStoreIds: Set<Int> = [],
+        purchased: Bool = false
+    ) {
+        self.name = name
+        self.brand = brand
+        self.quantity = max(1, quantity)
+        self.notes = notes
+        self.selectedCategoryId = selectedCategoryId
+        self.selectedStoreIds = selectedStoreIds
+        self.purchased = purchased
+    }
+
+    init(item: ShoppingListItem) {
+        self.init(
+            name: item.name,
+            brand: item.brand ?? "",
+            quantity: item.quantity,
+            notes: item.notes ?? "",
+            selectedCategoryId: item.categoryId,
+            selectedStoreIds: Set(item.storeIds),
+            purchased: item.purchased
+        )
+    }
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var isValid: Bool {
+        !trimmedName.isEmpty
+    }
+
+    mutating func adjustQuantity(by delta: Int) {
+        quantity = max(1, quantity + delta)
+    }
+
+    func createRequest() -> CreateShoppingListItemRequest {
+        CreateShoppingListItemRequest(
+            name: trimmedName,
+            brand: normalizedOptionalText(brand),
+            quantity: quantity,
+            notes: normalizedOptionalText(notes),
+            purchased: purchased,
+            storeIds: sortedStoreIds,
+            categoryId: selectedCategoryId
+        )
+    }
+
+    func updateRequest() -> UpdateShoppingListItemRequest {
+        UpdateShoppingListItemRequest(
+            name: trimmedName,
+            brand: nullableString(brand),
+            quantity: quantity,
+            notes: nullableString(notes),
+            purchased: purchased,
+            storeIds: sortedStoreIds,
+            categoryId: nullableCategoryId
+        )
+    }
+
+    func addBackRequest() -> UpdateShoppingListItemRequest {
+        UpdateShoppingListItemRequest(
+            quantity: quantity,
+            notes: optionalNullableString(notes),
+            purchased: false,
+            storeIds: selectedStoreIds.isEmpty ? nil : sortedStoreIds,
+            categoryId: selectedCategoryId.map { .value($0) }
+        )
+    }
+
+    private var sortedStoreIds: [Int] {
+        selectedStoreIds.sorted()
+    }
+
+    private var nullableCategoryId: ShoppingListNullableValue<Int> {
+        selectedCategoryId.map { .value($0) } ?? .null
+    }
+
+    private func nullableString(_ value: String) -> ShoppingListNullableValue<String> {
+        normalizedOptionalText(value).map { .value($0) } ?? .null
+    }
+
+    private func optionalNullableString(_ value: String) -> ShoppingListNullableValue<String>? {
+        normalizedOptionalText(value).map { .value($0) }
+    }
+
+    private func normalizedOptionalText(_ value: String) -> String? {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedValue.isEmpty ? nil : trimmedValue
+    }
+}
+
+fileprivate enum ShoppingDuplicateStatus: Equatable {
+    case alreadyNeeded(ShoppingListItem)
+    case pickedUp(ShoppingListItem)
+
+    var item: ShoppingListItem {
+        switch self {
+        case .alreadyNeeded(let item), .pickedUp(let item):
+            return item
+        }
+    }
+}
+
+fileprivate func normalizedShoppingItemName(_ value: String) -> String {
+    value
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+}
+
 private struct ShoppingListContentView: View {
     @StateObject private var viewModel: ShoppingListViewModel
     @State private var searchText = ""
     @State private var selectedCategoryId: Int?
+    @State private var editorMode: ShoppingItemEditorMode?
+    @State private var pendingDeleteItem: ShoppingListItem?
 
     init(viewModel: ShoppingListViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -379,6 +716,48 @@ private struct ShoppingListContentView: View {
         }
         .refreshable {
             await viewModel.refresh()
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    editorMode = .add
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Add shopping item")
+            }
+        }
+        .sheet(item: $editorMode) { mode in
+            ShoppingItemEditorSheet(
+                mode: mode,
+                viewModel: viewModel
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert(
+            "Delete Item?",
+            isPresented: Binding(
+                get: { pendingDeleteItem != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteItem = nil
+                    }
+                }
+            ),
+            presenting: pendingDeleteItem
+        ) { item in
+            Button("Delete", role: .destructive) {
+                Task {
+                    await delete(item)
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingDeleteItem = nil
+            }
+        } message: { item in
+            Text("Remove \(item.name) from the shared shopping list.")
         }
     }
 
@@ -411,7 +790,26 @@ private struct ShoppingListContentView: View {
             emptyState
         } else {
             ForEach(groupedItems) { group in
-                ShoppingCategorySection(group: group)
+                ShoppingCategorySection(
+                    group: group,
+                    mutatingItemIDs: viewModel.mutatingItemIDs,
+                    onTogglePurchased: { item in
+                        Task {
+                            await viewModel.setPurchased(item, purchased: !item.purchased)
+                        }
+                    },
+                    onAdjustQuantity: { item, delta in
+                        Task {
+                            await viewModel.adjustQuantity(item, by: delta)
+                        }
+                    },
+                    onEdit: { item in
+                        editorMode = .edit(item)
+                    },
+                    onDelete: { item in
+                        pendingDeleteItem = item
+                    }
+                )
             }
         }
     }
@@ -559,6 +957,18 @@ private struct ShoppingListContentView: View {
     }
 
     private static let uncategorizedCategory = ShoppingCategory(id: 0, name: "Other")
+
+    private func delete(_ item: ShoppingListItem) async {
+        defer {
+            pendingDeleteItem = nil
+        }
+
+        do {
+            try await viewModel.deleteItem(item)
+        } catch {
+            // The view model surfaces mutation failures in the existing error banner.
+        }
+    }
 }
 
 private struct ShoppingListSearchField: View {
@@ -645,13 +1055,563 @@ private struct ShoppingCategoryFilterBar: View {
 
                 Text("\(count)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isSelected ? .white.opacity(0.86) : AppColors.mutedText)
+                    .foregroundStyle(isSelected ? Color.white.opacity(0.86) : AppColors.mutedText)
             }
             .lineLimit(1)
             .padding(.horizontal, AppSpacing.medium)
             .frame(height: 36)
-            .foregroundStyle(isSelected ? .white : AppColors.accent)
+            .foregroundStyle(isSelected ? Color.white : AppColors.accent)
             .background(isSelected ? AppColors.accent : AppColors.accentSoft)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ShoppingItemEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let mode: ShoppingItemEditorMode
+    @ObservedObject var viewModel: ShoppingListViewModel
+    @State private var draft: ShoppingItemDraft
+    @State private var serverDuplicate: ShoppingListItem?
+    @State private var isCheckingDuplicate = false
+    @State private var didFailDuplicateLookup = false
+    @State private var formErrorMessage: String?
+    @State private var isSubmitting = false
+    @State private var isAddingBack = false
+    @State private var pendingDeleteItem: ShoppingListItem?
+
+    init(mode: ShoppingItemEditorMode, viewModel: ShoppingListViewModel) {
+        self.mode = mode
+        self.viewModel = viewModel
+        _draft = State(initialValue: mode.editingItem.map(ShoppingItemDraft.init) ?? ShoppingItemDraft())
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    nameField
+
+                    duplicateStatusView
+
+                    quantityControl
+
+                    categoryPicker
+
+                    storePicker
+
+                    brandField
+
+                    notesField
+
+                    if let formErrorMessage {
+                        ErrorBannerView(message: formErrorMessage)
+                    }
+
+                    PrimaryActionButton(
+                        title: primaryButtonTitle,
+                        systemImage: mode.editingItem == nil ? "plus" : "checkmark",
+                        isLoading: isSubmitting,
+                        isDisabled: isPrimaryDisabled
+                    ) {
+                        Task {
+                            await submit()
+                        }
+                    }
+
+                    if let editingItem = mode.editingItem {
+                        Button(role: .destructive) {
+                            pendingDeleteItem = editingItem
+                        } label: {
+                            Label("Delete Item", systemImage: "trash")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(isEditingItemMutating)
+                    }
+                }
+                .padding(AppSpacing.screen)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle(mode.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .task(id: duplicateLookupKey) {
+                await updateServerDuplicate(for: duplicateLookupKey)
+            }
+            .alert(
+                "Delete Item?",
+                isPresented: Binding(
+                    get: { pendingDeleteItem != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            pendingDeleteItem = nil
+                        }
+                    }
+                ),
+                presenting: pendingDeleteItem
+            ) { item in
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await delete(item)
+                    }
+                }
+
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteItem = nil
+                }
+            } message: { item in
+                Text("Remove \(item.name) from the shared shopping list.")
+            }
+        }
+    }
+
+    private var nameField: some View {
+        ShoppingFormSection(title: "What do we need?") {
+            HStack(spacing: AppSpacing.medium) {
+                TextField("Item name", text: $draft.name)
+                    .font(.title2.weight(.semibold))
+                    .submitLabel(.next)
+                    .textInputAutocapitalization(.words)
+
+                if !draft.name.isEmpty {
+                    Button {
+                        draft.name = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+                    .accessibilityLabel("Clear item name")
+                }
+            }
+            .padding(AppSpacing.medium)
+            .background(AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                    .stroke(AppColors.accent, lineWidth: 1.5)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var duplicateStatusView: some View {
+        if let duplicateStatus {
+            switch duplicateStatus {
+            case .alreadyNeeded(let item):
+                ErrorBannerView(
+                    message: "Already on the list: \(duplicateSummary(for: item))",
+                    tone: .warning
+                )
+            case .pickedUp(let item):
+                VStack(alignment: .leading, spacing: AppSpacing.small) {
+                    ErrorBannerView(
+                        message: "Picked up before: \(duplicateSummary(for: item))",
+                        tone: .info
+                    )
+
+                    Button {
+                        Task {
+                            await addBackToNeeded(item)
+                        }
+                    } label: {
+                        Label("Add Back to Needed", systemImage: "arrow.uturn.left")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isAddingBack || isSubmitting || viewModel.isMutatingItem(item.id))
+                }
+            }
+        } else if isCheckingDuplicate {
+            Label("Checking duplicates", systemImage: "magnifyingglass")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.mutedText)
+        } else if didFailDuplicateLookup {
+            ErrorBannerView(
+                message: "Could not verify duplicates. The final save will still use the server check.",
+                tone: .warning
+            )
+        }
+    }
+
+    private var quantityControl: some View {
+        ShoppingFormSection(title: "Quantity") {
+            HStack(spacing: AppSpacing.medium) {
+                Button {
+                    draft.adjustQuantity(by: -1)
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.headline.weight(.semibold))
+                        .frame(width: 54, height: 44)
+                }
+                .disabled(draft.quantity <= 1)
+
+                Spacer()
+
+                Text("Qty \(draft.quantity)")
+                    .font(.headline)
+                    .monospacedDigit()
+
+                Spacer()
+
+                Button {
+                    draft.adjustQuantity(by: 1)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline.weight(.semibold))
+                        .frame(width: 54, height: 44)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, AppSpacing.medium)
+            .frame(height: 54)
+            .foregroundStyle(AppColors.accent)
+            .background(AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                    .stroke(AppColors.panelBorder, lineWidth: 1)
+            }
+        }
+    }
+
+    private var categoryPicker: some View {
+        ShoppingFormSection(title: "Category") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AppSpacing.small) {
+                    ShoppingChoiceChip(
+                        title: "None",
+                        systemImage: "xmark.circle",
+                        isSelected: draft.selectedCategoryId == nil
+                    ) {
+                        draft.selectedCategoryId = nil
+                    }
+
+                    ForEach(viewModel.categories) { category in
+                        ShoppingChoiceChip(
+                            title: category.name,
+                            systemImage: category.systemImage,
+                            isSelected: draft.selectedCategoryId == category.id
+                        ) {
+                            draft.selectedCategoryId = category.id
+                        }
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+        }
+    }
+
+    private var storePicker: some View {
+        ShoppingFormSection(title: "Store") {
+            if viewModel.stores.isEmpty {
+                Text("No stores available")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.mutedText)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppSpacing.small) {
+                        ForEach(viewModel.stores) { store in
+                            ShoppingChoiceChip(
+                                title: store.name,
+                                systemImage: "mappin.circle",
+                                isSelected: draft.selectedStoreIds.contains(store.id)
+                            ) {
+                                toggleStore(store)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 1)
+                }
+            }
+        }
+    }
+
+    private var brandField: some View {
+        ShoppingFormSection(title: "Brand") {
+            TextField("Brand, optional", text: $draft.brand)
+                .textInputAutocapitalization(.words)
+                .padding(AppSpacing.medium)
+                .background(AppColors.insetPanelBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                        .stroke(AppColors.panelBorder, lineWidth: 1)
+                }
+        }
+    }
+
+    private var notesField: some View {
+        ShoppingFormSection(title: "Notes") {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                Image(systemName: "pencil")
+                    .font(.headline)
+                    .foregroundStyle(AppColors.mutedText)
+                    .frame(width: 24)
+
+                TextField("Notes, optional", text: $draft.notes, axis: .vertical)
+                    .lineLimit(2...4)
+                    .textInputAutocapitalization(.sentences)
+            }
+            .padding(AppSpacing.medium)
+            .background(AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                    .stroke(AppColors.panelBorder, lineWidth: 1)
+            }
+        }
+    }
+
+    private var primaryButtonTitle: String {
+        switch mode {
+        case .add:
+            let name = draft.trimmedName
+            return name.isEmpty ? "Add Item" : "Add \(name)"
+        case .edit:
+            return "Save Changes"
+        }
+    }
+
+    private var isPrimaryDisabled: Bool {
+        !draft.isValid
+            || isSubmitting
+            || isAddingBack
+            || viewModel.isCreatingItem
+            || isEditingItemMutating
+            || duplicateStatus != nil
+    }
+
+    private var isEditingItemMutating: Bool {
+        guard let editingItemID = mode.editingItemID else {
+            return false
+        }
+
+        return viewModel.isMutatingItem(editingItemID)
+    }
+
+    private func duplicateSummary(for item: ShoppingListItem) -> String {
+        var details = [
+            item.name,
+            "Qty \(item.quantity)",
+        ]
+
+        if let categoryName = categoryName(for: item) {
+            details.append(categoryName)
+        }
+
+        return details.joined(separator: " - ")
+    }
+
+    private func categoryName(for item: ShoppingListItem) -> String? {
+        guard let categoryId = item.categoryId else {
+            return nil
+        }
+
+        return viewModel.categories.first { $0.id == categoryId }?.name ?? "Category \(categoryId)"
+    }
+
+    private var duplicateLookupKey: String {
+        normalizedShoppingItemName(draft.name)
+    }
+
+    private var duplicateStatus: ShoppingDuplicateStatus? {
+        guard let duplicateItem = localDuplicate ?? filteredServerDuplicate else {
+            return nil
+        }
+
+        return duplicateItem.purchased ? .pickedUp(duplicateItem) : .alreadyNeeded(duplicateItem)
+    }
+
+    private var localDuplicate: ShoppingListItem? {
+        let normalizedName = duplicateLookupKey
+
+        guard !normalizedName.isEmpty else {
+            return nil
+        }
+
+        return viewModel.items.first { item in
+            item.id != mode.editingItemID
+                && normalizedShoppingItemName(item.name) == normalizedName
+        }
+    }
+
+    private var filteredServerDuplicate: ShoppingListItem? {
+        guard serverDuplicate?.id != mode.editingItemID else {
+            return nil
+        }
+
+        return serverDuplicate
+    }
+
+    private func updateServerDuplicate(for lookupKey: String) async {
+        serverDuplicate = nil
+        didFailDuplicateLookup = false
+
+        guard !lookupKey.isEmpty else {
+            return
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: 300_000_000)
+        } catch {
+            return
+        }
+
+        guard !Task.isCancelled else {
+            return
+        }
+
+        isCheckingDuplicate = true
+
+        defer {
+            isCheckingDuplicate = false
+        }
+
+        do {
+            let match = try await viewModel.lookupDuplicate(named: draft.trimmedName)
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            serverDuplicate = match
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else {
+                return
+            }
+
+            didFailDuplicateLookup = true
+        }
+    }
+
+    private func submit() async {
+        guard !isPrimaryDisabled else {
+            return
+        }
+
+        isSubmitting = true
+        formErrorMessage = nil
+
+        defer {
+            isSubmitting = false
+        }
+
+        do {
+            switch mode {
+            case .add:
+                try await viewModel.createItem(from: draft)
+            case .edit(let item):
+                try await viewModel.updateItem(id: item.id, with: draft)
+            }
+
+            dismiss()
+        } catch {
+            formErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func addBackToNeeded(_ item: ShoppingListItem) async {
+        guard !isAddingBack, !viewModel.isMutatingItem(item.id) else {
+            return
+        }
+
+        isAddingBack = true
+        formErrorMessage = nil
+
+        defer {
+            isAddingBack = false
+        }
+
+        do {
+            try await viewModel.addBackToNeeded(item, from: draft)
+            dismiss()
+        } catch {
+            formErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func delete(_ item: ShoppingListItem) async {
+        guard !viewModel.isMutatingItem(item.id) else {
+            pendingDeleteItem = nil
+            return
+        }
+
+        defer {
+            pendingDeleteItem = nil
+        }
+
+        do {
+            try await viewModel.deleteItem(item)
+            dismiss()
+        } catch {
+            formErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func toggleStore(_ store: ShoppingStore) {
+        if draft.selectedStoreIds.contains(store.id) {
+            draft.selectedStoreIds.remove(store.id)
+        } else {
+            draft.selectedStoreIds.insert(store.id)
+        }
+    }
+}
+
+private struct ShoppingFormSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            Text(title)
+                .font(.headline)
+
+            content
+        }
+    }
+}
+
+private struct ShoppingChoiceChip: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AppSpacing.xSmall) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, AppSpacing.medium)
+            .frame(height: 42)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .background(isSelected ? AppColors.accent : Color(uiColor: .tertiarySystemFill))
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -660,6 +1620,11 @@ private struct ShoppingCategoryFilterBar: View {
 
 private struct ShoppingCategorySection: View {
     let group: ShoppingCategoryGroup
+    let mutatingItemIDs: Set<Int>
+    let onTogglePurchased: (ShoppingListItem) -> Void
+    let onAdjustQuantity: (ShoppingListItem, Int) -> Void
+    let onEdit: (ShoppingListItem) -> Void
+    let onDelete: (ShoppingListItem) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -688,7 +1653,25 @@ private struct ShoppingCategorySection: View {
                 .padding(.leading, AppSpacing.large)
 
             ForEach(group.items) { item in
-                ShoppingItemRow(displayItem: item)
+                ShoppingItemRow(
+                    displayItem: item,
+                    isMutating: mutatingItemIDs.contains(item.item.id),
+                    onTogglePurchased: {
+                        onTogglePurchased(item.item)
+                    },
+                    onIncrementQuantity: {
+                        onAdjustQuantity(item.item, 1)
+                    },
+                    onDecrementQuantity: {
+                        onAdjustQuantity(item.item, -1)
+                    },
+                    onEdit: {
+                        onEdit(item.item)
+                    },
+                    onDelete: {
+                        onDelete(item.item)
+                    }
+                )
 
                 if item.id != group.items.last?.id {
                     Divider()
@@ -707,14 +1690,24 @@ private struct ShoppingCategorySection: View {
 
 private struct ShoppingItemRow: View {
     let displayItem: ShoppingListDisplayItem
+    let isMutating: Bool
+    let onTogglePurchased: () -> Void
+    let onIncrementQuantity: () -> Void
+    let onDecrementQuantity: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.medium) {
-            Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.mutedText)
-                .frame(width: 30, height: 30)
-                .accessibilityHidden(true)
+            Button(action: onTogglePurchased) {
+                Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.accent)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+            .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
 
             VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
                 Text(displayItem.item.name)
@@ -750,32 +1743,90 @@ private struct ShoppingItemRow: View {
 
             Spacer(minLength: AppSpacing.small)
 
-            QuantityBadge(quantity: displayItem.item.quantity)
+            VStack(alignment: .trailing, spacing: AppSpacing.small) {
+                RowQuantityStepper(
+                    quantity: displayItem.item.quantity,
+                    isDisabled: isMutating,
+                    onDecrement: onDecrementQuantity,
+                    onIncrement: onIncrementQuantity
+                )
+
+                if isMutating {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+                }
+            }
         }
         .padding(AppSpacing.medium)
         .opacity(displayItem.item.purchased ? 0.72 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(displayItem.accessibilityLabel)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+
+            Button(action: onEdit) {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(AppColors.accent)
+        }
+        .contextMenu {
+            Button(action: onEdit) {
+                Label("Edit", systemImage: "pencil")
+            }
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 }
 
-private struct QuantityBadge: View {
+private struct RowQuantityStepper: View {
     let quantity: Int
+    let isDisabled: Bool
+    let onDecrement: () -> Void
+    let onIncrement: () -> Void
 
     var body: some View {
-        Text("Qty \(quantity)")
-            .font(.subheadline.weight(.semibold))
-            .monospacedDigit()
-            .lineLimit(1)
-            .padding(.horizontal, AppSpacing.small)
-            .frame(height: 32)
-            .foregroundStyle(AppColors.accent)
-            .background(AppColors.accentSoft)
-            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
-                    .stroke(AppColors.panelBorder, lineWidth: 1)
+        HStack(spacing: AppSpacing.xSmall) {
+            Button(action: onDecrement) {
+                Image(systemName: "minus")
+                    .font(.caption.weight(.bold))
+                    .frame(width: 26, height: 28)
             }
+            .disabled(isDisabled || quantity <= 1)
+
+            Text("Qty \(quantity)")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .frame(minWidth: 48)
+
+            Button(action: onIncrement) {
+                Image(systemName: "plus")
+                    .font(.caption.weight(.bold))
+                    .frame(width: 26, height: 28)
+            }
+            .disabled(isDisabled)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isDisabled ? AppColors.mutedText : AppColors.accent)
+        .padding(.horizontal, AppSpacing.xSmall)
+        .frame(height: 32)
+        .background(AppColors.accentSoft)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
     }
 }
 
