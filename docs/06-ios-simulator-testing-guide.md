@@ -334,6 +334,8 @@ scripts/verify-home-assistant-activity-simulator.sh
 
 That Phase 7 runner starts a known local API process with activity ingestion enabled, waits for a `phone_state_changed` record in `/api/events`, then builds, installs, and launches the simulator app with `LEVY_HOME_API_BASE_URL=http://localhost:4000`.
 
+For shopping list CRUD plus WebSocket local verification, see `docs/09-shopping-list-realtime-local-verification.md`. That Stage 10 guide covers the local API, `scripts/shopping-list-live-client.mjs`, one-simulator and two-simulator proof paths, REST mutation broadcasts, presence, and duplicate-entry UI checks.
+
 ## Stage-By-Stage Manual Testing Pattern
 
 For each implementation stage:

@@ -598,6 +598,11 @@ Acceptance criteria:
 
 Objective: document how Josh can personally prove the real family scenario before deploying. Codex should not run this stage automatically during implementation.
 
+Implemented artifacts:
+
+- `docs/09-shopping-list-realtime-local-verification.md`
+- `scripts/shopping-list-live-client.mjs`
+
 Local proof setup:
 
 - Start local API with `DATABASE_URL`.
