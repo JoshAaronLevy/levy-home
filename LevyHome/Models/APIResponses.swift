@@ -38,8 +38,56 @@ struct ShoppingListItem: Codable, Equatable, Identifiable {
     let purchased: Bool
     let createdAt: String?
     let updatedAt: String?
+    let version: Int?
     let storeIds: [Int]
     let categoryId: Int?
+
+    init(
+        id: Int,
+        name: String,
+        brand: String?,
+        quantity: Int,
+        notes: String?,
+        purchased: Bool,
+        createdAt: String?,
+        updatedAt: String?,
+        version: Int? = nil,
+        storeIds: [Int],
+        categoryId: Int?
+    ) {
+        self.id = id
+        self.name = name
+        self.brand = brand
+        self.quantity = quantity
+        self.notes = notes
+        self.purchased = purchased
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.version = version
+        self.storeIds = storeIds
+        self.categoryId = categoryId
+    }
+}
+
+struct ShoppingListItemLookupResponse: Codable, Equatable {
+    let ok: Bool
+    let query: String
+    let match: ShoppingListItem?
+}
+
+struct ShoppingListMutationResponse: Codable, Equatable {
+    let ok: Bool
+    let item: ShoppingListItem
+    let mutationId: String
+    let generatedAt: String?
+}
+
+struct DeleteShoppingListItemResponse: Codable, Equatable {
+    let ok: Bool
+    let itemId: Int
+    let item: ShoppingListItem
+    let mutationId: String
+    let generatedAt: String?
 }
 
 struct ShoppingStore: Codable, Equatable, Hashable, Identifiable {

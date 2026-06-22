@@ -3,6 +3,8 @@ import Foundation
 final class APIClient {
     private enum HTTPMethod: String {
         case get = "GET"
+        case delete = "DELETE"
+        case patch = "PATCH"
         case post = "POST"
         case put = "PUT"
     }
@@ -61,6 +63,46 @@ final class APIClient {
         try await send(path: "/api/shopping-list")
     }
 
+    func lookupShoppingListItem(named name: String) async throws -> ShoppingListItemLookupResponse {
+        try await send(
+            path: "/api/shopping-list/items/lookup",
+            queryItems: [
+                URLQueryItem(name: "name", value: name)
+            ]
+        )
+    }
+
+    func createShoppingListItem(_ request: CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse {
+        try await send(
+            path: "/api/shopping-list/items",
+            method: .post,
+            body: request,
+            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
+        )
+    }
+
+    func updateShoppingListItem(
+        id itemId: Int,
+        _ request: UpdateShoppingListItemRequest
+    ) async throws -> ShoppingListMutationResponse {
+        try await send(
+            path: "/api/shopping-list/items/\(itemId)",
+            method: .patch,
+            body: request,
+            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
+        )
+    }
+
+    func deleteShoppingListItem(id itemId: Int) async throws -> DeleteShoppingListItemResponse {
+        let mutationId = UUID().uuidString
+
+        return try await send(
+            path: "/api/shopping-list/items/\(itemId)",
+            method: .delete,
+            additionalHeaders: Self.mutationHeaders(for: mutationId)
+        )
+    }
+
     func fetchNotificationPreferences() async throws -> NotificationPreferencesResponse {
         try await send(path: "/api/notification-preferences")
     }
@@ -90,16 +132,24 @@ final class APIClient {
     private func send<Response: Decodable>(
         path: String,
         method: HTTPMethod = .get,
-        queryItems: [URLQueryItem] = []
+        queryItems: [URLQueryItem] = [],
+        additionalHeaders: [String: String] = [:]
     ) async throws -> Response {
-        try await send(path: path, method: method, queryItems: queryItems, bodyData: nil)
+        try await send(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            bodyData: nil,
+            additionalHeaders: additionalHeaders
+        )
     }
 
     private func send<Response: Decodable, Body: Encodable>(
         path: String,
         method: HTTPMethod,
         queryItems: [URLQueryItem] = [],
-        body: Body
+        body: Body,
+        additionalHeaders: [String: String] = [:]
     ) async throws -> Response {
         let bodyData: Data
 
@@ -115,14 +165,21 @@ final class APIClient {
             throw APIError.decoding(error.localizedDescription)
         }
 
-        return try await send(path: path, method: method, queryItems: queryItems, bodyData: bodyData)
+        return try await send(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            bodyData: bodyData,
+            additionalHeaders: additionalHeaders
+        )
     }
 
     private func send<Response: Decodable>(
         path: String,
         method: HTTPMethod,
         queryItems: [URLQueryItem],
-        bodyData: Data?
+        bodyData: Data?,
+        additionalHeaders: [String: String]
     ) async throws -> Response {
         let url: URL
 
@@ -151,6 +208,9 @@ final class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        additionalHeaders.forEach { field, value in
+            request.setValue(value, forHTTPHeaderField: field)
+        }
 
         if let bodyData {
             request.httpBody = bodyData
@@ -257,11 +317,17 @@ protocol DeviceRegistrationServicing {
 extension APIClient: DeviceRegistrationServicing {}
 
 private extension APIClient {
+    static let mutationIDHeader = "X-Levy-Home-Mutation-ID"
+
     static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    static func mutationHeaders(for mutationId: String) -> [String: String] {
+        [mutationIDHeader: mutationId]
+    }
 
     static func displayPath(for url: URL) -> String {
         if let query = url.query, !query.isEmpty {

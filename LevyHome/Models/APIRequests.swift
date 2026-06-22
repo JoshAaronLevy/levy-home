@@ -4,6 +4,83 @@ struct FetchEventsRequest: Encodable, Equatable {
     let limit: Int?
 }
 
+enum ShoppingListNullableValue<Value: Encodable & Equatable>: Encodable, Equatable {
+    case value(Value)
+    case null
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .value(let value):
+            try value.encode(to: encoder)
+        case .null:
+            var container = encoder.singleValueContainer()
+            try container.encodeNil()
+        }
+    }
+}
+
+struct CreateShoppingListItemRequest: Encodable, Equatable {
+    let name: String
+    let brand: String?
+    let quantity: Int?
+    let notes: String?
+    let purchased: Bool?
+    let storeIds: [Int]?
+    let categoryId: Int?
+    let mutationId: String
+
+    init(
+        name: String,
+        brand: String? = nil,
+        quantity: Int? = nil,
+        notes: String? = nil,
+        purchased: Bool? = nil,
+        storeIds: [Int]? = nil,
+        categoryId: Int? = nil,
+        mutationId: String = UUID().uuidString
+    ) {
+        self.name = name
+        self.brand = brand
+        self.quantity = quantity
+        self.notes = notes
+        self.purchased = purchased
+        self.storeIds = storeIds
+        self.categoryId = categoryId
+        self.mutationId = mutationId
+    }
+}
+
+struct UpdateShoppingListItemRequest: Encodable, Equatable {
+    let name: String?
+    let brand: ShoppingListNullableValue<String>?
+    let quantity: Int?
+    let notes: ShoppingListNullableValue<String>?
+    let purchased: Bool?
+    let storeIds: [Int]?
+    let categoryId: ShoppingListNullableValue<Int>?
+    let mutationId: String
+
+    init(
+        name: String? = nil,
+        brand: ShoppingListNullableValue<String>? = nil,
+        quantity: Int? = nil,
+        notes: ShoppingListNullableValue<String>? = nil,
+        purchased: Bool? = nil,
+        storeIds: [Int]? = nil,
+        categoryId: ShoppingListNullableValue<Int>? = nil,
+        mutationId: String = UUID().uuidString
+    ) {
+        self.name = name
+        self.brand = brand
+        self.quantity = quantity
+        self.notes = notes
+        self.purchased = purchased
+        self.storeIds = storeIds
+        self.categoryId = categoryId
+        self.mutationId = mutationId
+    }
+}
+
 enum QuickActionRequest: Encodable, Equatable {
     case openGarage
     case closeGarage
