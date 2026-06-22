@@ -1,59 +1,205 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ShoppingListMockupView: View {
     @Environment(\.appEnvironment) private var appEnvironment
 
     var body: some View {
+        let viewerIdentity = ShoppingListViewerIdentity.defaultDevice()
+
         ShoppingListContentView(
-            viewModel: ShoppingListViewModel(apiClient: appEnvironment.apiClient)
+            viewModel: ShoppingListViewModel(
+                apiClient: appEnvironment.apiClient,
+                liveService: ShoppingListLiveService(
+                    baseURL: appEnvironment.config.apiBaseURL,
+                    viewerIdentity: viewerIdentity,
+                    appLogStore: appEnvironment.appLogStore
+                ),
+                currentViewerId: viewerIdentity.viewerId
+            )
         )
     }
 }
 
+private extension ShoppingListViewerIdentity {
+    static func defaultDevice(userDefaults: UserDefaults = .standard) -> ShoppingListViewerIdentity {
+        let deviceName = currentDeviceName
+
+        return ShoppingListViewerIdentity(
+            viewerId: stableViewerId(userDefaults: userDefaults),
+            displayName: deviceName ?? "This device",
+            deviceName: deviceName
+        )
+    }
+
+    private static func stableViewerId(userDefaults: UserDefaults) -> String {
+        let key = "shoppingList.viewerId"
+
+        if let existingId = userDefaults.string(forKey: key), !existingId.isEmpty {
+            return existingId
+        }
+
+        let newId = "ios-\(UUID().uuidString.lowercased())"
+        userDefaults.set(newId, forKey: key)
+        return newId
+    }
+
+    private static var currentDeviceName: String? {
+        #if canImport(UIKit)
+        let name = UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
+        #else
+        return nil
+        #endif
+    }
+}
+
 @MainActor
-private final class ShoppingListViewModel: ObservableObject {
+final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListLoader = () async throws -> ShoppingListResponse
 
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
     @Published private(set) var categories: [ShoppingCategory] = []
+    @Published private(set) var activeViewers: [ShoppingListViewerPresence] = []
     @Published private(set) var generatedAt: String?
     @Published private(set) var errorMessage: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
 
     private let loadShoppingList: ShoppingListLoader
+    private let liveService: ShoppingListLiveServicing?
+    private let currentViewerId: String?
     private var hasLoaded = false
+    private var isSyncingLiveSnapshot = false
+    private var liveUpdatesTask: Task<Void, Never>?
 
     var isEmpty: Bool {
         hasLoaded && items.isEmpty && errorMessage == nil && !isLoading
     }
 
-    convenience init(apiClient: APIClient) {
-        self.init {
+    var otherActiveViewers: [ShoppingListViewerPresence] {
+        activeViewers.filter { viewer in
+            currentViewerId == nil || viewer.viewerId != currentViewerId
+        }
+    }
+
+    var otherActiveViewerLabel: String? {
+        let names = otherActiveViewers
+            .map(\.displayName)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !names.isEmpty else {
+            return nil
+        }
+
+        if names.count == 1 {
+            let name = names[0]
+            return name.count <= 12 ? "\(name) viewing" : "Someone viewing"
+        }
+
+        return "\(names.count) viewing"
+    }
+
+    convenience init(
+        apiClient: APIClient,
+        liveService: ShoppingListLiveServicing? = nil,
+        currentViewerId: String? = nil
+    ) {
+        self.init(
+            liveService: liveService,
+            currentViewerId: currentViewerId
+        ) {
             try await apiClient.fetchShoppingList()
         }
     }
 
-    init(loadShoppingList: @escaping ShoppingListLoader) {
+    init(
+        liveService: ShoppingListLiveServicing? = nil,
+        currentViewerId: String? = nil,
+        loadShoppingList: @escaping ShoppingListLoader
+    ) {
         self.loadShoppingList = loadShoppingList
+        self.liveService = liveService
+        self.currentViewerId = currentViewerId
+    }
+
+    deinit {
+        liveUpdatesTask?.cancel()
+        liveService?.disconnect()
     }
 
     func loadIfNeeded() async {
         guard !hasLoaded else {
+            startLiveUpdatesIfNeeded()
             return
         }
 
-        await load(isRefresh: false)
+        let didLoad = await load(isRefresh: false)
+
+        if didLoad {
+            startLiveUpdatesIfNeeded()
+        }
     }
 
     func refresh() async {
-        await load(isRefresh: true)
+        let didLoad = await load(isRefresh: true)
+
+        if didLoad {
+            startLiveUpdatesIfNeeded()
+        }
     }
 
-    private func load(isRefresh: Bool) async {
-        guard !isLoading, !isRefreshing else {
+    func startLiveUpdatesIfNeeded() {
+        guard liveUpdatesTask == nil, let liveService else {
             return
+        }
+
+        liveUpdatesTask = Task { [weak self] in
+            for await message in liveService.messages() {
+                guard !Task.isCancelled else {
+                    break
+                }
+
+                await self?.applyLiveMessage(message)
+            }
+        }
+    }
+
+    func stopLiveUpdates() {
+        liveUpdatesTask?.cancel()
+        liveUpdatesTask = nil
+        liveService?.disconnect()
+    }
+
+    func applyLiveMessage(_ message: ShoppingListLiveMessage) async {
+        switch message {
+        case .hello:
+            return
+        case .presenceChanged(let viewers, _):
+            activeViewers = Self.deduplicatedViewers(viewers)
+        case .snapshotRequired:
+            await refreshFromLiveSnapshot()
+        case .itemCreated(let item, _, _), .itemUpdated(let item, _, _):
+            applyCommittedItem(item)
+        case .itemDeleted(let itemId, _, _):
+            items.removeAll { $0.id == itemId }
+        case .storesChanged(let stores, _, _):
+            self.stores = stores
+        case .categoriesChanged(let categories, _, _):
+            self.categories = categories
+        case .unknown:
+            return
+        }
+    }
+
+    @discardableResult
+    private func load(isRefresh: Bool) async -> Bool {
+        guard !isLoading, !isRefreshing else {
+            return false
         }
 
         if isRefresh {
@@ -69,15 +215,79 @@ private final class ShoppingListViewModel: ObservableObject {
 
         do {
             let response = try await loadShoppingList()
-            items = response.items
-            stores = response.stores
-            categories = response.categories
-            generatedAt = response.generatedAt
+            applySnapshot(response)
             errorMessage = nil
-            hasLoaded = true
+            return true
         } catch {
             errorMessage = error.localizedDescription
             hasLoaded = true
+            return false
+        }
+    }
+
+    private func refreshFromLiveSnapshot() async {
+        guard !isLoading, !isRefreshing, !isSyncingLiveSnapshot else {
+            return
+        }
+
+        isSyncingLiveSnapshot = true
+
+        defer {
+            isSyncingLiveSnapshot = false
+        }
+
+        do {
+            applySnapshot(try await loadShoppingList())
+            errorMessage = nil
+        } catch {
+            // Keep the last confirmed snapshot visible. Pull-to-refresh remains the fallback.
+        }
+    }
+
+    private func applySnapshot(_ response: ShoppingListResponse) {
+        items = response.items
+        stores = response.stores
+        categories = response.categories
+        generatedAt = response.generatedAt
+        hasLoaded = true
+    }
+
+    private func applyCommittedItem(_ item: ShoppingListItem) {
+        if let existingIndex = items.firstIndex(where: { $0.id == item.id }) {
+            guard shouldReplace(existing: items[existingIndex], with: item) else {
+                return
+            }
+
+            items[existingIndex] = item
+        } else {
+            items.append(item)
+        }
+    }
+
+    private func shouldReplace(existing: ShoppingListItem, with incoming: ShoppingListItem) -> Bool {
+        guard let existingVersion = existing.version, let incomingVersion = incoming.version else {
+            return true
+        }
+
+        return incomingVersion >= existingVersion
+    }
+
+    private static func deduplicatedViewers(
+        _ viewers: [ShoppingListViewerPresence]
+    ) -> [ShoppingListViewerPresence] {
+        var viewersById: [String: ShoppingListViewerPresence] = [:]
+
+        for viewer in viewers {
+            if let existingViewer = viewersById[viewer.viewerId],
+               existingViewer.lastSeenAt >= viewer.lastSeenAt {
+                continue
+            }
+
+            viewersById[viewer.viewerId] = viewer
+        }
+
+        return viewersById.values.sorted { first, second in
+            first.displayName.localizedCaseInsensitiveCompare(second.displayName) == .orderedAscending
         }
     }
 }
@@ -85,7 +295,7 @@ private final class ShoppingListViewModel: ObservableObject {
 private struct ShoppingListContentView: View {
     @StateObject private var viewModel: ShoppingListViewModel
     @State private var searchText = ""
-    @State private var selectedCategory: ShoppingCategory?
+    @State private var selectedCategoryId: Int?
 
     init(viewModel: ShoppingListViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -132,7 +342,7 @@ private struct ShoppingListContentView: View {
         ShoppingListSearchField(searchText: $searchText)
 
         ShoppingCategoryFilterBar(
-            selectedCategory: $selectedCategory,
+            selectedCategoryId: $selectedCategoryId,
             categories: filterCategories,
             counts: categoryCounts
         )
@@ -155,6 +365,10 @@ private struct ShoppingListContentView: View {
             HStack(spacing: AppSpacing.medium) {
                 StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
                 StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
+
+                if let otherActiveViewerLabel = viewModel.otherActiveViewerLabel {
+                    StatusBadgeView(label: otherActiveViewerLabel, systemImage: "person.2", tone: .neutral)
+                }
 
                 Spacer(minLength: 0)
             }
@@ -184,10 +398,10 @@ private struct ShoppingListContentView: View {
             subtitle: viewModel.items.isEmpty ? "The database list is empty." : "Try a product name, store, or category.",
             systemImage: viewModel.items.isEmpty ? "cart" : "magnifyingglass"
         ) {
-            if !searchText.isEmpty || selectedCategory != nil {
+            if !searchText.isEmpty || selectedCategoryId != nil {
                 Button {
                     searchText = ""
-                    selectedCategory = nil
+                    selectedCategoryId = nil
                 } label: {
                     Label("Clear Filter", systemImage: "xmark.circle")
                         .font(.subheadline.weight(.semibold))
@@ -214,7 +428,7 @@ private struct ShoppingListContentView: View {
 
         return displayItems
             .filter { displayItem in
-                selectedCategory == nil || displayItem.category == selectedCategory
+                selectedCategoryId == nil || displayItem.category.id == selectedCategoryId
             }
             .filter { displayItem in
                 guard !trimmedSearch.isEmpty else {
@@ -319,7 +533,7 @@ private struct ShoppingListSearchField: View {
 }
 
 private struct ShoppingCategoryFilterBar: View {
-    @Binding var selectedCategory: ShoppingCategory?
+    @Binding var selectedCategoryId: Int?
     let categories: [ShoppingCategory]
     let counts: [ShoppingCategory: Int]
 
@@ -330,9 +544,9 @@ private struct ShoppingCategoryFilterBar: View {
                     title: "All",
                     systemImage: "square.grid.2x2",
                     count: counts.values.reduce(0, +),
-                    isSelected: selectedCategory == nil
+                    isSelected: selectedCategoryId == nil
                 ) {
-                    selectedCategory = nil
+                    selectedCategoryId = nil
                 }
 
                 ForEach(categories) { category in
@@ -340,9 +554,9 @@ private struct ShoppingCategoryFilterBar: View {
                         title: category.name,
                         systemImage: category.systemImage,
                         count: counts[category] ?? 0,
-                        isSelected: selectedCategory == category
+                        isSelected: selectedCategoryId == category.id
                     ) {
-                        selectedCategory = category
+                        selectedCategoryId = category.id
                     }
                 }
             }
@@ -617,7 +831,7 @@ private extension ShoppingCategory {
 #Preview("Loaded") {
     NavigationStack {
         ShoppingListContentView(
-            viewModel: ShoppingListViewModel {
+            viewModel: ShoppingListViewModel(loadShoppingList: {
                 ShoppingListResponse(
                     ok: true,
                     items: [
@@ -642,7 +856,7 @@ private extension ShoppingCategory {
                     ],
                     generatedAt: "2026-06-22T12:31:00.000Z"
                 )
-            }
+            })
         )
     }
 }
@@ -650,7 +864,7 @@ private extension ShoppingCategory {
 #Preview("Empty") {
     NavigationStack {
         ShoppingListContentView(
-            viewModel: ShoppingListViewModel {
+            viewModel: ShoppingListViewModel(loadShoppingList: {
                 ShoppingListResponse(
                     ok: true,
                     items: [],
@@ -658,7 +872,7 @@ private extension ShoppingCategory {
                     categories: [],
                     generatedAt: "2026-06-22T12:31:00.000Z"
                 )
-            }
+            })
         )
     }
 }
