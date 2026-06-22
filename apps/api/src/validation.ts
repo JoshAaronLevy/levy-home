@@ -1,5 +1,6 @@
 import type {
   APNsEnvironment,
+  CreateShoppingListItemRequest,
   DevicePreferenceLocator,
   DevicePlatform,
   HomeAssistantEventCategory,
@@ -11,6 +12,7 @@ import type {
   QuickActionId,
   RegisterDeviceRequest,
   TestPushPayload,
+  UpdateShoppingListItemRequest,
 } from './contracts.js';
 import {
   isLevyHomeEventType,
@@ -28,6 +30,17 @@ const quickActionIds = new Set<QuickActionId>([
   'turn_off_light_group',
 ]);
 const allowedQuickActionBodyKeys = new Set(['actionId', 'groupId']);
+const allowedCreateShoppingItemBodyKeys = new Set([
+  'name',
+  'brand',
+  'quantity',
+  'notes',
+  'purchased',
+  'storeIds',
+  'categoryId',
+  'mutationId',
+]);
+const allowedUpdateShoppingItemBodyKeys = allowedCreateShoppingItemBodyKeys;
 const devicePlatforms = new Set<DevicePlatform>(['ios', 'android', 'unknown']);
 const pushProviders = new Set<PushProvider>(['apns', 'expo']);
 const apnsEnvironments = new Set<APNsEnvironment>(['sandbox', 'production']);
@@ -45,6 +58,87 @@ export type QuickActionBody = {
   actionId: QuickActionId;
   groupId?: string;
 };
+
+export function validateCreateShoppingListItemBody(input: unknown): CreateShoppingListItemRequest {
+  if (!isPlainRecord(input)) {
+    throw invalidShoppingItem('Expected a JSON object shopping item payload.');
+  }
+
+  rejectUnsupportedShoppingItemFields(input, allowedCreateShoppingItemBodyKeys);
+
+  const brand = readOptionalNullableShoppingItemString(input.brand, 'brand');
+  const quantity = readOptionalShoppingItemInteger(input.quantity, 'quantity', { min: 1 });
+  const notes = readOptionalNullableShoppingItemString(input.notes, 'notes');
+  const purchased = readOptionalShoppingItemBoolean(input.purchased, 'purchased');
+  const storeIds = readOptionalShoppingStoreIds(input.storeIds);
+  const categoryId = readOptionalShoppingCategoryId(input.categoryId);
+  const mutationId = readOptionalShoppingMutationId(input.mutationId);
+
+  return {
+    name: readRequiredShoppingItemName(input.name),
+    ...(brand !== undefined ? { brand } : {}),
+    quantity: quantity ?? 1,
+    ...(notes !== undefined ? { notes } : {}),
+    purchased: purchased ?? false,
+    storeIds: storeIds ?? [],
+    categoryId: categoryId ?? null,
+    ...(mutationId ? { mutationId } : {}),
+  };
+}
+
+export function validateUpdateShoppingListItemBody(input: unknown): UpdateShoppingListItemRequest {
+  if (!isPlainRecord(input)) {
+    throw invalidShoppingItem('Expected a JSON object shopping item payload.');
+  }
+
+  rejectUnsupportedShoppingItemFields(input, allowedUpdateShoppingItemBodyKeys);
+
+  const request: UpdateShoppingListItemRequest = {};
+
+  if (hasOwn(input, 'name')) {
+    request.name = readRequiredShoppingItemName(input.name);
+  }
+
+  if (hasOwn(input, 'brand')) {
+    request.brand = readOptionalNullableShoppingItemString(input.brand, 'brand') ?? null;
+  }
+
+  if (hasOwn(input, 'quantity')) {
+    request.quantity = readRequiredShoppingItemInteger(input.quantity, 'quantity', { min: 1 });
+  }
+
+  if (hasOwn(input, 'notes')) {
+    request.notes = readOptionalNullableShoppingItemString(input.notes, 'notes') ?? null;
+  }
+
+  if (hasOwn(input, 'purchased')) {
+    request.purchased = readRequiredShoppingItemBoolean(input.purchased, 'purchased');
+  }
+
+  if (hasOwn(input, 'storeIds')) {
+    request.storeIds = readRequiredShoppingStoreIds(input.storeIds);
+  }
+
+  if (hasOwn(input, 'categoryId')) {
+    request.categoryId = readRequiredShoppingCategoryId(input.categoryId);
+  }
+
+  const mutationId = readOptionalShoppingMutationId(input.mutationId);
+
+  if (mutationId) {
+    request.mutationId = mutationId;
+  }
+
+  if (!hasMutableShoppingItemField(request)) {
+    throw invalidShoppingItem('At least one shopping item field must be provided.');
+  }
+
+  return request;
+}
+
+export function validateShoppingListItemLookupQuery(input: Record<string, unknown>): string {
+  return readRequiredShoppingItemName(input.name);
+}
 
 export function validateTestPushBody(input: unknown): TestPushPayload {
   if (input === undefined || input === null) {
@@ -261,6 +355,148 @@ export function validateNotificationPreferencesQuery(input: Record<string, unkno
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function rejectUnsupportedShoppingItemFields(input: Record<string, unknown>, allowedKeys: Set<string>): void {
+  const unsupportedKey = Object.keys(input).find((key) => !allowedKeys.has(key));
+
+  if (unsupportedKey) {
+    throw invalidShoppingItem(`Unsupported shopping item field: ${unsupportedKey}`);
+  }
+}
+
+function readRequiredShoppingItemName(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw invalidShoppingItem('name is required and must be a non-empty string.');
+  }
+
+  return value.trim();
+}
+
+function readOptionalNullableShoppingItemString(value: unknown, fieldName: string): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw invalidShoppingItem(`${fieldName} must be a string or null when provided.`);
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readOptionalShoppingItemInteger(
+  value: unknown,
+  fieldName: string,
+  options: { min?: number } = {},
+): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return readRequiredShoppingItemInteger(value, fieldName, options);
+}
+
+function readRequiredShoppingItemInteger(
+  value: unknown,
+  fieldName: string,
+  options: { min?: number } = {},
+): number {
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw invalidShoppingItem(`${fieldName} must be an integer.`);
+  }
+
+  if (options.min !== undefined && value < options.min) {
+    throw invalidShoppingItem(`${fieldName} must be at least ${options.min}.`);
+  }
+
+  return value;
+}
+
+function readOptionalShoppingItemBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return readRequiredShoppingItemBoolean(value, fieldName);
+}
+
+function readRequiredShoppingItemBoolean(value: unknown, fieldName: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw invalidShoppingItem(`${fieldName} must be a boolean.`);
+  }
+
+  return value;
+}
+
+function readOptionalShoppingStoreIds(value: unknown): number[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return readRequiredShoppingStoreIds(value);
+}
+
+function readRequiredShoppingStoreIds(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    throw invalidShoppingItem('storeIds must be an array of integers.');
+  }
+
+  return value.map((storeId, index) => readRequiredShoppingItemInteger(storeId, `storeIds[${index}]`, { min: 1 }));
+}
+
+function readOptionalShoppingCategoryId(value: unknown): number | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return readRequiredShoppingCategoryId(value);
+}
+
+function readRequiredShoppingCategoryId(value: unknown): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  return readRequiredShoppingItemInteger(value, 'categoryId', { min: 1 });
+}
+
+function readOptionalShoppingMutationId(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    throw invalidShoppingItem('mutationId must be a string when provided.');
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function hasMutableShoppingItemField(request: UpdateShoppingListItemRequest): boolean {
+  return (
+    request.name !== undefined ||
+    request.brand !== undefined ||
+    request.quantity !== undefined ||
+    request.notes !== undefined ||
+    request.purchased !== undefined ||
+    request.storeIds !== undefined ||
+    request.categoryId !== undefined
+  );
+}
+
+function hasOwn(input: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(input, key);
+}
+
+function invalidShoppingItem(message: string): HTTPError {
+  return new HTTPError(400, message, 'invalid_shopping_item');
 }
 
 function readDeviceToken(input: Record<string, unknown>): string {

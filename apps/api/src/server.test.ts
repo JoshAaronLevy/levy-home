@@ -93,6 +93,21 @@ test('GET /api/shopping-list returns shopping data from the configured store', a
             categories: [{ id: 2, name: 'Dairy' }],
           };
         },
+        async fetchItem() {
+          return null;
+        },
+        async findItemByName() {
+          return null;
+        },
+        async createItem() {
+          throw new Error('Unexpected createItem call.');
+        },
+        async updateItem() {
+          return null;
+        },
+        async deleteItem() {
+          return null;
+        },
       },
     }),
   );

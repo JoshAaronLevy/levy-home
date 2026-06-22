@@ -1,13 +1,20 @@
 import type {
+  CreateShoppingListItemRequest,
   ShoppingCategory,
   ShoppingListData,
   ShoppingListItem,
   ShoppingStore,
+  UpdateShoppingListItemRequest,
 } from './contracts.js';
 import { getDatabaseClient, type DatabaseQuery } from './dbClient.js';
 
 export type ShoppingListStore = {
   fetchShoppingList: () => Promise<ShoppingListData>;
+  fetchItem: (id: number) => Promise<ShoppingListItem | null>;
+  findItemByName: (name: string) => Promise<ShoppingListItem | null>;
+  createItem: (request: CreateShoppingListItemRequest) => Promise<ShoppingListItem>;
+  updateItem: (id: number, request: UpdateShoppingListItemRequest) => Promise<ShoppingListItem | null>;
+  deleteItem: (id: number) => Promise<ShoppingListItem | null>;
 };
 
 type ShoppingListRow = Record<string, unknown> & {
@@ -36,9 +43,26 @@ type ShoppingCategoryRow = Record<string, unknown> & {
 };
 
 export function createPostgresShoppingListStore(database?: DatabaseQuery): ShoppingListStore {
+  const query = () => database ?? getDatabaseClient();
+
   return {
     async fetchShoppingList() {
-      return fetchShoppingListData(database ?? getDatabaseClient());
+      return fetchShoppingListData(query());
+    },
+    async fetchItem(id) {
+      return fetchShoppingListItem(query(), id);
+    },
+    async findItemByName(name) {
+      return findShoppingListItemByName(query(), name);
+    },
+    async createItem(request) {
+      return createShoppingListItem(query(), request);
+    },
+    async updateItem(id, request) {
+      return updateShoppingListItem(query(), id, request);
+    },
+    async deleteItem(id) {
+      return deleteShoppingListItem(query(), id);
     },
   };
 }
@@ -85,6 +109,172 @@ export async function fetchShoppingListData(database: DatabaseQuery): Promise<Sh
   };
 }
 
+export async function fetchShoppingListItem(
+  database: DatabaseQuery,
+  id: number,
+): Promise<ShoppingListItem | null> {
+  const [row] = await database<ShoppingListRow>`
+    SELECT
+      item.id,
+      item.name,
+      item.brand,
+      item.quantity,
+      item.notes,
+      item.purchased,
+      item.created_at AS "createdAt",
+      item.updated_at AS "updatedAt",
+      to_jsonb(item) ->> 'version' AS "version",
+      item.store_ids AS "storeIds",
+      item.category_id AS "categoryId"
+    FROM shopping_list item
+    WHERE item.id = ${id}
+    LIMIT 1
+  `;
+
+  return row ? shoppingListItemFromRow(row) : null;
+}
+
+export async function findShoppingListItemByName(
+  database: DatabaseQuery,
+  name: string,
+): Promise<ShoppingListItem | null> {
+  const normalizedName = name.trim();
+
+  if (normalizedName.length === 0) {
+    return null;
+  }
+
+  const [row] = await database<ShoppingListRow>`
+    SELECT
+      item.id,
+      item.name,
+      item.brand,
+      item.quantity,
+      item.notes,
+      item.purchased,
+      item.created_at AS "createdAt",
+      item.updated_at AS "updatedAt",
+      to_jsonb(item) ->> 'version' AS "version",
+      item.store_ids AS "storeIds",
+      item.category_id AS "categoryId"
+    FROM shopping_list item
+    WHERE lower(btrim(item.name)) = lower(btrim(${normalizedName}))
+    ORDER BY item.purchased ASC NULLS FIRST, item.updated_at DESC NULLS LAST, item.id ASC
+    LIMIT 1
+  `;
+
+  return row ? shoppingListItemFromRow(row) : null;
+}
+
+export async function createShoppingListItem(
+  database: DatabaseQuery,
+  request: CreateShoppingListItemRequest,
+): Promise<ShoppingListItem> {
+  const [row] = await database<ShoppingListRow>`
+    INSERT INTO shopping_list (
+      name,
+      brand,
+      quantity,
+      notes,
+      purchased,
+      store_ids,
+      category_id
+    )
+    VALUES (
+      ${request.name},
+      ${request.brand ?? null},
+      ${request.quantity ?? 1},
+      ${request.notes ?? null},
+      ${request.purchased ?? false},
+      ${jsonb(request.storeIds ?? [])}::jsonb,
+      ${jsonb(request.categoryId ?? null)}::jsonb
+    )
+    RETURNING
+      id,
+      name,
+      brand,
+      quantity,
+      notes,
+      purchased,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      version AS "version",
+      store_ids AS "storeIds",
+      category_id AS "categoryId"
+  `;
+
+  return requireShoppingListItemRow(row, 'create');
+}
+
+export async function updateShoppingListItem(
+  database: DatabaseQuery,
+  id: number,
+  request: UpdateShoppingListItemRequest,
+): Promise<ShoppingListItem | null> {
+  if (!hasShoppingListItemUpdate(request)) {
+    return fetchShoppingListItem(database, id);
+  }
+
+  const hasName = request.name !== undefined;
+  const hasBrand = request.brand !== undefined;
+  const hasQuantity = request.quantity !== undefined;
+  const hasNotes = request.notes !== undefined;
+  const hasPurchased = request.purchased !== undefined;
+  const hasStoreIds = request.storeIds !== undefined;
+  const hasCategoryId = request.categoryId !== undefined;
+
+  const [row] = await database<ShoppingListRow>`
+    UPDATE shopping_list AS item
+    SET
+      name = CASE WHEN ${hasName} THEN ${request.name ?? null} ELSE item.name END,
+      brand = CASE WHEN ${hasBrand} THEN ${request.brand ?? null} ELSE item.brand END,
+      quantity = CASE WHEN ${hasQuantity} THEN ${request.quantity ?? null} ELSE item.quantity END,
+      notes = CASE WHEN ${hasNotes} THEN ${request.notes ?? null} ELSE item.notes END,
+      purchased = CASE WHEN ${hasPurchased} THEN ${request.purchased ?? null} ELSE item.purchased END,
+      store_ids = CASE WHEN ${hasStoreIds} THEN ${jsonb(request.storeIds ?? [])}::jsonb ELSE item.store_ids END,
+      category_id = CASE WHEN ${hasCategoryId} THEN ${jsonb(request.categoryId ?? null)}::jsonb ELSE item.category_id END
+    WHERE item.id = ${id}
+    RETURNING
+      id,
+      name,
+      brand,
+      quantity,
+      notes,
+      purchased,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      version AS "version",
+      store_ids AS "storeIds",
+      category_id AS "categoryId"
+  `;
+
+  return row ? shoppingListItemFromRow(row) : null;
+}
+
+export async function deleteShoppingListItem(
+  database: DatabaseQuery,
+  id: number,
+): Promise<ShoppingListItem | null> {
+  const [row] = await database<ShoppingListRow>`
+    DELETE FROM shopping_list AS item
+    WHERE item.id = ${id}
+    RETURNING
+      id,
+      name,
+      brand,
+      quantity,
+      notes,
+      purchased,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      version AS "version",
+      store_ids AS "storeIds",
+      category_id AS "categoryId"
+  `;
+
+  return row ? shoppingListItemFromRow(row) : null;
+}
+
 function shoppingListItemFromRow(row: ShoppingListRow): ShoppingListItem {
   const brand = optionalString(row.brand);
   const notes = optionalString(row.notes);
@@ -105,6 +295,30 @@ function shoppingListItemFromRow(row: ShoppingListRow): ShoppingListItem {
     storeIds: optionalIntegerArray(row.storeIds),
     categoryId: optionalIntegerFromJSON(row.categoryId),
   };
+}
+
+function requireShoppingListItemRow(row: ShoppingListRow | undefined, operation: string): ShoppingListItem {
+  if (!row) {
+    throw new Error(`Expected shopping_list ${operation} to return a row.`);
+  }
+
+  return shoppingListItemFromRow(row);
+}
+
+function hasShoppingListItemUpdate(request: UpdateShoppingListItemRequest): boolean {
+  return (
+    request.name !== undefined ||
+    request.brand !== undefined ||
+    request.quantity !== undefined ||
+    request.notes !== undefined ||
+    request.purchased !== undefined ||
+    request.storeIds !== undefined ||
+    request.categoryId !== undefined
+  );
+}
+
+function jsonb(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 function shoppingStoreFromRow(row: ShoppingStoreRow): ShoppingStore {

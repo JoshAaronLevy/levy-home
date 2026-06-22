@@ -154,6 +154,49 @@ export type ShoppingListData = {
   categories: ShoppingCategory[];
 };
 
+export type CreateShoppingListItemRequest = {
+  name: string;
+  brand?: string | null;
+  quantity?: number;
+  notes?: string | null;
+  purchased?: boolean;
+  storeIds?: number[];
+  categoryId?: number | null;
+  mutationId?: string;
+};
+
+export type UpdateShoppingListItemRequest = {
+  name?: string;
+  brand?: string | null;
+  quantity?: number;
+  notes?: string | null;
+  purchased?: boolean;
+  storeIds?: number[];
+  categoryId?: number | null;
+  mutationId?: string;
+};
+
+export type ShoppingListItemLookupResponse = {
+  ok: true;
+  query: string;
+  match: ShoppingListItem | null;
+};
+
+export type ShoppingListMutationResponse = {
+  ok: true;
+  item: ShoppingListItem;
+  mutationId: string;
+  generatedAt: string;
+};
+
+export type DeleteShoppingListItemResponse = {
+  ok: true;
+  itemId: number;
+  item: ShoppingListItem;
+  mutationId: string;
+  generatedAt: string;
+};
+
 export type DevicePlatform = 'ios' | 'android' | 'unknown';
 export type PushProvider = 'apns' | 'expo';
 export type APNsEnvironment = 'sandbox' | 'production';
