@@ -37,6 +37,10 @@ import {
   type PushSendSummary,
   type QuickActionId,
   type RegisteredDevice,
+  type DeleteShoppingListItemResponse,
+  type ShoppingListItem,
+  type ShoppingListItemLookupResponse,
+  type ShoppingListMutationResponse,
   type TestPushPayload,
 } from './contracts.js';
 import { DatabaseConfigurationError } from './dbClient.js';
@@ -49,12 +53,15 @@ import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
 import {
+  validateCreateShoppingListItemBody,
   validateHomeAssistantEventPayload,
   validateNotificationPreferencesBody,
   validateNotificationPreferencesQuery,
   validateQuickActionBody,
   validateRegisterDeviceBody,
+  validateShoppingListItemLookupQuery,
   validateTestPushBody,
+  validateUpdateShoppingListItemBody,
 } from './validation.js';
 
 export type CreateAppOptions = {
@@ -287,6 +294,97 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     });
   }));
 
+  app.get('/api/shopping-list/items/lookup', asyncHandler(async (req, res) => {
+    const query = validateShoppingListItemLookupQuery(req.query);
+    const match = await shoppingListStore.findItemByName(query);
+    const response: ShoppingListItemLookupResponse = {
+      ok: true,
+      query,
+      match,
+    };
+
+    res.json(response);
+  }));
+
+  app.post('/api/shopping-list/items', asyncHandler(async (req, res) => {
+    const request = validateCreateShoppingListItemBody(req.body);
+    const duplicate = await shoppingListStore.findItemByName(request.name);
+
+    if (duplicate) {
+      throw duplicateShoppingItemError(duplicate);
+    }
+
+    const mutationId = mutationIdForRequest(req, request.mutationId);
+
+    try {
+      const item = await shoppingListStore.createItem(request);
+
+      res.status(201).json(shoppingListMutationResponse(item, mutationId));
+    } catch (error) {
+      if (isDatabaseUniqueViolation(error)) {
+        throw duplicateShoppingItemError();
+      }
+
+      throw error;
+    }
+  }));
+
+  app.patch('/api/shopping-list/items/:itemId', asyncHandler(async (req, res) => {
+    const itemId = readShoppingListItemId(req.params.itemId);
+    const request = validateUpdateShoppingListItemBody(req.body);
+    const mutationId = mutationIdForRequest(req, request.mutationId);
+
+    if (request.name !== undefined) {
+      const currentItem = await shoppingListStore.fetchItem(itemId);
+
+      if (!currentItem) {
+        throw shoppingItemNotFoundError();
+      }
+
+      const duplicate = await shoppingListStore.findItemByName(request.name);
+
+      if (duplicate && duplicate.id !== itemId) {
+        throw duplicateShoppingItemError(duplicate);
+      }
+    }
+
+    try {
+      const item = await shoppingListStore.updateItem(itemId, request);
+
+      if (!item) {
+        throw shoppingItemNotFoundError();
+      }
+
+      res.json(shoppingListMutationResponse(item, mutationId));
+    } catch (error) {
+      if (isDatabaseUniqueViolation(error)) {
+        throw duplicateShoppingItemError();
+      }
+
+      throw error;
+    }
+  }));
+
+  app.delete('/api/shopping-list/items/:itemId', asyncHandler(async (req, res) => {
+    const itemId = readShoppingListItemId(req.params.itemId);
+    const mutationId = mutationIdForRequest(req);
+    const item = await shoppingListStore.deleteItem(itemId);
+
+    if (!item) {
+      throw shoppingItemNotFoundError();
+    }
+
+    const response: DeleteShoppingListItemResponse = {
+      ok: true,
+      itemId,
+      item,
+      mutationId,
+      generatedAt: new Date().toISOString(),
+    };
+
+    res.json(response);
+  }));
+
   app.post(
     '/api/ha/events',
     requireHaWebhookSecret(config),
@@ -376,6 +474,47 @@ function readPhoneDiscoveryKeywords(value: unknown): string[] | undefined {
     .filter(Boolean);
 
   return keywords.length > 0 ? keywords : undefined;
+}
+
+function readShoppingListItemId(value: unknown): number {
+  const id = typeof value === 'string' && value.trim().length > 0 ? Number(value) : Number.NaN;
+
+  if (!Number.isInteger(id) || id < 1) {
+    throw new HTTPError(400, 'itemId must be a positive integer.', 'invalid_shopping_item');
+  }
+
+  return id;
+}
+
+function mutationIdForRequest(req: Request, bodyMutationId?: string): string {
+  const headerMutationId = req.get('X-Levy-Home-Mutation-ID')?.trim();
+
+  return bodyMutationId ?? (headerMutationId && headerMutationId.length > 0 ? headerMutationId : crypto.randomUUID());
+}
+
+function shoppingListMutationResponse(item: ShoppingListItem, mutationId: string): ShoppingListMutationResponse {
+  return {
+    ok: true,
+    item,
+    mutationId,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function shoppingItemNotFoundError(): HTTPError {
+  return new HTTPError(404, 'Shopping item was not found.', 'shopping_item_not_found');
+}
+
+function duplicateShoppingItemError(item?: ShoppingListItem): HTTPError {
+  return new HTTPError(
+    409,
+    item ? `Shopping item already exists: ${item.name}.` : 'Shopping item already exists.',
+    'duplicate_shopping_item',
+  );
+}
+
+function isDatabaseUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505';
 }
 
 type ActivityWindow = {
