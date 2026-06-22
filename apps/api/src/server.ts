@@ -53,6 +53,10 @@ import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
 import {
+  createShoppingListRealtimeHub,
+  type ShoppingListRealtimeBroadcaster,
+} from './shoppingListRealtime.js';
+import {
   validateCreateShoppingListItemBody,
   validateHomeAssistantEventPayload,
   validateNotificationPreferencesBody,
@@ -69,6 +73,7 @@ export type CreateAppOptions = {
   activityStore?: RecentActivityStore;
   pushSender?: PushSender;
   shoppingListStore?: ShoppingListStore;
+  shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -82,6 +87,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
+  const shoppingListRealtime = options.shoppingListRealtime;
 
   app.set('etag', false);
   app.use(cors());
@@ -318,8 +324,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
     try {
       const item = await shoppingListStore.createItem(request);
+      const response = shoppingListMutationResponse(item, mutationId);
 
-      res.status(201).json(shoppingListMutationResponse(item, mutationId));
+      res.status(201).json(response);
+      shoppingListRealtime?.broadcastItemCreated(item, mutationId);
     } catch (error) {
       if (isDatabaseUniqueViolation(error)) {
         throw duplicateShoppingItemError();
@@ -355,7 +363,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         throw shoppingItemNotFoundError();
       }
 
-      res.json(shoppingListMutationResponse(item, mutationId));
+      const response = shoppingListMutationResponse(item, mutationId);
+
+      res.json(response);
+      shoppingListRealtime?.broadcastItemUpdated(item, mutationId);
     } catch (error) {
       if (isDatabaseUniqueViolation(error)) {
         throw duplicateShoppingItemError();
@@ -383,6 +394,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     };
 
     res.json(response);
+    shoppingListRealtime?.broadcastItemDeleted(itemId, mutationId);
   }));
 
   app.post(
@@ -810,7 +822,8 @@ function notificationCategoryForEvent(
 
 export function startServer(config = readConfig()): void {
   const activityStore = createRecentActivityStore(500);
-  const app = createApp({ config, activityStore });
+  const shoppingListRealtime = createShoppingListRealtimeHub();
+  const app = createApp({ config, activityStore, shoppingListRealtime });
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -846,6 +859,16 @@ export function startServer(config = readConfig()): void {
 
   server.on('close', () => {
     activityListener?.stop();
+    shoppingListRealtime.close();
+  });
+
+  server.on('upgrade', (request, socket, head) => {
+    if (shoppingListRealtime.handleUpgrade(request, socket, head)) {
+      return;
+    }
+
+    socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+    socket.destroy();
   });
 
   let isShuttingDown = false;
@@ -861,6 +884,8 @@ export function startServer(config = readConfig()): void {
       process.exit(1);
     }, 10_000);
     forceExit.unref();
+
+    shoppingListRealtime.close();
 
     server.close((error) => {
       if (error) {
