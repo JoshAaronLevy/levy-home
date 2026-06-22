@@ -132,6 +132,7 @@ export type ShoppingListItem = {
   purchased: boolean;
   createdAt?: string;
   updatedAt?: string;
+  version?: number;
   storeIds: number[];
   categoryId: number | null;
 };

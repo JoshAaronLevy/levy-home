@@ -19,6 +19,7 @@ type ShoppingListRow = Record<string, unknown> & {
   purchased: unknown;
   createdAt: unknown;
   updatedAt: unknown;
+  version: unknown;
   storeIds: unknown;
   categoryId: unknown;
 };
@@ -46,18 +47,19 @@ export async function fetchShoppingListData(database: DatabaseQuery): Promise<Sh
   const [itemRows, storeRows, categoryRows] = await Promise.all([
     database<ShoppingListRow>`
       SELECT
-        id,
-        name,
-        brand,
-        quantity,
-        notes,
-        purchased,
-        created_at AS "createdAt",
-        updated_at AS "updatedAt",
-        store_ids AS "storeIds",
-        category_id AS "categoryId"
-      FROM shopping_list
-      ORDER BY purchased ASC NULLS FIRST, lower(name) ASC
+        item.id,
+        item.name,
+        item.brand,
+        item.quantity,
+        item.notes,
+        item.purchased,
+        item.created_at AS "createdAt",
+        item.updated_at AS "updatedAt",
+        to_jsonb(item) ->> 'version' AS "version",
+        item.store_ids AS "storeIds",
+        item.category_id AS "categoryId"
+      FROM shopping_list item
+      ORDER BY item.purchased ASC NULLS FIRST, lower(item.name) ASC
     `,
     database<ShoppingStoreRow>`
       SELECT
@@ -88,6 +90,7 @@ function shoppingListItemFromRow(row: ShoppingListRow): ShoppingListItem {
   const notes = optionalString(row.notes);
   const createdAt = optionalISOString(row.createdAt);
   const updatedAt = optionalISOString(row.updatedAt);
+  const version = optionalInteger(row.version);
 
   return {
     id: requiredInteger(row.id, 'shopping_list.id'),
@@ -98,6 +101,7 @@ function shoppingListItemFromRow(row: ShoppingListRow): ShoppingListItem {
     purchased: optionalBoolean(row.purchased) ?? false,
     ...(createdAt ? { createdAt } : {}),
     ...(updatedAt ? { updatedAt } : {}),
+    ...(version !== undefined ? { version } : {}),
     storeIds: optionalIntegerArray(row.storeIds),
     categoryId: optionalIntegerFromJSON(row.categoryId),
   };
