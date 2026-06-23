@@ -2,6 +2,7 @@ import Foundation
 
 protocol ShoppingListLiveServicing {
     func messages() -> AsyncStream<ShoppingListLiveMessage>
+    func connectionStates() -> AsyncStream<ShoppingListLiveConnectionState>
     func disconnect()
 }
 
@@ -184,6 +185,7 @@ enum ShoppingListLiveConnectionState: Equatable {
     case connecting
     case connected
     case reconnecting(delay: TimeInterval)
+    case paused
     case disconnected
 }
 
@@ -191,6 +193,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
     static let defaultPresencePingInterval: TimeInterval = 25
     static let defaultReconnectBaseDelay: TimeInterval = 1
     static let defaultReconnectMaximumDelay: TimeInterval = 30
+    static let pausedReconnectAttemptThreshold = 3
 
     private let baseURL: URL
     private let viewerIdentity: ShoppingListViewerIdentity
@@ -205,6 +208,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
     private var presencePingTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var continuation: AsyncStream<ShoppingListLiveMessage>.Continuation?
+    private var stateContinuation: AsyncStream<ShoppingListLiveConnectionState>.Continuation?
     private var isStreaming = false
     private var reconnectAttempt = 0
     private(set) var connectionState: ShoppingListLiveConnectionState = .idle
@@ -216,7 +220,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         decoder: JSONDecoder = JSONDecoder(),
         encoder: JSONEncoder = JSONEncoder(),
         appLogStore: AppLogStore? = nil,
-        presencePingInterval: TimeInterval = Self.defaultPresencePingInterval
+        presencePingInterval: TimeInterval = ShoppingListLiveService.defaultPresencePingInterval
     ) {
         self.baseURL = baseURL
         self.viewerIdentity = viewerIdentity
@@ -236,9 +240,20 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         }
     }
 
+    func connectionStates() -> AsyncStream<ShoppingListLiveConnectionState> {
+        AsyncStream(bufferingPolicy: .bufferingNewest(20)) { continuation in
+            self.stateContinuation = continuation
+            continuation.yield(self.connectionState)
+            continuation.onTermination = { [weak self] _ in
+                self?.stateContinuation = nil
+            }
+        }
+    }
+
     func disconnect() {
         isStreaming = false
-        connectionState = .disconnected
+        let wasActive = connectionState != .idle && connectionState != .disconnected
+        setConnectionState(.disconnected)
         reconnectTask?.cancel()
         receiveTask?.cancel()
         presencePingTask?.cancel()
@@ -253,6 +268,15 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         let activeContinuation = continuation
         continuation = nil
         activeContinuation?.finish()
+
+        if wasActive {
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live updates disconnected",
+                detail: viewerIdentity.displayName
+            )
+        }
     }
 
     static func liveURL(for apiBaseURL: URL) throws -> URL {
@@ -293,8 +317,8 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
 
     static func reconnectDelay(
         forAttempt attempt: Int,
-        baseDelay: TimeInterval = Self.defaultReconnectBaseDelay,
-        maximumDelay: TimeInterval = Self.defaultReconnectMaximumDelay
+        baseDelay: TimeInterval = ShoppingListLiveService.defaultReconnectBaseDelay,
+        maximumDelay: TimeInterval = ShoppingListLiveService.defaultReconnectMaximumDelay
     ) -> TimeInterval {
         let safeAttempt = max(0, attempt)
         let exponentialDelay = baseDelay * pow(2, Double(safeAttempt))
@@ -305,7 +329,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         disconnect()
         self.continuation = continuation
         isStreaming = true
-        connectionState = .connecting
+        setConnectionState(.connecting)
         reconnectAttempt = 0
         openSocket(requiresSnapshotBeforeReceive: false)
     }
@@ -332,7 +356,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
 
         let socket = session.webSocketTask(with: liveURL)
         webSocketTask = socket
-        connectionState = reconnectAttempt == 0 ? .connecting : .reconnecting(delay: 0)
+        setConnectionState(reconnectAttempt == 0 ? .connecting : .reconnecting(delay: 0))
 
         appLogStore?.record(
             level: .info,
@@ -353,6 +377,12 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
     ) async {
         do {
             try await send(.subscribe(viewerIdentity), on: socket)
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live presence subscribed",
+                detail: viewerIdentity.displayName
+            )
             markConnected(socket)
 
             if requiresSnapshotBeforeReceive {
@@ -411,7 +441,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         }
 
         reconnectAttempt = 0
-        connectionState = .connected
+        setConnectionState(.connected)
         appLogStore?.record(
             level: .success,
             category: "Shopping List",
@@ -437,7 +467,9 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
 
     private func decodeIncoming(_ data: Data) {
         do {
-            continuation?.yield(try decoder.decode(ShoppingListLiveMessage.self, from: data))
+            let message = try decoder.decode(ShoppingListLiveMessage.self, from: data)
+            logIncoming(message)
+            continuation?.yield(message)
         } catch {
             appLogStore?.record(
                 level: .warning,
@@ -462,7 +494,7 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         appLogStore?.record(
             level: .warning,
             category: "Shopping List",
-            title: "Live updates paused",
+            title: "Live updates interrupted",
             detail: error.localizedDescription
         )
 
@@ -478,13 +510,15 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
 
         let delay = Self.reconnectDelay(forAttempt: reconnectAttempt)
         reconnectAttempt += 1
-        connectionState = .reconnecting(delay: delay)
+        let attempt = reconnectAttempt
+        let isPausedState = attempt >= Self.pausedReconnectAttemptThreshold
+        setConnectionState(isPausedState ? .paused : .reconnecting(delay: delay))
 
         appLogStore?.record(
-            level: .info,
+            level: isPausedState ? .warning : .info,
             category: "Shopping List",
-            title: "Reconnecting live updates",
-            detail: "Retrying in \(Int(delay)) seconds."
+            title: isPausedState ? "Live updates paused" : "Reconnecting live updates",
+            detail: "Attempt \(attempt). Retrying in \(Int(delay)) seconds."
         )
 
         reconnectTask = Task { [weak self] in
@@ -495,6 +529,83 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
             }
 
             self?.openSocket(requiresSnapshotBeforeReceive: true)
+        }
+    }
+
+    private func setConnectionState(_ state: ShoppingListLiveConnectionState) {
+        guard connectionState != state else {
+            return
+        }
+
+        connectionState = state
+        stateContinuation?.yield(state)
+    }
+
+    private func logIncoming(_ message: ShoppingListLiveMessage) {
+        switch message {
+        case .hello(let connectionId, _):
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live socket acknowledged",
+                detail: "connectionId=\(Self.shortIdentifier(connectionId))"
+            )
+        case .presenceChanged(let viewers, _):
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live presence updated",
+                detail: "\(viewers.count) active viewer\(viewers.count == 1 ? "" : "s")."
+            )
+        case .snapshotRequired(let reason, _):
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Refreshing live snapshot",
+                detail: reason.rawValue
+            )
+        case .itemCreated(let item, let mutationId, _):
+            appLogStore?.record(
+                level: .success,
+                category: "Shopping List",
+                title: "Live item created",
+                detail: "itemId=\(item.id) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
+        case .itemUpdated(let item, let mutationId, _):
+            appLogStore?.record(
+                level: .success,
+                category: "Shopping List",
+                title: "Live item updated",
+                detail: "itemId=\(item.id) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
+        case .itemDeleted(let itemId, let mutationId, _):
+            appLogStore?.record(
+                level: .success,
+                category: "Shopping List",
+                title: "Live item deleted",
+                detail: "itemId=\(itemId) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
+        case .storesChanged(let stores, let mutationId, _):
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live stores updated",
+                detail: "count=\(stores.count) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
+        case .categoriesChanged(let categories, let mutationId, _):
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live categories updated",
+                detail: "count=\(categories.count) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
+        case .unknown(let type):
+            appLogStore?.record(
+                level: .warning,
+                category: "Shopping List",
+                title: "Ignored unknown live message",
+                detail: type
+            )
         }
     }
 
@@ -514,5 +625,10 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
         }
 
         return url.path
+    }
+
+    private static func shortIdentifier(_ value: String) -> String {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(trimmedValue.prefix(12))
     }
 }

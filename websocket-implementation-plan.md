@@ -676,6 +676,12 @@ Acceptance criteria:
 
 Objective: make failures understandable when someone is standing in a store.
 
+Implemented surfaces:
+
+- Backend realtime logs in `apps/api/src/shoppingListRealtime.ts` for connect/disconnect counts, presence subscribe/disconnect, presence expiry, socket errors, and mutation broadcasts by type/item ID/mutation ID.
+- iOS app logs in `LevyHome/Services/ShoppingListLiveService.swift` for connection state, presence subscribe/update counts, reconnect attempts, snapshot refetch triggers, and item event IDs.
+- Shopping summary live-status badge in `LevyHome/Views/Shopping/ShoppingListMockupView.swift` for `Live`, `Connecting`, `Reconnecting`, `Live updates paused`, and `Live off`.
+
 Backend logs:
 
 - Log WebSocket connect/disconnect counts.

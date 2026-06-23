@@ -89,6 +89,12 @@ private extension ResidentIdentity {
     }
 }
 
+struct ShoppingLiveStatusBadge: Equatable {
+    let label: String
+    let systemImage: String
+    let tone: StatusBadgeTone
+}
+
 @MainActor
 final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListLoader = () async throws -> ShoppingListResponse
@@ -107,6 +113,7 @@ final class ShoppingListViewModel: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var isCreatingItem = false
     @Published private(set) var mutatingItemIDs: Set<Int> = []
+    @Published private(set) var liveConnectionState: ShoppingListLiveConnectionState = .idle
 
     private let loadShoppingList: ShoppingListLoader
     private let lookupShoppingListItem: ShoppingListLookup
@@ -118,6 +125,7 @@ final class ShoppingListViewModel: ObservableObject {
     private var hasLoaded = false
     private var isSyncingLiveSnapshot = false
     private var liveUpdatesTask: Task<Void, Never>?
+    private var liveConnectionStateTask: Task<Void, Never>?
 
     var isEmpty: Bool {
         hasLoaded && items.isEmpty && errorMessage == nil && !isLoading
@@ -155,6 +163,45 @@ final class ShoppingListViewModel: ObservableObject {
         return "\(names.count) viewing"
     }
 
+    var liveStatusBadge: ShoppingLiveStatusBadge? {
+        guard liveService != nil else {
+            return nil
+        }
+
+        switch liveConnectionState {
+        case .idle, .connecting:
+            return ShoppingLiveStatusBadge(
+                label: "Connecting",
+                systemImage: "antenna.radiowaves.left.and.right",
+                tone: .accent
+            )
+        case .connected:
+            return ShoppingLiveStatusBadge(
+                label: "Live",
+                systemImage: "dot.radiowaves.left.and.right",
+                tone: .success
+            )
+        case .reconnecting:
+            return ShoppingLiveStatusBadge(
+                label: "Reconnecting",
+                systemImage: "arrow.clockwise",
+                tone: .warning
+            )
+        case .paused:
+            return ShoppingLiveStatusBadge(
+                label: "Live updates paused",
+                systemImage: "wifi.slash",
+                tone: .warning
+            )
+        case .disconnected:
+            return ShoppingLiveStatusBadge(
+                label: "Live off",
+                systemImage: "wifi.slash",
+                tone: .neutral
+            )
+        }
+    }
+
     convenience init(
         apiClient: APIClient,
         liveService: ShoppingListLiveServicing? = nil,
@@ -181,7 +228,7 @@ final class ShoppingListViewModel: ObservableObject {
         )
     }
 
-    init(
+    convenience init(
         liveService: ShoppingListLiveServicing? = nil,
         currentViewerId: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader
@@ -225,6 +272,7 @@ final class ShoppingListViewModel: ObservableObject {
 
     deinit {
         liveUpdatesTask?.cancel()
+        liveConnectionStateTask?.cancel()
         liveService?.disconnect()
     }
 
@@ -254,6 +302,16 @@ final class ShoppingListViewModel: ObservableObject {
             return
         }
 
+        liveConnectionStateTask = Task { [weak self] in
+            for await state in liveService.connectionStates() {
+                guard !Task.isCancelled else {
+                    break
+                }
+
+                self?.applyLiveConnectionState(state)
+            }
+        }
+
         liveUpdatesTask = Task { [weak self] in
             for await message in liveService.messages() {
                 guard !Task.isCancelled else {
@@ -268,7 +326,13 @@ final class ShoppingListViewModel: ObservableObject {
     func stopLiveUpdates() {
         liveUpdatesTask?.cancel()
         liveUpdatesTask = nil
+        liveConnectionStateTask?.cancel()
+        liveConnectionStateTask = nil
         liveService?.disconnect()
+    }
+
+    func applyLiveConnectionState(_ state: ShoppingListLiveConnectionState) {
+        liveConnectionState = state
     }
 
     func applyLiveMessage(_ message: ShoppingListLiveMessage) async {
@@ -821,11 +885,20 @@ private struct ShoppingListContentView: View {
             systemImage: "cart"
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.small) {
-                HStack(spacing: AppSpacing.medium) {
-                    StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
-                    StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppSpacing.medium) {
+                        StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
 
-                    Spacer(minLength: 0)
+                        if let liveStatusBadge = viewModel.liveStatusBadge {
+                            StatusBadgeView(
+                                label: liveStatusBadge.label,
+                                systemImage: liveStatusBadge.systemImage,
+                                tone: liveStatusBadge.tone
+                            )
+                        }
+
+                        StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
+                    }
                 }
 
                 if let otherActiveViewerLabel = viewModel.otherActiveViewerLabel {
@@ -834,6 +907,7 @@ private struct ShoppingListContentView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.16), value: viewModel.otherActiveViewerLabel)
+            .animation(.easeInOut(duration: 0.16), value: viewModel.liveStatusBadge)
         }
     }
 

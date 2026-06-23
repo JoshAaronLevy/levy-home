@@ -124,6 +124,10 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
     };
 
     clients.set(socket, state);
+    logRealtime('websocket_connected', {
+      connectionId: state.connectionId,
+      connectionCount: clients.size,
+    });
 
     sendMessage(socket, {
       type: 'hello',
@@ -140,7 +144,12 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
       state.isAlive = true;
     });
 
-    socket.on('error', () => {
+    socket.on('error', (error) => {
+      logRealtime('websocket_error', {
+        connectionId: state.connectionId,
+        viewerId: state.presence?.viewerId,
+        error: error.message,
+      });
       socket.terminate();
     });
 
@@ -164,6 +173,11 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
           lastSeenAt: now(),
         };
         broadcastPresenceChanged();
+        logRealtime('presence_subscribed', {
+          connectionId: state.connectionId,
+          viewerId: message.viewerId,
+          activeViewerCount: currentViewers().length,
+        });
         return;
       }
 
@@ -175,14 +189,27 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
       }
     });
 
-    socket.on('close', () => {
+    socket.on('close', (code) => {
       const hadPresence = state.presence !== undefined;
+      const viewerId = state.presence?.viewerId;
 
       clients.delete(socket);
 
       if (hadPresence) {
         broadcastPresenceChanged();
+        logRealtime('presence_disconnected', {
+          connectionId: state.connectionId,
+          viewerId,
+          activeViewerCount: currentViewers().length,
+        });
       }
+
+      logRealtime('websocket_disconnected', {
+        connectionId: state.connectionId,
+        viewerId,
+        connectionCount: clients.size,
+        code,
+      });
     });
   });
 
@@ -216,6 +243,12 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
       return clients.size;
     },
     broadcastItemCreated(item, mutationId) {
+      logRealtime('mutation_broadcast', {
+        mutationType: 'item_created',
+        itemId: item.id,
+        mutationId,
+        connectionCount: clients.size,
+      });
       broadcast({
         type: 'item_created',
         item,
@@ -224,6 +257,12 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
       });
     },
     broadcastItemUpdated(item, mutationId) {
+      logRealtime('mutation_broadcast', {
+        mutationType: 'item_updated',
+        itemId: item.id,
+        mutationId,
+        connectionCount: clients.size,
+      });
       broadcast({
         type: 'item_updated',
         item,
@@ -232,6 +271,12 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
       });
     },
     broadcastItemDeleted(itemId, mutationId) {
+      logRealtime('mutation_broadcast', {
+        mutationType: 'item_deleted',
+        itemId,
+        mutationId,
+        connectionCount: clients.size,
+      });
       broadcast({
         type: 'item_deleted',
         itemId,
@@ -267,6 +312,10 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
       }
 
       if (Date.parse(state.presence.lastSeenAt) < cutoff) {
+        logRealtime('presence_expired', {
+          connectionId: state.connectionId,
+          viewerId: state.presence.viewerId,
+        });
         state.presence = undefined;
         didChange = true;
       }
@@ -417,4 +466,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function now(): string {
   return new Date().toISOString();
+}
+
+function logRealtime(event: string, details: Record<string, unknown>): void {
+  const detailText = Object.entries(details)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}=${safeLogValue(value)}`)
+    .join(' ');
+
+  console.info(`[shopping-list-live] ${event}${detailText ? ` ${detailText}` : ''}`);
+}
+
+function safeLogValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.replace(/\s+/g, '_').slice(0, 120);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return JSON.stringify(value).replace(/\s+/g, '_').slice(0, 120);
 }
