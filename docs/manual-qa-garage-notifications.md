@@ -94,14 +94,14 @@ In Xcode, set the `LEVY_HOME_API_BASE_URL` build setting for the `LevyHome` app 
 3. Confirm Push Notifications capability is enabled and the signing team is valid.
 4. Run the app on the phone.
 5. Open Preferences.
-6. Open Developer Tools.
+6. Open Developer.
 7. Tap `Register And Sync Device`.
 8. Accept the iOS notification permission prompt.
 
 Expected:
 
-- Developer Tools shows notification permission as allowed.
-- Developer Tools shows APNs token as registered.
+- Developer shows notification permission as allowed.
+- Developer shows APNs token as registered.
 - API registration shows synced.
 - `/health` shows `registeredDeviceCount` at least `1`.
 
@@ -184,7 +184,7 @@ Expected:
 1. On the iPhone, open Preferences.
 2. Open Garage.
 3. Turn off `Garage opened`.
-4. Sync preferences from Developer Tools if needed.
+4. Sync preferences from Developer if needed.
 5. Send:
 
 ```sh
@@ -254,7 +254,7 @@ Record results here during the physical pass:
 | Close garage confirmation cancel path works | Pending |  |
 | Curated light actions work safely | Pending |  |
 | Notifications remains history-focused | Pending |  |
-| Developer Tools shows environment and technical status | Pending |  |
+| Developer shows environment and technical status | Pending |  |
 
 ## Stage 17 Completion Rule
 

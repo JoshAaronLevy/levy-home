@@ -16,7 +16,8 @@ struct PreferencesView: View {
                 appVersion: appEnvironment.config.appVersion
             ),
             themePreferenceViewModel: themePreferenceViewModel,
-            apnsEnvironment: appEnvironment.config.apiAPNsEnvironment
+            apnsEnvironment: appEnvironment.config.apiAPNsEnvironment,
+            isDeveloperToolsEnabled: appEnvironment.config.isDeveloperToolsEnabled
         )
     }
 }
@@ -27,17 +28,20 @@ private struct PreferencesContentView: View {
     @ObservedObject private var themePreferenceViewModel: ThemePreferenceViewModel
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     private let apnsEnvironment: APNsEnvironment
+    private let isDeveloperToolsEnabled: Bool
 
     init(
         viewModel: NotificationPreferencesViewModel,
         pushRegistrationViewModel: PushRegistrationViewModel,
         themePreferenceViewModel: ThemePreferenceViewModel,
-        apnsEnvironment: APNsEnvironment = .sandbox
+        apnsEnvironment: APNsEnvironment = .sandbox,
+        isDeveloperToolsEnabled: Bool = false
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         _pushRegistrationViewModel = StateObject(wrappedValue: pushRegistrationViewModel)
         self.themePreferenceViewModel = themePreferenceViewModel
         self.apnsEnvironment = apnsEnvironment
+        self.isDeveloperToolsEnabled = isDeveloperToolsEnabled
     }
 
     var body: some View {
@@ -53,24 +57,64 @@ private struct PreferencesContentView: View {
                 ResidentPreferenceRowView(currentResidentName: $currentResidentName)
 
                 NotificationPreferencesView(viewModel: viewModel)
+
+                if isDeveloperToolsEnabled {
+                    developerLink
+                }
             }
             .padding(AppSpacing.screen)
         }
         .background(AppColors.pageBackground)
         .navigationTitle("Preferences")
-        .toolbar {
-            if BuildConfiguration.current.defaultDeveloperToolsEnabled {
-                NavigationLink {
-                    DebugView(
-                        pushRegistrationViewModel: pushRegistrationViewModel,
-                        notificationPreferencesViewModel: viewModel,
-                        apnsEnvironment: apnsEnvironment
-                    )
-                } label: {
-                    Image(systemName: "wrench.and.screwdriver")
-                }
-                .accessibilityLabel("Developer Tools")
+    }
+
+    private var developerLink: some View {
+        NavigationLink {
+            DebugView(
+                pushRegistrationViewModel: pushRegistrationViewModel,
+                notificationPreferencesViewModel: viewModel,
+                apnsEnvironment: apnsEnvironment
+            )
+        } label: {
+            DeveloperPreferenceLinkLabel()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Developer")
+    }
+}
+
+private struct DeveloperPreferenceLinkLabel: View {
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text("Developer")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Text("Device registration, preference sync, and logs.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+        }
+        .padding(AppSpacing.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
         }
     }
 }
@@ -192,7 +236,8 @@ private struct ResidentPreferenceView: View {
                     userDefaults: UserDefaults(suiteName: "PreferencesThemePreview") ?? .standard
                 )
             ),
-            apnsEnvironment: .sandbox
+            apnsEnvironment: .sandbox,
+            isDeveloperToolsEnabled: true
         )
     }
 }

@@ -93,11 +93,48 @@ struct DebugView: View {
                         }
                     }
                 }
+
+                InfoPanel(
+                    title: "Logs",
+                    subtitle: "Local app, API, and action breadcrumbs from this device.",
+                    systemImage: "terminal"
+                ) {
+                    NavigationLink {
+                        LogsView()
+                    } label: {
+                        HStack(spacing: AppSpacing.medium) {
+                            Image(systemName: "list.bullet.rectangle")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(AppColors.accent)
+                                .frame(width: 28)
+
+                            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                                Text("Logs")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+
+                                Text("View local runtime entries collected by the app.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppColors.mutedText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(AppColors.mutedText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Logs")
+                }
             }
             .padding(AppSpacing.screen)
         }
         .background(AppColors.pageBackground)
-        .navigationTitle("Developer Tools")
+        .navigationTitle("Developer")
         .task {
             await pushRegistrationViewModel.refreshStatus()
         }

@@ -24,7 +24,7 @@ Current values:
 Stage 13 physical-device note:
 
 - The app target now includes the Push Notifications capability and `LevyHome/Resources/LevyHome.entitlements` with `aps-environment` set to `development`.
-- To test native APNs token registration, choose a physical iPhone in Xcode, set your Apple development team on the `LevyHome` target if Xcode asks, run the app, open Preferences, tap the debug-only Developer Tools wrench, and tap `Register For Push`.
+- To test native APNs token registration, choose a physical iPhone in Xcode, set your Apple development team on the `LevyHome` target if Xcode asks, run the app, open Preferences, tap the debug-only `Developer` row, and tap `Register And Sync Device`.
 - The simulator should not prompt for or receive a native APNs token; it should show device registration as unavailable.
 
 ## First-Time Sanity Checks

@@ -25,13 +25,6 @@ struct RootTabView: View {
             }
 
             NavigationStack {
-                LogsView()
-            }
-            .tabItem {
-                Label("Logs", systemImage: "list.bullet.rectangle")
-            }
-
-            NavigationStack {
                 PreferencesView()
             }
             .tabItem {

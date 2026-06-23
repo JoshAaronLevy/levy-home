@@ -1990,7 +1990,13 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
 
 private extension ShoppingCategory {
     var systemImage: String {
-        let normalizedName = name.lowercased()
+        let normalizedName = name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalizedName.contains("miscellaneous") {
+            return "square.grid.2x2"
+        }
 
         if normalizedName.contains("produce")
             || normalizedName.contains("fruit")
@@ -1998,17 +2004,54 @@ private extension ShoppingCategory {
             return "carrot"
         }
 
-        if normalizedName.contains("dairy") {
+        if normalizedName.contains("dairy")
+            || normalizedName.contains("milk") {
             return "drop"
+        }
+
+        if normalizedName.contains("deli")
+            || normalizedName.contains("prepared") {
+            return "takeoutbag.and.cup.and.straw"
+        }
+
+        if normalizedName.contains("boykie")
+            || normalizedName.contains("baby")
+            || normalizedName.contains("kid")
+            || normalizedName.contains("child") {
+            return "teddybear"
+        }
+
+        if normalizedName.contains("snack") {
+            return "popcorn"
+        }
+
+        if normalizedName.contains("breakfast")
+            || normalizedName.contains("coffee")
+            || normalizedName.contains("tea") {
+            return "cup.and.saucer"
+        }
+
+        if normalizedName.contains("personal care")
+            || normalizedName.contains("toiletries")
+            || normalizedName.contains("hygiene") {
+            return "sparkles"
+        }
+
+        if normalizedName.contains("freezer")
+            || normalizedName.contains("frozen") {
+            return "snowflake"
+        }
+
+        if normalizedName.contains("muti")
+            || normalizedName.contains("medicine")
+            || normalizedName.contains("medication")
+            || normalizedName.contains("pharmacy") {
+            return "pills"
         }
 
         if normalizedName.contains("meat")
             || normalizedName.contains("seafood") {
             return "fork.knife"
-        }
-
-        if normalizedName.contains("frozen") {
-            return "snowflake"
         }
 
         if normalizedName.contains("pantry")
@@ -2026,7 +2069,9 @@ private extension ShoppingCategory {
     }
 
     var tone: StatusBadgeTone {
-        let normalizedName = name.lowercased()
+        let normalizedName = name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
 
         if normalizedName.contains("produce")
             || normalizedName.contains("fruit")
@@ -2035,6 +2080,7 @@ private extension ShoppingCategory {
         }
 
         if normalizedName.contains("dairy")
+            || normalizedName.contains("freezer")
             || normalizedName.contains("frozen") {
             return .accent
         }

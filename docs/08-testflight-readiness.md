@@ -31,7 +31,7 @@ The repo can be locally checked for Release build health, backend compile/test h
 | Build | `1` |
 | Release API build setting | `LEVY_HOME_API_BASE_URL = http://localhost:4000` |
 | Push entitlement | `aps-environment = development` |
-| Developer Tools access | Debug-only Preferences toolbar item |
+| Developer access | Debug-only Preferences row |
 
 ## Required Decisions Before Archive
 
@@ -162,7 +162,7 @@ Use a physical iPhone. Simulator cannot validate native APNs tokens or TestFligh
 - Confirm Activity loads recent events.
 - Confirm Notifications opens and stays history-focused.
 - Confirm Preferences opens and shows notification delivery status.
-- Confirm Developer Tools behavior matches the chosen internal policy.
+- Confirm Developer behavior matches the chosen internal policy.
 - Register for notifications on device.
 - Confirm the backend records an APNs device with production environment.
 - Send one debug push only if the internal environment allows debug push.
@@ -180,9 +180,8 @@ Stage 18 is complete only when:
 - A signed Release archive succeeds.
 - The build uses a non-localhost release API URL.
 - The archived app's APNs entitlement and backend APNs environment are production-aligned.
-- Developer Tools behavior follows the internal distribution policy.
+- Developer behavior follows the internal distribution policy.
 - No secrets are committed to app or API source.
 - `PrivacyInfo.xcprivacy` reflects APIs currently used by the app.
 - Internal TestFlight install launches.
 - Selected controls are confirmed safe or disabled for the build.
-

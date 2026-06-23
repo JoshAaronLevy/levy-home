@@ -159,7 +159,7 @@ final class PushRegistrationViewModel: ObservableObject {
         }
 
         registrationLabel = "Not registered"
-        registrationDetail = "Open Developer Tools to request notification permission and APNs registration."
+        registrationDetail = "Open the Developer screen to request notification permission and APNs registration."
         registrationTone = .neutral
         registrationSystemImage = "iphone"
         applyAPISyncPending()
