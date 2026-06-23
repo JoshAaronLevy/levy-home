@@ -202,6 +202,17 @@ final class ShoppingListViewModel: ObservableObject {
         }
     }
 
+    var defaultShoppingCategoryId: Int? {
+        miscellaneousCategory?.id ?? categories.first?.id
+    }
+
+    var miscellaneousCategory: ShoppingCategory? {
+        categories.first { category in
+            category.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                .localizedCaseInsensitiveCompare("Miscellaneous") == .orderedSame
+        }
+    }
+
     convenience init(
         apiClient: APIClient,
         liveService: ShoppingListLiveServicing? = nil,
@@ -652,13 +663,13 @@ fileprivate struct ShoppingItemDraft: Equatable {
         self.purchased = purchased
     }
 
-    init(item: ShoppingListItem) {
+    init(item: ShoppingListItem, defaultCategoryId: Int? = nil) {
         self.init(
             name: item.name,
             brand: item.brand ?? "",
             quantity: item.quantity,
             notes: item.notes ?? "",
-            selectedCategoryId: item.categoryId,
+            selectedCategoryId: item.categoryId ?? defaultCategoryId,
             selectedStoreIds: Set(item.storeIds),
             purchased: item.purchased
         )
@@ -996,10 +1007,9 @@ private struct ShoppingListContentView: View {
         let missingCategories = Set(viewModel.items.compactMap(\.categoryId))
             .filter { categoriesById[$0] == nil }
             .map { ShoppingCategory(id: $0, name: "Category \($0)") }
-        let needsOther = viewModel.items.contains { $0.categoryId == nil }
         let allCategories = responseCategories
             + missingCategories
-            + (needsOther ? [Self.uncategorizedCategory] : [])
+            + (viewModel.items.contains { $0.categoryId == nil } && defaultCategory == nil ? [Self.fallbackMiscellaneousCategory] : [])
 
         return allCategories.sorted { first, second in
             first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
@@ -1024,13 +1034,17 @@ private struct ShoppingListContentView: View {
         categoriesById: [Int: ShoppingCategory]
     ) -> ShoppingCategory {
         guard let categoryId = item.categoryId else {
-            return Self.uncategorizedCategory
+            return defaultCategory ?? Self.fallbackMiscellaneousCategory
         }
 
         return categoriesById[categoryId] ?? ShoppingCategory(id: categoryId, name: "Category \(categoryId)")
     }
 
-    private static let uncategorizedCategory = ShoppingCategory(id: 0, name: "Other")
+    private var defaultCategory: ShoppingCategory? {
+        viewModel.miscellaneousCategory ?? viewModel.categories.first
+    }
+
+    private static let fallbackMiscellaneousCategory = ShoppingCategory(id: 0, name: "Miscellaneous")
 
     private func delete(_ item: ShoppingListItem) async {
         defer {
@@ -1159,7 +1173,11 @@ private struct ShoppingItemEditorSheet: View {
     init(mode: ShoppingItemEditorMode, viewModel: ShoppingListViewModel) {
         self.mode = mode
         self.viewModel = viewModel
-        _draft = State(initialValue: mode.editingItem.map(ShoppingItemDraft.init) ?? ShoppingItemDraft())
+        _draft = State(
+            initialValue: mode.editingItem.map {
+                ShoppingItemDraft(item: $0, defaultCategoryId: viewModel.defaultShoppingCategoryId)
+            } ?? ShoppingItemDraft(selectedCategoryId: viewModel.defaultShoppingCategoryId)
+        )
     }
 
     var body: some View {
@@ -1364,27 +1382,35 @@ private struct ShoppingItemEditorSheet: View {
 
     private var categoryPicker: some View {
         ShoppingFormSection(title: "Category") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppSpacing.small) {
-                    ShoppingChoiceChip(
-                        title: "None",
-                        systemImage: "xmark.circle",
-                        isSelected: draft.selectedCategoryId == nil
-                    ) {
-                        draft.selectedCategoryId = nil
-                    }
-
-                    ForEach(viewModel.categories) { category in
-                        ShoppingChoiceChip(
-                            title: category.name,
-                            systemImage: category.systemImage,
-                            isSelected: draft.selectedCategoryId == category.id
-                        ) {
-                            draft.selectedCategoryId = category.id
+            if viewModel.categories.isEmpty {
+                Text("No categories available")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.mutedText)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppSpacing.small) {
+                        ForEach(viewModel.categories) { category in
+                            ShoppingChoiceChip(
+                                title: category.name,
+                                systemImage: category.systemImage,
+                                isSelected: draft.selectedCategoryId == category.id
+                            ) {
+                                draft.selectedCategoryId = category.id
+                            }
                         }
                     }
+                    .padding(.vertical, 1)
                 }
-                .padding(.vertical, 1)
+                .onAppear {
+                    if draft.selectedCategoryId == nil {
+                        draft.selectedCategoryId = viewModel.defaultShoppingCategoryId
+                    }
+                }
+                .onChange(of: viewModel.defaultShoppingCategoryId) { defaultCategoryId in
+                    if draft.selectedCategoryId == nil {
+                        draft.selectedCategoryId = defaultCategoryId
+                    }
+                }
             }
         }
     }

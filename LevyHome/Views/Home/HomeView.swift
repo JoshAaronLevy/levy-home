@@ -371,6 +371,8 @@ private struct HomeHeaderView: View {
                 Spacer(minLength: AppSpacing.medium)
 
                 HStack(spacing: AppSpacing.medium) {
+                    /*
+                    TODO: Restore after alerts are fine-tuned and notifications are ready.
                     Button {} label: {
                         Image(systemName: "bell")
                             .font(.title3.weight(.medium))
@@ -384,6 +386,7 @@ private struct HomeHeaderView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Notifications")
+                    */
 
                     HomeAvatarView()
                 }
