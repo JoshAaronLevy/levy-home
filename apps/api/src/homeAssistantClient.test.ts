@@ -123,6 +123,11 @@ test('live Home Assistant facade returns per-person device tracker presence', as
 function liveConfig(baseURL: string): AppConfig {
   return {
     port: 0,
+    kroger: {
+      apiBaseURL: 'https://api.kroger.test/v1',
+      productResponseFilePath: '/tmp/kroger-product-response.json',
+      productSearchLimit: 10,
+    },
     apns: {
       bundleId: 'com.levyhome.app',
       defaultEnvironment: 'sandbox',

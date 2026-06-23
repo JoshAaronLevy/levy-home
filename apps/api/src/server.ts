@@ -51,6 +51,10 @@ import {
 import { createHomeAssistantFacade } from './homeAssistantClient.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
+import {
+  lookupAndWriteKrogerProductResponse,
+  type KrogerProductDiagnosticRunner,
+} from './krogerClient.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
 import {
   createShoppingListRealtimeHub,
@@ -74,6 +78,7 @@ export type CreateAppOptions = {
   pushSender?: PushSender;
   shoppingListStore?: ShoppingListStore;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -88,6 +93,9 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime;
+  const runKrogerProductDiagnostic =
+    options.krogerProductDiagnosticRunner ??
+    ((query?: string) => lookupAndWriteKrogerProductResponse(config, { query }));
 
   app.set('etag', false);
   app.use(cors());
@@ -308,6 +316,13 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       query,
       match,
     };
+
+    res.json(response);
+  }));
+
+  app.get('/api/debug/kroger/products', asyncHandler(async (req, res) => {
+    const term = typeof req.query.term === 'string' ? req.query.term : undefined;
+    const response = await runKrogerProductDiagnostic(term);
 
     res.json(response);
   }));

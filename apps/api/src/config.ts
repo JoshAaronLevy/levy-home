@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { LightGroupStatus } from './contracts.js';
 
 export type HomeAssistantMode = 'mock' | 'live';
@@ -26,6 +29,13 @@ export type TrackedPhoneEntityPattern = {
 export type AppConfig = {
   port: number;
   haWebhookSecret?: string;
+  kroger: {
+    clientId?: string;
+    clientSecret?: string;
+    apiBaseURL: string;
+    productResponseFilePath: string;
+    productSearchLimit: number;
+  };
   apns: {
     keyId?: string;
     teamId?: string;
@@ -56,6 +66,15 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readNumber(env.PORT, 4000),
     haWebhookSecret: readOptionalString(env.LEVY_HOME_HA_WEBHOOK_SECRET),
+    kroger: {
+      clientId: readOptionalString(env.KROGER_CLIENT_ID),
+      clientSecret: readOptionalString(env.KROGER_CLIENT_SECRET),
+      apiBaseURL: readOptionalString(env.KROGER_API_BASE_URL) ?? 'https://api.kroger.com/v1',
+      productResponseFilePath:
+        readOptionalString(env.KROGER_PRODUCT_RESPONSE_PATH) ??
+        path.join(API_PACKAGE_ROOT, 'kroger-product-response.json'),
+      productSearchLimit: clampNumber(readNumber(env.KROGER_PRODUCT_SEARCH_LIMIT, 10), 1, 50),
+    },
     apns: {
       keyId: readOptionalString(env.APNS_KEY_ID),
       teamId: readOptionalString(env.APNS_TEAM_ID),
@@ -83,6 +102,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   };
 }
 
+const API_PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 function readAPNsDefaultEnvironment(value: string | undefined): APNsDefaultEnvironment {
   return value === 'production' ? 'production' : 'sandbox';
 }
@@ -98,6 +119,10 @@ function readNumber(value: string | undefined, fallback: number): number {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function readBoolean(value: string | undefined, fallback: boolean, envName: string): boolean {

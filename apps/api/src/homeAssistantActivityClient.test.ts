@@ -14,6 +14,11 @@ type FakeWebSocketListener = (() => void) | ((event: { data: unknown }) => void)
 const baseConfig: AppConfig = {
   port: 0,
   haWebhookSecret: 'test-secret',
+  kroger: {
+    apiBaseURL: 'https://api.kroger.test/v1',
+    productResponseFilePath: '/tmp/kroger-product-response.json',
+    productSearchLimit: 10,
+  },
   apns: {
     bundleId: 'com.levyhome.app',
     defaultEnvironment: 'sandbox',

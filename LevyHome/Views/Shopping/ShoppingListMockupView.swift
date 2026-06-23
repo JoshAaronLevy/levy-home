@@ -102,6 +102,7 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListCreator = (CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
     typealias ShoppingListUpdater = (Int, UpdateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
     typealias ShoppingListDeleter = (Int) async throws -> DeleteShoppingListItemResponse
+    typealias KrogerProductDiagnosticLoader = () async throws -> KrogerProductDiagnosticResponse
 
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
@@ -120,9 +121,11 @@ final class ShoppingListViewModel: ObservableObject {
     private let createShoppingListItem: ShoppingListCreator
     private let updateShoppingListItem: ShoppingListUpdater
     private let deleteShoppingListItem: ShoppingListDeleter
+    private let fetchKrogerSoyMilkProducts: KrogerProductDiagnosticLoader?
     private let liveService: ShoppingListLiveServicing?
     private let currentViewerId: String?
     private var hasLoaded = false
+    private var hasRequestedKrogerSoyMilkProducts = false
     private var isSyncingLiveSnapshot = false
     private var liveUpdatesTask: Task<Void, Never>?
     private var liveConnectionStateTask: Task<Void, Never>?
@@ -227,6 +230,9 @@ final class ShoppingListViewModel: ObservableObject {
             lookupShoppingListItem: { name in
                 try await apiClient.lookupShoppingListItem(named: name)
             },
+            fetchKrogerSoyMilkProducts: {
+                try await apiClient.fetchKrogerProductDiagnostic(named: "Soy Milk")
+            },
             createShoppingListItem: { request in
                 try await apiClient.createShoppingListItem(request)
             },
@@ -251,6 +257,7 @@ final class ShoppingListViewModel: ObservableObject {
             lookupShoppingListItem: { name in
                 ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
             },
+            fetchKrogerSoyMilkProducts: nil,
             createShoppingListItem: { _ in
                 throw APIError.transport("Shopping list creation is not configured.")
             },
@@ -268,6 +275,7 @@ final class ShoppingListViewModel: ObservableObject {
         currentViewerId: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader,
         lookupShoppingListItem: @escaping ShoppingListLookup,
+        fetchKrogerSoyMilkProducts: KrogerProductDiagnosticLoader? = nil,
         createShoppingListItem: @escaping ShoppingListCreator,
         updateShoppingListItem: @escaping ShoppingListUpdater,
         deleteShoppingListItem: @escaping ShoppingListDeleter
@@ -277,6 +285,7 @@ final class ShoppingListViewModel: ObservableObject {
         self.createShoppingListItem = createShoppingListItem
         self.updateShoppingListItem = updateShoppingListItem
         self.deleteShoppingListItem = deleteShoppingListItem
+        self.fetchKrogerSoyMilkProducts = fetchKrogerSoyMilkProducts
         self.liveService = liveService
         self.currentViewerId = currentViewerId
     }
@@ -305,6 +314,21 @@ final class ShoppingListViewModel: ObservableObject {
 
         if didLoad {
             startLiveUpdatesIfNeeded()
+        }
+    }
+
+    func requestKrogerSoyMilkProductsIfNeeded() async {
+        guard !hasRequestedKrogerSoyMilkProducts, let fetchKrogerSoyMilkProducts else {
+            return
+        }
+
+        hasRequestedKrogerSoyMilkProducts = true
+
+        do {
+            _ = try await fetchKrogerSoyMilkProducts()
+        } catch {
+            // This diagnostic lookup is intentionally silent; the backend writes
+            // kroger-product-response.json with the success or failure details.
         }
     }
 
@@ -787,6 +811,10 @@ private struct ShoppingListContentView: View {
         .background(AppColors.pageBackground)
         .navigationTitle("Shopping")
         .task {
+            Task {
+                await viewModel.requestKrogerSoyMilkProductsIfNeeded()
+            }
+
             await viewModel.loadIfNeeded()
         }
         .refreshable {

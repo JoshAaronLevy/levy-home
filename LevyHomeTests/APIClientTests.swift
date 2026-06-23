@@ -82,6 +82,8 @@ final class APIClientTests: XCTestCase {
                 return Self.response(for: request, json: Self.quickActionResponseJSON)
             case ("GET", "/api-base/api/shopping-list"):
                 return Self.response(for: request, json: Self.shoppingListResponseJSON)
+            case ("GET", "/api-base/api/debug/kroger/products"):
+                return Self.response(for: request, json: Self.krogerProductDiagnosticResponseJSON)
             case ("GET", "/api-base/api/notification-preferences"):
                 return Self.response(for: request, json: Self.notificationPreferencesResponseJSON)
             case ("PUT", "/api-base/api/notification-preferences"):
@@ -101,6 +103,7 @@ final class APIClientTests: XCTestCase {
         _ = try await client.fetchQuickActions()
         _ = try await client.performQuickAction(.turnOffLightGroup(groupId: "upstairs_hallway"))
         _ = try await client.fetchShoppingList()
+        _ = try await client.fetchKrogerProductDiagnostic(named: "Soy Milk")
         _ = try await client.fetchNotificationPreferences()
         _ = try await client.updateNotificationPreferences(
             NotificationPreferencesUpdateRequest(
@@ -122,16 +125,25 @@ final class APIClientTests: XCTestCase {
         _ = try await client.sendTestPush(TestPushRequest(title: "Test", body: "Body"))
         _ = try await client.fetchHealth()
 
-        XCTAssertEqual(capturedRequests.count, 9)
+        XCTAssertEqual(capturedRequests.count, 10)
         let quickActions = try await client.fetchQuickActions()
         XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["upstairs_hallway"])
         XCTAssertEqual(capturedRequests[2].jsonBody["actionId"] as? String, "turn_off_light_group")
         XCTAssertEqual(capturedRequests[2].jsonBody["groupId"] as? String, "upstairs_hallway")
         XCTAssertEqual(capturedRequests[3].httpMethod, "GET")
         XCTAssertEqual(capturedRequests[3].url?.path, "/api-base/api/shopping-list")
-        XCTAssertEqual(capturedRequests[5].jsonBody["preferences"] as? [[String: Any]] != nil, true)
-        XCTAssertEqual(capturedRequests[6].jsonBody["provider"] as? String, "apns")
-        XCTAssertEqual(capturedRequests[7].jsonBody["title"] as? String, "Test")
+        XCTAssertEqual(capturedRequests[4].httpMethod, "GET")
+        XCTAssertEqual(capturedRequests[4].url?.path, "/api-base/api/debug/kroger/products")
+        XCTAssertEqual(
+            URLComponents(url: try XCTUnwrap(capturedRequests[4].url), resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "term" })?
+                .value,
+            "Soy Milk"
+        )
+        XCTAssertEqual(capturedRequests[6].jsonBody["preferences"] as? [[String: Any]] != nil, true)
+        XCTAssertEqual(capturedRequests[7].jsonBody["provider"] as? String, "apns")
+        XCTAssertEqual(capturedRequests[8].jsonBody["title"] as? String, "Test")
     }
 
     func testDecodesServerErrorEnvelope() async {
@@ -341,6 +353,21 @@ final class APIClientTests: XCTestCase {
               "name": "Dairy"
             }
           ]
+        }
+        """
+    }
+
+    private static var krogerProductDiagnosticResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "query": "Soy Milk",
+          "generatedAt": "2026-06-23T12:31:00.000Z",
+          "stage": "product_search",
+          "outputFilePath": "/tmp/kroger-product-response.json",
+          "tokenStatusCode": 200,
+          "productStatusCode": 200,
+          "error": null
         }
         """
     }

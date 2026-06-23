@@ -5,4 +5,5 @@ DerivedData/
 node_modules/
 apps/api/dist/
 apps/api/.env
+apps/api/kroger-product-response.json
 ha-*

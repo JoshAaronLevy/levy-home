@@ -133,6 +133,31 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.categories.first?.name, "Dairy")
     }
 
+    func testDecodesKrogerProductDiagnosticResponse() throws {
+        let response = try decode(
+            KrogerProductDiagnosticResponse.self,
+            from: """
+            {
+              "ok": false,
+              "query": "Soy Milk",
+              "generatedAt": "2026-06-23T12:31:00.000Z",
+              "stage": "token",
+              "outputFilePath": "/tmp/kroger-product-response.json",
+              "tokenStatusCode": 401,
+              "productStatusCode": null,
+              "error": "Kroger token request returned HTTP 401."
+            }
+            """
+        )
+
+        XCTAssertFalse(response.ok)
+        XCTAssertEqual(response.query, "Soy Milk")
+        XCTAssertEqual(response.stage, "token")
+        XCTAssertEqual(response.tokenStatusCode, 401)
+        XCTAssertNil(response.productStatusCode)
+        XCTAssertEqual(response.error, "Kroger token request returned HTTP 401.")
+    }
+
     func testDecodesNotificationPreferencesResponse() throws {
         let response = try decode(
             NotificationPreferencesResponse.self,

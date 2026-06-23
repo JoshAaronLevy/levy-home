@@ -75,6 +75,17 @@ struct ShoppingListItemLookupResponse: Codable, Equatable {
     let match: ShoppingListItem?
 }
 
+struct KrogerProductDiagnosticResponse: Codable, Equatable {
+    let ok: Bool
+    let query: String
+    let generatedAt: String?
+    let stage: String?
+    let outputFilePath: String?
+    let tokenStatusCode: Int?
+    let productStatusCode: Int?
+    let error: String?
+}
+
 struct ShoppingListMutationResponse: Codable, Equatable {
     let ok: Bool
     let item: ShoppingListItem

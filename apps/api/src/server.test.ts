@@ -18,6 +18,13 @@ let baseURL: string;
 const testConfig: AppConfig = {
   port: 0,
   haWebhookSecret: 'test-secret',
+  kroger: {
+    clientId: 'test-kroger-client-id',
+    clientSecret: 'test-kroger-client-secret',
+    apiBaseURL: 'https://api.kroger.test/v1',
+    productResponseFilePath: '/tmp/kroger-product-response.json',
+    productSearchLimit: 10,
+  },
   apns: {
     bundleId: 'com.levyhome.app',
     defaultEnvironment: 'sandbox',
@@ -132,6 +139,37 @@ test('GET /api/shopping-list returns shopping data from the configured store', a
   ]);
   assert.deepEqual(response.stores, [{ id: 1, name: 'Target', logo: 'target' }]);
   assert.deepEqual(response.categories, [{ id: 2, name: 'Dairy' }]);
+});
+
+test('GET /api/debug/kroger/products runs the Kroger product diagnostic lookup', async () => {
+  let capturedQuery: string | undefined;
+
+  await restartTestServer(
+    createApp({
+      config: testConfig,
+      krogerProductDiagnosticRunner: async (query) => {
+        capturedQuery = query;
+
+        return {
+          ok: true,
+          query: query ?? 'Soy Milk',
+          generatedAt: '2026-06-23T12:00:00.000Z',
+          stage: 'product_search',
+          outputFilePath: '/tmp/kroger-product-response.json',
+          tokenStatusCode: 200,
+          productStatusCode: 200,
+        };
+      },
+    }),
+  );
+
+  const response = await getJSON('/api/debug/kroger/products?term=Soy%20Milk');
+
+  assert.equal(capturedQuery, 'Soy Milk');
+  assert.equal(response.ok, true);
+  assert.equal(response.query, 'Soy Milk');
+  assert.equal(response.outputFilePath, '/tmp/kroger-product-response.json');
+  assert.equal(response.productStatusCode, 200);
 });
 
 async function restartTestServer(app: ReturnType<typeof createApp>): Promise<void> {

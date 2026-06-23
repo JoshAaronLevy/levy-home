@@ -18,6 +18,22 @@ test('readConfig defaults Home Assistant light groups to empty instead of demo e
   assert.deepEqual(config.homeAssistant.lightGroups, []);
 });
 
+test('readConfig parses Kroger API diagnostic configuration', () => {
+  const config = readConfig({
+    KROGER_CLIENT_ID: 'client-id',
+    KROGER_CLIENT_SECRET: 'client-secret',
+    KROGER_API_BASE_URL: 'https://api.kroger.test/v1',
+    KROGER_PRODUCT_RESPONSE_PATH: '/tmp/kroger-product-response.json',
+    KROGER_PRODUCT_SEARCH_LIMIT: '7',
+  });
+
+  assert.equal(config.kroger.clientId, 'client-id');
+  assert.equal(config.kroger.clientSecret, 'client-secret');
+  assert.equal(config.kroger.apiBaseURL, 'https://api.kroger.test/v1');
+  assert.equal(config.kroger.productResponseFilePath, '/tmp/kroger-product-response.json');
+  assert.equal(config.kroger.productSearchLimit, 7);
+});
+
 test('readConfig parses curated Home Assistant light entities', () => {
   const config = readConfig({
     HOME_ASSISTANT_LIGHT_ENTITIES:
