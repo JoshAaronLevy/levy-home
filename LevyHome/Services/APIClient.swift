@@ -81,6 +81,15 @@ final class APIClient {
         )
     }
 
+    func searchKrogerProducts(named name: String) async throws -> KrogerProductSearchResponse {
+        try await send(
+            path: "/api/shopping-list/products/search",
+            queryItems: [
+                URLQueryItem(name: "term", value: name)
+            ]
+        )
+    }
+
     func createShoppingListItem(_ request: CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse {
         try await send(
             path: "/api/shopping-list/items",

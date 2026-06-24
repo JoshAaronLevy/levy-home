@@ -84,6 +84,8 @@ final class APIClientTests: XCTestCase {
                 return Self.response(for: request, json: Self.shoppingListResponseJSON)
             case ("GET", "/api-base/api/debug/kroger/products"):
                 return Self.response(for: request, json: Self.krogerProductDiagnosticResponseJSON)
+            case ("GET", "/api-base/api/shopping-list/products/search"):
+                return Self.response(for: request, json: Self.krogerProductSearchResponseJSON)
             case ("GET", "/api-base/api/notification-preferences"):
                 return Self.response(for: request, json: Self.notificationPreferencesResponseJSON)
             case ("PUT", "/api-base/api/notification-preferences"):
@@ -104,6 +106,7 @@ final class APIClientTests: XCTestCase {
         _ = try await client.performQuickAction(.turnOffLightGroup(groupId: "upstairs_hallway"))
         _ = try await client.fetchShoppingList()
         _ = try await client.fetchKrogerProductDiagnostic(named: "Soy Milk")
+        _ = try await client.searchKrogerProducts(named: "Pasta Sauce")
         _ = try await client.fetchNotificationPreferences()
         _ = try await client.updateNotificationPreferences(
             NotificationPreferencesUpdateRequest(
@@ -125,7 +128,7 @@ final class APIClientTests: XCTestCase {
         _ = try await client.sendTestPush(TestPushRequest(title: "Test", body: "Body"))
         _ = try await client.fetchHealth()
 
-        XCTAssertEqual(capturedRequests.count, 10)
+        XCTAssertEqual(capturedRequests.count, 11)
         let quickActions = try await client.fetchQuickActions()
         XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["upstairs_hallway"])
         XCTAssertEqual(capturedRequests[2].jsonBody["actionId"] as? String, "turn_off_light_group")
@@ -141,9 +144,18 @@ final class APIClientTests: XCTestCase {
                 .value,
             "Soy Milk"
         )
-        XCTAssertEqual(capturedRequests[6].jsonBody["preferences"] as? [[String: Any]] != nil, true)
-        XCTAssertEqual(capturedRequests[7].jsonBody["provider"] as? String, "apns")
-        XCTAssertEqual(capturedRequests[8].jsonBody["title"] as? String, "Test")
+        XCTAssertEqual(capturedRequests[5].httpMethod, "GET")
+        XCTAssertEqual(capturedRequests[5].url?.path, "/api-base/api/shopping-list/products/search")
+        XCTAssertEqual(
+            URLComponents(url: try XCTUnwrap(capturedRequests[5].url), resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "term" })?
+                .value,
+            "Pasta Sauce"
+        )
+        XCTAssertEqual(capturedRequests[7].jsonBody["preferences"] as? [[String: Any]] != nil, true)
+        XCTAssertEqual(capturedRequests[8].jsonBody["provider"] as? String, "apns")
+        XCTAssertEqual(capturedRequests[9].jsonBody["title"] as? String, "Test")
     }
 
     func testDecodesServerErrorEnvelope() async {
@@ -334,10 +346,20 @@ final class APIClientTests: XCTestCase {
               "quantity": 2,
               "notes": "Half gallon",
               "purchased": false,
-              "createdAt": "2026-06-22T12:00:00.000Z",
-              "updatedAt": "2026-06-22T12:30:00.000Z",
-              "storeIds": [1],
-              "categoryId": 2
+              "created": "2026-06-22T12:00:00.000Z",
+              "updated": "2026-06-22T12:30:00.000Z",
+              "categoryId": 2,
+              "image": "https://example.test/milk.png",
+              "storeListings": [
+                {
+                  "storeId": 1,
+                  "storeName": "Target",
+                  "source": "manual",
+                  "availability": {
+                    "status": "unknown"
+                  }
+                }
+              ]
             }
           ],
           "stores": [
@@ -365,9 +387,87 @@ final class APIClientTests: XCTestCase {
           "generatedAt": "2026-06-23T12:31:00.000Z",
           "stage": "product_search",
           "outputFilePath": "/tmp/kroger-product-response.json",
+          "normalizedOutputFilePath": "/tmp/kroger-products-normalized.json",
           "tokenStatusCode": 200,
           "productStatusCode": 200,
+          "products": [
+            {
+              "productId": "0003700008411",
+              "upc": "0003700008411",
+              "productPageURI": "/p/luvs-diapers/0003700008411",
+              "aisles": [
+                {
+                  "bayNumber": "2",
+                  "description": "Baby",
+                  "number": "8"
+                }
+              ],
+              "brand": "Luvs",
+              "name": "Luvs Disposable Baby Diapers",
+              "description": "Luvs Disposable Baby Diapers",
+              "image": "https://www.kroger.com/product/images/large/front/0003700008411",
+              "storeListings": [
+                {
+                  "storeId": 2,
+                  "storeName": "King Soopers",
+                  "krogerLocationId": "62000008",
+                  "aisle": {
+                    "display": "8:2",
+                    "number": "8",
+                    "shelfNumber": "2"
+                  },
+                  "price": {
+                    "regular": 9.29,
+                    "promo": 6.99
+                  },
+                  "inventory": {
+                    "stockLevel": "LOW"
+                  }
+                }
+              ]
+            }
+          ],
           "error": null
+        }
+        """
+    }
+
+    private static var krogerProductSearchResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "query": "Pasta Sauce",
+          "generatedAt": "2026-06-23T12:31:00.000Z",
+          "productStatusCode": 200,
+          "products": [
+            {
+              "productId": "0085002473501",
+              "upc": "0085002473501",
+              "productPageURI": "/p/carbone-tomato-basil-sauce-24-oz/0085002473501",
+              "aisles": [],
+              "brand": "Carbone",
+              "name": "Carbone Tomato Basil Sauce 24 oz",
+              "description": "Carbone Tomato Basil Sauce 24 oz",
+              "image": "https://www.kroger.com/product/images/large/front/0085002473501",
+              "storeListings": [
+                {
+                  "storeId": 2,
+                  "storeName": "King Soopers",
+                  "krogerLocationId": "62000008",
+                  "aisle": {
+                    "display": "15:3"
+                  },
+                  "price": {
+                    "regular": 9.29,
+                    "promo": 6.99
+                  },
+                  "inventory": {
+                    "stockLevel": "LOW"
+                  }
+                }
+              ]
+            }
+          ]
         }
         """
     }

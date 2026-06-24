@@ -102,7 +102,7 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListCreator = (CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
     typealias ShoppingListUpdater = (Int, UpdateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
     typealias ShoppingListDeleter = (Int) async throws -> DeleteShoppingListItemResponse
-    typealias KrogerProductDiagnosticLoader = () async throws -> KrogerProductDiagnosticResponse
+    typealias KrogerProductSearch = (String) async throws -> KrogerProductSearchResponse
 
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
@@ -121,11 +121,10 @@ final class ShoppingListViewModel: ObservableObject {
     private let createShoppingListItem: ShoppingListCreator
     private let updateShoppingListItem: ShoppingListUpdater
     private let deleteShoppingListItem: ShoppingListDeleter
-    private let fetchKrogerSoyMilkProducts: KrogerProductDiagnosticLoader?
+    private let searchKrogerProducts: KrogerProductSearch?
     private let liveService: ShoppingListLiveServicing?
     private let currentViewerId: String?
     private var hasLoaded = false
-    private var hasRequestedKrogerSoyMilkProducts = false
     private var isSyncingLiveSnapshot = false
     private var liveUpdatesTask: Task<Void, Never>?
     private var liveConnectionStateTask: Task<Void, Never>?
@@ -230,8 +229,8 @@ final class ShoppingListViewModel: ObservableObject {
             lookupShoppingListItem: { name in
                 try await apiClient.lookupShoppingListItem(named: name)
             },
-            fetchKrogerSoyMilkProducts: {
-                try await apiClient.fetchKrogerProductDiagnostic(named: "Soy Milk")
+            searchKrogerProducts: { name in
+                try await apiClient.searchKrogerProducts(named: name)
             },
             createShoppingListItem: { request in
                 try await apiClient.createShoppingListItem(request)
@@ -257,7 +256,7 @@ final class ShoppingListViewModel: ObservableObject {
             lookupShoppingListItem: { name in
                 ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
             },
-            fetchKrogerSoyMilkProducts: nil,
+            searchKrogerProducts: nil,
             createShoppingListItem: { _ in
                 throw APIError.transport("Shopping list creation is not configured.")
             },
@@ -275,7 +274,7 @@ final class ShoppingListViewModel: ObservableObject {
         currentViewerId: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader,
         lookupShoppingListItem: @escaping ShoppingListLookup,
-        fetchKrogerSoyMilkProducts: KrogerProductDiagnosticLoader? = nil,
+        searchKrogerProducts: KrogerProductSearch? = nil,
         createShoppingListItem: @escaping ShoppingListCreator,
         updateShoppingListItem: @escaping ShoppingListUpdater,
         deleteShoppingListItem: @escaping ShoppingListDeleter
@@ -285,7 +284,7 @@ final class ShoppingListViewModel: ObservableObject {
         self.createShoppingListItem = createShoppingListItem
         self.updateShoppingListItem = updateShoppingListItem
         self.deleteShoppingListItem = deleteShoppingListItem
-        self.fetchKrogerSoyMilkProducts = fetchKrogerSoyMilkProducts
+        self.searchKrogerProducts = searchKrogerProducts
         self.liveService = liveService
         self.currentViewerId = currentViewerId
     }
@@ -317,19 +316,12 @@ final class ShoppingListViewModel: ObservableObject {
         }
     }
 
-    func requestKrogerSoyMilkProductsIfNeeded() async {
-        guard !hasRequestedKrogerSoyMilkProducts, let fetchKrogerSoyMilkProducts else {
-            return
+    func searchProducts(named name: String) async throws -> [KrogerProduct] {
+        guard let searchKrogerProducts else {
+            throw APIError.transport("Product search is not configured.")
         }
 
-        hasRequestedKrogerSoyMilkProducts = true
-
-        do {
-            _ = try await fetchKrogerSoyMilkProducts()
-        } catch {
-            // This diagnostic lookup is intentionally silent; the backend writes
-            // kroger-product-response.json with the success or failure details.
-        }
+        return try await searchKrogerProducts(name).products
     }
 
     func startLiveUpdatesIfNeeded() {
@@ -666,7 +658,8 @@ fileprivate struct ShoppingItemDraft: Equatable {
     var quantity: Int
     var notes: String
     var selectedCategoryId: Int?
-    var selectedStoreIds: Set<Int>
+    var image: String
+    var storeListings: [ShoppingItemStoreListing]
     var purchased: Bool
 
     init(
@@ -675,7 +668,8 @@ fileprivate struct ShoppingItemDraft: Equatable {
         quantity: Int = 1,
         notes: String = "",
         selectedCategoryId: Int? = nil,
-        selectedStoreIds: Set<Int> = [],
+        image: String = "",
+        storeListings: [ShoppingItemStoreListing] = [],
         purchased: Bool = false
     ) {
         self.name = name
@@ -683,7 +677,8 @@ fileprivate struct ShoppingItemDraft: Equatable {
         self.quantity = max(1, quantity)
         self.notes = notes
         self.selectedCategoryId = selectedCategoryId
-        self.selectedStoreIds = selectedStoreIds
+        self.image = image
+        self.storeListings = storeListings
         self.purchased = purchased
     }
 
@@ -694,7 +689,8 @@ fileprivate struct ShoppingItemDraft: Equatable {
             quantity: item.quantity,
             notes: item.notes ?? "",
             selectedCategoryId: item.categoryId ?? defaultCategoryId,
-            selectedStoreIds: Set(item.storeIds),
+            image: item.image ?? "",
+            storeListings: item.storeListings,
             purchased: item.purchased
         )
     }
@@ -718,8 +714,9 @@ fileprivate struct ShoppingItemDraft: Equatable {
             quantity: quantity,
             notes: normalizedOptionalText(notes),
             purchased: purchased,
-            storeIds: sortedStoreIds,
-            categoryId: selectedCategoryId
+            categoryId: selectedCategoryId,
+            image: normalizedOptionalText(image),
+            storeListings: storeListings
         )
     }
 
@@ -730,8 +727,9 @@ fileprivate struct ShoppingItemDraft: Equatable {
             quantity: quantity,
             notes: nullableString(notes),
             purchased: purchased,
-            storeIds: sortedStoreIds,
-            categoryId: nullableCategoryId
+            categoryId: nullableCategoryId,
+            image: nullableString(image),
+            storeListings: storeListings
         )
     }
 
@@ -740,13 +738,49 @@ fileprivate struct ShoppingItemDraft: Equatable {
             quantity: quantity,
             notes: optionalNullableString(notes),
             purchased: false,
-            storeIds: selectedStoreIds.isEmpty ? nil : sortedStoreIds,
-            categoryId: selectedCategoryId.map { .value($0) }
+            categoryId: selectedCategoryId.map { .value($0) },
+            image: optionalNullableString(image),
+            storeListings: storeListings.isEmpty ? nil : storeListings
         )
     }
 
-    private var sortedStoreIds: [Int] {
-        selectedStoreIds.sorted()
+    var selectedStoreIds: Set<Int> {
+        Set(storeListings.compactMap(\.storeId))
+    }
+
+    var selectedKrogerProductName: String? {
+        storeListings.first { listing in
+            listing.krogerLocationId != nil || listing.product?.productId != nil
+        }?.product?.name
+    }
+
+    mutating func toggleStore(_ store: ShoppingStore) {
+        if selectedStoreIds.contains(store.id) {
+            storeListings.removeAll { $0.storeId == store.id }
+        } else {
+            storeListings.append(Self.manualListing(for: store))
+        }
+    }
+
+    mutating func apply(product: KrogerProduct, kingSoopersStore: ShoppingStore?) {
+        if let brand = product.brand, !brand.isEmpty {
+            self.brand = brand
+        }
+
+        if let image = product.image, !image.isEmpty {
+            self.image = image
+        }
+
+        var listing = product.storeListings.first ?? Self.krogerListing(from: product, store: kingSoopersStore)
+        listing = listing.withStoreFallback(kingSoopersStore)
+        storeListings.removeAll { existing in
+            if let storeId = listing.storeId {
+                return existing.storeId == storeId
+            }
+
+            return existing.krogerLocationId != nil || existing.product?.productId != nil
+        }
+        storeListings.append(listing)
     }
 
     private var nullableCategoryId: ShoppingListNullableValue<Int> {
@@ -764,6 +798,41 @@ fileprivate struct ShoppingItemDraft: Equatable {
     private func normalizedOptionalText(_ value: String) -> String? {
         let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedValue.isEmpty ? nil : trimmedValue
+    }
+
+    private static func manualListing(for store: ShoppingStore) -> ShoppingItemStoreListing {
+        ShoppingItemStoreListing(
+            storeId: store.id,
+            storeName: store.name,
+            source: "manual",
+            availability: ShoppingStoreListingAvailability(status: "unknown", checkedAt: nil)
+        )
+    }
+
+    private static func krogerListing(from product: KrogerProduct, store: ShoppingStore?) -> ShoppingItemStoreListing {
+        ShoppingItemStoreListing(
+            storeId: store?.id ?? 2,
+            storeName: store?.name ?? "King Soopers",
+            krogerLocationId: "62000008",
+            product: ShoppingStoreListingProduct(
+                productId: product.productId,
+                upc: product.upc,
+                productPageURI: product.productPageURI,
+                brand: product.brand,
+                name: product.name,
+                description: product.description,
+                image: product.image
+            ),
+            aisle: product.aisles.first.map { aisle in
+                ShoppingStoreListingAisle(
+                    display: [aisle.number, aisle.shelfNumber].compactMap { $0 }.joined(separator: ":").nilIfEmpty,
+                    description: aisle.description,
+                    number: aisle.number,
+                    shelfNumber: aisle.shelfNumber,
+                    raw: aisle.rawJSON
+                )
+            }
+        )
     }
 }
 
@@ -811,10 +880,6 @@ private struct ShoppingListContentView: View {
         .background(AppColors.pageBackground)
         .navigationTitle("Shopping")
         .task {
-            Task {
-                await viewModel.requestKrogerSoyMilkProductsIfNeeded()
-            }
-
             await viewModel.loadIfNeeded()
         }
         .refreshable {
@@ -1016,15 +1081,11 @@ private struct ShoppingListContentView: View {
 
     private var displayItems: [ShoppingListDisplayItem] {
         let categoriesById = Dictionary(uniqueKeysWithValues: viewModel.categories.map { ($0.id, $0) })
-        let storesById = Dictionary(uniqueKeysWithValues: viewModel.stores.map { ($0.id, $0) })
 
         return viewModel.items.map { item in
             ShoppingListDisplayItem(
                 item: item,
-                category: category(for: item, categoriesById: categoriesById),
-                stores: item.storeIds.map { storeId in
-                    storesById[storeId] ?? ShoppingStore(id: storeId, name: "Store \(storeId)", logo: nil)
-                }
+                category: category(for: item, categoriesById: categoriesById)
             )
         }
     }
@@ -1197,6 +1258,7 @@ private struct ShoppingItemEditorSheet: View {
     @State private var isSubmitting = false
     @State private var isAddingBack = false
     @State private var pendingDeleteItem: ShoppingListItem?
+    @State private var isProductSearchPresented = false
 
     init(mode: ShoppingItemEditorMode, viewModel: ShoppingListViewModel) {
         self.mode = mode
@@ -1212,15 +1274,17 @@ private struct ShoppingItemEditorSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    storePicker
+
                     nameField
+
+                    productLookupSection
 
                     duplicateStatusView
 
                     quantityControl
 
                     categoryPicker
-
-                    storePicker
 
                     brandField
 
@@ -1292,6 +1356,16 @@ private struct ShoppingItemEditorSheet: View {
                 }
             } message: { item in
                 Text("Remove \(item.name) from the shared shopping list.")
+            }
+            .sheet(isPresented: $isProductSearchPresented) {
+                ShoppingProductSearchSheet(
+                    initialSearchTerm: draft.trimmedName,
+                    viewModel: viewModel
+                ) { product in
+                    draft.apply(product: product, kingSoopersStore: kingSoopersStore)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -1458,12 +1532,47 @@ private struct ShoppingItemEditorSheet: View {
                                 systemImage: "mappin.circle",
                                 isSelected: draft.selectedStoreIds.contains(store.id)
                             ) {
-                                toggleStore(store)
+                                draft.toggleStore(store)
                             }
                         }
                     }
                     .padding(.vertical, 1)
                 }
+            }
+        }
+    }
+
+    private var kingSoopersStore: ShoppingStore? {
+        viewModel.stores.first { store in
+            let normalizedName = store.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalizedName.contains("king soopers") || normalizedName.contains("kroger")
+        }
+    }
+
+    private var productLookupSection: some View {
+        ShoppingFormSection(title: "Product") {
+            VStack(alignment: .leading, spacing: AppSpacing.small) {
+                if let selectedKrogerProductName = draft.selectedKrogerProductName {
+                    Label(selectedKrogerProductName, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.success)
+                        .lineLimit(2)
+                } else {
+                    Text("Optional")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+
+                Button {
+                    isProductSearchPresented = true
+                } label: {
+                    Label("Find Product", systemImage: "magnifyingglass")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(draft.trimmedName.isEmpty && draft.selectedKrogerProductName == nil)
             }
         }
     }
@@ -1692,13 +1801,6 @@ private struct ShoppingItemEditorSheet: View {
         }
     }
 
-    private func toggleStore(_ store: ShoppingStore) {
-        if draft.selectedStoreIds.contains(store.id) {
-            draft.selectedStoreIds.remove(store.id)
-        } else {
-            draft.selectedStoreIds.insert(store.id)
-        }
-    }
 }
 
 private struct ShoppingFormSection<Content: View>: View {
@@ -1743,6 +1845,250 @@ private struct ShoppingChoiceChip: View {
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ShoppingProductSearchSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let initialSearchTerm: String
+    @ObservedObject var viewModel: ShoppingListViewModel
+    let onSelect: (KrogerProduct) -> Void
+
+    @State private var searchTerm: String
+    @State private var products: [KrogerProduct] = []
+    @State private var isSearching = false
+    @State private var errorMessage: String?
+    @State private var hasSearched = false
+
+    init(
+        initialSearchTerm: String,
+        viewModel: ShoppingListViewModel,
+        onSelect: @escaping (KrogerProduct) -> Void
+    ) {
+        self.initialSearchTerm = initialSearchTerm
+        self.viewModel = viewModel
+        self.onSelect = onSelect
+        _searchTerm = State(initialValue: initialSearchTerm)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    searchField
+
+                    if let errorMessage {
+                        ErrorBannerView(message: errorMessage, tone: .warning)
+                    }
+
+                    if isSearching {
+                        HStack(spacing: AppSpacing.medium) {
+                            ProgressView()
+
+                            Text("Searching King Soopers...")
+                                .font(.body)
+                                .foregroundStyle(AppColors.mutedText)
+                        }
+                        .padding(AppSpacing.medium)
+                    } else if products.isEmpty && hasSearched {
+                        InfoPanel(
+                            title: "No Products Found",
+                            subtitle: "Try a shorter product name or brand.",
+                            systemImage: "magnifyingglass"
+                        ) {
+                            EmptyView()
+                        }
+                    } else {
+                        LazyVStack(spacing: AppSpacing.small) {
+                            ForEach(products, id: \.stableSearchId) { product in
+                                ShoppingProductResultRow(product: product) {
+                                    onSelect(product)
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(AppSpacing.screen)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle("Find Product")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .task {
+                await searchIfReady()
+            }
+        }
+    }
+
+    private var searchField: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            HStack(spacing: AppSpacing.small) {
+                Image(systemName: "magnifyingglass")
+                    .font(.headline)
+                    .foregroundStyle(AppColors.mutedText)
+                    .frame(width: 24)
+
+                TextField("Search Kroger products", text: $searchTerm)
+                    .font(.body)
+                    .textInputAutocapitalization(.words)
+                    .submitLabel(.search)
+                    .onSubmit {
+                        Task {
+                            await search()
+                        }
+                    }
+
+                if !searchTerm.isEmpty {
+                    Button {
+                        searchTerm = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+                    .accessibilityLabel("Clear product search")
+                }
+            }
+            .padding(AppSpacing.medium)
+            .background(AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                    .stroke(AppColors.panelBorder, lineWidth: 1)
+            }
+
+            PrimaryActionButton(
+                title: "Search",
+                systemImage: "magnifyingglass",
+                isLoading: isSearching,
+                isDisabled: trimmedSearchTerm.isEmpty || isSearching
+            ) {
+                Task {
+                    await search()
+                }
+            }
+        }
+    }
+
+    private var trimmedSearchTerm: String {
+        searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func searchIfReady() async {
+        guard !trimmedSearchTerm.isEmpty else {
+            return
+        }
+
+        await search()
+    }
+
+    private func search() async {
+        let term = trimmedSearchTerm
+
+        guard !term.isEmpty, !isSearching else {
+            return
+        }
+
+        isSearching = true
+        errorMessage = nil
+
+        defer {
+            isSearching = false
+            hasSearched = true
+        }
+
+        do {
+            products = try await viewModel.searchProducts(named: term)
+        } catch {
+            products = []
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct ShoppingProductResultRow: View {
+    let product: KrogerProduct
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                productImage
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(product.name ?? product.description ?? "Kroger product")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    if let brand = product.brand {
+                        Text(brand)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.mutedText)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: AppSpacing.xSmall) {
+                        if let aisleDisplay = product.primaryListing?.aisle?.display {
+                            StatusBadgeView(label: aisleDisplay, systemImage: "mappin.circle", tone: .accent)
+                        }
+
+                        if let priceText = product.primaryListing?.price?.displayText {
+                            StatusBadgeView(label: priceText, systemImage: "tag", tone: .success)
+                        }
+                    }
+                }
+
+                Spacer(minLength: AppSpacing.small)
+
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(AppColors.accent)
+            }
+            .padding(AppSpacing.medium)
+            .background(AppColors.panelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                    .stroke(AppColors.panelBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var productImage: some View {
+        if let image = product.image, let url = URL(string: image) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                default:
+                    Image(systemName: "shippingbox")
+                        .font(.title3)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+            }
+            .frame(width: 56, height: 56)
+            .background(AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        } else {
+            Image(systemName: "shippingbox")
+                .font(.title3)
+                .foregroundStyle(AppColors.mutedText)
+                .frame(width: 56, height: 56)
+                .background(AppColors.insetPanelBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        }
     }
 }
 
@@ -1837,6 +2183,8 @@ private struct ShoppingItemRow: View {
             .disabled(isMutating)
             .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
 
+            itemImage
+
             VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
                 Text(displayItem.item.name)
                     .font(.body.weight(.semibold))
@@ -1853,16 +2201,16 @@ private struct ShoppingItemRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if !displayItem.stores.isEmpty {
+                if !displayItem.storeListings.isEmpty {
                     HStack(spacing: AppSpacing.xSmall) {
-                        ForEach(displayItem.stores) { store in
-                            Text(store.name)
+                        ForEach(displayItem.storeListings) { listing in
+                            Text(listing.badgeLabel)
                                 .font(.caption.weight(.semibold))
                                 .lineLimit(1)
                                 .padding(.horizontal, AppSpacing.small)
                                 .frame(height: 24)
-                                .foregroundStyle(AppColors.accent)
-                                .background(AppColors.accentSoft)
+                                .foregroundStyle(listing.badgeTone.foregroundColor)
+                                .background(listing.badgeTone.backgroundColor)
                                 .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
                         }
                     }
@@ -1913,6 +2261,27 @@ private struct ShoppingItemRow: View {
             Button(role: .destructive, action: onDelete) {
                 Label("Delete", systemImage: "trash")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var itemImage: some View {
+        if let image = displayItem.item.image, let url = URL(string: image) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                default:
+                    Image(systemName: "shippingbox")
+                        .font(.headline)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+            }
+            .frame(width: 42, height: 42)
+            .background(AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
         }
     }
 }
@@ -1968,9 +2337,12 @@ private struct ShoppingCategoryGroup: Identifiable {
 private struct ShoppingListDisplayItem: Identifiable, Comparable {
     let item: ShoppingListItem
     let category: ShoppingCategory
-    let stores: [ShoppingStore]
 
     var id: Int { item.id }
+
+    var storeListings: [ShoppingItemStoreListing] {
+        item.storeListings
+    }
 
     var detailText: String? {
         var details: [String] = []
@@ -1988,7 +2360,7 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
 
     var accessibilityLabel: String {
         let state = item.purchased ? "picked up" : "needed"
-        let storeNames = stores.map(\.name).joined(separator: ", ")
+        let storeNames = storeListings.map(\.badgeLabel).joined(separator: ", ")
         let storesText = storeNames.isEmpty ? "" : ", stores \(storeNames)"
 
         return "\(item.name), quantity \(item.quantity), \(category.name), \(state)\(storesText)"
@@ -2000,7 +2372,8 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
             item.brand,
             item.notes,
             category.name,
-        ] + stores.map(\.name)
+            item.image,
+        ] + storeListings.flatMap(\.searchableValues)
 
         return searchableValues
             .compactMap { $0 }
@@ -2013,6 +2386,145 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
         }
 
         return lhs.item.name.localizedCaseInsensitiveCompare(rhs.item.name) == .orderedAscending
+    }
+}
+
+private extension KrogerProduct {
+    var stableSearchId: String {
+        productId ?? upc ?? productPageURI ?? name ?? description ?? "unknown-product"
+    }
+
+    var primaryListing: ShoppingItemStoreListing? {
+        storeListings.first
+    }
+}
+
+private extension ShoppingItemStoreListing {
+    var badgeLabel: String {
+        let name = storeName ?? "Store"
+
+        if let display = aisle?.display, !display.isEmpty {
+            return "\(name) - \(display)"
+        }
+
+        return name
+    }
+
+    var badgeTone: StatusBadgeTone {
+        let normalizedStatus = availability?.status?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalizedStatus == "out_of_stock" || normalizedStatus == "out of stock" {
+            return .critical
+        }
+
+        if normalizedStatus == "in_stock" || normalizedStatus == "in stock" {
+            return .success
+        }
+
+        let stockLevel = inventory?["stockLevel"]?.stringValue?.lowercased()
+
+        if stockLevel == "out_of_stock" || stockLevel == "out of stock" || stockLevel == "none" {
+            return .critical
+        }
+
+        if stockLevel == "low" {
+            return .warning
+        }
+
+        if stockLevel == "high" || stockLevel == "in_stock" || stockLevel == "available" {
+            return .success
+        }
+
+        return .neutral
+    }
+
+    var searchableValues: [String] {
+        [
+            storeName,
+            source,
+            krogerLocationId,
+            product?.brand,
+            product?.name,
+            product?.description,
+            aisle?.display,
+            aisle?.description,
+            availability?.status,
+            inventory?["stockLevel"]?.stringValue,
+        ].compactMap { $0 }
+    }
+
+    func withStoreFallback(_ store: ShoppingStore?) -> ShoppingItemStoreListing {
+        ShoppingItemStoreListing(
+            storeId: storeId ?? store?.id ?? 2,
+            storeName: storeName ?? store?.name ?? "King Soopers",
+            source: source,
+            krogerLocationId: krogerLocationId,
+            product: product,
+            aisle: aisle,
+            price: price,
+            inventory: inventory,
+            fulfillment: fulfillment,
+            availability: availability,
+            checkedAt: checkedAt
+        )
+    }
+}
+
+private extension ShoppingStoreListingPrice {
+    var displayText: String? {
+        guard let value = promo ?? regular else {
+            return nil
+        }
+
+        return value.formatted(.currency(code: "USD"))
+    }
+}
+
+private extension KrogerProductAisleLocation {
+    var rawJSON: [String: JSONValue] {
+        var values: [String: JSONValue] = [:]
+
+        if let bayNumber {
+            values["bayNumber"] = .string(bayNumber)
+        }
+
+        if let description {
+            values["description"] = .string(description)
+        }
+
+        if let number {
+            values["number"] = .string(number)
+        }
+
+        if let numberOfFacings {
+            values["numberOfFacings"] = .string(numberOfFacings)
+        }
+
+        if let sequenceNumber {
+            values["sequenceNumber"] = .string(sequenceNumber)
+        }
+
+        if let side {
+            values["side"] = .string(side)
+        }
+
+        if let shelfNumber {
+            values["shelfNumber"] = .string(shelfNumber)
+        }
+
+        if let shelfPositionInBay {
+            values["shelfPositionInBay"] = .string(shelfPositionInBay)
+        }
+
+        return values
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
 
@@ -2131,10 +2643,17 @@ private extension ShoppingCategory {
                             quantity: 2,
                             notes: "Half gallon",
                             purchased: false,
-                            createdAt: "2026-06-22T12:00:00.000Z",
-                            updatedAt: "2026-06-22T12:30:00.000Z",
-                            storeIds: [1],
-                            categoryId: 2
+                            created: "2026-06-22T12:00:00.000Z",
+                            updated: "2026-06-22T12:30:00.000Z",
+                            categoryId: 2,
+                            storeListings: [
+                                ShoppingItemStoreListing(
+                                    storeId: 1,
+                                    storeName: "Target",
+                                    source: "manual",
+                                    availability: ShoppingStoreListingAvailability(status: "unknown", checkedAt: nil)
+                                )
+                            ]
                         )
                     ],
                     stores: [

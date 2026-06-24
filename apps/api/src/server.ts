@@ -38,6 +38,7 @@ import {
   type QuickActionId,
   type RegisteredDevice,
   type DeleteShoppingListItemResponse,
+  type KrogerProductSearchResponse,
   type ShoppingListItem,
   type ShoppingListItemLookupResponse,
   type ShoppingListMutationResponse,
@@ -53,6 +54,7 @@ import { HomeService } from './homeService.js';
 import { HTTPError } from './httpError.js';
 import {
   lookupAndWriteKrogerProductResponse,
+  searchKrogerProducts,
   type KrogerProductDiagnosticRunner,
 } from './krogerClient.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
@@ -68,6 +70,7 @@ import {
   validateQuickActionBody,
   validateRegisterDeviceBody,
   validateShoppingListItemLookupQuery,
+  validateShoppingProductSearchQuery,
   validateTestPushBody,
   validateUpdateShoppingListItemBody,
 } from './validation.js';
@@ -79,6 +82,7 @@ export type CreateAppOptions = {
   shoppingListStore?: ShoppingListStore;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
+  krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -96,6 +100,9 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const runKrogerProductDiagnostic =
     options.krogerProductDiagnosticRunner ??
     ((query?: string) => lookupAndWriteKrogerProductResponse(config, { query }));
+  const runKrogerProductSearch =
+    options.krogerProductSearchRunner ??
+    ((query?: string) => searchKrogerProducts(config, { query }));
 
   app.set('etag', false);
   app.use(cors());
@@ -323,6 +330,13 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.get('/api/debug/kroger/products', asyncHandler(async (req, res) => {
     const term = typeof req.query.term === 'string' ? req.query.term : undefined;
     const response = await runKrogerProductDiagnostic(term);
+
+    res.json(response);
+  }));
+
+  app.get('/api/shopping-list/products/search', asyncHandler(async (req, res) => {
+    const term = validateShoppingProductSearchQuery(req.query);
+    const response = await runKrogerProductSearch(term);
 
     res.json(response);
   }));

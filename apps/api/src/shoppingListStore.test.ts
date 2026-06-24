@@ -19,10 +19,27 @@ test('fetchShoppingListData maps shopping list tables into API contracts', async
           quantity: null,
           notes: 'Half gallon',
           purchased: null,
-          createdAt: new Date('2026-06-22T12:00:00.000Z'),
-          updatedAt: '2026-06-22T12:30:00Z',
-          storeIds: '[1, "2", "not-an-id"]',
+          created: new Date('2026-06-22T12:00:00.000Z'),
+          updated: '2026-06-22T12:30:00Z',
           categoryId: '3',
+          image: 'https://example.test/milk.png',
+          storeListings: JSON.stringify([
+            {
+              storeId: 1,
+              storeName: 'Target',
+              source: 'manual',
+              availability: {
+                status: 'unknown',
+              },
+            },
+            {
+              storeId: 2,
+              storeName: 'King Soopers',
+              aisle: {
+                display: '13:2',
+              },
+            },
+          ]),
         },
       ] as unknown as Row[];
     }
@@ -52,10 +69,27 @@ test('fetchShoppingListData maps shopping list tables into API contracts', async
         quantity: 1,
         notes: 'Half gallon',
         purchased: false,
-        createdAt: '2026-06-22T12:00:00.000Z',
-        updatedAt: '2026-06-22T12:30:00.000Z',
-        storeIds: [1, 2],
+        created: '2026-06-22T12:00:00.000Z',
+        updated: '2026-06-22T12:30:00.000Z',
         categoryId: 3,
+        image: 'https://example.test/milk.png',
+        storeListings: [
+          {
+            storeId: 1,
+            storeName: 'Target',
+            source: 'manual',
+            availability: {
+              status: 'unknown',
+            },
+          },
+          {
+            storeId: 2,
+            storeName: 'King Soopers',
+            aisle: {
+              display: '13:2',
+            },
+          },
+        ],
       },
     ],
     stores: [

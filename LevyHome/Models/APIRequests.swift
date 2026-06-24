@@ -25,8 +25,9 @@ struct CreateShoppingListItemRequest: Encodable, Equatable {
     let quantity: Int?
     let notes: String?
     let purchased: Bool?
-    let storeIds: [Int]?
     let categoryId: Int?
+    let image: String?
+    let storeListings: [ShoppingItemStoreListing]?
     let mutationId: String
 
     init(
@@ -35,8 +36,9 @@ struct CreateShoppingListItemRequest: Encodable, Equatable {
         quantity: Int? = nil,
         notes: String? = nil,
         purchased: Bool? = nil,
-        storeIds: [Int]? = nil,
         categoryId: Int? = nil,
+        image: String? = nil,
+        storeListings: [ShoppingItemStoreListing]? = nil,
         mutationId: String = UUID().uuidString
     ) {
         self.name = name
@@ -44,8 +46,9 @@ struct CreateShoppingListItemRequest: Encodable, Equatable {
         self.quantity = quantity
         self.notes = notes
         self.purchased = purchased
-        self.storeIds = storeIds
         self.categoryId = categoryId
+        self.image = image
+        self.storeListings = storeListings
         self.mutationId = mutationId
     }
 }
@@ -56,8 +59,9 @@ struct UpdateShoppingListItemRequest: Encodable, Equatable {
     let quantity: Int?
     let notes: ShoppingListNullableValue<String>?
     let purchased: Bool?
-    let storeIds: [Int]?
     let categoryId: ShoppingListNullableValue<Int>?
+    let image: ShoppingListNullableValue<String>?
+    let storeListings: [ShoppingItemStoreListing]?
     let mutationId: String
 
     init(
@@ -66,8 +70,9 @@ struct UpdateShoppingListItemRequest: Encodable, Equatable {
         quantity: Int? = nil,
         notes: ShoppingListNullableValue<String>? = nil,
         purchased: Bool? = nil,
-        storeIds: [Int]? = nil,
         categoryId: ShoppingListNullableValue<Int>? = nil,
+        image: ShoppingListNullableValue<String>? = nil,
+        storeListings: [ShoppingItemStoreListing]? = nil,
         mutationId: String = UUID().uuidString
     ) {
         self.name = name
@@ -75,8 +80,9 @@ struct UpdateShoppingListItemRequest: Encodable, Equatable {
         self.quantity = quantity
         self.notes = notes
         self.purchased = purchased
-        self.storeIds = storeIds
         self.categoryId = categoryId
+        self.image = image
+        self.storeListings = storeListings
         self.mutationId = mutationId
     }
 }

@@ -1,6 +1,7 @@
 import type {
   CreateShoppingListItemRequest,
   ShoppingCategory,
+  ShoppingItemStoreListing,
   ShoppingListData,
   ShoppingListItem,
   ShoppingStore,
@@ -24,11 +25,12 @@ type ShoppingListRow = Record<string, unknown> & {
   quantity: unknown;
   notes: unknown;
   purchased: unknown;
-  createdAt: unknown;
-  updatedAt: unknown;
+  created: unknown;
+  updated: unknown;
   version: unknown;
-  storeIds: unknown;
   categoryId: unknown;
+  image: unknown;
+  storeListings: unknown;
 };
 
 type ShoppingStoreRow = Record<string, unknown> & {
@@ -77,11 +79,12 @@ export async function fetchShoppingListData(database: DatabaseQuery): Promise<Sh
         item.quantity,
         item.notes,
         item.purchased,
-        item.created_at AS "createdAt",
-        item.updated_at AS "updatedAt",
+        COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+        COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
         to_jsonb(item) ->> 'version' AS "version",
-        item.store_ids AS "storeIds",
-        item.category_id AS "categoryId"
+        item.category_id AS "categoryId",
+        to_jsonb(item) ->> 'image' AS "image",
+        to_jsonb(item) -> 'store_listings' AS "storeListings"
       FROM shopping_list item
       ORDER BY item.purchased ASC NULLS FIRST, lower(item.name) ASC
     `,
@@ -121,11 +124,12 @@ export async function fetchShoppingListItem(
       item.quantity,
       item.notes,
       item.purchased,
-      item.created_at AS "createdAt",
-      item.updated_at AS "updatedAt",
+      COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
       to_jsonb(item) ->> 'version' AS "version",
-      item.store_ids AS "storeIds",
-      item.category_id AS "categoryId"
+      item.category_id AS "categoryId",
+      to_jsonb(item) ->> 'image' AS "image",
+      to_jsonb(item) -> 'store_listings' AS "storeListings"
     FROM shopping_list item
     WHERE item.id = ${id}
     LIMIT 1
@@ -152,11 +156,12 @@ export async function findShoppingListItemByName(
       item.quantity,
       item.notes,
       item.purchased,
-      item.created_at AS "createdAt",
-      item.updated_at AS "updatedAt",
+      COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
       to_jsonb(item) ->> 'version' AS "version",
-      item.store_ids AS "storeIds",
-      item.category_id AS "categoryId"
+      item.category_id AS "categoryId",
+      to_jsonb(item) ->> 'image' AS "image",
+      to_jsonb(item) -> 'store_listings' AS "storeListings"
     FROM shopping_list item
     WHERE lower(btrim(item.name)) = lower(btrim(${normalizedName}))
     ORDER BY item.purchased ASC NULLS FIRST, item.updated_at DESC NULLS LAST, item.id ASC
@@ -177,8 +182,9 @@ export async function createShoppingListItem(
       quantity,
       notes,
       purchased,
-      store_ids,
-      category_id
+      category_id,
+      image,
+      store_listings
     )
     VALUES (
       ${request.name},
@@ -186,8 +192,9 @@ export async function createShoppingListItem(
       ${request.quantity ?? 1},
       ${request.notes ?? null},
       ${request.purchased ?? false},
-      ${jsonb(request.storeIds ?? [])}::jsonb,
-      ${jsonb(request.categoryId ?? null)}::jsonb
+      ${jsonb(request.categoryId ?? null)}::jsonb,
+      ${request.image ?? null},
+      ${jsonb(request.storeListings ?? [])}::jsonb
     )
     RETURNING
       id,
@@ -196,11 +203,12 @@ export async function createShoppingListItem(
       quantity,
       notes,
       purchased,
-      created_at AS "createdAt",
-      updated_at AS "updatedAt",
+      COALESCE(to_jsonb(shopping_list) ->> 'created', to_jsonb(shopping_list) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(shopping_list) ->> 'updated', to_jsonb(shopping_list) ->> 'updated_at') AS "updated",
       version AS "version",
-      store_ids AS "storeIds",
-      category_id AS "categoryId"
+      category_id AS "categoryId",
+      image,
+      store_listings AS "storeListings"
   `;
 
   return requireShoppingListItemRow(row, 'create');
@@ -220,8 +228,9 @@ export async function updateShoppingListItem(
   const hasQuantity = request.quantity !== undefined;
   const hasNotes = request.notes !== undefined;
   const hasPurchased = request.purchased !== undefined;
-  const hasStoreIds = request.storeIds !== undefined;
   const hasCategoryId = request.categoryId !== undefined;
+  const hasImage = request.image !== undefined;
+  const hasStoreListings = request.storeListings !== undefined;
 
   const [row] = await database<ShoppingListRow>`
     UPDATE shopping_list AS item
@@ -231,8 +240,12 @@ export async function updateShoppingListItem(
       quantity = CASE WHEN ${hasQuantity} THEN ${request.quantity ?? null} ELSE item.quantity END,
       notes = CASE WHEN ${hasNotes} THEN ${request.notes ?? null} ELSE item.notes END,
       purchased = CASE WHEN ${hasPurchased} THEN ${request.purchased ?? null} ELSE item.purchased END,
-      store_ids = CASE WHEN ${hasStoreIds} THEN ${jsonb(request.storeIds ?? [])}::jsonb ELSE item.store_ids END,
-      category_id = CASE WHEN ${hasCategoryId} THEN ${jsonb(request.categoryId ?? null)}::jsonb ELSE item.category_id END
+      category_id = CASE WHEN ${hasCategoryId} THEN ${jsonb(request.categoryId ?? null)}::jsonb ELSE item.category_id END,
+      image = CASE WHEN ${hasImage} THEN ${request.image ?? null} ELSE item.image END,
+      store_listings = CASE
+        WHEN ${hasStoreListings} THEN ${jsonb(request.storeListings ?? [])}::jsonb
+        ELSE item.store_listings
+      END
     WHERE item.id = ${id}
     RETURNING
       id,
@@ -241,11 +254,12 @@ export async function updateShoppingListItem(
       quantity,
       notes,
       purchased,
-      created_at AS "createdAt",
-      updated_at AS "updatedAt",
+      COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
       version AS "version",
-      store_ids AS "storeIds",
-      category_id AS "categoryId"
+      category_id AS "categoryId",
+      image,
+      store_listings AS "storeListings"
   `;
 
   return row ? shoppingListItemFromRow(row) : null;
@@ -265,11 +279,12 @@ export async function deleteShoppingListItem(
       quantity,
       notes,
       purchased,
-      created_at AS "createdAt",
-      updated_at AS "updatedAt",
+      COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
       version AS "version",
-      store_ids AS "storeIds",
-      category_id AS "categoryId"
+      category_id AS "categoryId",
+      image,
+      store_listings AS "storeListings"
   `;
 
   return row ? shoppingListItemFromRow(row) : null;
@@ -278,9 +293,10 @@ export async function deleteShoppingListItem(
 function shoppingListItemFromRow(row: ShoppingListRow): ShoppingListItem {
   const brand = optionalString(row.brand);
   const notes = optionalString(row.notes);
-  const createdAt = optionalISOString(row.createdAt);
-  const updatedAt = optionalISOString(row.updatedAt);
+  const created = optionalISOString(row.created);
+  const updated = optionalISOString(row.updated);
   const version = optionalInteger(row.version);
+  const image = optionalString(row.image);
 
   return {
     id: requiredInteger(row.id, 'shopping_list.id'),
@@ -289,11 +305,12 @@ function shoppingListItemFromRow(row: ShoppingListRow): ShoppingListItem {
     quantity: optionalInteger(row.quantity) ?? 1,
     ...(notes ? { notes } : {}),
     purchased: optionalBoolean(row.purchased) ?? false,
-    ...(createdAt ? { createdAt } : {}),
-    ...(updatedAt ? { updatedAt } : {}),
+    ...(created ? { created } : {}),
+    ...(updated ? { updated } : {}),
     ...(version !== undefined ? { version } : {}),
-    storeIds: optionalIntegerArray(row.storeIds),
     categoryId: optionalIntegerFromJSON(row.categoryId),
+    ...(image ? { image } : {}),
+    storeListings: optionalRecordArray(row.storeListings),
   };
 }
 
@@ -312,8 +329,9 @@ function hasShoppingListItemUpdate(request: UpdateShoppingListItemRequest): bool
     request.quantity !== undefined ||
     request.notes !== undefined ||
     request.purchased !== undefined ||
-    request.storeIds !== undefined ||
-    request.categoryId !== undefined
+    request.categoryId !== undefined ||
+    request.image !== undefined ||
+    request.storeListings !== undefined
   );
 }
 
@@ -392,13 +410,14 @@ function optionalBoolean(value: unknown): boolean | undefined {
   return undefined;
 }
 
-function optionalIntegerArray(value: unknown): number[] {
+function optionalRecordArray(value: unknown): ShoppingItemStoreListing[] {
   const parsedValue = parseJSONBValue(value);
-  const values = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
 
-  return values
-    .map(optionalInteger)
-    .filter((id): id is number => id !== undefined);
+  if (!Array.isArray(parsedValue)) {
+    return [];
+  }
+
+  return parsedValue.filter(isRecord);
 }
 
 function optionalIntegerFromJSON(value: unknown): number | null {
@@ -421,6 +440,10 @@ function parseJSONBValue(value: unknown): unknown {
   } catch {
     return value;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function optionalISOString(value: unknown): string | undefined {

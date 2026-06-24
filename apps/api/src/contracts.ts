@@ -130,11 +130,54 @@ export type ShoppingListItem = {
   quantity: number;
   notes?: string;
   purchased: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  created?: string;
+  updated?: string;
   version?: number;
-  storeIds: number[];
   categoryId: number | null;
+  image?: string;
+  storeListings: ShoppingItemStoreListing[];
+};
+
+export type ShoppingItemStoreListingProduct = {
+  productId?: string;
+  upc?: string;
+  productPageURI?: string;
+  brand?: string;
+  name?: string;
+  description?: string;
+  image?: string;
+};
+
+export type ShoppingItemStoreListingAisle = {
+  display?: string;
+  description?: string;
+  number?: string;
+  shelfNumber?: string;
+  raw?: Record<string, unknown>;
+};
+
+export type ShoppingItemStoreListingPrice = {
+  regular?: number;
+  promo?: number;
+};
+
+export type ShoppingItemStoreListingAvailability = {
+  status?: string;
+  checkedAt?: string;
+};
+
+export type ShoppingItemStoreListing = {
+  storeId?: number;
+  storeName?: string;
+  source?: string;
+  krogerLocationId?: string;
+  product?: ShoppingItemStoreListingProduct;
+  aisle?: ShoppingItemStoreListingAisle;
+  price?: ShoppingItemStoreListingPrice;
+  inventory?: Record<string, unknown>;
+  fulfillment?: Record<string, unknown>;
+  availability?: ShoppingItemStoreListingAvailability;
+  checkedAt?: string;
 };
 
 export type ShoppingStore = {
@@ -160,8 +203,9 @@ export type CreateShoppingListItemRequest = {
   quantity?: number;
   notes?: string | null;
   purchased?: boolean;
-  storeIds?: number[];
   categoryId?: number | null;
+  image?: string | null;
+  storeListings?: ShoppingItemStoreListing[];
   mutationId?: string;
 };
 
@@ -171,8 +215,9 @@ export type UpdateShoppingListItemRequest = {
   quantity?: number;
   notes?: string | null;
   purchased?: boolean;
-  storeIds?: number[];
   categoryId?: number | null;
+  image?: string | null;
+  storeListings?: ShoppingItemStoreListing[];
   mutationId?: string;
 };
 
@@ -180,6 +225,27 @@ export type ShoppingListItemLookupResponse = {
   ok: true;
   query: string;
   match: ShoppingListItem | null;
+};
+
+export type KrogerProductSearchResponse = {
+  ok: boolean;
+  query: string;
+  generatedAt: string;
+  productStatusCode?: number;
+  products: KrogerProductSearchResult[];
+  error?: string;
+};
+
+export type KrogerProductSearchResult = {
+  productId: string | null;
+  upc: string | null;
+  productPageURI: string | null;
+  aisles: unknown[];
+  brand: string | null;
+  name: string | null;
+  description: string | null;
+  image: string | null;
+  storeListings: ShoppingItemStoreListing[];
 };
 
 export type ShoppingListMutationResponse = {

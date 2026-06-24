@@ -102,10 +102,31 @@ final class APIModelDecodingTests: XCTestCase {
                   "quantity": 2,
                   "notes": "Half gallon",
                   "purchased": false,
-                  "createdAt": "2026-06-22T12:00:00.000Z",
-                  "updatedAt": "2026-06-22T12:30:00.000Z",
-                  "storeIds": [1, 2],
-                  "categoryId": 3
+                  "created": "2026-06-22T12:00:00.000Z",
+                  "updated": "2026-06-22T12:30:00.000Z",
+                  "categoryId": 3,
+                  "image": "https://example.test/milk.png",
+                  "storeListings": [
+                    {
+                      "storeId": 1,
+                      "storeName": "Target",
+                      "source": "manual",
+                      "availability": {
+                        "status": "unknown"
+                      }
+                    },
+                    {
+                      "storeId": 2,
+                      "storeName": "King Soopers",
+                      "krogerLocationId": "62000008",
+                      "aisle": {
+                        "display": "13:2"
+                      },
+                      "inventory": {
+                        "stockLevel": "LOW"
+                      }
+                    }
+                  ]
                 }
               ],
               "stores": [
@@ -127,7 +148,9 @@ final class APIModelDecodingTests: XCTestCase {
 
         XCTAssertTrue(response.ok)
         XCTAssertEqual(response.items.first?.name, "Whole milk")
-        XCTAssertEqual(response.items.first?.storeIds, [1, 2])
+        XCTAssertEqual(response.items.first?.storeListings.map(\.storeId), [1, 2])
+        XCTAssertEqual(response.items.first?.storeListings.last?.aisle?.display, "13:2")
+        XCTAssertEqual(response.items.first?.storeListings.last?.inventory?["stockLevel"]?.stringValue, "LOW")
         XCTAssertEqual(response.items.first?.categoryId, 3)
         XCTAssertEqual(response.stores.first?.name, "Target")
         XCTAssertEqual(response.categories.first?.name, "Dairy")
@@ -143,8 +166,44 @@ final class APIModelDecodingTests: XCTestCase {
               "generatedAt": "2026-06-23T12:31:00.000Z",
               "stage": "token",
               "outputFilePath": "/tmp/kroger-product-response.json",
+              "normalizedOutputFilePath": "/tmp/kroger-products-normalized.json",
               "tokenStatusCode": 401,
               "productStatusCode": null,
+              "products": [
+                {
+                  "productId": "0003700008411",
+                  "upc": "0003700008411",
+                  "productPageURI": "/p/luvs-diapers/0003700008411",
+                  "aisles": [
+                    {
+                      "bayNumber": 2,
+                      "description": "Baby",
+                      "number": "8"
+                    }
+                  ],
+                  "brand": "Luvs",
+                  "name": "Luvs Disposable Baby Diapers",
+                  "description": "Luvs Disposable Baby Diapers",
+                  "image": "https://www.kroger.com/product/images/large/front/0003700008411",
+                  "storeListings": [
+                    {
+                      "storeId": 2,
+                      "storeName": "King Soopers",
+                      "krogerLocationId": "62000008",
+                      "aisle": {
+                        "display": "8:2"
+                      },
+                      "price": {
+                        "regular": 9.29,
+                        "promo": 6.99
+                      },
+                      "inventory": {
+                        "stockLevel": "LOW"
+                      }
+                    }
+                  ]
+                }
+              ],
               "error": "Kroger token request returned HTTP 401."
             }
             """
@@ -155,6 +214,13 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.stage, "token")
         XCTAssertEqual(response.tokenStatusCode, 401)
         XCTAssertNil(response.productStatusCode)
+        XCTAssertEqual(response.normalizedOutputFilePath, "/tmp/kroger-products-normalized.json")
+        XCTAssertEqual(response.products.first?.brand, "Luvs")
+        XCTAssertEqual(response.products.first?.name, "Luvs Disposable Baby Diapers")
+        XCTAssertEqual(response.products.first?.aisles.first?.bayNumber, "2")
+        XCTAssertEqual(response.products.first?.image, "https://www.kroger.com/product/images/large/front/0003700008411")
+        XCTAssertEqual(response.products.first?.storeListings.first?.price?.promo, 6.99)
+        XCTAssertEqual(response.products.first?.storeListings.first?.inventory?["stockLevel"]?.stringValue, "LOW")
         XCTAssertEqual(response.error, "Kroger token request returned HTTP 401.")
     }
 

@@ -11,6 +11,7 @@ import type {
   PushProvider,
   QuickActionId,
   RegisterDeviceRequest,
+  ShoppingItemStoreListing,
   TestPushPayload,
   UpdateShoppingListItemRequest,
 } from './contracts.js';
@@ -36,8 +37,9 @@ const allowedCreateShoppingItemBodyKeys = new Set([
   'quantity',
   'notes',
   'purchased',
-  'storeIds',
   'categoryId',
+  'image',
+  'storeListings',
   'mutationId',
 ]);
 const allowedUpdateShoppingItemBodyKeys = allowedCreateShoppingItemBodyKeys;
@@ -70,8 +72,9 @@ export function validateCreateShoppingListItemBody(input: unknown): CreateShoppi
   const quantity = readOptionalShoppingItemInteger(input.quantity, 'quantity', { min: 1 });
   const notes = readOptionalNullableShoppingItemString(input.notes, 'notes');
   const purchased = readOptionalShoppingItemBoolean(input.purchased, 'purchased');
-  const storeIds = readOptionalShoppingStoreIds(input.storeIds);
   const categoryId = readOptionalShoppingCategoryId(input.categoryId);
+  const image = readOptionalNullableShoppingItemString(input.image, 'image');
+  const storeListings = readOptionalShoppingStoreListings(input.storeListings);
   const mutationId = readOptionalShoppingMutationId(input.mutationId);
 
   return {
@@ -80,8 +83,9 @@ export function validateCreateShoppingListItemBody(input: unknown): CreateShoppi
     quantity: quantity ?? 1,
     ...(notes !== undefined ? { notes } : {}),
     purchased: purchased ?? false,
-    storeIds: storeIds ?? [],
     categoryId: categoryId ?? null,
+    ...(image !== undefined ? { image } : {}),
+    storeListings: storeListings ?? [],
     ...(mutationId ? { mutationId } : {}),
   };
 }
@@ -115,12 +119,16 @@ export function validateUpdateShoppingListItemBody(input: unknown): UpdateShoppi
     request.purchased = readRequiredShoppingItemBoolean(input.purchased, 'purchased');
   }
 
-  if (hasOwn(input, 'storeIds')) {
-    request.storeIds = readRequiredShoppingStoreIds(input.storeIds);
-  }
-
   if (hasOwn(input, 'categoryId')) {
     request.categoryId = readRequiredShoppingCategoryId(input.categoryId);
+  }
+
+  if (hasOwn(input, 'image')) {
+    request.image = readOptionalNullableShoppingItemString(input.image, 'image') ?? null;
+  }
+
+  if (hasOwn(input, 'storeListings')) {
+    request.storeListings = readRequiredShoppingStoreListings(input.storeListings);
   }
 
   const mutationId = readOptionalShoppingMutationId(input.mutationId);
@@ -138,6 +146,10 @@ export function validateUpdateShoppingListItemBody(input: unknown): UpdateShoppi
 
 export function validateShoppingListItemLookupQuery(input: Record<string, unknown>): string {
   return readRequiredShoppingItemName(input.name);
+}
+
+export function validateShoppingProductSearchQuery(input: Record<string, unknown>): string {
+  return readRequiredShoppingItemName(input.term);
 }
 
 export function validateTestPushBody(input: unknown): TestPushPayload {
@@ -434,20 +446,67 @@ function readRequiredShoppingItemBoolean(value: unknown, fieldName: string): boo
   return value;
 }
 
-function readOptionalShoppingStoreIds(value: unknown): number[] | undefined {
+function readOptionalShoppingStoreListings(value: unknown): ShoppingItemStoreListing[] | undefined {
   if (value === undefined) {
     return undefined;
   }
 
-  return readRequiredShoppingStoreIds(value);
+  return readRequiredShoppingStoreListings(value);
 }
 
-function readRequiredShoppingStoreIds(value: unknown): number[] {
+function readRequiredShoppingStoreListings(value: unknown): ShoppingItemStoreListing[] {
   if (!Array.isArray(value)) {
-    throw invalidShoppingItem('storeIds must be an array of integers.');
+    throw invalidShoppingItem('storeListings must be an array of objects.');
   }
 
-  return value.map((storeId, index) => readRequiredShoppingItemInteger(storeId, `storeIds[${index}]`, { min: 1 }));
+  return value.map((listing, index) => readRequiredShoppingStoreListing(listing, index));
+}
+
+function readRequiredShoppingStoreListing(value: unknown, index: number): ShoppingItemStoreListing {
+  if (!isPlainRecord(value)) {
+    throw invalidShoppingItem(`storeListings[${index}] must be a JSON object.`);
+  }
+
+  const listing: ShoppingItemStoreListing = { ...value };
+
+  if (hasOwn(value, 'storeId')) {
+    listing.storeId = readRequiredShoppingItemInteger(value.storeId, `storeListings[${index}].storeId`, { min: 1 });
+  }
+
+  if (hasOwn(value, 'storeName')) {
+    const storeName = readOptionalNullableShoppingItemString(value.storeName, `storeListings[${index}].storeName`);
+
+    if (storeName) {
+      listing.storeName = storeName;
+    } else {
+      delete listing.storeName;
+    }
+  }
+
+  if (hasOwn(value, 'source')) {
+    const source = readOptionalNullableShoppingItemString(value.source, `storeListings[${index}].source`);
+
+    if (source) {
+      listing.source = source;
+    } else {
+      delete listing.source;
+    }
+  }
+
+  if (hasOwn(value, 'krogerLocationId')) {
+    const krogerLocationId = readOptionalNullableShoppingItemString(
+      value.krogerLocationId,
+      `storeListings[${index}].krogerLocationId`,
+    );
+
+    if (krogerLocationId) {
+      listing.krogerLocationId = krogerLocationId;
+    } else {
+      delete listing.krogerLocationId;
+    }
+  }
+
+  return listing;
 }
 
 function readOptionalShoppingCategoryId(value: unknown): number | null | undefined {
@@ -486,8 +545,9 @@ function hasMutableShoppingItemField(request: UpdateShoppingListItemRequest): bo
     request.quantity !== undefined ||
     request.notes !== undefined ||
     request.purchased !== undefined ||
-    request.storeIds !== undefined ||
-    request.categoryId !== undefined
+    request.categoryId !== undefined ||
+    request.image !== undefined ||
+    request.storeListings !== undefined
   );
 }
 

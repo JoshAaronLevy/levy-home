@@ -1,7 +1,7 @@
 import Foundation
 
 struct AppConfig: Equatable {
-    static let defaultAPIBaseURLString = "http://localhost:4000"
+    static let defaultAPIBaseURLString = "https://levy-home.onrender.com"
 
     let apiBaseURL: URL
     let buildFlavor: BuildConfiguration

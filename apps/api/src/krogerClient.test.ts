@@ -5,11 +5,12 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import type { AppConfig } from './config.js';
-import { lookupAndWriteKrogerProductResponse } from './krogerClient.js';
+import { lookupAndWriteKrogerProductResponse, normalizeKrogerProducts } from './krogerClient.js';
 
 test('lookupAndWriteKrogerProductResponse fetches a token, searches products, and writes the Kroger response', async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'levy-home-kroger-'));
   const outputFilePath = path.join(tempDir, 'kroger-product-response.json');
+  const normalizedOutputFilePath = path.join(tempDir, 'kroger-products-normalized.json');
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = requestURL(input);
@@ -31,13 +32,53 @@ test('lookupAndWriteKrogerProductResponse fetches a token, searches products, an
       );
     }
 
-    if (url === 'https://api.kroger.test/v1/products?filter.term=Soy+Milk&filter.limit=10') {
+    if (url === 'https://api.kroger.test/v1/products?filter.term=Soy+Milk&filter.limit=10&filter.locationId=62000008') {
       return new Response(
         JSON.stringify({
           data: [
             {
               productId: '0001111000001',
+              upc: '0001111000001',
+              productPageURI: '/p/simple-truth-soy-milk/0001111000001',
+              aisleLocations: [
+                {
+                  description: 'Baby',
+                  number: '12',
+                },
+              ],
+              brand: 'Simple Truth',
               description: 'Soy Milk',
+              items: [
+                {
+                  itemId: '0001111000001',
+                  inventory: {
+                    stockLevel: 'LOW',
+                  },
+                  price: {
+                    regular: 4.99,
+                    promo: 3.99,
+                    effectiveDate: {
+                      value: '2026-06-10T17:33:40.553Z',
+                    },
+                  },
+                },
+              ],
+              images: [
+                {
+                  perspective: 'front',
+                  featured: true,
+                  sizes: [
+                    {
+                      size: 'xlarge',
+                      url: 'https://www.kroger.com/product/images/xlarge/front/0001111000001',
+                    },
+                    {
+                      size: 'large',
+                      url: 'https://www.kroger.com/product/images/large/front/0001111000001',
+                    },
+                  ],
+                },
+              ],
             },
           ],
         }),
@@ -61,9 +102,12 @@ test('lookupAndWriteKrogerProductResponse fetches a token, searches products, an
       },
     );
     const diagnostic = JSON.parse(await readFile(outputFilePath, 'utf8')) as Record<string, any>;
+    const normalized = JSON.parse(await readFile(normalizedOutputFilePath, 'utf8')) as Record<string, any>;
 
     assert.equal(summary.ok, true);
     assert.equal(summary.productStatusCode, 200);
+    assert.equal(summary.normalizedOutputFilePath, normalizedOutputFilePath);
+    assert.equal(summary.products.length, 1);
     assert.equal(requests.length, 2);
     assert.equal(
       new Headers(requests[0].init?.headers).get('authorization'),
@@ -74,6 +118,56 @@ test('lookupAndWriteKrogerProductResponse fetches a token, searches products, an
     assert.equal(diagnostic.ok, true);
     assert.equal(diagnostic.query, 'Soy Milk');
     assert.equal(diagnostic.productResponse.body.data[0].description, 'Soy Milk');
+    assert.deepEqual(diagnostic.products, [
+      {
+        productId: '0001111000001',
+        upc: '0001111000001',
+        productPageURI: '/p/simple-truth-soy-milk/0001111000001',
+        aisles: [
+          {
+            description: 'Baby',
+            number: '12',
+          },
+        ],
+        brand: 'Simple Truth',
+        name: 'Soy Milk',
+        description: 'Soy Milk',
+        image: 'https://www.kroger.com/product/images/large/front/0001111000001',
+        storeListings: [
+          {
+            storeId: 2,
+            storeName: 'King Soopers',
+            krogerLocationId: '62000008',
+            product: {
+              productId: '0001111000001',
+              upc: '0001111000001',
+              productPageURI: '/p/simple-truth-soy-milk/0001111000001',
+              brand: 'Simple Truth',
+              name: 'Soy Milk',
+              description: 'Soy Milk',
+              image: 'https://www.kroger.com/product/images/large/front/0001111000001',
+            },
+            aisle: {
+              display: '12',
+              description: 'Baby',
+              number: '12',
+              raw: {
+                description: 'Baby',
+                number: '12',
+              },
+            },
+            price: {
+              regular: 4.99,
+              promo: 3.99,
+            },
+            inventory: {
+              stockLevel: 'LOW',
+            },
+          },
+        ],
+      },
+    ]);
+    assert.deepEqual(normalized.products, diagnostic.products);
     assert.equal(JSON.stringify(diagnostic).includes('secret-access-token'), false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -112,6 +206,65 @@ test('lookupAndWriteKrogerProductResponse writes a diagnostic failure when crede
   }
 });
 
+test('normalizeKrogerProducts maps requested product fields and featured large image', () => {
+  const products = normalizeKrogerProducts({
+    data: [
+      {
+        productId: '0003700008411',
+        upc: '0003700008411',
+        productPageURI: '/p/luvs-diapers/0003700008411',
+        aisleLocations: [
+          {
+            bayNumber: '2',
+            description: 'Baby',
+            number: '8',
+          },
+        ],
+        brand: 'Luvs',
+        description: 'Luvs Disposable Baby Diapers',
+        images: [
+          {
+            perspective: 'back',
+            featured: false,
+            sizes: [
+              { size: 'xlarge', url: 'https://example.test/xlarge/back' },
+              { size: 'large', url: 'https://example.test/large/back' },
+            ],
+          },
+          {
+            perspective: 'front',
+            featured: true,
+            sizes: [
+              { size: 'xlarge', url: 'https://example.test/xlarge/front' },
+              { size: 'large', url: 'https://example.test/large/front' },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(products, [
+    {
+      productId: '0003700008411',
+      upc: '0003700008411',
+      productPageURI: '/p/luvs-diapers/0003700008411',
+      aisles: [
+        {
+          bayNumber: '2',
+          description: 'Baby',
+          number: '8',
+        },
+      ],
+      brand: 'Luvs',
+      name: 'Luvs Disposable Baby Diapers',
+      description: 'Luvs Disposable Baby Diapers',
+      image: 'https://example.test/large/front',
+      storeListings: [],
+    },
+  ]);
+});
+
 function testConfig(options: { outputFilePath: string }): AppConfig {
   return {
     port: 0,
@@ -120,7 +273,11 @@ function testConfig(options: { outputFilePath: string }): AppConfig {
       clientSecret: 'test-client-secret',
       apiBaseURL: 'https://api.kroger.test/v1',
       productResponseFilePath: options.outputFilePath,
+      normalizedProductResponseFilePath: path.join(path.dirname(options.outputFilePath), 'kroger-products-normalized.json'),
       productSearchLimit: 10,
+      locationId: '62000008',
+      shoppingStoreId: 2,
+      shoppingStoreName: 'King Soopers',
     },
     apns: {
       bundleId: 'com.levyhome.app',

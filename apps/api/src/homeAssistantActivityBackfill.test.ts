@@ -13,7 +13,11 @@ const baseConfig: AppConfig = {
   kroger: {
     apiBaseURL: 'https://api.kroger.test/v1',
     productResponseFilePath: '/tmp/kroger-product-response.json',
+    normalizedProductResponseFilePath: '/tmp/kroger-products-normalized.json',
     productSearchLimit: 10,
+    locationId: '62000008',
+    shoppingStoreId: 2,
+    shoppingStoreName: 'King Soopers',
   },
   apns: {
     bundleId: 'com.levyhome.app',

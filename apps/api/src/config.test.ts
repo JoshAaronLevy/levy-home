@@ -24,14 +24,22 @@ test('readConfig parses Kroger API diagnostic configuration', () => {
     KROGER_CLIENT_SECRET: 'client-secret',
     KROGER_API_BASE_URL: 'https://api.kroger.test/v1',
     KROGER_PRODUCT_RESPONSE_PATH: '/tmp/kroger-product-response.json',
+    KROGER_NORMALIZED_PRODUCT_RESPONSE_PATH: '/tmp/kroger-products-normalized.json',
     KROGER_PRODUCT_SEARCH_LIMIT: '7',
+    KROGER_LOCATION_ID: '62000008',
+    KROGER_SHOPPING_STORE_ID: '2',
+    KROGER_SHOPPING_STORE_NAME: 'King Soopers',
   });
 
   assert.equal(config.kroger.clientId, 'client-id');
   assert.equal(config.kroger.clientSecret, 'client-secret');
   assert.equal(config.kroger.apiBaseURL, 'https://api.kroger.test/v1');
   assert.equal(config.kroger.productResponseFilePath, '/tmp/kroger-product-response.json');
+  assert.equal(config.kroger.normalizedProductResponseFilePath, '/tmp/kroger-products-normalized.json');
   assert.equal(config.kroger.productSearchLimit, 7);
+  assert.equal(config.kroger.locationId, '62000008');
+  assert.equal(config.kroger.shoppingStoreId, 2);
+  assert.equal(config.kroger.shoppingStoreName, 'King Soopers');
 });
 
 test('readConfig parses curated Home Assistant light entities', () => {

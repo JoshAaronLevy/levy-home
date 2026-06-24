@@ -23,7 +23,11 @@ const testConfig: AppConfig = {
     clientSecret: 'test-kroger-client-secret',
     apiBaseURL: 'https://api.kroger.test/v1',
     productResponseFilePath: '/tmp/kroger-product-response.json',
+    normalizedProductResponseFilePath: '/tmp/kroger-products-normalized.json',
     productSearchLimit: 10,
+    locationId: '62000008',
+    shoppingStoreId: 2,
+    shoppingStoreName: 'King Soopers',
   },
   apns: {
     bundleId: 'com.levyhome.app',
@@ -90,9 +94,19 @@ test('GET /api/shopping-list returns shopping data from the configured store', a
                 quantity: 2,
                 notes: 'Half gallon',
                 purchased: false,
-                createdAt: '2026-06-22T12:00:00.000Z',
-                updatedAt: '2026-06-22T12:30:00.000Z',
-                storeIds: [1],
+                created: '2026-06-22T12:00:00.000Z',
+                updated: '2026-06-22T12:30:00.000Z',
+                image: 'https://example.test/milk.png',
+                storeListings: [
+                  {
+                    storeId: 1,
+                    storeName: 'Target',
+                    source: 'manual',
+                    availability: {
+                      status: 'unknown',
+                    },
+                  },
+                ],
                 categoryId: 2,
               },
             ],
@@ -131,9 +145,19 @@ test('GET /api/shopping-list returns shopping data from the configured store', a
       quantity: 2,
       notes: 'Half gallon',
       purchased: false,
-      createdAt: '2026-06-22T12:00:00.000Z',
-      updatedAt: '2026-06-22T12:30:00.000Z',
-      storeIds: [1],
+      created: '2026-06-22T12:00:00.000Z',
+      updated: '2026-06-22T12:30:00.000Z',
+      image: 'https://example.test/milk.png',
+      storeListings: [
+        {
+          storeId: 1,
+          storeName: 'Target',
+          source: 'manual',
+          availability: {
+            status: 'unknown',
+          },
+        },
+      ],
       categoryId: 2,
     },
   ]);
@@ -156,8 +180,10 @@ test('GET /api/debug/kroger/products runs the Kroger product diagnostic lookup',
           generatedAt: '2026-06-23T12:00:00.000Z',
           stage: 'product_search',
           outputFilePath: '/tmp/kroger-product-response.json',
+          normalizedOutputFilePath: '/tmp/kroger-products-normalized.json',
           tokenStatusCode: 200,
           productStatusCode: 200,
+          products: [],
         };
       },
     }),
@@ -169,7 +195,65 @@ test('GET /api/debug/kroger/products runs the Kroger product diagnostic lookup',
   assert.equal(response.ok, true);
   assert.equal(response.query, 'Soy Milk');
   assert.equal(response.outputFilePath, '/tmp/kroger-product-response.json');
+  assert.equal(response.normalizedOutputFilePath, '/tmp/kroger-products-normalized.json');
   assert.equal(response.productStatusCode, 200);
+});
+
+test('GET /api/shopping-list/products/search returns Kroger product candidates', async () => {
+  let capturedQuery: string | undefined;
+
+  await restartTestServer(
+    createApp({
+      config: testConfig,
+      krogerProductSearchRunner: async (query) => {
+        capturedQuery = query;
+
+        return {
+          ok: true,
+          query: query ?? 'Pasta Sauce',
+          generatedAt: '2026-06-23T12:00:00.000Z',
+          productStatusCode: 200,
+          products: [
+            {
+              productId: '0085002473501',
+              upc: '0085002473501',
+              productPageURI: '/p/carbone-tomato-basil-sauce-24-oz/0085002473501',
+              aisles: [],
+              brand: 'Carbone',
+              name: 'Carbone Tomato Basil Sauce 24 oz',
+              description: 'Carbone Tomato Basil Sauce 24 oz',
+              image: 'https://www.kroger.com/product/images/large/front/0085002473501',
+              storeListings: [
+                {
+                  storeId: 2,
+                  storeName: 'King Soopers',
+                  krogerLocationId: '62000008',
+                  aisle: {
+                    display: '15:3',
+                  },
+                  price: {
+                    regular: 9.29,
+                    promo: 6.99,
+                  },
+                  inventory: {
+                    stockLevel: 'LOW',
+                  },
+                },
+              ],
+            },
+          ],
+        };
+      },
+    }),
+  );
+
+  const response = await getJSON('/api/shopping-list/products/search?term=Carbone%20Tomato%20Basil');
+
+  assert.equal(capturedQuery, 'Carbone Tomato Basil');
+  assert.equal(response.ok, true);
+  assert.equal(response.products[0].storeListings[0].aisle.display, '15:3');
+  assert.equal(response.products[0].storeListings[0].price.promo, 6.99);
+  assert.equal(response.products[0].storeListings[0].inventory.stockLevel, 'LOW');
 });
 
 async function restartTestServer(app: ReturnType<typeof createApp>): Promise<void> {

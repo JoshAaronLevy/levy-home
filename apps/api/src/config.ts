@@ -34,7 +34,11 @@ export type AppConfig = {
     clientSecret?: string;
     apiBaseURL: string;
     productResponseFilePath: string;
+    normalizedProductResponseFilePath: string;
     productSearchLimit: number;
+    locationId: string;
+    shoppingStoreId: number;
+    shoppingStoreName: string;
   };
   apns: {
     keyId?: string;
@@ -73,7 +77,13 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       productResponseFilePath:
         readOptionalString(env.KROGER_PRODUCT_RESPONSE_PATH) ??
         path.join(API_PACKAGE_ROOT, 'kroger-product-response.json'),
+      normalizedProductResponseFilePath:
+        readOptionalString(env.KROGER_NORMALIZED_PRODUCT_RESPONSE_PATH) ??
+        path.join(API_PACKAGE_ROOT, 'kroger-products-normalized.json'),
       productSearchLimit: clampNumber(readNumber(env.KROGER_PRODUCT_SEARCH_LIMIT, 10), 1, 50),
+      locationId: readOptionalString(env.KROGER_LOCATION_ID) ?? '62000008',
+      shoppingStoreId: readNumber(env.KROGER_SHOPPING_STORE_ID, 2),
+      shoppingStoreName: readOptionalString(env.KROGER_SHOPPING_STORE_NAME) ?? 'King Soopers',
     },
     apns: {
       keyId: readOptionalString(env.APNS_KEY_ID),
