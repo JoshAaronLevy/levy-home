@@ -165,6 +165,29 @@ final class ShoppingListViewModel: ObservableObject {
         return "\(names.count) viewing"
     }
 
+    var activeViewerInitials: [String] {
+        var initials: [String] = []
+        var seenInitials: Set<String> = []
+
+        if let currentViewerId {
+            Self.appendInitial(
+                from: Self.displayName(forViewerId: currentViewerId),
+                to: &initials,
+                seenInitials: &seenInitials
+            )
+        }
+
+        for viewer in activeViewers {
+            Self.appendInitial(
+                from: Self.displayName(for: viewer),
+                to: &initials,
+                seenInitials: &seenInitials
+            )
+        }
+
+        return initials
+    }
+
     var liveStatusBadge: ShoppingLiveStatusBadge? {
         guard liveService != nil else {
             return nil
@@ -609,6 +632,35 @@ final class ShoppingListViewModel: ObservableObject {
 
         return "Someone"
     }
+
+    private static func displayName(forViewerId viewerId: String) -> String {
+        let normalizedViewerId = viewerId.lowercased()
+
+        if let resident = ResidentIdentity.allCases.first(where: { $0.shoppingListViewerId == normalizedViewerId }) {
+            return resident.rawValue
+        }
+
+        return "You"
+    }
+
+    private static func appendInitial(
+        from displayName: String,
+        to initials: inout [String],
+        seenInitials: inout Set<String>
+    ) {
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let firstCharacter = trimmedName.first else {
+            return
+        }
+
+        let initial = String(firstCharacter).uppercased()
+        guard !seenInitials.contains(initial) else {
+            return
+        }
+
+        seenInitials.insert(initial)
+        initials.append(initial)
+    }
 }
 
 fileprivate enum ShoppingItemEditorMode: Identifiable, Equatable {
@@ -762,13 +814,63 @@ fileprivate struct ShoppingItemDraft: Equatable {
         }
     }
 
+    func listing(for store: ShoppingStore) -> ShoppingItemStoreListing? {
+        storeListings.first { listing in
+            if let storeId = listing.storeId {
+                return storeId == store.id
+            }
+
+            return listing.storeName?.localizedCaseInsensitiveCompare(store.name) == .orderedSame
+        }
+    }
+
+    func manualAisleNumber(for store: ShoppingStore) -> String {
+        listing(for: store)?.aisle?.number ?? ""
+    }
+
+    func manualShelfNumber(for store: ShoppingStore) -> String {
+        listing(for: store)?.aisle?.shelfNumber ?? ""
+    }
+
+    func manualPriceText(for store: ShoppingStore) -> String {
+        guard let unitPrice = listing(for: store)?.price?.estimatedUnitPrice else {
+            return ""
+        }
+
+        return unitPrice.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    var manualPriceTextByStoreId: [Int: String] {
+        storeListings.reduce(into: [Int: String]()) { priceTextByStoreId, listing in
+            guard let storeId = listing.storeId,
+                  let unitPrice = listing.price?.estimatedUnitPrice else {
+                return
+            }
+
+            priceTextByStoreId[storeId] = unitPrice.formatted(.number.precision(.fractionLength(0...2)))
+        }
+    }
+
+    mutating func updateManualAisleNumber(_ aisleNumber: String, for store: ShoppingStore) {
+        updateManualListing(for: store, aisleNumber: aisleNumber)
+    }
+
+    mutating func updateManualShelfNumber(_ shelfNumber: String, for store: ShoppingStore) {
+        updateManualListing(for: store, shelfNumber: shelfNumber)
+    }
+
+    mutating func updateManualPriceText(_ priceText: String, for store: ShoppingStore) {
+        updateManualListing(for: store, priceText: priceText)
+    }
+
     mutating func apply(product: KrogerProduct, kingSoopersStore: ShoppingStore?) {
         if let brand = product.brand, !brand.isEmpty {
             self.brand = brand
         }
 
-        if let image = product.image, !image.isEmpty {
-            self.image = image
+        if normalizedOptionalText(image) == nil,
+           let productImage = product.image.flatMap({ normalizedOptionalText($0) }) {
+            image = productImage
         }
 
         var listing = product.storeListings.first ?? Self.krogerListing(from: product, store: kingSoopersStore)
@@ -807,6 +909,85 @@ fileprivate struct ShoppingItemDraft: Equatable {
             source: "manual",
             availability: ShoppingStoreListingAvailability(status: "unknown", checkedAt: nil)
         )
+    }
+
+    private mutating func updateManualListing(
+        for store: ShoppingStore,
+        aisleNumber: String? = nil,
+        shelfNumber: String? = nil,
+        priceText: String? = nil
+    ) {
+        let existingListing = listing(for: store) ?? Self.manualListing(for: store)
+        let updatedAisleNumber = aisleNumber ?? existingListing.aisle?.number ?? ""
+        let updatedShelfNumber = shelfNumber ?? existingListing.aisle?.shelfNumber ?? ""
+        let updatedPriceText = priceText ?? manualPriceText(for: store)
+        let updatedListing = ShoppingItemStoreListing(
+            storeId: existingListing.storeId ?? store.id,
+            storeName: existingListing.storeName ?? store.name,
+            source: existingListing.source ?? "manual",
+            krogerLocationId: existingListing.krogerLocationId,
+            product: existingListing.product,
+            aisle: Self.manualAisle(
+                aisleNumber: updatedAisleNumber,
+                shelfNumber: updatedShelfNumber
+            ),
+            price: Self.manualPrice(from: updatedPriceText),
+            inventory: existingListing.inventory,
+            fulfillment: existingListing.fulfillment,
+            availability: existingListing.availability ?? ShoppingStoreListingAvailability(status: "unknown", checkedAt: nil),
+            checkedAt: existingListing.checkedAt
+        )
+
+        storeListings.removeAll { listing in
+            if let storeId = listing.storeId {
+                return storeId == store.id
+            }
+
+            return listing.storeName?.localizedCaseInsensitiveCompare(store.name) == .orderedSame
+        }
+        storeListings.append(updatedListing)
+    }
+
+    private static func manualAisle(
+        aisleNumber: String,
+        shelfNumber: String
+    ) -> ShoppingStoreListingAisle? {
+        let normalizedAisleNumber = normalizedOptionalText(aisleNumber)
+        let normalizedShelfNumber = normalizedOptionalText(shelfNumber)
+        let display = [normalizedAisleNumber, normalizedShelfNumber]
+            .compactMap { $0 }
+            .joined(separator: ":")
+            .nilIfEmpty
+
+        guard display != nil || normalizedAisleNumber != nil || normalizedShelfNumber != nil else {
+            return nil
+        }
+
+        return ShoppingStoreListingAisle(
+            display: display,
+            description: normalizedAisleNumber.map { "AISLE \($0)" },
+            number: normalizedAisleNumber,
+            shelfNumber: normalizedShelfNumber,
+            raw: nil
+        )
+    }
+
+    private static func manualPrice(from priceText: String) -> ShoppingStoreListingPrice? {
+        let normalizedPriceText = priceText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+
+        guard !normalizedPriceText.isEmpty, let price = Double(normalizedPriceText), price >= 0 else {
+            return nil
+        }
+
+        return ShoppingStoreListingPrice(regular: price, promo: nil)
+    }
+
+    private static func normalizedOptionalText(_ value: String) -> String? {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedValue.isEmpty ? nil : trimmedValue
     }
 
     private static func krogerListing(from product: KrogerProduct, store: ShoppingStore?) -> ShoppingItemStoreListing {
@@ -966,11 +1147,6 @@ private struct ShoppingListContentView: View {
                             await viewModel.setPurchased(item, purchased: !item.purchased)
                         }
                     },
-                    onAdjustQuantity: { item, delta in
-                        Task {
-                            await viewModel.adjustQuantity(item, by: delta)
-                        }
-                    },
                     onEdit: { item in
                         editorMode = .edit(item)
                     },
@@ -983,36 +1159,14 @@ private struct ShoppingListContentView: View {
     }
 
     private var summaryPanel: some View {
-        InfoPanel(
-            title: "Grocery List",
-            subtitle: "\(neededItemCount) \(neededItemCount == 1 ? "item" : "items") needed",
-            systemImage: "cart"
-        ) {
-            VStack(alignment: .leading, spacing: AppSpacing.small) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: AppSpacing.medium) {
-                        StatusBadgeView(label: "Database", systemImage: "externaldrive.connected.to.line.below", tone: .accent)
-
-                        if let liveStatusBadge = viewModel.liveStatusBadge {
-                            StatusBadgeView(
-                                label: liveStatusBadge.label,
-                                systemImage: liveStatusBadge.systemImage,
-                                tone: liveStatusBadge.tone
-                            )
-                        }
-
-                        StatusBadgeView(label: "\(completedItemCount) picked up", systemImage: "checkmark.circle", tone: .success)
-                    }
-                }
-
-                if let otherActiveViewerLabel = viewModel.otherActiveViewerLabel {
-                    StatusBadgeView(label: otherActiveViewerLabel, systemImage: "person.2", tone: .neutral)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.16), value: viewModel.otherActiveViewerLabel)
-            .animation(.easeInOut(duration: 0.16), value: viewModel.liveStatusBadge)
-        }
+        ShoppingListSummaryCard(
+            viewerInitials: viewModel.activeViewerInitials,
+            remainingText: "\(neededItemCount) left of \(totalItemCount)",
+            estimatedTotalText: estimatedRemainingTotalText,
+            onStartShop: {},
+            onFilter: {}
+        )
+        .animation(.easeInOut(duration: 0.16), value: viewModel.activeViewerInitials)
     }
 
     private var loadingView: some View {
@@ -1114,8 +1268,26 @@ private struct ShoppingListContentView: View {
         viewModel.items.filter { !$0.purchased }.count
     }
 
-    private var completedItemCount: Int {
-        viewModel.items.filter(\.purchased).count
+    private var totalItemCount: Int {
+        viewModel.items.count
+    }
+
+    private var estimatedRemainingTotalText: String {
+        let total = viewModel.items
+            .filter { !$0.purchased }
+            .reduce(0.0) { partialTotal, item in
+                guard let unitPrice = item.storeListings.compactMap(\.estimatedUnitPrice).max() else {
+                    return partialTotal
+                }
+
+                return partialTotal + (unitPrice * Double(max(1, item.quantity)))
+            }
+
+        guard total > 0 else {
+            return "Est. --"
+        }
+
+        return "Est. \(total.formatted(.currency(code: "USD")))"
     }
 
     private func category(
@@ -1180,6 +1352,108 @@ private struct ShoppingListSearchField: View {
             RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
+    }
+}
+
+private struct ShoppingListSummaryCard: View {
+    let viewerInitials: [String]
+    let remainingText: String
+    let estimatedTotalText: String
+    let onStartShop: () -> Void
+    let onFilter: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            ShoppingViewerAvatarStack(initials: viewerInitials)
+                .frame(minWidth: 44, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(remainingText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.86)
+
+                Text(estimatedTotalText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+                    .lineLimit(1)
+                    .monospacedDigit()
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: AppSpacing.small)
+
+            Button(action: onStartShop) {
+                Label("New", systemImage: "cart.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .padding(.horizontal, AppSpacing.medium)
+                    .frame(height: 34)
+                    .foregroundStyle(Color.white)
+                    .background(AppColors.success)
+                    .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Start new shopping run")
+
+            Button(action: onFilter) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(AppColors.accent)
+                    .background(AppColors.accentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Filter shopping list")
+        }
+        .padding(AppSpacing.medium)
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ShoppingViewerAvatarStack: View {
+    let initials: [String]
+
+    var body: some View {
+        HStack(spacing: -8) {
+            ForEach(Array(displayInitials.enumerated()), id: \.offset) { index, initial in
+                Text(initial)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(index == 0 ? Color.white : AppColors.accent)
+                    .frame(width: 30, height: 30)
+                    .background(index == 0 ? AppColors.accent : AppColors.accentSoft)
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(AppColors.panelBackground, lineWidth: 2)
+                    }
+                    .zIndex(Double(displayInitials.count - index))
+            }
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var displayInitials: [String] {
+        let normalizedInitials = initials
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { !$0.isEmpty }
+
+        return Array(normalizedInitials.prefix(3))
+    }
+
+    private var accessibilityLabel: String {
+        guard !displayInitials.isEmpty else {
+            return "No active viewers"
+        }
+
+        return "Active viewers \(displayInitials.joined(separator: ", "))"
     }
 }
 
@@ -1259,15 +1533,16 @@ private struct ShoppingItemEditorSheet: View {
     @State private var isAddingBack = false
     @State private var pendingDeleteItem: ShoppingListItem?
     @State private var isProductSearchPresented = false
+    @State private var manualStorePriceText: [Int: String]
 
     init(mode: ShoppingItemEditorMode, viewModel: ShoppingListViewModel) {
         self.mode = mode
         self.viewModel = viewModel
-        _draft = State(
-            initialValue: mode.editingItem.map {
-                ShoppingItemDraft(item: $0, defaultCategoryId: viewModel.defaultShoppingCategoryId)
-            } ?? ShoppingItemDraft(selectedCategoryId: viewModel.defaultShoppingCategoryId)
-        )
+        let initialDraft = mode.editingItem.map {
+            ShoppingItemDraft(item: $0, defaultCategoryId: viewModel.defaultShoppingCategoryId)
+        } ?? ShoppingItemDraft(selectedCategoryId: viewModel.defaultShoppingCategoryId)
+        _draft = State(initialValue: initialDraft)
+        _manualStorePriceText = State(initialValue: initialDraft.manualPriceTextByStoreId)
     }
 
     var body: some View {
@@ -1275,6 +1550,8 @@ private struct ShoppingItemEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.large) {
                     storePicker
+
+                    manualStoreDetailsSection
 
                     nameField
 
@@ -1532,7 +1809,14 @@ private struct ShoppingItemEditorSheet: View {
                                 systemImage: "mappin.circle",
                                 isSelected: draft.selectedStoreIds.contains(store.id)
                             ) {
+                                let wasSelected = draft.selectedStoreIds.contains(store.id)
                                 draft.toggleStore(store)
+
+                                if wasSelected {
+                                    manualStorePriceText[store.id] = nil
+                                } else if manualStorePriceText[store.id] == nil {
+                                    manualStorePriceText[store.id] = draft.manualPriceText(for: store)
+                                }
                             }
                         }
                     }
@@ -1542,10 +1826,45 @@ private struct ShoppingItemEditorSheet: View {
         }
     }
 
+    @ViewBuilder
+    private var manualStoreDetailsSection: some View {
+        let stores = manualDetailStores
+
+        if !stores.isEmpty {
+            ShoppingFormSection(title: "Store Details") {
+                VStack(spacing: AppSpacing.small) {
+                    ForEach(stores) { store in
+                        ShoppingManualStoreDetailsEditor(
+                            storeName: store.name,
+                            aisleNumber: Binding(
+                                get: { draft.manualAisleNumber(for: store) },
+                                set: { draft.updateManualAisleNumber($0, for: store) }
+                            ),
+                            shelfNumber: Binding(
+                                get: { draft.manualShelfNumber(for: store) },
+                                set: { draft.updateManualShelfNumber($0, for: store) }
+                            ),
+                            priceText: Binding(
+                                get: { manualStorePriceText[store.id] ?? draft.manualPriceText(for: store) },
+                                set: { value in
+                                    manualStorePriceText[store.id] = value
+                                    draft.updateManualPriceText(value, for: store)
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private var kingSoopersStore: ShoppingStore? {
-        viewModel.stores.first { store in
-            let normalizedName = store.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return normalizedName.contains("king soopers") || normalizedName.contains("kroger")
+        viewModel.stores.first(where: \.isKrogerBacked)
+    }
+
+    private var manualDetailStores: [ShoppingStore] {
+        viewModel.stores.filter { store in
+            draft.selectedStoreIds.contains(store.id) && !store.isKrogerBacked
         }
     }
 
@@ -1848,6 +2167,83 @@ private struct ShoppingChoiceChip: View {
     }
 }
 
+private struct ShoppingManualStoreDetailsEditor: View {
+    let storeName: String
+    @Binding var aisleNumber: String
+    @Binding var shelfNumber: String
+    @Binding var priceText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            HStack(spacing: AppSpacing.small) {
+                Image(systemName: "mappin.circle")
+                    .foregroundStyle(AppColors.mutedText)
+
+                Text(storeName)
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer()
+            }
+
+            HStack(spacing: AppSpacing.small) {
+                manualField(
+                    title: "Aisle",
+                    placeholder: "G23",
+                    text: $aisleNumber,
+                    keyboardType: .default
+                )
+
+                manualField(
+                    title: "Shelf",
+                    placeholder: "2",
+                    text: $shelfNumber,
+                    keyboardType: .numbersAndPunctuation
+                )
+
+                manualField(
+                    title: "Price",
+                    placeholder: "7.49",
+                    text: $priceText,
+                    keyboardType: .decimalPad
+                )
+            }
+        }
+        .padding(AppSpacing.medium)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+
+    private func manualField(
+        title: String,
+        placeholder: String,
+        text: Binding<String>,
+        keyboardType: UIKeyboardType
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+
+            TextField(placeholder, text: text)
+                .font(.subheadline.weight(.semibold))
+                .textInputAutocapitalization(.characters)
+                .keyboardType(keyboardType)
+                .padding(.horizontal, AppSpacing.small)
+                .frame(height: 36)
+                .background(AppColors.panelBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous)
+                        .stroke(AppColors.panelBorder, lineWidth: 1)
+                }
+        }
+    }
+}
+
 private struct ShoppingProductSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -2096,7 +2492,6 @@ private struct ShoppingCategorySection: View {
     let group: ShoppingCategoryGroup
     let mutatingItemIDs: Set<Int>
     let onTogglePurchased: (ShoppingListItem) -> Void
-    let onAdjustQuantity: (ShoppingListItem, Int) -> Void
     let onEdit: (ShoppingListItem) -> Void
     let onDelete: (ShoppingListItem) -> Void
 
@@ -2133,12 +2528,6 @@ private struct ShoppingCategorySection: View {
                     onTogglePurchased: {
                         onTogglePurchased(item.item)
                     },
-                    onIncrementQuantity: {
-                        onAdjustQuantity(item.item, 1)
-                    },
-                    onDecrementQuantity: {
-                        onAdjustQuantity(item.item, -1)
-                    },
                     onEdit: {
                         onEdit(item.item)
                     },
@@ -2166,8 +2555,6 @@ private struct ShoppingItemRow: View {
     let displayItem: ShoppingListDisplayItem
     let isMutating: Bool
     let onTogglePurchased: () -> Void
-    let onIncrementQuantity: () -> Void
-    let onDecrementQuantity: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -2185,7 +2572,7 @@ private struct ShoppingItemRow: View {
 
             itemImage
 
-            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+            VStack(alignment: .leading, spacing: AppSpacing.small) {
                 Text(displayItem.item.name)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
@@ -2202,35 +2589,24 @@ private struct ShoppingItemRow: View {
                 }
 
                 if !displayItem.storeListings.isEmpty {
-                    HStack(spacing: AppSpacing.xSmall) {
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
                         ForEach(displayItem.storeListings) { listing in
-                            Text(listing.badgeLabel)
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                                .padding(.horizontal, AppSpacing.small)
-                                .frame(height: 24)
-                                .foregroundStyle(listing.badgeTone.foregroundColor)
-                                .background(listing.badgeTone.backgroundColor)
-                                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+                            ShoppingStoreListingSummaryRow(listing: listing)
                         }
                     }
                 }
             }
+            .layoutPriority(1)
 
             Spacer(minLength: AppSpacing.small)
 
-            VStack(alignment: .trailing, spacing: AppSpacing.small) {
-                RowQuantityStepper(
-                    quantity: displayItem.item.quantity,
-                    isDisabled: isMutating,
-                    onDecrement: onDecrementQuantity,
-                    onIncrement: onIncrementQuantity
-                )
-
+            VStack(alignment: .trailing, spacing: AppSpacing.medium) {
                 if isMutating {
                     ProgressView()
                         .controlSize(.small)
                 } else {
+                    RowQuantityBadge(quantity: displayItem.item.quantity)
+
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(AppColors.mutedText)
@@ -2282,48 +2658,80 @@ private struct ShoppingItemRow: View {
             .frame(width: 42, height: 42)
             .background(AppColors.insetPanelBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+        } else {
+            Image(systemName: "shippingbox")
+                .font(.headline)
+                .foregroundStyle(AppColors.mutedText)
+                .frame(width: 42, height: 42)
+                .background(AppColors.insetPanelBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
         }
     }
 }
 
-private struct RowQuantityStepper: View {
-    let quantity: Int
-    let isDisabled: Bool
-    let onDecrement: () -> Void
-    let onIncrement: () -> Void
+private struct ShoppingStoreListingSummaryRow: View {
+    let listing: ShoppingItemStoreListing
 
     var body: some View {
-        HStack(spacing: AppSpacing.xSmall) {
-            Button(action: onDecrement) {
-                Image(systemName: "minus")
-                    .font(.caption.weight(.bold))
-                    .frame(width: 26, height: 28)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppSpacing.xSmall) {
+                storePill
+                pricePill
             }
-            .disabled(isDisabled || quantity <= 1)
 
-            Text("Qty \(quantity)")
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                storePill
+                pricePill
+            }
+        }
+    }
+
+    private var storePill: some View {
+        Text(listing.badgeLabel)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .padding(.horizontal, AppSpacing.small)
+            .frame(height: 24)
+            .foregroundStyle(listing.badgeTone.foregroundColor)
+            .background(listing.badgeTone.backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var pricePill: some View {
+        if let priceText = listing.price?.displayText {
+            Text(priceText)
                 .font(.caption.weight(.semibold))
-                .monospacedDigit()
                 .lineLimit(1)
-                .frame(minWidth: 48)
+                .monospacedDigit()
+                .padding(.horizontal, AppSpacing.small)
+                .frame(height: 24)
+                .foregroundStyle(AppColors.mutedText)
+                .background(Color(uiColor: .tertiarySystemFill))
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+        }
+    }
+}
 
-            Button(action: onIncrement) {
-                Image(systemName: "plus")
-                    .font(.caption.weight(.bold))
-                    .frame(width: 26, height: 28)
+private struct RowQuantityBadge: View {
+    let quantity: Int
+
+    var body: some View {
+        Text("Qty \(quantity)")
+            .font(.caption.weight(.semibold))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .foregroundStyle(AppColors.accent)
+            .padding(.horizontal, AppSpacing.small)
+            .frame(height: 28)
+            .background(AppColors.accentSoft)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous)
+                    .stroke(AppColors.panelBorder, lineWidth: 1)
             }
-            .disabled(isDisabled)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(isDisabled ? AppColors.mutedText : AppColors.accent)
-        .padding(.horizontal, AppSpacing.xSmall)
-        .frame(height: 32)
-        .background(AppColors.accentSoft)
-        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
-                .stroke(AppColors.panelBorder, lineWidth: 1)
-        }
     }
 }
 
@@ -2400,6 +2808,10 @@ private extension KrogerProduct {
 }
 
 private extension ShoppingItemStoreListing {
+    var estimatedUnitPrice: Double? {
+        price?.estimatedUnitPrice
+    }
+
     var badgeLabel: String {
         let name = storeName ?? "Store"
 
@@ -2425,15 +2837,21 @@ private extension ShoppingItemStoreListing {
 
         let stockLevel = inventory?["stockLevel"]?.stringValue?.lowercased()
 
-        if stockLevel == "out_of_stock" || stockLevel == "out of stock" || stockLevel == "none" {
+        if stockLevel == "out_of_stock"
+            || stockLevel == "out of stock"
+            || stockLevel == "temporarily_out_of_stock"
+            || stockLevel == "none" {
             return .critical
         }
 
-        if stockLevel == "low" {
+        if stockLevel == "low" || stockLevel == "limited" {
             return .warning
         }
 
-        if stockLevel == "high" || stockLevel == "in_stock" || stockLevel == "available" {
+        if stockLevel == "high"
+            || stockLevel == "medium"
+            || stockLevel == "in_stock"
+            || stockLevel == "available" {
             return .success
         }
 
@@ -2450,6 +2868,7 @@ private extension ShoppingItemStoreListing {
             product?.description,
             aisle?.display,
             aisle?.description,
+            price?.displayText,
             availability?.status,
             inventory?["stockLevel"]?.stringValue,
         ].compactMap { $0 }
@@ -2473,12 +2892,23 @@ private extension ShoppingItemStoreListing {
 }
 
 private extension ShoppingStoreListingPrice {
+    var estimatedUnitPrice: Double? {
+        promo ?? regular
+    }
+
     var displayText: String? {
-        guard let value = promo ?? regular else {
+        guard let value = estimatedUnitPrice else {
             return nil
         }
 
         return value.formatted(.currency(code: "USD"))
+    }
+}
+
+private extension ShoppingStore {
+    var isKrogerBacked: Bool {
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedName.contains("king soopers") || normalizedName.contains("kroger")
     }
 }
 
