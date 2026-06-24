@@ -1534,6 +1534,7 @@ private struct ShoppingItemEditorSheet: View {
     @State private var pendingDeleteItem: ShoppingListItem?
     @State private var isProductSearchPresented = false
     @State private var manualStorePriceText: [Int: String]
+    @State private var expandedManualStoreDetailIDs: Set<Int>
 
     init(mode: ShoppingItemEditorMode, viewModel: ShoppingListViewModel) {
         self.mode = mode
@@ -1541,8 +1542,14 @@ private struct ShoppingItemEditorSheet: View {
         let initialDraft = mode.editingItem.map {
             ShoppingItemDraft(item: $0, defaultCategoryId: viewModel.defaultShoppingCategoryId)
         } ?? ShoppingItemDraft(selectedCategoryId: viewModel.defaultShoppingCategoryId)
+        let initialExpandedManualStoreIDs = Set(
+            viewModel.stores
+                .filter { initialDraft.selectedStoreIds.contains($0.id) && !$0.isKrogerBacked }
+                .map(\.id)
+        )
         _draft = State(initialValue: initialDraft)
         _manualStorePriceText = State(initialValue: initialDraft.manualPriceTextByStoreId)
+        _expandedManualStoreDetailIDs = State(initialValue: initialExpandedManualStoreIDs)
     }
 
     var body: some View {
@@ -1551,11 +1558,11 @@ private struct ShoppingItemEditorSheet: View {
                 VStack(alignment: .leading, spacing: AppSpacing.large) {
                     storePicker
 
-                    manualStoreDetailsSection
-
                     nameField
 
                     productLookupSection
+
+                    manualStoreDetailsSection
 
                     duplicateStatusView
 
@@ -1706,15 +1713,18 @@ private struct ShoppingItemEditorSheet: View {
                     .disabled(isAddingBack || isSubmitting || viewModel.isMutatingItem(item.id))
                 }
             }
-        } else if isCheckingDuplicate {
-            Label("Checking duplicates", systemImage: "magnifyingglass")
-                .font(.subheadline)
-                .foregroundStyle(AppColors.mutedText)
         } else if didFailDuplicateLookup {
             ErrorBannerView(
                 message: "Could not verify duplicates. The final save will still use the server check.",
                 tone: .warning
             )
+        } else {
+            Label("Checking duplicates", systemImage: "magnifyingglass")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.mutedText)
+                .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+                .opacity(isCheckingDuplicate ? 1 : 0)
+                .accessibilityHidden(!isCheckingDuplicate)
         }
     }
 
@@ -1814,8 +1824,15 @@ private struct ShoppingItemEditorSheet: View {
 
                                 if wasSelected {
                                     manualStorePriceText[store.id] = nil
-                                } else if manualStorePriceText[store.id] == nil {
-                                    manualStorePriceText[store.id] = draft.manualPriceText(for: store)
+                                    expandedManualStoreDetailIDs.remove(store.id)
+                                } else {
+                                    if manualStorePriceText[store.id] == nil {
+                                        manualStorePriceText[store.id] = draft.manualPriceText(for: store)
+                                    }
+
+                                    if !store.isKrogerBacked {
+                                        expandedManualStoreDetailIDs.insert(store.id)
+                                    }
                                 }
                             }
                         }
@@ -1828,44 +1845,61 @@ private struct ShoppingItemEditorSheet: View {
 
     @ViewBuilder
     private var manualStoreDetailsSection: some View {
-        let stores = manualDetailStores
+        let stores = manualStoreDetailCandidates
 
         if !stores.isEmpty {
-            ShoppingFormSection(title: "Store Details") {
+            ShoppingFormSection(title: manualStoreDetailsTitle(for: stores)) {
                 VStack(spacing: AppSpacing.small) {
                     ForEach(stores) { store in
-                        ShoppingManualStoreDetailsEditor(
+                        ShoppingManualStoreDetailsDisclosure(
                             storeName: store.name,
-                            aisleNumber: Binding(
-                                get: { draft.manualAisleNumber(for: store) },
-                                set: { draft.updateManualAisleNumber($0, for: store) }
-                            ),
-                            shelfNumber: Binding(
-                                get: { draft.manualShelfNumber(for: store) },
-                                set: { draft.updateManualShelfNumber($0, for: store) }
-                            ),
-                            priceText: Binding(
-                                get: { manualStorePriceText[store.id] ?? draft.manualPriceText(for: store) },
-                                set: { value in
-                                    manualStorePriceText[store.id] = value
-                                    draft.updateManualPriceText(value, for: store)
-                                }
+                            isSelected: draft.selectedStoreIds.contains(store.id),
+                            isExpanded: expandedManualStoreDetailIDs.contains(store.id),
+                            onToggle: {
+                                toggleManualStoreDetails(for: store)
+                            }
+                        ) {
+                            ShoppingManualStoreDetailsEditor(
+                                aisleNumber: Binding(
+                                    get: { draft.manualAisleNumber(for: store) },
+                                    set: { draft.updateManualAisleNumber($0, for: store) }
+                                ),
+                                shelfNumber: Binding(
+                                    get: { draft.manualShelfNumber(for: store) },
+                                    set: { draft.updateManualShelfNumber($0, for: store) }
+                                ),
+                                priceText: Binding(
+                                    get: { manualStorePriceText[store.id] ?? draft.manualPriceText(for: store) },
+                                    set: { value in
+                                        manualStorePriceText[store.id] = value
+                                        draft.updateManualPriceText(value, for: store)
+                                    }
+                                )
                             )
-                        )
+                            .padding(.top, AppSpacing.xSmall)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
                 }
+                .animation(.easeInOut(duration: 0.18), value: expandedManualStoreDetailIDs)
             }
         }
+    }
+
+    private func manualStoreDetailsTitle(for stores: [ShoppingStore]) -> String {
+        guard stores.count == 1, let store = stores.first else {
+            return "Other Store Details"
+        }
+
+        return "\(store.name) Details"
     }
 
     private var kingSoopersStore: ShoppingStore? {
         viewModel.stores.first(where: \.isKrogerBacked)
     }
 
-    private var manualDetailStores: [ShoppingStore] {
-        viewModel.stores.filter { store in
-            draft.selectedStoreIds.contains(store.id) && !store.isKrogerBacked
-        }
+    private var manualStoreDetailCandidates: [ShoppingStore] {
+        viewModel.stores.filter { !$0.isKrogerBacked }
     }
 
     private var productLookupSection: some View {
@@ -1885,7 +1919,7 @@ private struct ShoppingItemEditorSheet: View {
                 Button {
                     isProductSearchPresented = true
                 } label: {
-                    Label("Find Product", systemImage: "magnifyingglass")
+                    Label("Find at King Soopers", systemImage: "magnifyingglass")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 42)
@@ -2056,6 +2090,21 @@ private struct ShoppingItemEditorSheet: View {
         }
     }
 
+    private func toggleManualStoreDetails(for store: ShoppingStore) {
+        if !draft.selectedStoreIds.contains(store.id) {
+            draft.toggleStore(store)
+            manualStorePriceText[store.id] = draft.manualPriceText(for: store)
+            expandedManualStoreDetailIDs.insert(store.id)
+            return
+        }
+
+        if expandedManualStoreDetailIDs.contains(store.id) {
+            expandedManualStoreDetailIDs.remove(store.id)
+        } else {
+            expandedManualStoreDetailIDs.insert(store.id)
+        }
+    }
+
     private func submit() async {
         guard !isPrimaryDisabled else {
             return
@@ -2167,46 +2216,92 @@ private struct ShoppingChoiceChip: View {
     }
 }
 
-private struct ShoppingManualStoreDetailsEditor: View {
+private struct ShoppingManualStoreDetailsDisclosure<Content: View>: View {
     let storeName: String
+    let isSelected: Bool
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    @ViewBuilder let content: Content
+
+    init(
+        storeName: String,
+        isSelected: Bool,
+        isExpanded: Bool,
+        onToggle: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.storeName = storeName
+        self.isSelected = isSelected
+        self.isExpanded = isExpanded
+        self.onToggle = onToggle
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            Button(action: onToggle) {
+                HStack(spacing: AppSpacing.medium) {
+                    StatusBadgeView(label: storeName, systemImage: "mappin.circle", tone: .neutral)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(isSelected ? "\(storeName) details" : "Add \(storeName) details")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+
+                        Text("Price, aisle, and shelf")
+                            .font(.caption)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppColors.mutedText)
+                }
+                .padding(AppSpacing.medium)
+                .background(AppColors.insetPanelBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                        .stroke(AppColors.panelBorder, lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isSelected && isExpanded {
+                content
+            }
+        }
+    }
+}
+
+private struct ShoppingManualStoreDetailsEditor: View {
     @Binding var aisleNumber: String
     @Binding var shelfNumber: String
     @Binding var priceText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.small) {
-            HStack(spacing: AppSpacing.small) {
-                Image(systemName: "mappin.circle")
-                    .foregroundStyle(AppColors.mutedText)
+        HStack(spacing: AppSpacing.small) {
+            manualField(
+                title: "Price",
+                placeholder: "7.49",
+                text: $priceText,
+                keyboardType: .decimalPad
+            )
 
-                Text(storeName)
-                    .font(.subheadline.weight(.semibold))
+            manualField(
+                title: "Aisle",
+                placeholder: "G23",
+                text: $aisleNumber,
+                keyboardType: .default
+            )
 
-                Spacer()
-            }
-
-            HStack(spacing: AppSpacing.small) {
-                manualField(
-                    title: "Aisle",
-                    placeholder: "G23",
-                    text: $aisleNumber,
-                    keyboardType: .default
-                )
-
-                manualField(
-                    title: "Shelf",
-                    placeholder: "2",
-                    text: $shelfNumber,
-                    keyboardType: .numbersAndPunctuation
-                )
-
-                manualField(
-                    title: "Price",
-                    placeholder: "7.49",
-                    text: $priceText,
-                    keyboardType: .decimalPad
-                )
-            }
+            manualField(
+                title: "Shelf",
+                placeholder: "2",
+                text: $shelfNumber,
+                keyboardType: .numbersAndPunctuation
+            )
         }
         .padding(AppSpacing.medium)
         .background(AppColors.insetPanelBackground)
