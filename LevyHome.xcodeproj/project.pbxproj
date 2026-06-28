@@ -62,6 +62,7 @@
 		B20000000000000000000001 /* QuickActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* QuickActionService.swift */; };
 		B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* QuickActionsViewModel.swift */; };
 		B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* QuickActionsViewModelTests.swift */; };
+		B20000000000000000000004 /* GarageCompletionWatchPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */; };
 		C10000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* AppDelegate.swift */; };
 		C10000000000000000000002 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* NotificationService.swift */; };
 		C10000000000000000000003 /* PushRegistrationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* PushRegistrationViewModel.swift */; };
@@ -144,6 +145,7 @@
 		B20000000000000000000011 /* QuickActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionService.swift; sourceTree = "<group>"; };
 		B20000000000000000000012 /* QuickActionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModel.swift; sourceTree = "<group>"; };
 		B20000000000000000000013 /* QuickActionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModelTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageCompletionWatchPolicyTests.swift; sourceTree = "<group>"; };
 		C10000000000000000000010 /* LevyHome.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LevyHome.entitlements; sourceTree = "<group>"; };
 		C10000000000000000000011 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		C10000000000000000000012 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -349,6 +351,7 @@
 				A80000000000000000000015 /* ActivityViewModelTests.swift */,
 				B10000000000000000000013 /* HomeOverviewViewModelTests.swift */,
 				B20000000000000000000013 /* QuickActionsViewModelTests.swift */,
+				B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */,
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
 				D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */,
 				C10000000000000000000015 /* PushRegistrationViewModelTests.swift */,
@@ -570,6 +573,7 @@
 				A80000000000000000000005 /* ActivityViewModelTests.swift in Sources */,
 				B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */,
 				B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */,
+				B20000000000000000000004 /* GarageCompletionWatchPolicyTests.swift in Sources */,
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
 				D10000000000000000000005 /* ThemePreferenceViewModelTests.swift in Sources */,
 				C10000000000000000000005 /* PushRegistrationViewModelTests.swift in Sources */,

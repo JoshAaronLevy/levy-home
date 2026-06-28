@@ -277,27 +277,31 @@ private struct HomeContentView: View {
     }
 
     private func watchGarageCompletionIfNeeded(for action: QuickActionDisplayData) async {
-        guard let expectedState = expectedGarageState(after: action.request) else {
+        guard let watchPolicy = GarageCompletionWatchPolicy(request: action.request) else {
             return
         }
 
-        if homeViewModel.overview?.garageStatus.state == expectedState {
+        if homeViewModel.overview?.garageStatus.state == watchPolicy.expectedState {
             return
         }
 
-        for attempt in 1...8 {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+        for attempt in 1...watchPolicy.maximumAttempts {
+            try? await Task.sleep(nanoseconds: watchPolicy.pollIntervalNanoseconds)
             await homeViewModel.refresh()
 
             guard let currentState = homeViewModel.overview?.garageStatus.state else {
                 continue
             }
 
-            if currentState == expectedState {
+            if currentState == watchPolicy.expectedState {
                 return
             }
 
-            if attempt >= 3 && currentState.isStableGarageState {
+            if currentState == watchPolicy.inProgressState {
+                continue
+            }
+
+            if attempt >= watchPolicy.minimumAttemptsBeforeStableMismatch && currentState.isStableGarageState {
                 break
             }
         }
@@ -307,17 +311,6 @@ private struct HomeContentView: View {
             title: action.title,
             reason: "\(action.title) was sent, but Garage still reports \(currentState). Pull to refresh or check Home Assistant."
         )
-    }
-
-    private func expectedGarageState(after request: QuickActionRequest) -> GarageStatus.State? {
-        switch request {
-        case .openGarage:
-            return .open
-        case .closeGarage:
-            return .closed
-        case .turnOffAllLights, .turnOffLightGroup:
-            return nil
-        }
     }
 
     private var garageUnavailableReason: String {
@@ -454,6 +447,32 @@ private struct HomeModeRailView: View {
         .overlay {
             Capsule(style: .continuous)
                 .stroke(HomePalette.hairline, lineWidth: 1)
+        }
+    }
+}
+
+struct GarageCompletionWatchPolicy: Equatable {
+    let expectedState: GarageStatus.State
+    let inProgressState: GarageStatus.State
+    let maximumAttempts: Int
+    let pollIntervalNanoseconds: UInt64
+    let minimumAttemptsBeforeStableMismatch: Int
+
+    init?(request: QuickActionRequest) {
+        pollIntervalNanoseconds = 1_500_000_000
+        minimumAttemptsBeforeStableMismatch = 3
+
+        switch request {
+        case .openGarage:
+            expectedState = .open
+            inProgressState = .opening
+            maximumAttempts = 12
+        case .closeGarage:
+            expectedState = .closed
+            inProgressState = .closing
+            maximumAttempts = 24
+        case .turnOffAllLights, .turnOffLightGroup:
+            return nil
         }
     }
 }
