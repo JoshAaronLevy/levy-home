@@ -18,6 +18,7 @@
 		A1000000000000000000000A /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* ActivityView.swift */; };
 		A1000000000000000000000B /* NotificationHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* NotificationHubView.swift */; };
 		A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* NotificationPreferencesView.swift */; };
+		E00000000000000000000001 /* ToDoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000011 /* ToDoView.swift */; };
 		E10000000000000000000001 /* ShoppingListMockupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* ShoppingListMockupView.swift */; };
 		A20000000000000000000001 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AppColors.swift */; };
 		A20000000000000000000002 /* AppSpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* AppSpacing.swift */; };
@@ -100,6 +101,7 @@
 		A10000000000000000000019 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 		A1000000000000000000001A /* NotificationHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHubView.swift; sourceTree = "<group>"; };
 		A1000000000000000000001B /* NotificationPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesView.swift; sourceTree = "<group>"; };
+		E00000000000000000000011 /* ToDoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoView.swift; sourceTree = "<group>"; };
 		E10000000000000000000011 /* ShoppingListMockupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListMockupView.swift; sourceTree = "<group>"; };
 		A20000000000000000000011 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
 		A20000000000000000000012 /* AppSpacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSpacing.swift; sourceTree = "<group>"; };
@@ -242,6 +244,7 @@
 				A10000000000000000000038 /* Activity */,
 				A10000000000000000000039 /* Notifications */,
 				E10000000000000000000021 /* Shopping */,
+				E00000000000000000000021 /* ToDo */,
 				AA0000000000000000000021 /* Preferences */,
 				C10000000000000000000021 /* DeveloperTools */,
 				A20000000000000000000022 /* Shared */,
@@ -293,6 +296,14 @@
 				E10000000000000000000011 /* ShoppingListMockupView.swift */,
 			);
 			path = Shopping;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000021 /* ToDo */ = {
+			isa = PBXGroup;
+			children = (
+				E00000000000000000000011 /* ToDoView.swift */,
+			);
+			path = ToDo;
 			sourceTree = "<group>";
 		};
 		A20000000000000000000021 /* Theme */ = {
@@ -517,6 +528,7 @@
 				A1000000000000000000000B /* NotificationHubView.swift in Sources */,
 				A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */,
 				E10000000000000000000001 /* ShoppingListMockupView.swift in Sources */,
+				E00000000000000000000001 /* ToDoView.swift in Sources */,
 				A20000000000000000000001 /* AppColors.swift in Sources */,
 				A20000000000000000000002 /* AppSpacing.swift in Sources */,
 				A20000000000000000000003 /* InfoPanel.swift in Sources */,

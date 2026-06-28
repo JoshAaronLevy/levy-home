@@ -18,10 +18,10 @@ struct RootTabView: View {
             }
 
             NavigationStack {
-                ActivityView()
+                ToDoView()
             }
             .tabItem {
-                Label("Activity", systemImage: "clock")
+                Label("To Do", systemImage: "checkmark.circle")
             }
 
             NavigationStack {

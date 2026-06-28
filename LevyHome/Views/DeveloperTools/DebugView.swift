@@ -95,40 +95,32 @@ struct DebugView: View {
                 }
 
                 InfoPanel(
-                    title: "Logs",
-                    subtitle: "Local app, API, and action breadcrumbs from this device.",
+                    title: "Logs and Activity",
+                    subtitle: "Local diagnostics and the Home Assistant event timeline.",
                     systemImage: "terminal"
                 ) {
-                    NavigationLink {
-                        LogsView()
-                    } label: {
-                        HStack(spacing: AppSpacing.medium) {
-                            Image(systemName: "list.bullet.rectangle")
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(AppColors.accent)
-                                .frame(width: 28)
-
-                            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                                Text("Logs")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-
-                                Text("View local runtime entries collected by the app.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppColors.mutedText)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(AppColors.mutedText)
+                    VStack(spacing: 0) {
+                        developerLink(
+                            title: "Logs",
+                            detail: "View local runtime entries collected by the app.",
+                            systemImage: "list.bullet.rectangle",
+                            accessibilityLabel: "Logs"
+                        ) {
+                            LogsView()
                         }
-                        .contentShape(Rectangle())
+
+                        Divider()
+                            .padding(.vertical, AppSpacing.medium)
+
+                        developerLink(
+                            title: "Activity",
+                            detail: "View recent home activity events.",
+                            systemImage: "clock",
+                            accessibilityLabel: "Activity"
+                        ) {
+                            ActivityView()
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Logs")
                 }
             }
             .padding(AppSpacing.screen)
@@ -196,6 +188,45 @@ struct DebugView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppColors.insetPanelBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+    }
+
+    private func developerLink<Destination: View>(
+        title: String,
+        detail: String,
+        systemImage: String,
+        accessibilityLabel: String,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            HStack(spacing: AppSpacing.medium) {
+                Image(systemName: systemImage)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(AppColors.accent)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 
