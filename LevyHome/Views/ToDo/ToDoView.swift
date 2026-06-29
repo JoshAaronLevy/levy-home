@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct ToDoView: View {
@@ -469,6 +470,7 @@ private struct ToDoLocationRow: View {
 
 private struct ToDoEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var locationSearch = ToDoLocationSearchViewModel()
     @State private var draft = ToDoDraft()
 
     private let categories = ToDoPreviewData.categories
@@ -584,12 +586,20 @@ private struct ToDoEditorSheet: View {
     private var locationSection: some View {
         ToDoFormPanel(title: "Location", systemImage: "mappin.and.ellipse") {
             VStack(alignment: .leading, spacing: AppSpacing.medium) {
-                ToDoTextFieldRow(
-                    title: "Place or address",
-                    systemImage: "mappin.and.ellipse",
+                ToDoLocationSearchField(
                     text: $draft.location,
-                    prompt: "Add a location"
-                )
+                    suggestions: locationSearch.suggestions,
+                    isSearching: locationSearch.isSearching,
+                    errorMessage: locationSearch.errorMessage
+                ) { suggestion in
+                    selectLocationSearchSuggestion(suggestion)
+                }
+                .onAppear {
+                    locationSearch.update(query: draft.location)
+                }
+                .onChange(of: draft.location) { _, newLocation in
+                    locationSearch.update(query: newLocation)
+                }
 
                 if isNewLocation {
                     ToDoInlineBadge(text: "New location", systemImage: "plus.circle.fill", tone: .accent)
@@ -605,6 +615,7 @@ private struct ToDoEditorSheet: View {
                             Button {
                                 draft.location = location.title
                                 draft.saveLocation = false
+                                locationSearch.select(query: location.title)
                             } label: {
                                 HStack(spacing: AppSpacing.xSmall) {
                                     Image(systemName: location.systemImage)
@@ -665,14 +676,18 @@ private struct ToDoEditorSheet: View {
     }
 
     private var isNewLocation: Bool {
-        let normalizedLocation = draft.location.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        isNewLocation(draft.location)
+    }
+
+    private func isNewLocation(_ locationText: String) -> Bool {
+        let normalizedLocation = normalizedLocationName(locationText)
 
         guard !normalizedLocation.isEmpty else {
             return false
         }
 
-        return !recentLocations.contains { location in
-            location.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedLocation
+        return !recentLocations.contains { savedLocation in
+            isSavedLocationMatch(input: normalizedLocation, saved: normalizedLocationName(savedLocation.title))
         }
     }
 
@@ -687,6 +702,20 @@ private struct ToDoEditorSheet: View {
     private var summaryText: String {
         let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(selectedCategory.title) • \(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
+    }
+
+    private func selectLocationSearchSuggestion(_ suggestion: ToDoLocationSearchSuggestion) {
+        draft.location = suggestion.displayText
+        draft.saveLocation = isNewLocation(suggestion.displayText)
+        locationSearch.select(query: suggestion.displayText)
+    }
+
+    private func normalizedLocationName(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func isSavedLocationMatch(input: String, saved: String) -> Bool {
+        input == saved || input.hasPrefix("\(saved),")
     }
 }
 
@@ -743,6 +772,108 @@ private struct ToDoTextFieldRow: View {
             }
         }
         .padding(AppSpacing.medium)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ToDoLocationSearchField: View {
+    @Binding var text: String
+    let suggestions: [ToDoLocationSearchSuggestion]
+    let isSearching: Bool
+    let errorMessage: String?
+    let onSelectSuggestion: (ToDoLocationSearchSuggestion) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: AppSpacing.medium) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text("Place or address")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+
+                    TextField("Search places or addresses", text: $text)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                }
+
+                if isSearching {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .padding(AppSpacing.medium)
+
+            if let errorMessage {
+                Divider()
+
+                HStack(spacing: AppSpacing.small) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption.weight(.semibold))
+
+                    Text(errorMessage)
+                        .font(.caption)
+                }
+                .foregroundStyle(AppColors.warning)
+                .padding(AppSpacing.medium)
+            } else if !suggestions.isEmpty {
+                Divider()
+
+                VStack(spacing: 0) {
+                    ForEach(suggestions) { suggestion in
+                        Button {
+                            onSelectSuggestion(suggestion)
+                        } label: {
+                            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                                Image(systemName: "mappin.and.ellipse")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppColors.accent)
+                                    .frame(width: 28)
+
+                                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                                    Text(suggestion.title)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+
+                                    if !suggestion.subtitle.isEmpty {
+                                        Text(suggestion.subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(AppColors.mutedText)
+                                            .lineLimit(2)
+                                    }
+                                }
+
+                                Spacer(minLength: AppSpacing.small)
+
+                                Image(systemName: "plus.circle")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppColors.accent)
+                            }
+                            .padding(AppSpacing.medium)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if suggestion.id != suggestions.last?.id {
+                            Divider()
+                                .padding(.leading, 56)
+                        }
+                    }
+                }
+            }
+        }
         .background(AppColors.insetPanelBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
         .overlay {
@@ -1056,6 +1187,109 @@ private struct FlowLayout: Layout {
     private struct FlowItem {
         let index: Int
         let size: CGSize
+    }
+}
+
+private final class ToDoLocationSearchViewModel: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published private(set) var suggestions: [ToDoLocationSearchSuggestion] = []
+    @Published private(set) var isSearching = false
+    @Published private(set) var errorMessage: String?
+
+    private let completer = MKLocalSearchCompleter()
+    private var selectedQuery: String?
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.address, .pointOfInterest]
+    }
+
+    func update(query: String) {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard normalizedQuery.count >= 2 else {
+            clearResults()
+            completer.queryFragment = ""
+            selectedQuery = nil
+            return
+        }
+
+        if normalizedQuery == selectedQuery {
+            clearResults()
+            return
+        }
+
+        selectedQuery = nil
+        errorMessage = nil
+
+        guard completer.queryFragment != normalizedQuery else {
+            return
+        }
+
+        isSearching = true
+        completer.queryFragment = normalizedQuery
+    }
+
+    func select(query: String) {
+        selectedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        clearResults()
+        completer.queryFragment = ""
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let nextSuggestions = Self.suggestions(from: completer.results)
+
+        DispatchQueue.main.async {
+            self.suggestions = nextSuggestions
+            self.isSearching = false
+            self.errorMessage = nil
+        }
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.suggestions = []
+            self.isSearching = false
+            self.errorMessage = "Location search unavailable"
+        }
+    }
+
+    private func clearResults() {
+        suggestions = []
+        isSearching = false
+        errorMessage = nil
+    }
+
+    private static func suggestions(from completions: [MKLocalSearchCompletion]) -> [ToDoLocationSearchSuggestion] {
+        var seenIDs = Set<String>()
+
+        return completions.compactMap { completion in
+            let title = completion.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = completion.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !title.isEmpty else {
+                return nil
+            }
+
+            let id = "\(title)|\(subtitle)".lowercased()
+
+            guard !seenIDs.contains(id) else {
+                return nil
+            }
+
+            seenIDs.insert(id)
+            return ToDoLocationSearchSuggestion(id: id, title: title, subtitle: subtitle)
+        }
+    }
+}
+
+private struct ToDoLocationSearchSuggestion: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let subtitle: String
+
+    var displayText: String {
+        subtitle.isEmpty ? title : "\(title), \(subtitle)"
     }
 }
 
