@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ToDoView: View {
+    @State private var isShowingAddSheet = false
+
     private let openTaskCount = 5
     private let dueTodayCount = 2
     private let completedTaskCount = 3
@@ -37,11 +39,17 @@ struct ToDoView: View {
                 .accessibilityLabel("Filter to dos")
 
                 Button {
+                    isShowingAddSheet = true
                 } label: {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("Add to do")
             }
+        }
+        .sheet(isPresented: $isShowingAddSheet) {
+            ToDoEditorSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -459,6 +467,598 @@ private struct ToDoLocationRow: View {
     }
 }
 
+private struct ToDoEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = ToDoDraft()
+
+    private let categories = ToDoPreviewData.categories
+    private let assignees = ToDoPreviewData.assignees
+    private let recentLocations = ToDoPreviewData.recentLocations
+    private let dueDateOptions = ToDoPreviewData.dueDateOptions
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    titleSection
+                    categorySection
+                    detailsSection
+                    locationSection
+                    summarySection
+
+                    PrimaryActionButton(
+                        title: "Add To Do",
+                        systemImage: "plus"
+                    ) {
+                        dismiss()
+                    }
+                }
+                .padding(AppSpacing.screen)
+                .padding(.bottom, AppSpacing.xLarge)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle("New To Do")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private var titleSection: some View {
+        ToDoFormPanel(title: "Task", systemImage: "checklist") {
+            ToDoTextFieldRow(
+                title: "Title",
+                systemImage: "text.cursor",
+                text: $draft.title,
+                prompt: "What needs doing?"
+            )
+        }
+    }
+
+    private var categorySection: some View {
+        ToDoFormPanel(title: "Category", systemImage: "folder") {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: AppSpacing.small),
+                    GridItem(.flexible(), spacing: AppSpacing.small)
+                ],
+                spacing: AppSpacing.small
+            ) {
+                ForEach(categories) { category in
+                    ToDoChoiceButton(
+                        title: category.title,
+                        systemImage: category.systemImage,
+                        isSelected: draft.categoryID == category.id,
+                        tone: category.tone
+                    ) {
+                        draft.categoryID = category.id
+                    }
+                }
+            }
+        }
+    }
+
+    private var detailsSection: some View {
+        ToDoFormPanel(title: "Details", systemImage: "slider.horizontal.3") {
+            VStack(spacing: 0) {
+                ToDoAssigneePicker(
+                    assignees: assignees,
+                    selectedAssigneeIDs: $draft.assigneeIDs
+                )
+
+                Divider()
+                    .padding(.leading, 42)
+                    .padding(.vertical, AppSpacing.medium)
+
+                ToDoDueDatePicker(
+                    dueDateOptions: dueDateOptions,
+                    selectedDueDateID: $draft.dueDateID
+                )
+
+                Divider()
+                    .padding(.leading, 42)
+                    .padding(.vertical, AppSpacing.medium)
+
+                ToDoToggleRow(
+                    title: "Add to Family Calendar",
+                    subtitle: "Creates a calendar event when saved",
+                    systemImage: "calendar.badge.plus",
+                    isOn: $draft.addToFamilyCalendar
+                )
+            }
+        }
+    }
+
+    private var locationSection: some View {
+        ToDoFormPanel(title: "Location", systemImage: "mappin.and.ellipse") {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                ToDoTextFieldRow(
+                    title: "Place or address",
+                    systemImage: "mappin.and.ellipse",
+                    text: $draft.location,
+                    prompt: "Add a location"
+                )
+
+                if isNewLocation {
+                    ToDoInlineBadge(text: "New location", systemImage: "plus.circle.fill", tone: .accent)
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.small) {
+                    Text("Recent")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+
+                    FlowLayout(spacing: AppSpacing.small, rowSpacing: AppSpacing.small) {
+                        ForEach(recentLocations) { location in
+                            Button {
+                                draft.location = location.title
+                                draft.saveLocation = false
+                            } label: {
+                                HStack(spacing: AppSpacing.xSmall) {
+                                    Image(systemName: location.systemImage)
+                                        .font(.caption.weight(.semibold))
+
+                                    Text(location.title)
+                                        .font(.caption.weight(.semibold))
+                                }
+                                .lineLimit(1)
+                                .padding(.horizontal, AppSpacing.small)
+                                .frame(height: 30)
+                                .foregroundStyle(AppColors.accent)
+                                .background(AppColors.accentSoft)
+                                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                ToDoCheckboxRow(
+                    title: "Save this location",
+                    subtitle: "Use again for future to dos",
+                    isChecked: $draft.saveLocation
+                )
+            }
+        }
+    }
+
+    private var summarySection: some View {
+        HStack(spacing: AppSpacing.medium) {
+            ToDoIconBadge(systemImage: selectedCategory.systemImage, tone: selectedCategory.tone)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text(draft.title.isEmpty ? "New to do" : draft.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(summaryText)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.mutedText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+
+            Spacer()
+
+            ToDoDueBadge(text: selectedDueDate.title, tone: selectedDueDate.tone)
+        }
+        .padding(AppSpacing.medium)
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+
+    private var isNewLocation: Bool {
+        let normalizedLocation = draft.location.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        guard !normalizedLocation.isEmpty else {
+            return false
+        }
+
+        return !recentLocations.contains { location in
+            location.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedLocation
+        }
+    }
+
+    private var selectedCategory: ToDoCategoryOption {
+        categories.first { $0.id == draft.categoryID } ?? categories[0]
+    }
+
+    private var selectedDueDate: ToDoDueDateOption {
+        dueDateOptions.first { $0.id == draft.dueDateID } ?? dueDateOptions[0]
+    }
+
+    private var summaryText: String {
+        let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(selectedCategory.title) • \(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
+    }
+}
+
+private struct ToDoFormPanel<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.large) {
+            HStack(spacing: AppSpacing.medium) {
+                ToDoIconBadge(systemImage: systemImage, tone: .accent)
+
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+            }
+
+            content
+        }
+        .padding(AppSpacing.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ToDoTextFieldRow: View {
+    let title: String
+    let systemImage: String
+    @Binding var text: String
+    let prompt: String
+
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+
+                TextField(prompt, text: $text)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .textInputAutocapitalization(.words)
+            }
+        }
+        .padding(AppSpacing.medium)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ToDoChoiceButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let tone: ToDoTone
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AppSpacing.small) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, AppSpacing.medium)
+            .frame(height: 42)
+            .foregroundStyle(isSelected ? Color.white : tone.foregroundColor)
+            .background(isSelected ? tone.foregroundColor : tone.backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ToDoAssigneePicker: View {
+    let assignees: [ToDoAssigneeOption]
+    @Binding var selectedAssigneeIDs: Set<String>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            ToDoFormRowHeader(
+                title: "Assigned to",
+                subtitle: "Tap initials to include someone",
+                systemImage: "person.2"
+            )
+
+            HStack(spacing: AppSpacing.small) {
+                ForEach(assignees) { assignee in
+                    Button {
+                        toggle(assignee)
+                    } label: {
+                        HStack(spacing: AppSpacing.small) {
+                            Text(assignee.initials)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(isSelected(assignee) ? Color.white : AppColors.accent)
+                                .frame(width: 28, height: 28)
+                                .background(isSelected(assignee) ? AppColors.accent : AppColors.accentSoft)
+                                .clipShape(Circle())
+
+                            Text(assignee.name)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, AppSpacing.small)
+                        .frame(height: 42)
+                        .foregroundStyle(isSelected(assignee) ? .primary : AppColors.mutedText)
+                        .background(AppColors.insetPanelBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                                .stroke(isSelected(assignee) ? AppColors.accent : AppColors.panelBorder, lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func isSelected(_ assignee: ToDoAssigneeOption) -> Bool {
+        selectedAssigneeIDs.contains(assignee.id)
+    }
+
+    private func toggle(_ assignee: ToDoAssigneeOption) {
+        if selectedAssigneeIDs.contains(assignee.id) {
+            selectedAssigneeIDs.remove(assignee.id)
+        } else {
+            selectedAssigneeIDs.insert(assignee.id)
+        }
+    }
+}
+
+private struct ToDoDueDatePicker: View {
+    let dueDateOptions: [ToDoDueDateOption]
+    @Binding var selectedDueDateID: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            ToDoFormRowHeader(
+                title: "Due",
+                subtitle: "Choose a reminder date",
+                systemImage: "clock"
+            )
+
+            FlowLayout(spacing: AppSpacing.small, rowSpacing: AppSpacing.small) {
+                ForEach(dueDateOptions) { option in
+                    Button {
+                        selectedDueDateID = option.id
+                    } label: {
+                        Text(option.title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .padding(.horizontal, AppSpacing.medium)
+                            .frame(height: 32)
+                            .foregroundStyle(selectedDueDateID == option.id ? Color.white : option.tone.foregroundColor)
+                            .background(selectedDueDateID == option.id ? option.tone.foregroundColor : option.tone.backgroundColor)
+                            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct ToDoToggleRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: AppSpacing.medium) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+        }
+    }
+}
+
+private struct ToDoCheckboxRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isChecked: Bool
+
+    var body: some View {
+        Button {
+            isChecked.toggle()
+        } label: {
+            HStack(alignment: .center, spacing: AppSpacing.medium) {
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(isChecked ? AppColors.accent : AppColors.mutedText)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(AppSpacing.medium)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ToDoFormRowHeader: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.mutedText)
+            }
+        }
+    }
+}
+
+private struct FlowLayout: Layout {
+    let spacing: CGFloat
+    let rowSpacing: CGFloat
+
+    init(spacing: CGFloat = AppSpacing.small, rowSpacing: CGFloat = AppSpacing.small) {
+        self.spacing = spacing
+        self.rowSpacing = rowSpacing
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = proposal.width ?? 0
+        let rows = rows(in: maxWidth, subviews: subviews)
+        let height = rows.reduce(CGFloat.zero) { partial, row in
+            partial + row.height
+        } + CGFloat(max(rows.count - 1, 0)) * rowSpacing
+        return CGSize(width: maxWidth, height: height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var y = bounds.minY
+
+        for row in rows(in: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+
+            for item in row.items {
+                subviews[item.index].place(
+                    at: CGPoint(x: x, y: y),
+                    proposal: ProposedViewSize(item.size)
+                )
+                x += item.size.width + spacing
+            }
+
+            y += row.height + rowSpacing
+        }
+    }
+
+    private func rows(in maxWidth: CGFloat, subviews: Subviews) -> [FlowRow] {
+        guard maxWidth > 0 else {
+            return []
+        }
+
+        var rows: [FlowRow] = []
+        var currentItems: [FlowItem] = []
+        var currentWidth: CGFloat = 0
+        var currentHeight: CGFloat = 0
+
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let itemWidth = currentItems.isEmpty ? size.width : size.width + spacing
+
+            if currentWidth + itemWidth > maxWidth, !currentItems.isEmpty {
+                rows.append(FlowRow(items: currentItems, height: currentHeight))
+                currentItems = []
+                currentWidth = 0
+                currentHeight = 0
+            }
+
+            currentItems.append(FlowItem(index: index, size: size))
+            currentWidth += currentItems.count == 1 ? size.width : size.width + spacing
+            currentHeight = max(currentHeight, size.height)
+        }
+
+        if !currentItems.isEmpty {
+            rows.append(FlowRow(items: currentItems, height: currentHeight))
+        }
+
+        return rows
+    }
+
+    private struct FlowRow {
+        let items: [FlowItem]
+        let height: CGFloat
+    }
+
+    private struct FlowItem {
+        let index: Int
+        let size: CGSize
+    }
+}
+
 private struct ToDoCalendarEvent: Identifiable {
     let id: String
     let title: String
@@ -486,6 +1086,41 @@ private struct ToDoTask: Identifiable {
     let assigneeInitials: [String]
     let isLinkedToFamilyCalendar: Bool
     let isComplete: Bool
+}
+
+private struct ToDoDraft {
+    var title = "Schedule dentist"
+    var categoryID = "appointments"
+    var assigneeIDs: Set<String> = ["josh"]
+    var dueDateID = "today"
+    var addToFamilyCalendar = true
+    var location = "Cherry Creek Dental"
+    var saveLocation = true
+}
+
+private struct ToDoCategoryOption: Identifiable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let tone: ToDoTone
+}
+
+private struct ToDoAssigneeOption: Identifiable {
+    let id: String
+    let name: String
+    let initials: String
+}
+
+private struct ToDoDueDateOption: Identifiable {
+    let id: String
+    let title: String
+    let tone: ToDoTone
+}
+
+private struct ToDoLocationOption: Identifiable {
+    let id: String
+    let title: String
+    let systemImage: String
 }
 
 private enum ToDoTone {
@@ -527,6 +1162,52 @@ private enum ToDoTone {
 }
 
 private enum ToDoPreviewData {
+    static let categories = [
+        ToDoCategoryOption(
+            id: "appointments",
+            title: "Appointments",
+            systemImage: "calendar",
+            tone: .accent
+        ),
+        ToDoCategoryOption(
+            id: "house-projects",
+            title: "House",
+            systemImage: "wrench.and.screwdriver",
+            tone: .warning
+        ),
+        ToDoCategoryOption(
+            id: "family",
+            title: "Family",
+            systemImage: "person.2",
+            tone: .success
+        ),
+        ToDoCategoryOption(
+            id: "admin",
+            title: "Admin",
+            systemImage: "doc.text",
+            tone: .neutral
+        )
+    ]
+
+    static let assignees = [
+        ToDoAssigneeOption(id: "josh", name: "Josh", initials: "J"),
+        ToDoAssigneeOption(id: "mallory", name: "Mallory", initials: "M")
+    ]
+
+    static let dueDateOptions = [
+        ToDoDueDateOption(id: "today", title: "Today", tone: .warning),
+        ToDoDueDateOption(id: "tomorrow", title: "Tomorrow", tone: .accent),
+        ToDoDueDateOption(id: "this-week", title: "This week", tone: .accent),
+        ToDoDueDateOption(id: "none", title: "No date", tone: .neutral)
+    ]
+
+    static let recentLocations = [
+        ToDoLocationOption(id: "home", title: "Home", systemImage: "house"),
+        ToDoLocationOption(id: "denver-pediatrics", title: "Denver Pediatrics", systemImage: "cross.case"),
+        ToDoLocationOption(id: "maple-vet-clinic", title: "Maple Vet Clinic", systemImage: "pawprint"),
+        ToDoLocationOption(id: "county-office", title: "County office", systemImage: "building.columns")
+    ]
+
     static let calendarEvents = [
         ToDoCalendarEvent(
             id: "grayson-pediatrician",
