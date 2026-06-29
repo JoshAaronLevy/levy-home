@@ -87,6 +87,78 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.result.status, .success)
     }
 
+    func testDecodesUsersResponse() throws {
+        let response = try decode(
+            UsersResponse.self,
+            from: """
+            {
+              "ok": true,
+              "generatedAt": "2026-06-28T15:30:00.000Z",
+              "users": [
+                {
+                  "id": 1,
+                  "firstName": "Josh",
+                  "lastName": "Levy",
+                  "email": "josh@example.com",
+                  "mobileDevice": null,
+                  "lastLogin": null
+                },
+                {
+                  "id": 2,
+                  "firstName": "Mallory",
+                  "lastName": "Levy",
+                  "email": "mallory@example.com",
+                  "mobileDevice": "Mallory iPhone",
+                  "lastLogin": "2026-06-28T15:29:00.000Z"
+                }
+              ]
+            }
+            """
+        )
+
+        XCTAssertTrue(response.ok)
+        XCTAssertEqual(response.users.map(\.id), [1, 2])
+        XCTAssertEqual(response.users.first?.fullName, "Josh Levy")
+        XCTAssertEqual(response.users.first?.initials, "JL")
+        XCTAssertEqual(response.users.last?.mobileDevice, "Mallory iPhone")
+        XCTAssertEqual(response.users.last?.lastLogin, "2026-06-28T15:29:00.000Z")
+    }
+
+    func testDecodesToDoLocationsResponse() throws {
+        let response = try decode(
+            ToDoLocationsResponse.self,
+            from: """
+            {
+              "ok": true,
+              "generatedAt": "2026-06-28T15:30:00.000Z",
+              "locations": [
+                {
+                  "id": 2,
+                  "name": "Denver Pediatrics",
+                  "address": "123 Wellness Way, Denver, CO",
+                  "mapkitTitle": "Denver Pediatrics",
+                  "mapkitSubtitle": "123 Wellness Way",
+                  "latitude": 39.7392,
+                  "longitude": -104.9903,
+                  "createdBy": 1,
+                  "createdDate": "2026-06-28T15:30:00.000Z",
+                  "lastUsedDate": "2026-06-29T12:00:00.000Z",
+                  "useCount": 3,
+                  "isActive": true,
+                  "favoritedBy": [1, 2]
+                }
+              ]
+            }
+            """
+        )
+
+        XCTAssertTrue(response.ok)
+        XCTAssertEqual(response.locations.first?.id, 2)
+        XCTAssertEqual(response.locations.first?.mapkitTitle, "Denver Pediatrics")
+        XCTAssertEqual(response.locations.first?.latitude, 39.7392)
+        XCTAssertEqual(response.locations.first?.favoritedBy, [1, 2])
+    }
+
     func testDecodesShoppingListResponse() throws {
         let response = try decode(
             ShoppingListResponse.self,

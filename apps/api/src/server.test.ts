@@ -165,6 +165,133 @@ test('GET /api/shopping-list returns shopping data from the configured store', a
   assert.deepEqual(response.categories, [{ id: 2, name: 'Dairy' }]);
 });
 
+test('GET /api/users returns users from the configured store', async () => {
+  await restartTestServer(
+    createApp({
+      config: testConfig,
+      userStore: {
+        async fetchUsers() {
+          return [
+            {
+              id: 1,
+              firstName: 'Josh',
+              lastName: 'Levy',
+              email: 'josh@example.com',
+            },
+            {
+              id: 2,
+              firstName: 'Mallory',
+              lastName: 'Levy',
+              email: 'mallory@example.com',
+              mobileDevice: 'Mallory iPhone',
+              lastLogin: '2026-06-28T15:30:00.000Z',
+            },
+          ];
+        },
+      },
+    }),
+  );
+
+  const response = await getJSON('/api/users');
+
+  assert.equal(response.ok, true);
+  assert.equal(typeof response.generatedAt, 'string');
+  assert.deepEqual(response.users, [
+    {
+      id: 1,
+      firstName: 'Josh',
+      lastName: 'Levy',
+      email: 'josh@example.com',
+    },
+    {
+      id: 2,
+      firstName: 'Mallory',
+      lastName: 'Levy',
+      email: 'mallory@example.com',
+      mobileDevice: 'Mallory iPhone',
+      lastLogin: '2026-06-28T15:30:00.000Z',
+    },
+  ]);
+});
+
+test('GET and POST /api/todo/locations use the configured to-do location store', async () => {
+  let capturedCreate: unknown;
+
+  await restartTestServer(
+    createApp({
+      config: testConfig,
+      toDoLocationStore: {
+        async fetchLocations() {
+          return [
+            {
+              id: 2,
+              name: 'Denver Pediatrics',
+              address: '123 Wellness Way, Denver, CO',
+              mapkitTitle: 'Denver Pediatrics',
+              mapkitSubtitle: '123 Wellness Way',
+              latitude: 39.7392,
+              longitude: -104.9903,
+              createdBy: 1,
+              createdDate: '2026-06-28T15:30:00.000Z',
+              lastUsedDate: '2026-06-29T12:00:00.000Z',
+              useCount: 3,
+              isActive: true,
+              favoritedBy: [1, 2],
+            },
+          ];
+        },
+        async createLocation(request) {
+          capturedCreate = request;
+
+          return {
+            id: 3,
+            name: request.name,
+            ...(request.address ? { address: request.address } : {}),
+            ...(request.mapkitTitle ? { mapkitTitle: request.mapkitTitle } : {}),
+            ...(request.mapkitSubtitle ? { mapkitSubtitle: request.mapkitSubtitle } : {}),
+            ...(request.latitude !== undefined && request.latitude !== null ? { latitude: request.latitude } : {}),
+            ...(request.longitude !== undefined && request.longitude !== null ? { longitude: request.longitude } : {}),
+            ...(request.createdBy !== undefined && request.createdBy !== null ? { createdBy: request.createdBy } : {}),
+            createdDate: '2026-06-28T16:00:00.000Z',
+            useCount: 0,
+            isActive: true,
+            favoritedBy: request.favoritedBy ?? [],
+          };
+        },
+      },
+    }),
+  );
+
+  const locations = await getJSON('/api/todo/locations');
+  const created = await postJSON('/api/todo/locations', {
+    name: 'Maple Vet Clinic',
+    address: '456 Maple St, Denver, CO',
+    mapkitTitle: 'Maple Vet Clinic',
+    mapkitSubtitle: '456 Maple St',
+    latitude: 39.75,
+    longitude: -104.98,
+    createdBy: 2,
+    favoritedBy: [1, 2, 1],
+  });
+
+  assert.equal(locations.ok, true);
+  assert.equal(typeof locations.generatedAt, 'string');
+  assert.deepEqual(locations.locations[0].favoritedBy, [1, 2]);
+  assert.deepEqual(capturedCreate, {
+    name: 'Maple Vet Clinic',
+    address: '456 Maple St, Denver, CO',
+    mapkitTitle: 'Maple Vet Clinic',
+    mapkitSubtitle: '456 Maple St',
+    latitude: 39.75,
+    longitude: -104.98,
+    createdBy: 2,
+    favoritedBy: [1, 2],
+  });
+  assert.equal(created.ok, true);
+  assert.equal(created.location.name, 'Maple Vet Clinic');
+  assert.deepEqual(created.location.favoritedBy, [1, 2]);
+});
+
 test('GET /api/debug/kroger/products runs the Kroger product diagnostic lookup', async () => {
   let capturedQuery: string | undefined;
 

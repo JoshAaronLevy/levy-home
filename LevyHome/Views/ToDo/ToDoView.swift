@@ -4,11 +4,31 @@ import SwiftUI
 struct ToDoView: View {
     @State private var isShowingAddSheet = false
 
-    private let openTaskCount = 5
-    private let dueTodayCount = 2
-    private let completedTaskCount = 3
     private let events = ToDoPreviewData.calendarEvents
     private let sections = ToDoPreviewData.taskSections
+    private let users = ToDoPreviewData.users
+
+    private var usersById: [Int: LevyHomeUser] {
+        Dictionary(uniqueKeysWithValues: users.map { ($0.id, $0) })
+    }
+
+    private var tasks: [ToDoTask] {
+        sections.flatMap(\.tasks)
+    }
+
+    private var openTaskCount: Int {
+        tasks.filter { $0.status == .open }.count
+    }
+
+    private var completedTaskCount: Int {
+        tasks.filter { $0.status == .completed }.count
+    }
+
+    private var dueTodayCount: Int {
+        tasks.filter { task in
+            task.status == .open && task.date.map(Calendar.current.isDateInToday) == true
+        }.count
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -23,7 +43,7 @@ struct ToDoView: View {
                 ToDoCalendarPanel(events: events)
 
                 ForEach(sections) { section in
-                    ToDoTaskSectionView(section: section)
+                    ToDoTaskSectionView(section: section, usersById: usersById)
                 }
             }
             .padding(AppSpacing.screen)
@@ -217,6 +237,7 @@ private struct ToDoCalendarEventRow: View {
 
 private struct ToDoTaskSectionView: View {
     let section: ToDoTaskSection
+    let usersById: [Int: LevyHomeUser]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -240,7 +261,7 @@ private struct ToDoTaskSectionView: View {
                 .padding(.leading, AppSpacing.large)
 
             ForEach(section.tasks) { task in
-                ToDoTaskRow(task: task)
+                ToDoTaskRow(task: task, creator: task.createdBy.flatMap { usersById[$0] })
 
                 if task.id != section.tasks.last?.id {
                     Divider()
@@ -259,20 +280,21 @@ private struct ToDoTaskSectionView: View {
 
 private struct ToDoTaskRow: View {
     let task: ToDoTask
+    let creator: LevyHomeUser?
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.medium) {
-            Image(systemName: task.isComplete ? "checkmark.circle.fill" : "circle")
+            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(task.isComplete ? AppColors.success : AppColors.accent)
+                .foregroundStyle(task.isCompleted ? AppColors.success : AppColors.accent)
                 .frame(width: 30, height: 30)
 
             VStack(alignment: .leading, spacing: AppSpacing.small) {
                 HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
-                    Text(task.title)
+                    Text(task.name)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(task.isComplete ? AppColors.mutedText : .primary)
-                        .strikethrough(task.isComplete, color: AppColors.mutedText)
+                        .foregroundStyle(task.isCompleted ? AppColors.mutedText : .primary)
+                        .strikethrough(task.isCompleted, color: AppColors.mutedText)
                         .lineLimit(2)
 
                     if task.isLinkedToFamilyCalendar {
@@ -280,27 +302,27 @@ private struct ToDoTaskRow: View {
                     }
                 }
 
-                if let note = task.note {
+                if let note = task.previewNote {
                     Text(note)
                         .font(.subheadline)
                         .foregroundStyle(AppColors.mutedText)
                         .lineLimit(2)
                 }
 
-                ToDoLocationRow(text: task.location)
+                ToDoLocationRow(text: task.locationDisplayText)
             }
             .layoutPriority(1)
 
             Spacer(minLength: AppSpacing.small)
 
             VStack(alignment: .trailing, spacing: AppSpacing.small) {
-                ToDoDueBadge(text: task.dueText, tone: task.dueTone)
+                ToDoDueBadge(text: task.dateDisplayText, tone: task.dateTone)
 
-                ToDoAssigneeStack(initials: task.assigneeInitials)
+                ToDoAssigneeStack(initials: creator.map { [$0.initials] } ?? ["?"])
             }
         }
         .padding(AppSpacing.medium)
-        .opacity(task.isComplete ? 0.72 : 1)
+        .opacity(task.isCompleted ? 0.72 : 1)
         .accessibilityElement(children: .combine)
     }
 }
@@ -474,7 +496,7 @@ private struct ToDoEditorSheet: View {
     @State private var draft = ToDoDraft()
 
     private let categories = ToDoPreviewData.categories
-    private let assignees = ToDoPreviewData.assignees
+    private let users = ToDoPreviewData.users
     private let recentLocations = ToDoPreviewData.recentLocations
     private let dueDateOptions = ToDoPreviewData.dueDateOptions
 
@@ -523,7 +545,7 @@ private struct ToDoEditorSheet: View {
             ToDoTextFieldRow(
                 title: "Title",
                 systemImage: "text.cursor",
-                text: $draft.title,
+                text: $draft.name,
                 prompt: "What needs doing?"
             )
         }
@@ -555,10 +577,7 @@ private struct ToDoEditorSheet: View {
     private var detailsSection: some View {
         ToDoFormPanel(title: "Details", systemImage: "slider.horizontal.3") {
             VStack(spacing: 0) {
-                ToDoAssigneePicker(
-                    assignees: assignees,
-                    selectedAssigneeIDs: $draft.assigneeIDs
-                )
+                ToDoCreatedByRow(user: selectedUser)
 
                 Divider()
                     .padding(.leading, 42)
@@ -566,8 +585,15 @@ private struct ToDoEditorSheet: View {
 
                 ToDoDueDatePicker(
                     dueDateOptions: dueDateOptions,
-                    selectedDueDateID: $draft.dueDateID
+                    selectedDueDateID: $draft.dueDateID,
+                    selectedDate: $draft.date
                 )
+
+                Divider()
+                    .padding(.leading, 42)
+                    .padding(.vertical, AppSpacing.medium)
+
+                ToDoRecurringPicker(selectedRecurring: $draft.recurring)
 
                 Divider()
                     .padding(.leading, 42)
@@ -613,15 +639,16 @@ private struct ToDoEditorSheet: View {
                     FlowLayout(spacing: AppSpacing.small, rowSpacing: AppSpacing.small) {
                         ForEach(recentLocations) { location in
                             Button {
-                                draft.location = location.title
+                                draft.location = location.displayTitle
+                                draft.locationIds = [location.id]
                                 draft.saveLocation = false
-                                locationSearch.select(query: location.title)
+                                locationSearch.select(query: location.displayTitle)
                             } label: {
                                 HStack(spacing: AppSpacing.xSmall) {
-                                    Image(systemName: location.systemImage)
+                                    Image(systemName: location.previewSystemImage)
                                         .font(.caption.weight(.semibold))
 
-                                    Text(location.title)
+                                    Text(location.displayTitle)
                                         .font(.caption.weight(.semibold))
                                 }
                                 .lineLimit(1)
@@ -650,7 +677,7 @@ private struct ToDoEditorSheet: View {
             ToDoIconBadge(systemImage: selectedCategory.systemImage, tone: selectedCategory.tone)
 
             VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                Text(draft.title.isEmpty ? "New to do" : draft.title)
+                Text(draft.name.isEmpty ? "New to do" : draft.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -687,7 +714,7 @@ private struct ToDoEditorSheet: View {
         }
 
         return !recentLocations.contains { savedLocation in
-            isSavedLocationMatch(input: normalizedLocation, saved: normalizedLocationName(savedLocation.title))
+            isSavedLocationMatch(input: normalizedLocation, saved: normalizedLocationName(savedLocation.displayTitle))
         }
     }
 
@@ -699,6 +726,10 @@ private struct ToDoEditorSheet: View {
         dueDateOptions.first { $0.id == draft.dueDateID } ?? dueDateOptions[0]
     }
 
+    private var selectedUser: LevyHomeUser {
+        users.first { $0.id == draft.createdBy } ?? users[0]
+    }
+
     private var summaryText: String {
         let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(selectedCategory.title) • \(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
@@ -706,6 +737,7 @@ private struct ToDoEditorSheet: View {
 
     private func selectLocationSearchSuggestion(_ suggestion: ToDoLocationSearchSuggestion) {
         draft.location = suggestion.displayText
+        draft.locationIds = nil
         draft.saveLocation = isNewLocation(suggestion.displayText)
         locationSearch.select(query: suggestion.displayText)
     }
@@ -913,60 +945,34 @@ private struct ToDoChoiceButton: View {
     }
 }
 
-private struct ToDoAssigneePicker: View {
-    let assignees: [ToDoAssigneeOption]
-    @Binding var selectedAssigneeIDs: Set<String>
+private struct ToDoCreatedByRow: View {
+    let user: LevyHomeUser
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.medium) {
-            ToDoFormRowHeader(
-                title: "Assigned to",
-                subtitle: "Tap initials to include someone",
-                systemImage: "person.2"
-            )
+        HStack(alignment: .center, spacing: AppSpacing.medium) {
+            Image(systemName: "person.crop.circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+                .frame(width: 28)
 
-            HStack(spacing: AppSpacing.small) {
-                ForEach(assignees) { assignee in
-                    Button {
-                        toggle(assignee)
-                    } label: {
-                        HStack(spacing: AppSpacing.small) {
-                            Text(assignee.initials)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(isSelected(assignee) ? Color.white : AppColors.accent)
-                                .frame(width: 28, height: 28)
-                                .background(isSelected(assignee) ? AppColors.accent : AppColors.accentSoft)
-                                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text("Created by")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
-                            Text(assignee.name)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, AppSpacing.small)
-                        .frame(height: 42)
-                        .foregroundStyle(isSelected(assignee) ? .primary : AppColors.mutedText)
-                        .background(AppColors.insetPanelBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
-                                .stroke(isSelected(assignee) ? AppColors.accent : AppColors.panelBorder, lineWidth: 1)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
+                Text(user.fullName)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.mutedText)
             }
-        }
-    }
 
-    private func isSelected(_ assignee: ToDoAssigneeOption) -> Bool {
-        selectedAssigneeIDs.contains(assignee.id)
-    }
+            Spacer()
 
-    private func toggle(_ assignee: ToDoAssigneeOption) {
-        if selectedAssigneeIDs.contains(assignee.id) {
-            selectedAssigneeIDs.remove(assignee.id)
-        } else {
-            selectedAssigneeIDs.insert(assignee.id)
+            Text(user.initials)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 28, height: 28)
+                .background(AppColors.accent)
+                .clipShape(Circle())
         }
     }
 }
@@ -974,6 +980,7 @@ private struct ToDoAssigneePicker: View {
 private struct ToDoDueDatePicker: View {
     let dueDateOptions: [ToDoDueDateOption]
     @Binding var selectedDueDateID: String
+    @Binding var selectedDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.medium) {
@@ -987,6 +994,7 @@ private struct ToDoDueDatePicker: View {
                 ForEach(dueDateOptions) { option in
                     Button {
                         selectedDueDateID = option.id
+                        selectedDate = option.date
                     } label: {
                         Text(option.title)
                             .font(.caption.weight(.semibold))
@@ -1001,6 +1009,46 @@ private struct ToDoDueDatePicker: View {
                 }
             }
         }
+    }
+}
+
+private struct ToDoRecurringPicker: View {
+    @Binding var selectedRecurring: ToDoRecurring?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            ToDoFormRowHeader(
+                title: "Repeats",
+                subtitle: "Leave off for one-time tasks",
+                systemImage: "repeat"
+            )
+
+            FlowLayout(spacing: AppSpacing.small, rowSpacing: AppSpacing.small) {
+                recurringButton(title: "Never", recurring: nil)
+
+                ForEach(ToDoRecurring.allCases) { recurring in
+                    recurringButton(title: recurring.displayTitle, recurring: recurring)
+                }
+            }
+        }
+    }
+
+    private func recurringButton(title: String, recurring: ToDoRecurring?) -> some View {
+        let isSelected = selectedRecurring == recurring
+
+        return Button {
+            selectedRecurring = recurring
+        } label: {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, AppSpacing.medium)
+                .frame(height: 32)
+                .foregroundStyle(isSelected ? Color.white : AppColors.accent)
+                .background(isSelected ? AppColors.accent : AppColors.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -1311,21 +1359,70 @@ private struct ToDoTaskSection: Identifiable {
 }
 
 private struct ToDoTask: Identifiable {
-    let id: String
-    let title: String
-    let note: String?
-    let location: String
-    let dueText: String
-    let dueTone: ToDoTone
-    let assigneeInitials: [String]
+    let id: Int
+    let name: String
+    let locationIds: [Int]?
+    let date: Date?
+    let recurring: ToDoRecurring?
+    let createdBy: Int?
+    let createdDate: Date
+    let status: ToDoStatus
+    let locationDisplayText: String
     let isLinkedToFamilyCalendar: Bool
-    let isComplete: Bool
+    let previewNote: String?
+
+    var isCompleted: Bool {
+        status == .completed
+    }
+
+    var dateDisplayText: String {
+        if let date {
+            if Calendar.current.isDateInToday(date) {
+                return "Today"
+            }
+
+            if Calendar.current.isDateInTomorrow(date) {
+                return "Tomorrow"
+            }
+
+            return Self.shortDateFormatter.string(from: date)
+        }
+
+        return recurring?.displayTitle ?? "No date"
+    }
+
+    var dateTone: ToDoTone {
+        if status == .completed {
+            return .success
+        }
+
+        guard let date else {
+            return recurring == nil ? .neutral : .accent
+        }
+
+        if Calendar.current.isDateInToday(date) || date < Date() {
+            return .warning
+        }
+
+        return .accent
+    }
+
+    private static let shortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter
+    }()
 }
 
 private struct ToDoDraft {
-    var title = "Schedule dentist"
+    var name = "Schedule dentist"
+    var locationIds: [Int]?
+    var date: Date? = ToDoPreviewData.today
+    var recurring: ToDoRecurring?
+    var createdBy = 1
+    var createdDate = Date()
+    var status: ToDoStatus = .open
     var categoryID = "appointments"
-    var assigneeIDs: Set<String> = ["josh"]
     var dueDateID = "today"
     var addToFamilyCalendar = true
     var location = "Cherry Creek Dental"
@@ -1339,22 +1436,41 @@ private struct ToDoCategoryOption: Identifiable {
     let tone: ToDoTone
 }
 
-private struct ToDoAssigneeOption: Identifiable {
-    let id: String
-    let name: String
-    let initials: String
-}
-
 private struct ToDoDueDateOption: Identifiable {
     let id: String
     let title: String
     let tone: ToDoTone
+    let date: Date?
 }
 
-private struct ToDoLocationOption: Identifiable {
-    let id: String
-    let title: String
-    let systemImage: String
+private enum ToDoStatus: String, CaseIterable, Identifiable {
+    case open
+    case completed
+    case canceled
+
+    var id: String { rawValue }
+}
+
+private enum ToDoRecurring: String, CaseIterable, Identifiable {
+    case daily
+    case weekly
+    case monthly
+    case quarterly
+
+    var id: String { rawValue }
+
+    var displayTitle: String {
+        switch self {
+        case .daily:
+            return "Daily"
+        case .weekly:
+            return "Weekly"
+        case .monthly:
+            return "Monthly"
+        case .quarterly:
+            return "Quarterly"
+        }
+    }
 }
 
 private enum ToDoTone {
@@ -1395,7 +1511,40 @@ private enum ToDoTone {
     }
 }
 
+private extension ToDoLocation {
+    var displayTitle: String {
+        mapkitTitle ?? name
+    }
+
+    var previewSystemImage: String {
+        let normalizedName = name.lowercased()
+
+        if normalizedName.contains("home") {
+            return "house"
+        }
+
+        if normalizedName.contains("pediatric") || normalizedName.contains("doctor") {
+            return "cross.case"
+        }
+
+        if normalizedName.contains("vet") {
+            return "pawprint"
+        }
+
+        if normalizedName.contains("county") || normalizedName.contains("office") {
+            return "building.columns"
+        }
+
+        return "mappin.and.ellipse"
+    }
+}
+
 private enum ToDoPreviewData {
+    static let today = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: Date()) ?? Date()
+    static let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)
+    static let thisWeek = Calendar.current.date(byAdding: .day, value: 4, to: today)
+    static let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: today)
+
     static let categories = [
         ToDoCategoryOption(
             id: "appointments",
@@ -1423,23 +1572,93 @@ private enum ToDoPreviewData {
         )
     ]
 
-    static let assignees = [
-        ToDoAssigneeOption(id: "josh", name: "Josh", initials: "J"),
-        ToDoAssigneeOption(id: "mallory", name: "Mallory", initials: "M")
+    static let users = [
+        LevyHomeUser(
+            id: 1,
+            firstName: "Josh",
+            lastName: "Levy",
+            email: "josh@example.com",
+            mobileDevice: nil,
+            lastLogin: nil
+        ),
+        LevyHomeUser(
+            id: 2,
+            firstName: "Mallory",
+            lastName: "Levy",
+            email: "mallory@example.com",
+            mobileDevice: nil,
+            lastLogin: nil
+        )
     ]
 
     static let dueDateOptions = [
-        ToDoDueDateOption(id: "today", title: "Today", tone: .warning),
-        ToDoDueDateOption(id: "tomorrow", title: "Tomorrow", tone: .accent),
-        ToDoDueDateOption(id: "this-week", title: "This week", tone: .accent),
-        ToDoDueDateOption(id: "none", title: "No date", tone: .neutral)
+        ToDoDueDateOption(id: "today", title: "Today", tone: .warning, date: today),
+        ToDoDueDateOption(id: "tomorrow", title: "Tomorrow", tone: .accent, date: tomorrow),
+        ToDoDueDateOption(id: "this-week", title: "This week", tone: .accent, date: thisWeek),
+        ToDoDueDateOption(id: "none", title: "No date", tone: .neutral, date: nil)
     ]
 
     static let recentLocations = [
-        ToDoLocationOption(id: "home", title: "Home", systemImage: "house"),
-        ToDoLocationOption(id: "denver-pediatrics", title: "Denver Pediatrics", systemImage: "cross.case"),
-        ToDoLocationOption(id: "maple-vet-clinic", title: "Maple Vet Clinic", systemImage: "pawprint"),
-        ToDoLocationOption(id: "county-office", title: "County office", systemImage: "building.columns")
+        ToDoLocation(
+            id: 1,
+            name: "Home",
+            address: nil,
+            mapkitTitle: "Home",
+            mapkitSubtitle: nil,
+            latitude: nil,
+            longitude: nil,
+            createdBy: 1,
+            createdDate: "2026-06-28T15:30:00.000Z",
+            lastUsedDate: "2026-06-29T12:00:00.000Z",
+            useCount: 8,
+            isActive: true,
+            favoritedBy: [1, 2]
+        ),
+        ToDoLocation(
+            id: 2,
+            name: "Denver Pediatrics",
+            address: "123 Wellness Way, Denver, CO",
+            mapkitTitle: "Denver Pediatrics",
+            mapkitSubtitle: "123 Wellness Way",
+            latitude: 39.7392,
+            longitude: -104.9903,
+            createdBy: 1,
+            createdDate: "2026-06-28T15:30:00.000Z",
+            lastUsedDate: "2026-06-29T12:00:00.000Z",
+            useCount: 3,
+            isActive: true,
+            favoritedBy: [1, 2]
+        ),
+        ToDoLocation(
+            id: 3,
+            name: "Maple Vet Clinic",
+            address: "456 Maple St, Denver, CO",
+            mapkitTitle: "Maple Vet Clinic",
+            mapkitSubtitle: "456 Maple St",
+            latitude: 39.75,
+            longitude: -104.98,
+            createdBy: 2,
+            createdDate: "2026-06-28T15:30:00.000Z",
+            lastUsedDate: nil,
+            useCount: 1,
+            isActive: true,
+            favoritedBy: [2]
+        ),
+        ToDoLocation(
+            id: 4,
+            name: "County office",
+            address: nil,
+            mapkitTitle: "County office",
+            mapkitSubtitle: nil,
+            latitude: nil,
+            longitude: nil,
+            createdBy: 1,
+            createdDate: "2026-06-28T15:30:00.000Z",
+            lastUsedDate: nil,
+            useCount: 1,
+            isActive: true,
+            favoritedBy: []
+        )
     ]
 
     static let calendarEvents = [
@@ -1469,26 +1688,30 @@ private enum ToDoPreviewData {
             tone: .accent,
             tasks: [
                 ToDoTask(
-                    id: "schedule-dentist",
-                    title: "Schedule dentist",
-                    note: "Find a morning opening next week.",
-                    location: "Cherry Creek Dental",
-                    dueText: "Today",
-                    dueTone: .warning,
-                    assigneeInitials: ["J"],
+                    id: 1,
+                    name: "Schedule dentist",
+                    locationIds: nil,
+                    date: today,
+                    recurring: nil,
+                    createdBy: 1,
+                    createdDate: today,
+                    status: .open,
+                    locationDisplayText: "Cherry Creek Dental",
                     isLinkedToFamilyCalendar: false,
-                    isComplete: false
+                    previewNote: "Find a morning opening next week."
                 ),
                 ToDoTask(
-                    id: "confirm-pediatrician",
-                    title: "Confirm pediatrician paperwork",
-                    note: "Bring insurance card and forms.",
-                    location: "Denver Pediatrics",
-                    dueText: "2:30 PM",
-                    dueTone: .accent,
-                    assigneeInitials: ["M"],
+                    id: 2,
+                    name: "Confirm pediatrician paperwork",
+                    locationIds: [2],
+                    date: today,
+                    recurring: nil,
+                    createdBy: 2,
+                    createdDate: today,
+                    status: .open,
+                    locationDisplayText: "Denver Pediatrics",
                     isLinkedToFamilyCalendar: true,
-                    isComplete: false
+                    previewNote: "Bring insurance card and forms."
                 )
             ]
         ),
@@ -1499,15 +1722,17 @@ private enum ToDoPreviewData {
             tone: .warning,
             tasks: [
                 ToDoTask(
-                    id: "fix-gate-latch",
-                    title: "Fix gate latch",
-                    note: "Measure latch before hardware store run.",
-                    location: "Home",
-                    dueText: "Fri",
-                    dueTone: .neutral,
-                    assigneeInitials: ["J"],
+                    id: 3,
+                    name: "Fix gate latch",
+                    locationIds: [1],
+                    date: thisWeek,
+                    recurring: nil,
+                    createdBy: 1,
+                    createdDate: today,
+                    status: .open,
+                    locationDisplayText: "Home",
                     isLinkedToFamilyCalendar: false,
-                    isComplete: false
+                    previewNote: "Measure latch before hardware store run."
                 )
             ]
         ),
@@ -1518,15 +1743,17 @@ private enum ToDoPreviewData {
             tone: .success,
             tasks: [
                 ToDoTask(
-                    id: "book-summer-camp",
-                    title: "Book summer camp",
-                    note: "Check weekly availability.",
-                    location: "Rec center",
-                    dueText: "This week",
-                    dueTone: .accent,
-                    assigneeInitials: ["M", "J"],
+                    id: 4,
+                    name: "Book summer camp",
+                    locationIds: nil,
+                    date: thisWeek,
+                    recurring: nil,
+                    createdBy: 2,
+                    createdDate: today,
+                    status: .open,
+                    locationDisplayText: "Rec center",
                     isLinkedToFamilyCalendar: false,
-                    isComplete: false
+                    previewNote: "Check weekly availability."
                 )
             ]
         ),
@@ -1537,15 +1764,17 @@ private enum ToDoPreviewData {
             tone: .neutral,
             tasks: [
                 ToDoTask(
-                    id: "renew-passport",
-                    title: "Renew passport",
-                    note: "Make appointment and print forms.",
-                    location: "County office",
-                    dueText: "Jun 30",
-                    dueTone: .critical,
-                    assigneeInitials: ["J"],
+                    id: 5,
+                    name: "Renew passport",
+                    locationIds: [4],
+                    date: nextMonth,
+                    recurring: .quarterly,
+                    createdBy: 1,
+                    createdDate: today,
+                    status: .open,
+                    locationDisplayText: "County office",
                     isLinkedToFamilyCalendar: false,
-                    isComplete: false
+                    previewNote: "Make appointment and print forms."
                 )
             ]
         )

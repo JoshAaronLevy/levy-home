@@ -93,14 +93,14 @@ export async function fetchShoppingListData(database: DatabaseQuery): Promise<Sh
         id,
         name,
         logo
-      FROM stores
+      FROM shopping_locations
       ORDER BY lower(name) ASC
     `,
     database<ShoppingCategoryRow>`
       SELECT
         id,
         name
-      FROM categories
+      FROM shopping_categories
       ORDER BY lower(name) ASC
     `,
   ]);
@@ -343,16 +343,16 @@ function shoppingStoreFromRow(row: ShoppingStoreRow): ShoppingStore {
   const logo = optionalString(row.logo);
 
   return {
-    id: requiredInteger(row.id, 'stores.id'),
-    name: requiredString(row.name, 'stores.name'),
+    id: requiredInteger(row.id, 'shopping_locations.id'),
+    name: requiredString(row.name, 'shopping_locations.name'),
     ...(logo ? { logo } : {}),
   };
 }
 
 function shoppingCategoryFromRow(row: ShoppingCategoryRow): ShoppingCategory {
   return {
-    id: requiredInteger(row.id, 'categories.id'),
-    name: requiredString(row.name, 'categories.name'),
+    id: requiredInteger(row.id, 'shopping_categories.id'),
+    name: requiredString(row.name, 'shopping_categories.name'),
   };
 }
 

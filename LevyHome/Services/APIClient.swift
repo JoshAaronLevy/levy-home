@@ -59,6 +59,18 @@ final class APIClient {
         try await send(path: "/api/home/actions", method: .post, body: request)
     }
 
+    func fetchUsers() async throws -> UsersResponse {
+        try await send(path: "/api/users")
+    }
+
+    func fetchToDoLocations() async throws -> ToDoLocationsResponse {
+        try await send(path: "/api/todo/locations")
+    }
+
+    func createToDoLocation(_ request: CreateToDoLocationRequest) async throws -> ToDoLocationMutationResponse {
+        try await send(path: "/api/todo/locations", method: .post, body: request)
+    }
+
     func fetchShoppingList() async throws -> ShoppingListResponse {
         try await send(path: "/api/shopping-list")
     }

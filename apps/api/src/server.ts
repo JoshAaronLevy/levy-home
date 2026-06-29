@@ -43,6 +43,9 @@ import {
   type ShoppingListItemLookupResponse,
   type ShoppingListMutationResponse,
   type TestPushPayload,
+  type ToDoLocationMutationResponse,
+  type ToDoLocationsResponse,
+  type UsersResponse,
 } from './contracts.js';
 import { DatabaseConfigurationError } from './dbClient.js';
 import {
@@ -63,7 +66,13 @@ import {
   type ShoppingListRealtimeBroadcaster,
 } from './shoppingListRealtime.js';
 import {
+  createPostgresToDoLocationStore,
+  type ToDoLocationStore,
+} from './todoLocationStore.js';
+import { createPostgresUserStore, type UserStore } from './userStore.js';
+import {
   validateCreateShoppingListItemBody,
+  validateCreateToDoLocationBody,
   validateHomeAssistantEventPayload,
   validateNotificationPreferencesBody,
   validateNotificationPreferencesQuery,
@@ -81,6 +90,8 @@ export type CreateAppOptions = {
   pushSender?: PushSender;
   shoppingListStore?: ShoppingListStore;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  userStore?: UserStore;
+  toDoLocationStore?: ToDoLocationStore;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
 };
@@ -97,6 +108,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime;
+  const userStore = options.userStore ?? createPostgresUserStore();
+  const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
   const runKrogerProductDiagnostic =
     options.krogerProductDiagnosticRunner ??
     ((query?: string) => lookupAndWriteKrogerProductResponse(config, { query }));
@@ -304,6 +317,38 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       });
     }),
   );
+
+  app.get('/api/users', asyncHandler(async (_req, res) => {
+    const response: UsersResponse = {
+      ok: true,
+      users: await userStore.fetchUsers(),
+      generatedAt: new Date().toISOString(),
+    };
+
+    res.json(response);
+  }));
+
+  app.get('/api/todo/locations', asyncHandler(async (_req, res) => {
+    const response: ToDoLocationsResponse = {
+      ok: true,
+      locations: await toDoLocationStore.fetchLocations(),
+      generatedAt: new Date().toISOString(),
+    };
+
+    res.json(response);
+  }));
+
+  app.post('/api/todo/locations', asyncHandler(async (req, res) => {
+    const request = validateCreateToDoLocationBody(req.body);
+    const location = await toDoLocationStore.createLocation(request);
+    const response: ToDoLocationMutationResponse = {
+      ok: true,
+      location,
+      generatedAt: new Date().toISOString(),
+    };
+
+    res.status(201).json(response);
+  }));
 
   app.get('/api/shopping-list', asyncHandler(async (_req, res) => {
     const shoppingList = await shoppingListStore.fetchShoppingList();

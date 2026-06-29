@@ -80,6 +80,12 @@ final class APIClientTests: XCTestCase {
                 return Self.response(for: request, json: Self.quickActionsResponseJSON)
             case ("POST", "/api-base/api/home/actions"):
                 return Self.response(for: request, json: Self.quickActionResponseJSON)
+            case ("GET", "/api-base/api/users"):
+                return Self.response(for: request, json: Self.usersResponseJSON)
+            case ("GET", "/api-base/api/todo/locations"):
+                return Self.response(for: request, json: Self.toDoLocationsResponseJSON)
+            case ("POST", "/api-base/api/todo/locations"):
+                return Self.response(for: request, json: Self.toDoLocationMutationResponseJSON)
             case ("GET", "/api-base/api/shopping-list"):
                 return Self.response(for: request, json: Self.shoppingListResponseJSON)
             case ("GET", "/api-base/api/debug/kroger/products"):
@@ -104,6 +110,20 @@ final class APIClientTests: XCTestCase {
         _ = try await client.fetchHomeOverview()
         _ = try await client.fetchQuickActions()
         _ = try await client.performQuickAction(.turnOffLightGroup(groupId: "upstairs_hallway"))
+        _ = try await client.fetchUsers()
+        _ = try await client.fetchToDoLocations()
+        _ = try await client.createToDoLocation(
+            CreateToDoLocationRequest(
+                name: "Maple Vet Clinic",
+                address: "456 Maple St, Denver, CO",
+                mapkitTitle: "Maple Vet Clinic",
+                mapkitSubtitle: "456 Maple St",
+                latitude: 39.75,
+                longitude: -104.98,
+                createdBy: 2,
+                favoritedBy: [1, 2]
+            )
+        )
         _ = try await client.fetchShoppingList()
         _ = try await client.fetchKrogerProductDiagnostic(named: "Soy Milk")
         _ = try await client.searchKrogerProducts(named: "Pasta Sauce")
@@ -128,34 +148,42 @@ final class APIClientTests: XCTestCase {
         _ = try await client.sendTestPush(TestPushRequest(title: "Test", body: "Body"))
         _ = try await client.fetchHealth()
 
-        XCTAssertEqual(capturedRequests.count, 11)
+        XCTAssertEqual(capturedRequests.count, 14)
         let quickActions = try await client.fetchQuickActions()
         XCTAssertEqual(quickActions.lightGroups?.map(\.id), ["upstairs_hallway"])
         XCTAssertEqual(capturedRequests[2].jsonBody["actionId"] as? String, "turn_off_light_group")
         XCTAssertEqual(capturedRequests[2].jsonBody["groupId"] as? String, "upstairs_hallway")
         XCTAssertEqual(capturedRequests[3].httpMethod, "GET")
-        XCTAssertEqual(capturedRequests[3].url?.path, "/api-base/api/shopping-list")
+        XCTAssertEqual(capturedRequests[3].url?.path, "/api-base/api/users")
         XCTAssertEqual(capturedRequests[4].httpMethod, "GET")
-        XCTAssertEqual(capturedRequests[4].url?.path, "/api-base/api/debug/kroger/products")
+        XCTAssertEqual(capturedRequests[4].url?.path, "/api-base/api/todo/locations")
+        XCTAssertEqual(capturedRequests[5].httpMethod, "POST")
+        XCTAssertEqual(capturedRequests[5].url?.path, "/api-base/api/todo/locations")
+        XCTAssertEqual(capturedRequests[5].jsonBody["name"] as? String, "Maple Vet Clinic")
+        XCTAssertEqual(capturedRequests[5].jsonBody["favoritedBy"] as? [Int], [1, 2])
+        XCTAssertEqual(capturedRequests[6].httpMethod, "GET")
+        XCTAssertEqual(capturedRequests[6].url?.path, "/api-base/api/shopping-list")
+        XCTAssertEqual(capturedRequests[7].httpMethod, "GET")
+        XCTAssertEqual(capturedRequests[7].url?.path, "/api-base/api/debug/kroger/products")
         XCTAssertEqual(
-            URLComponents(url: try XCTUnwrap(capturedRequests[4].url), resolvingAgainstBaseURL: false)?
+            URLComponents(url: try XCTUnwrap(capturedRequests[7].url), resolvingAgainstBaseURL: false)?
                 .queryItems?
                 .first(where: { $0.name == "term" })?
                 .value,
             "Soy Milk"
         )
-        XCTAssertEqual(capturedRequests[5].httpMethod, "GET")
-        XCTAssertEqual(capturedRequests[5].url?.path, "/api-base/api/shopping-list/products/search")
+        XCTAssertEqual(capturedRequests[8].httpMethod, "GET")
+        XCTAssertEqual(capturedRequests[8].url?.path, "/api-base/api/shopping-list/products/search")
         XCTAssertEqual(
-            URLComponents(url: try XCTUnwrap(capturedRequests[5].url), resolvingAgainstBaseURL: false)?
+            URLComponents(url: try XCTUnwrap(capturedRequests[8].url), resolvingAgainstBaseURL: false)?
                 .queryItems?
                 .first(where: { $0.name == "term" })?
                 .value,
             "Pasta Sauce"
         )
-        XCTAssertEqual(capturedRequests[7].jsonBody["preferences"] as? [[String: Any]] != nil, true)
-        XCTAssertEqual(capturedRequests[8].jsonBody["provider"] as? String, "apns")
-        XCTAssertEqual(capturedRequests[9].jsonBody["title"] as? String, "Test")
+        XCTAssertEqual(capturedRequests[10].jsonBody["preferences"] as? [[String: Any]] != nil, true)
+        XCTAssertEqual(capturedRequests[11].jsonBody["provider"] as? String, "apns")
+        XCTAssertEqual(capturedRequests[12].jsonBody["title"] as? String, "Test")
     }
 
     func testDecodesServerErrorEnvelope() async {
@@ -375,6 +403,80 @@ final class APIClientTests: XCTestCase {
               "name": "Dairy"
             }
           ]
+        }
+        """
+    }
+
+    private static var usersResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "generatedAt": "2026-06-28T15:30:00.000Z",
+          "users": [
+            {
+              "id": 1,
+              "firstName": "Josh",
+              "lastName": "Levy",
+              "email": "josh@example.com"
+            },
+            {
+              "id": 2,
+              "firstName": "Mallory",
+              "lastName": "Levy",
+              "email": "mallory@example.com",
+              "mobileDevice": "Mallory iPhone",
+              "lastLogin": "2026-06-28T15:29:00.000Z"
+            }
+          ]
+        }
+        """
+    }
+
+    private static var toDoLocationsResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "generatedAt": "2026-06-28T15:30:00.000Z",
+          "locations": [
+            {
+              "id": 2,
+              "name": "Denver Pediatrics",
+              "address": "123 Wellness Way, Denver, CO",
+              "mapkitTitle": "Denver Pediatrics",
+              "mapkitSubtitle": "123 Wellness Way",
+              "latitude": 39.7392,
+              "longitude": -104.9903,
+              "createdBy": 1,
+              "createdDate": "2026-06-28T15:30:00.000Z",
+              "lastUsedDate": "2026-06-29T12:00:00.000Z",
+              "useCount": 3,
+              "isActive": true,
+              "favoritedBy": [1, 2]
+            }
+          ]
+        }
+        """
+    }
+
+    private static var toDoLocationMutationResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "generatedAt": "2026-06-28T16:00:00.000Z",
+          "location": {
+            "id": 3,
+            "name": "Maple Vet Clinic",
+            "address": "456 Maple St, Denver, CO",
+            "mapkitTitle": "Maple Vet Clinic",
+            "mapkitSubtitle": "456 Maple St",
+            "latitude": 39.75,
+            "longitude": -104.98,
+            "createdBy": 2,
+            "createdDate": "2026-06-28T16:00:00.000Z",
+            "useCount": 0,
+            "isActive": true,
+            "favoritedBy": [1, 2]
+          }
         }
         """
     }

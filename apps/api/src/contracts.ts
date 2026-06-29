@@ -123,6 +123,60 @@ export type QuickActionResult = {
   refreshedHomeOverview: HomeOverview | null;
 };
 
+export type LevyHomeUser = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobileDevice?: string;
+  lastLogin?: string;
+};
+
+export type UsersResponse = {
+  ok: true;
+  users: LevyHomeUser[];
+  generatedAt: string;
+};
+
+export type ToDoLocation = {
+  id: number;
+  name: string;
+  address?: string;
+  mapkitTitle?: string;
+  mapkitSubtitle?: string;
+  latitude?: number;
+  longitude?: number;
+  createdBy?: number;
+  createdDate: string;
+  lastUsedDate?: string;
+  useCount: number;
+  isActive: boolean;
+  favoritedBy: number[];
+};
+
+export type ToDoLocationsResponse = {
+  ok: true;
+  locations: ToDoLocation[];
+  generatedAt: string;
+};
+
+export type CreateToDoLocationRequest = {
+  name: string;
+  address?: string | null;
+  mapkitTitle?: string | null;
+  mapkitSubtitle?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  createdBy?: number | null;
+  favoritedBy?: number[];
+};
+
+export type ToDoLocationMutationResponse = {
+  ok: true;
+  location: ToDoLocation;
+  generatedAt: string;
+};
+
 export type ShoppingListItem = {
   id: number;
   name: string;

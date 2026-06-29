@@ -44,14 +44,14 @@ test('fetchShoppingListData maps shopping list tables into API contracts', async
       ] as unknown as Row[];
     }
 
-    if (query.includes('FROM stores')) {
+    if (query.includes('FROM shopping_locations')) {
       return [
         { id: 1, name: 'Target', logo: 'target' },
         { id: '2', name: 'Costco', logo: null },
       ] as unknown as Row[];
     }
 
-    if (query.includes('FROM categories')) {
+    if (query.includes('FROM shopping_categories')) {
       return [{ id: 3, name: 'Dairy' }] as unknown as Row[];
     }
 

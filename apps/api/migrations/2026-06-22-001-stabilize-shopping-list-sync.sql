@@ -55,22 +55,22 @@ BEFORE INSERT OR UPDATE ON shopping_list
 FOR EACH ROW
 EXECUTE FUNCTION set_shopping_list_sync_fields();
 
-ALTER TABLE stores
+ALTER TABLE shopping_locations
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
-UPDATE stores
+UPDATE shopping_locations
 SET updated_at = COALESCE(updated_at, now());
 
-ALTER TABLE stores
+ALTER TABLE shopping_locations
   ALTER COLUMN updated_at SET NOT NULL;
 
-ALTER TABLE categories
+ALTER TABLE shopping_categories
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
-UPDATE categories
+UPDATE shopping_categories
 SET updated_at = COALESCE(updated_at, now());
 
-ALTER TABLE categories
+ALTER TABLE shopping_categories
   ALTER COLUMN updated_at SET NOT NULL;
 
 CREATE OR REPLACE FUNCTION set_updated_at_to_now()
@@ -83,17 +83,19 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS stores_set_updated_at ON stores;
+DROP TRIGGER IF EXISTS stores_set_updated_at ON shopping_locations;
+DROP TRIGGER IF EXISTS shopping_locations_set_updated_at ON shopping_locations;
 
-CREATE TRIGGER stores_set_updated_at
-BEFORE UPDATE ON stores
+CREATE TRIGGER shopping_locations_set_updated_at
+BEFORE UPDATE ON shopping_locations
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at_to_now();
 
-DROP TRIGGER IF EXISTS categories_set_updated_at ON categories;
+DROP TRIGGER IF EXISTS categories_set_updated_at ON shopping_categories;
+DROP TRIGGER IF EXISTS shopping_categories_set_updated_at ON shopping_categories;
 
-CREATE TRIGGER categories_set_updated_at
-BEFORE UPDATE ON categories
+CREATE TRIGGER shopping_categories_set_updated_at
+BEFORE UPDATE ON shopping_categories
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at_to_now();
 

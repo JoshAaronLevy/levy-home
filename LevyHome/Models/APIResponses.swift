@@ -21,6 +21,71 @@ struct QuickActionResponse: Codable, Equatable {
     let result: QuickActionResult
 }
 
+struct UsersResponse: Codable, Equatable {
+    let ok: Bool
+    let users: [LevyHomeUser]
+    let generatedAt: String?
+}
+
+struct LevyHomeUser: Codable, Equatable, Hashable, Identifiable {
+    let id: Int
+    let firstName: String
+    let lastName: String
+    let email: String
+    let mobileDevice: String?
+    let lastLogin: String?
+
+    var fullName: String {
+        "\(firstName) \(lastName)"
+    }
+
+    var initials: String {
+        let firstInitial = firstName.first.map(String.init) ?? ""
+        let lastInitial = lastName.first.map(String.init) ?? ""
+
+        return "\(firstInitial)\(lastInitial)".uppercased()
+    }
+}
+
+struct ToDoLocationsResponse: Codable, Equatable {
+    let ok: Bool
+    let locations: [ToDoLocation]
+    let generatedAt: String?
+}
+
+struct ToDoLocation: Codable, Equatable, Hashable, Identifiable {
+    let id: Int
+    let name: String
+    let address: String?
+    let mapkitTitle: String?
+    let mapkitSubtitle: String?
+    let latitude: Double?
+    let longitude: Double?
+    let createdBy: Int?
+    let createdDate: String
+    let lastUsedDate: String?
+    let useCount: Int
+    let isActive: Bool
+    let favoritedBy: [Int]
+}
+
+struct CreateToDoLocationRequest: Codable, Equatable {
+    let name: String
+    let address: String?
+    let mapkitTitle: String?
+    let mapkitSubtitle: String?
+    let latitude: Double?
+    let longitude: Double?
+    let createdBy: Int?
+    let favoritedBy: [Int]
+}
+
+struct ToDoLocationMutationResponse: Codable, Equatable {
+    let ok: Bool
+    let location: ToDoLocation
+    let generatedAt: String?
+}
+
 struct ShoppingListResponse: Codable, Equatable {
     let ok: Bool
     let items: [ShoppingListItem]
