@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 
 import type { AppConfig } from '../../../../src/config.js';
-import { createHomeAssistantFacade } from '../../../../src/homeAssistantClient.js';
+import { createHomeAssistantFacade } from '../../../../src/integrations/homeAssistant/facade.js';
 
 test('live Home Assistant facade opens and closes the configured garage cover', async () => {
   const serviceCalls: Array<{ path: string; body: unknown }> = [];

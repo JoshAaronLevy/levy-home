@@ -1,8 +1,8 @@
 import { Router } from 'express';
 
 import type { AppConfig } from '../config.js';
-import type { KrogerProductDiagnosticRunner } from '../krogerClient.js';
-import type { HomeAssistantFacade } from '../homeAssistantClient.js';
+import type { HomeAssistantFacade } from '../integrations/homeAssistant/facade.js';
+import type { KrogerProductDiagnosticRunner } from '../integrations/kroger/productDiagnostics.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { HTTPError } from '../http/errors.js';
 import { requireHaWebhookSecret } from '../http/middleware/requireHaWebhookSecret.js';

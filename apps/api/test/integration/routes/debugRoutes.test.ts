@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, test } from 'node:test';
 
 import { createApp } from '../../../src/app.js';
-import type { PushSender } from '../../../src/apnsService.js';
+import type { PushSender } from '../../../src/integrations/apple/apnsPushSender.js';
 import { FakePushSender } from '../../support/fakePushSender.js';
 import { createRouteTestHarness } from '../../support/routeTestHarness.js';
 import { testConfig } from '../../support/testConfig.js';

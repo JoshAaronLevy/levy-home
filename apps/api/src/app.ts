@@ -5,20 +5,17 @@ import {
   createRecentActivityStore,
   type RecentActivityStore,
 } from './activityStore.js';
-import { createAPNsPushSender, type PushSender } from './apnsService.js';
+import { createAPNsPushSender, type PushSender } from './integrations/apple/apnsPushSender.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
 import type { KrogerProductSearchResponse } from './contracts.js';
 import { DatabaseConfigurationError } from './dbClient.js';
-import { createHomeAssistantFacade } from './homeAssistantClient.js';
+import { createHomeAssistantFacade } from './integrations/homeAssistant/facade.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './http/errors.js';
 import { noStoreCacheControl } from './http/middleware/cacheControl.js';
-import {
-  lookupAndWriteKrogerProductResponse,
-  searchKrogerProducts,
-  type KrogerProductDiagnosticRunner,
-} from './krogerClient.js';
+import { lookupAndWriteKrogerProductResponse, type KrogerProductDiagnosticRunner } from './integrations/kroger/productDiagnostics.js';
+import { searchKrogerProducts } from './integrations/kroger/productClient.js';
 import { registerRoutes } from './routes/index.js';
 import { createActivityEventService } from './services/activity/activityEventService.js';
 import { createInMemoryDeviceRegistry } from './services/notifications/deviceRegistry.js';

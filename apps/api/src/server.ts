@@ -5,15 +5,15 @@ import { pathToFileURL } from 'node:url';
 import {
   normalizePhoneStateChangedEvent,
   shouldIncludePhoneStateChangedEvent,
-} from './activityNormalizer.js';
+} from './integrations/homeAssistant/activityNormalizer.js';
 import { createRecentActivityStore } from './activityStore.js';
 import { createApp } from './app.js';
 import { readConfig } from './config.js';
-import { backfillHomeAssistantActivity } from './homeAssistantActivityBackfill.js';
+import { backfillHomeAssistantActivity } from './integrations/homeAssistant/activityBackfill.js';
 import {
   createHomeAssistantActivityListener,
   type HomeAssistantStateChangedEvent,
-} from './homeAssistantActivityClient.js';
+} from './integrations/homeAssistant/activityListener.js';
 import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
 
 export function startServer(config = readConfig()): void {

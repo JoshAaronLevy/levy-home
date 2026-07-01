@@ -1,4 +1,4 @@
-import type { PushSender } from '../../src/apnsService.js';
+import type { PushSender } from '../../src/integrations/apple/apnsPushSender.js';
 import type { APNsSendRequest, APNsSendResult } from '../../src/contracts.js';
 
 export class FakePushSender implements PushSender {

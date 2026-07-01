@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { LightGroupStatus } from './contracts.js';
-import { getApnsPrivateKey } from './services/apple/config.js';
+import { getApnsPrivateKey } from './integrations/apple/privateKey.js';
 
 export type HomeAssistantMode = 'mock' | 'live';
 export type APNsDefaultEnvironment = 'sandbox' | 'production';

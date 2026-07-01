@@ -5,8 +5,8 @@ import type { AppConfig } from '../../../../src/config.js';
 import {
   backfillHomeAssistantActivity,
   fetchHomeAssistantActivityWindow,
-} from '../../../../src/homeAssistantActivityBackfill.js';
-import type { HomeAssistantStateChangedEvent } from '../../../../src/homeAssistantActivityClient.js';
+} from '../../../../src/integrations/homeAssistant/activityBackfill.js';
+import type { HomeAssistantStateChangedEvent } from '../../../../src/integrations/homeAssistant/activityListener.js';
 
 const baseConfig: AppConfig = {
   port: 0,

@@ -3,11 +3,11 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, test } from 'node:test';
 
-import { normalizePhoneStateChangedEvent } from '../../../src/activityNormalizer.js';
+import { normalizePhoneStateChangedEvent } from '../../../src/integrations/homeAssistant/activityNormalizer.js';
 import { createRecentActivityStore } from '../../../src/activityStore.js';
 import { createApp } from '../../../src/app.js';
 import type { LevyHomeEvent } from '../../../src/contracts.js';
-import type { HomeAssistantStateChangedEvent } from '../../../src/homeAssistantActivityClient.js';
+import type { HomeAssistantStateChangedEvent } from '../../../src/integrations/homeAssistant/activityListener.js';
 import { FakePushSender } from '../../support/fakePushSender.js';
 import { createRouteTestHarness } from '../../support/routeTestHarness.js';
 import { testConfig } from '../../support/testConfig.js';

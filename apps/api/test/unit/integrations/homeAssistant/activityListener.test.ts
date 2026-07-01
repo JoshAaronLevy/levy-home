@@ -7,7 +7,7 @@ import {
   resolveHomeAssistantWebSocketURL,
   shouldStartHomeAssistantActivityListener,
   type HomeAssistantStateChangedEvent,
-} from '../../../../src/homeAssistantActivityClient.js';
+} from '../../../../src/integrations/homeAssistant/activityListener.js';
 
 type FakeWebSocketListener = (() => void) | ((event: { data: unknown }) => void) | ((event: unknown) => void);
 

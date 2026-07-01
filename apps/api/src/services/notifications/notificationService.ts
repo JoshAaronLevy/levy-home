@@ -1,4 +1,4 @@
-import { APNsConfigurationError, type PushSender } from '../../apnsService.js';
+import { APNsConfigurationError, type PushSender } from '../../integrations/apple/apnsPushSender.js';
 import {
   getEventDisplayMetadata,
   isNotificationPreferenceCategory,

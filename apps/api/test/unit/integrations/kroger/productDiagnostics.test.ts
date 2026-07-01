@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import type { AppConfig } from '../../../../src/config.js';
-import { lookupAndWriteKrogerProductResponse, normalizeKrogerProducts } from '../../../../src/krogerClient.js';
+import { lookupAndWriteKrogerProductResponse } from '../../../../src/integrations/kroger/productDiagnostics.js';
 
 test('lookupAndWriteKrogerProductResponse fetches a token, searches products, and writes the Kroger response', async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'levy-home-kroger-'));
@@ -204,65 +204,6 @@ test('lookupAndWriteKrogerProductResponse writes a diagnostic failure when crede
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
-});
-
-test('normalizeKrogerProducts maps requested product fields and featured large image', () => {
-  const products = normalizeKrogerProducts({
-    data: [
-      {
-        productId: '0003700008411',
-        upc: '0003700008411',
-        productPageURI: '/p/luvs-diapers/0003700008411',
-        aisleLocations: [
-          {
-            bayNumber: '2',
-            description: 'Baby',
-            number: '8',
-          },
-        ],
-        brand: 'Luvs',
-        description: 'Luvs Disposable Baby Diapers',
-        images: [
-          {
-            perspective: 'back',
-            featured: false,
-            sizes: [
-              { size: 'xlarge', url: 'https://example.test/xlarge/back' },
-              { size: 'large', url: 'https://example.test/large/back' },
-            ],
-          },
-          {
-            perspective: 'front',
-            featured: true,
-            sizes: [
-              { size: 'xlarge', url: 'https://example.test/xlarge/front' },
-              { size: 'large', url: 'https://example.test/large/front' },
-            ],
-          },
-        ],
-      },
-    ],
-  });
-
-  assert.deepEqual(products, [
-    {
-      productId: '0003700008411',
-      upc: '0003700008411',
-      productPageURI: '/p/luvs-diapers/0003700008411',
-      aisles: [
-        {
-          bayNumber: '2',
-          description: 'Baby',
-          number: '8',
-        },
-      ],
-      brand: 'Luvs',
-      name: 'Luvs Disposable Baby Diapers',
-      description: 'Luvs Disposable Baby Diapers',
-      image: 'https://example.test/large/front',
-      storeListings: [],
-    },
-  ]);
 });
 
 function testConfig(options: { outputFilePath: string }): AppConfig {

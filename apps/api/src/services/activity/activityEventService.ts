@@ -3,8 +3,8 @@ import crypto from 'node:crypto';
 import {
   normalizePhoneStateChangedEvent,
   shouldIncludePhoneStateChangedEvent,
-} from '../../activityNormalizer.js';
-import { fetchHomeAssistantActivityWindow } from '../../homeAssistantActivityBackfill.js';
+} from '../../integrations/homeAssistant/activityNormalizer.js';
+import { fetchHomeAssistantActivityWindow } from '../../integrations/homeAssistant/activityBackfill.js';
 import type { AppConfig } from '../../config.js';
 import {
   getEventDisplayMetadata,

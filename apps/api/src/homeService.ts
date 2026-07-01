@@ -8,7 +8,7 @@ import type {
   QuickActionId,
   QuickActionResult,
 } from './contracts.js';
-import type { HomeAssistantFacade } from './homeAssistantClient.js';
+import type { HomeAssistantFacade } from './integrations/homeAssistant/facade.js';
 import { HTTPError } from './http/errors.js';
 
 const importantSeverities = new Set(['warning', 'critical']);
