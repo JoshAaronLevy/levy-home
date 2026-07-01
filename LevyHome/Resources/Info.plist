@@ -6,6 +6,17 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Levy Home</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>MKDirectionsRequest</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.maps.directionsrequest</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,8 +35,42 @@
 	<true/>
 	<key>LevyHomeAPIBaseURL</key>
 	<string>$(LEVY_HOME_API_BASE_URL)</string>
+	<key>MKDirectionsApplicationSupportedModes</key>
+	<array>
+		<string>MKDirectionsModeCar</string>
+		<string>MKDirectionsModePedestrian</string>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Levy Home needs access to Bluetooth devices</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Levy Home would like to access your Family calendar</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Set up Face ID for Levy Home</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>LevyHome needs access to your local network</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Levy Home needs access to your location</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Levy Home would like to access your microphone</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Levy Home would like to access motion events on your phone</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Levy Home would like to access your Reminders</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-peripheral</string>
+		<string>fetch</string>
+		<string>processing</string>
+		<string>external-accessory</string>
+		<string>location</string>
+		<string>remote-notification</string>
+		<string>bluetooth-central</string>
+		<string>nearby-interaction</string>
+		<string>voip</string>
+		<string>push-to-talk</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

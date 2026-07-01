@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.background-tasks.continued-processing.gpu</key>
+	<true/>
+	<key>com.apple.developer.location.push</key>
+	<true/>
+	<key>com.apple.developer.networking.wifi-info</key>
+	<true/>
+	<key>com.apple.developer.push-to-talk</key>
+	<true/>
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
+	<key>com.apple.developer.weatherkit</key>
+	<true/>
+	<key>com.apple.developer.wifi-aware</key>
+	<array>
+		<string>Subscribe</string>
+		<string>Publish</string>
+	</array>
+</dict>
 </plist>
