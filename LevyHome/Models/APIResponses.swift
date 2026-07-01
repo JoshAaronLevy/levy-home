@@ -527,6 +527,20 @@ struct TestPushResponse: Codable, Equatable {
     let provider: PushProvider?
 }
 
+struct TestNotificationPipelineResponse: Codable, Equatable {
+    let ok: Bool
+    let message: String
+    let provider: PushProvider?
+    let event: LevyHomeEvent
+    let dedupeKey: String?
+    let storedEventCount: Int?
+    let sentNotificationCount: Int?
+    let failedNotificationCount: Int?
+    let invalidTokenCount: Int?
+    let skipped: Bool?
+    let reason: String?
+}
+
 struct HealthResponse: Codable, Equatable {
     let ok: Bool
     let service: String?

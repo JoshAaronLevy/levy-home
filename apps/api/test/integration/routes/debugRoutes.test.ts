@@ -82,6 +82,37 @@ test('POST /api/debug/send-test-push sends APNs test pushes with provider-neutra
   });
 });
 
+test('POST /api/debug/notification-pipeline-test sends a push through the event pipeline', async () => {
+  const pushSender = new FakePushSender();
+
+  await withTestServer(pushSender, async () => {
+    await routes.postJSON('/api/devices/register', {
+      token: 'sample-apns-token',
+      platform: 'ios',
+      provider: 'apns',
+      environment: 'sandbox',
+    });
+
+    const response = await routes.postJSON('/api/debug/notification-pipeline-test');
+    const events = await routes.getJSON('/api/events');
+
+    assert.equal(response.ok, true);
+    assert.equal(response.provider, 'apns');
+    assert.equal(response.event.type, 'garage_still_open_at_10pm');
+    assert.equal(response.event.source, 'home_assistant_debug_pipeline_test');
+    assert.equal(response.event.push.attempted, true);
+    assert.equal(response.sentNotificationCount, 1);
+    assert.equal(response.failedNotificationCount, 0);
+    assert.equal(response.dedupeKey, 'garage_still_open_at_10pm:debug.notification_pipeline_test');
+    assert.equal(events.events.length, 1);
+    assert.equal(events.events[0].id, response.event.id);
+    assert.equal(pushSender.requests.length, 1);
+    assert.equal(pushSender.requests[0].title, 'Levy Home notification test');
+    assert.equal(pushSender.requests[0].body, 'This push came through the Levy Home event pipeline.');
+    assert.deepEqual(pushSender.requests[0].data, { category: 'garage_still_open_at_10pm' });
+  });
+});
+
 test('phone entity discovery route requires the Home Assistant webhook secret', async () => {
   const response = await fetch(`${routes.baseURL()}/api/debug/home-assistant/phone-entities`);
   const body = (await response.json()) as { code: string };

@@ -69,7 +69,7 @@ enum NotificationRegistrationError: LocalizedError {
     }
 }
 
-final class NotificationService: NotificationServicing {
+final class NotificationService: NSObject, NotificationServicing, UNUserNotificationCenterDelegate {
     static let shared = NotificationService()
 
     private let notificationCenter: UNUserNotificationCenter
@@ -79,6 +79,8 @@ final class NotificationService: NotificationServicing {
 
     init(notificationCenter: UNUserNotificationCenter = .current()) {
         self.notificationCenter = notificationCenter
+        super.init()
+        self.notificationCenter.delegate = self
     }
 
     func currentSnapshot() async -> PushRegistrationSnapshot {
@@ -141,6 +143,18 @@ final class NotificationService: NotificationServicing {
         lastErrorMessage = error.localizedDescription
         registrationContinuation?.resume(throwing: error)
         registrationContinuation = nil
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .list, .sound])
+        } else {
+            completionHandler([.alert, .sound])
+        }
     }
 
     private var availability: PushRegistrationAvailability {

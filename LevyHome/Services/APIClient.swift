@@ -155,6 +155,10 @@ final class APIClient {
         return try await send(path: "/api/debug/send-test-push", method: .post)
     }
 
+    func sendNotificationPipelineTest() async throws -> TestNotificationPipelineResponse {
+        try await send(path: "/api/debug/notification-pipeline-test", method: .post)
+    }
+
     func fetchHealth() async throws -> HealthResponse {
         try await send(path: "/health")
     }

@@ -17,7 +17,10 @@ struct PreferencesView: View {
             ),
             themePreferenceViewModel: themePreferenceViewModel,
             apnsEnvironment: appEnvironment.config.apiAPNsEnvironment,
-            isDeveloperToolsEnabled: appEnvironment.config.isDeveloperToolsEnabled
+            isDeveloperToolsEnabled: appEnvironment.config.isDeveloperToolsEnabled,
+            sendNotificationPipelineTest: {
+                try await appEnvironment.apiClient.sendNotificationPipelineTest()
+            }
         )
     }
 }
@@ -29,19 +32,22 @@ private struct PreferencesContentView: View {
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     private let apnsEnvironment: APNsEnvironment
     private let isDeveloperToolsEnabled: Bool
+    private let sendNotificationPipelineTest: () async throws -> TestNotificationPipelineResponse
 
     init(
         viewModel: NotificationPreferencesViewModel,
         pushRegistrationViewModel: PushRegistrationViewModel,
         themePreferenceViewModel: ThemePreferenceViewModel,
         apnsEnvironment: APNsEnvironment = .sandbox,
-        isDeveloperToolsEnabled: Bool = false
+        isDeveloperToolsEnabled: Bool = false,
+        sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         _pushRegistrationViewModel = StateObject(wrappedValue: pushRegistrationViewModel)
         self.themePreferenceViewModel = themePreferenceViewModel
         self.apnsEnvironment = apnsEnvironment
         self.isDeveloperToolsEnabled = isDeveloperToolsEnabled
+        self.sendNotificationPipelineTest = sendNotificationPipelineTest
     }
 
     var body: some View {
@@ -73,7 +79,8 @@ private struct PreferencesContentView: View {
             DebugView(
                 pushRegistrationViewModel: pushRegistrationViewModel,
                 notificationPreferencesViewModel: viewModel,
-                apnsEnvironment: apnsEnvironment
+                apnsEnvironment: apnsEnvironment,
+                sendNotificationPipelineTest: sendNotificationPipelineTest
             )
         } label: {
             DeveloperPreferenceLinkLabel()
@@ -237,7 +244,52 @@ private struct ResidentPreferenceView: View {
                 )
             ),
             apnsEnvironment: .sandbox,
-            isDeveloperToolsEnabled: true
+            isDeveloperToolsEnabled: true,
+            sendNotificationPipelineTest: {
+                TestNotificationPipelineResponse.previewSuccess
+            }
+        )
+    }
+}
+
+private extension TestNotificationPipelineResponse {
+    static var previewSuccess: TestNotificationPipelineResponse {
+        TestNotificationPipelineResponse(
+            ok: true,
+            message: "Created a Home Assistant-style test event and sent 1 APNs notification(s).",
+            provider: .apns,
+            event: LevyHomeEvent(
+                id: UUID().uuidString,
+                type: .garageStillOpenAt10PM,
+                entityId: "debug.notification_pipeline_test",
+                category: .garage,
+                severity: .high,
+                source: "home_assistant_debug_pipeline_test",
+                occurredAt: "2026-07-01T12:00:00.000Z",
+                title: "Levy Home notification test",
+                message: "This push came through the Levy Home event pipeline.",
+                receivedAt: "2026-07-01T12:00:00.000Z",
+                display: EventDisplayMetadata(
+                    title: "Garage still open",
+                    body: "The garage is still open at 10 PM.",
+                    severity: .critical
+                ),
+                push: EventPushStatus(
+                    attempted: true,
+                    skipped: false,
+                    ticketCount: 1,
+                    sentNotificationCount: 1,
+                    failedNotificationCount: 0,
+                    invalidTokenCount: 0
+                )
+            ),
+            dedupeKey: "garage_still_open_at_10pm:debug.notification_pipeline_test",
+            storedEventCount: 1,
+            sentNotificationCount: 1,
+            failedNotificationCount: 0,
+            invalidTokenCount: 0,
+            skipped: false,
+            reason: nil
         )
     }
 }
