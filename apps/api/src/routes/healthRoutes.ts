@@ -2,12 +2,12 @@ import { Router } from 'express';
 
 import type { RecentActivityStore } from '../activityStore.js';
 import type { AppConfig } from '../config.js';
-import type { RegisteredDevice } from '../contracts.js';
+import type { DeviceRegistry } from '../services/notifications/deviceRegistry.js';
 
 export type HealthRouteDependencies = {
   activityStore: RecentActivityStore;
   config: AppConfig;
-  registeredDevicesById: Map<string, RegisteredDevice>;
+  deviceRegistry: Pick<DeviceRegistry, 'count'>;
 };
 
 export function createHealthRoutes(deps: HealthRouteDependencies): Router {
@@ -18,7 +18,7 @@ export function createHealthRoutes(deps: HealthRouteDependencies): Router {
       ok: true,
       service: 'levy-home-api',
       homeAssistantMode: deps.config.homeAssistant.mode,
-      registeredDeviceCount: deps.registeredDevicesById.size,
+      registeredDeviceCount: deps.deviceRegistry.count(),
       recentEventCount: deps.activityStore.count(),
       uptimeSeconds: Math.round(process.uptime()),
     });

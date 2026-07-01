@@ -1,29 +1,21 @@
 import { Router } from 'express';
 
-import type { PushSender } from '../apnsService.js';
 import type { AppConfig } from '../config.js';
 import type { KrogerProductDiagnosticRunner } from '../krogerClient.js';
 import type { HomeAssistantFacade } from '../homeAssistantClient.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { HTTPError } from '../http/errors.js';
 import { requireHaWebhookSecret } from '../http/middleware/requireHaWebhookSecret.js';
+import type { NotificationService } from '../services/notifications/notificationService.js';
+import { testPushMessage } from '../services/notifications/notificationService.js';
 import { validateTestPushBody } from '../validation.js';
-import {
-  sendPushToRegisteredDevices,
-  testPushMessage,
-} from './pushDelivery.js';
-import type {
-  NotificationPreferenceState,
-  RegisteredDeviceState,
-} from './routeState.js';
 
-export type DebugRouteDependencies = Pick<RegisteredDeviceState, 'registeredDevicesById'> &
-  NotificationPreferenceState & {
-    config: AppConfig;
-    homeAssistant: HomeAssistantFacade;
-    krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
-    pushSender: PushSender;
-  };
+export type DebugRouteDependencies = {
+  config: AppConfig;
+  homeAssistant: HomeAssistantFacade;
+  krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
+  notificationService: NotificationService;
+};
 
 export function createDebugRoutes(deps: DebugRouteDependencies): Router {
   const router = Router();
@@ -32,13 +24,7 @@ export function createDebugRoutes(deps: DebugRouteDependencies): Router {
     '/api/debug/send-test-push',
     asyncHandler(async (req, res) => {
       const payload = validateTestPushBody(req.body);
-      const summary = await sendPushToRegisteredDevices({
-        devices: Array.from(deps.registeredDevicesById.values()),
-        preferencesByDeviceKey: deps.preferencesByDeviceKey,
-        pushSender: deps.pushSender,
-        payload,
-        preferenceCategory: undefined,
-      });
+      const summary = await deps.notificationService.sendTestPush(payload);
 
       if (summary.configurationError) {
         throw new HTTPError(503, summary.configurationError, 'apns_credentials_not_configured');

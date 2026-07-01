@@ -1,32 +1,79 @@
-import { APNsConfigurationError, type PushSender } from '../apnsService.js';
+import { APNsConfigurationError, type PushSender } from '../../apnsService.js';
 import {
-  GARAGE_NOTIFICATION_PREFERENCES,
+  getEventDisplayMetadata,
   isNotificationPreferenceCategory,
   type APNsSendResult,
   type EventPushStatus,
   type HomeAssistantEventPayload,
-  type NotificationPreference,
   type NotificationPreferenceCategory,
   type PushSendSummary,
   type RegisteredDevice,
   type TestPushPayload,
-} from '../contracts.js';
-import { preferenceKeyForLocator } from './routeState.js';
+} from '../../contracts.js';
+import type { DeviceRegistry } from './deviceRegistry.js';
+import type { NotificationPreferenceStore } from './notificationPreferenceStore.js';
 
 export type PushSendOptions = {
   devices: RegisteredDevice[];
-  preferencesByDeviceKey: Map<string, NotificationPreference[]>;
+  notificationPreferenceStore: Pick<NotificationPreferenceStore, 'isNotificationEnabled'>;
   pushSender: PushSender;
   payload: TestPushPayload;
   preferenceCategory?: NotificationPreferenceCategory;
 };
+
+export type NotificationService = {
+  sendEventPush: (payload: HomeAssistantEventPayload) => Promise<EventPushStatus>;
+  sendTestPush: (payload: TestPushPayload) => Promise<PushSendSummary>;
+};
+
+export function createNotificationService(options: {
+  deviceRegistry: Pick<DeviceRegistry, 'listDevices'>;
+  notificationPreferenceStore: Pick<NotificationPreferenceStore, 'isNotificationEnabled'>;
+  pushSender: PushSender;
+}): NotificationService {
+  return {
+    async sendEventPush(payload) {
+      const display = getEventDisplayMetadata(payload.type);
+      const preferenceCategory = notificationCategoryForEvent(payload);
+      const summary = preferenceCategory
+        ? await sendPushToRegisteredDevices({
+            devices: options.deviceRegistry.listDevices(),
+            notificationPreferenceStore: options.notificationPreferenceStore,
+            pushSender: options.pushSender,
+            payload: {
+              title: payload.title ?? display.title,
+              body: payload.message ?? display.body,
+            },
+            preferenceCategory,
+          })
+        : undefined;
+
+      return summary
+        ? pushStatusFromSummary(summary, preferenceCategory)
+        : {
+            attempted: false,
+            skipped: true,
+            reason: 'No APNs notification preference category is configured for this event type.',
+          };
+    },
+    sendTestPush(payload) {
+      return sendPushToRegisteredDevices({
+        devices: options.deviceRegistry.listDevices(),
+        notificationPreferenceStore: options.notificationPreferenceStore,
+        pushSender: options.pushSender,
+        payload,
+        preferenceCategory: undefined,
+      });
+    },
+  };
+}
 
 export async function sendPushToRegisteredDevices(options: PushSendOptions): Promise<PushSendSummary> {
   const apnsDevices = options.devices.filter((device) => device.provider === 'apns');
   const preferenceCategory = options.preferenceCategory;
   const enabledDevices = preferenceCategory
     ? apnsDevices.filter((device) =>
-        isNotificationPreferenceEnabled(device, preferenceCategory, options.preferencesByDeviceKey),
+        options.notificationPreferenceStore.isNotificationEnabled(device, preferenceCategory),
       )
     : apnsDevices;
   const results: APNsSendResult[] = [];
@@ -134,21 +181,4 @@ export function notificationCategoryForEvent(
   const category = categoryByEventType[payload.type];
 
   return isNotificationPreferenceCategory(category) ? category : undefined;
-}
-
-function isNotificationPreferenceEnabled(
-  device: RegisteredDevice,
-  category: NotificationPreferenceCategory,
-  preferencesByDeviceKey: Map<string, NotificationPreference[]>,
-): boolean {
-  const preferences =
-    preferencesByDeviceKey.get(
-      preferenceKeyForLocator(
-        { token: device.token, provider: device.provider, environment: device.environment },
-        new Map(),
-      ),
-    ) ?? GARAGE_NOTIFICATION_PREFERENCES;
-  const preference = preferences.find((entry) => entry.category === category);
-
-  return preference?.isEnabled ?? true;
 }

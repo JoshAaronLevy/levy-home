@@ -1,17 +1,16 @@
 import type { Express } from 'express';
 
 import type { RecentActivityStore } from '../activityStore.js';
-import type { PushSender } from '../apnsService.js';
 import type { AppConfig } from '../config.js';
-import type {
-  KrogerProductSearchResponse,
-  NotificationPreference,
-  RegisteredDevice,
-} from '../contracts.js';
+import type { KrogerProductSearchResponse } from '../contracts.js';
 import type { HomeAssistantFacade } from '../homeAssistantClient.js';
 import type { HomeService } from '../homeService.js';
 import type { KrogerProductDiagnosticRunner } from '../krogerClient.js';
-import type { ShoppingListRealtimeBroadcaster } from '../shoppingListRealtime.js';
+import type { ActivityEventService } from '../services/activity/activityEventService.js';
+import type { DeviceRegistry } from '../services/notifications/deviceRegistry.js';
+import type { NotificationPreferenceStore } from '../services/notifications/notificationPreferenceStore.js';
+import type { NotificationService } from '../services/notifications/notificationService.js';
+import type { ShoppingListMutationService } from '../services/shopping/shoppingListMutationService.js';
 import type { ShoppingListStore } from '../shoppingListStore.js';
 import type { ToDoLocationStore } from '../todoLocationStore.js';
 import type { UserStore } from '../userStore.js';
@@ -26,17 +25,17 @@ import { createToDoLocationRoutes } from './todoLocationRoutes.js';
 import { createUserRoutes } from './userRoutes.js';
 
 export type AppRouteDependencies = {
+  activityEventService: ActivityEventService;
   activityStore: RecentActivityStore;
   config: AppConfig;
+  deviceRegistry: DeviceRegistry;
   homeAssistant: HomeAssistantFacade;
   homeService: HomeService;
   krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner: (query?: string) => Promise<KrogerProductSearchResponse>;
-  preferencesByDeviceKey: Map<string, NotificationPreference[]>;
-  pushSender: PushSender;
-  registeredDeviceIdsByLookupKey: Map<string, string>;
-  registeredDevicesById: Map<string, RegisteredDevice>;
-  shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  notificationPreferenceStore: NotificationPreferenceStore;
+  notificationService: NotificationService;
+  shoppingListMutationService: ShoppingListMutationService;
   shoppingListStore: ShoppingListStore;
   toDoLocationStore: ToDoLocationStore;
   userStore: UserStore;

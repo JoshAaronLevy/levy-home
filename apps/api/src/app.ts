@@ -8,11 +8,7 @@ import {
 import { createAPNsPushSender, type PushSender } from './apnsService.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
-import type {
-  KrogerProductSearchResponse,
-  NotificationPreference,
-  RegisteredDevice,
-} from './contracts.js';
+import type { KrogerProductSearchResponse } from './contracts.js';
 import { DatabaseConfigurationError } from './dbClient.js';
 import { createHomeAssistantFacade } from './homeAssistantClient.js';
 import { HomeService } from './homeService.js';
@@ -24,6 +20,11 @@ import {
   type KrogerProductDiagnosticRunner,
 } from './krogerClient.js';
 import { registerRoutes } from './routes/index.js';
+import { createActivityEventService } from './services/activity/activityEventService.js';
+import { createInMemoryDeviceRegistry } from './services/notifications/deviceRegistry.js';
+import { createInMemoryNotificationPreferenceStore } from './services/notifications/notificationPreferenceStore.js';
+import { createNotificationService } from './services/notifications/notificationService.js';
+import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
 import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
 import {
@@ -48,14 +49,23 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const config = options.config ?? readConfig();
   const app = express();
   const activityStore = options.activityStore ?? createRecentActivityStore(500);
-  const registeredDevicesById = new Map<string, RegisteredDevice>();
-  const registeredDeviceIdsByLookupKey = new Map<string, string>();
-  const preferencesByDeviceKey = new Map<string, NotificationPreference[]>();
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
   const homeAssistant = createHomeAssistantFacade(config);
   const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+  const activityEventService = createActivityEventService({ notificationService });
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime;
+  const shoppingListMutationService = createShoppingListMutationService({
+    shoppingListRealtime,
+    shoppingListStore,
+  });
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
   const krogerProductDiagnosticRunner =
@@ -72,16 +82,16 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
   registerRoutes(app, {
     activityStore,
+    activityEventService,
     config,
+    deviceRegistry,
     homeAssistant,
     homeService,
     krogerProductDiagnosticRunner,
     krogerProductSearchRunner,
-    preferencesByDeviceKey,
-    pushSender,
-    registeredDeviceIdsByLookupKey,
-    registeredDevicesById,
-    shoppingListRealtime,
+    notificationPreferenceStore,
+    notificationService,
+    shoppingListMutationService,
     shoppingListStore,
     toDoLocationStore,
     userStore,
