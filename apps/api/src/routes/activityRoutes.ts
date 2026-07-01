@@ -16,7 +16,7 @@ import {
   isEventInWindow,
   parseActivityWindow,
 } from '../services/activity/activityWindow.js';
-import { validateHomeAssistantEventPayload } from '../validation.js';
+import { validateHomeAssistantEventPayload } from '../validation/activityValidation.js';
 
 export type ActivityRouteDependencies = {
   activityEventService: ActivityEventService;

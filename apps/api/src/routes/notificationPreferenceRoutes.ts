@@ -4,7 +4,7 @@ import type { NotificationPreferenceStore } from '../services/notifications/noti
 import {
   validateNotificationPreferencesBody,
   validateNotificationPreferencesQuery,
-} from '../validation.js';
+} from '../validation/notificationValidation.js';
 
 export type NotificationPreferenceRouteDependencies = {
   notificationPreferenceStore: NotificationPreferenceStore;

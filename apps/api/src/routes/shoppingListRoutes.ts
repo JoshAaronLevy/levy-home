@@ -16,7 +16,7 @@ import {
   validateShoppingListItemLookupQuery,
   validateShoppingProductSearchQuery,
   validateUpdateShoppingListItemBody,
-} from '../validation.js';
+} from '../validation/shoppingValidation.js';
 
 export type ShoppingListRouteDependencies = {
   krogerProductSearchRunner: (query?: string) => Promise<KrogerProductSearchResponse>;

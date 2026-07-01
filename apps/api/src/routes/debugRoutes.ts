@@ -8,7 +8,7 @@ import { HTTPError } from '../http/errors.js';
 import { requireHaWebhookSecret } from '../http/middleware/requireHaWebhookSecret.js';
 import type { NotificationService } from '../services/notifications/notificationService.js';
 import { testPushMessage } from '../services/notifications/notificationService.js';
-import { validateTestPushBody } from '../validation.js';
+import { validateTestPushBody } from '../validation/notificationValidation.js';
 
 export type DebugRouteDependencies = {
   config: AppConfig;

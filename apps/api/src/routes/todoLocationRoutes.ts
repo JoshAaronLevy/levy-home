@@ -6,7 +6,7 @@ import type {
 } from '../contracts.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
-import { validateCreateToDoLocationBody } from '../validation.js';
+import { validateCreateToDoLocationBody } from '../validation/todoValidation.js';
 
 export type ToDoLocationRouteDependencies = {
   toDoLocationStore: ToDoLocationStore;

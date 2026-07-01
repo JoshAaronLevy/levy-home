@@ -4,7 +4,7 @@ import {
   deviceResponse,
   type DeviceRegistry,
 } from '../services/notifications/deviceRegistry.js';
-import { validateRegisterDeviceBody } from '../validation.js';
+import { validateRegisterDeviceBody } from '../validation/deviceValidation.js';
 
 export type DeviceRouteDependencies = {
   deviceRegistry: DeviceRegistry;

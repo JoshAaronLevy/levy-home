@@ -3,7 +3,7 @@ import { Router } from 'express';
 import type { AppConfig } from '../config.js';
 import type { HomeService } from '../homeService.js';
 import { asyncHandler } from '../http/asyncHandler.js';
-import { validateQuickActionBody } from '../validation.js';
+import { validateQuickActionBody } from '../validation/homeValidation.js';
 
 export type HomeRouteDependencies = {
   config: AppConfig;
