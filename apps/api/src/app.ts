@@ -16,7 +16,9 @@ import { HTTPError } from './http/errors.js';
 import { noStoreCacheControl } from './http/middleware/cacheControl.js';
 import { lookupAndWriteKrogerProductResponse, type KrogerProductDiagnosticRunner } from './integrations/kroger/productDiagnostics.js';
 import { searchKrogerProducts } from './integrations/kroger/productClient.js';
+import { logger, type Logger, safeErrorMessage } from './observability/logger.js';
 import { registerRoutes } from './routes/index.js';
+import type { NotificationPersistenceMode } from './routes/healthRoutes.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './repositories/shoppingListRepository.js';
 import {
   createPostgresToDoLocationStore,
@@ -41,6 +43,7 @@ import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js'
 export type CreateAppOptions = {
   config?: AppConfig;
   activityStore?: RecentActivityStore;
+  logger?: Logger;
   pushSender?: PushSender;
   deviceRegistry?: DeviceRegistry;
   notificationPreferenceStore?: NotificationPreferenceStore;
@@ -50,19 +53,25 @@ export type CreateAppOptions = {
   toDoLocationStore?: ToDoLocationStore;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
+  notificationPersistenceMode?: NotificationPersistenceMode;
 };
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
   const config = options.config ?? readConfig();
   const app = express();
+  const appLogger = options.logger ?? logger;
   const activityStore = options.activityStore ?? createRecentActivityStore(500);
   const usePersistentNotificationStores = isDatabaseConfigured();
+  const hasInjectedNotificationStores = Boolean(options.deviceRegistry || options.notificationPreferenceStore);
+  const notificationPersistenceMode =
+    options.notificationPersistenceMode ??
+    (hasInjectedNotificationStores || !usePersistentNotificationStores ? 'memory' : 'postgres');
   const deviceRegistry =
     options.deviceRegistry ??
-    (usePersistentNotificationStores ? createPostgresDeviceRegistry() : createInMemoryDeviceRegistry());
+    (notificationPersistenceMode === 'postgres' ? createPostgresDeviceRegistry() : createInMemoryDeviceRegistry());
   const notificationPreferenceStore =
     options.notificationPreferenceStore ??
-    (usePersistentNotificationStores
+    (notificationPersistenceMode === 'postgres'
       ? createPostgresNotificationPreferenceStore(deviceRegistry)
       : createInMemoryNotificationPreferenceStore(deviceRegistry));
   const homeAssistant = createHomeAssistantFacade(config);
@@ -103,6 +112,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     homeService,
     krogerProductDiagnosticRunner,
     krogerProductSearchRunner,
+    notificationPersistenceMode,
     notificationPreferenceStore,
     notificationService,
     shoppingListMutationService,
@@ -128,7 +138,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       return;
     }
 
-    console.error(err);
+    appLogger.error('Unexpected API error.', { error: safeErrorMessage(err) });
     res.status(500).json({ error: 'Unexpected server error.', code: 'unexpected_server_error' });
   });
 

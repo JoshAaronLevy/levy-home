@@ -17,7 +17,7 @@ import type { UserStore } from '../repositories/userRepository.js';
 import { createActivityRoutes } from './activityRoutes.js';
 import { createDebugRoutes } from './debugRoutes.js';
 import { createDeviceRoutes } from './deviceRoutes.js';
-import { createHealthRoutes } from './healthRoutes.js';
+import { createHealthRoutes, type NotificationPersistenceMode } from './healthRoutes.js';
 import { createHomeRoutes } from './homeRoutes.js';
 import { createNotificationPreferenceRoutes } from './notificationPreferenceRoutes.js';
 import { createShoppingListRoutes } from './shoppingListRoutes.js';
@@ -33,6 +33,7 @@ export type AppRouteDependencies = {
   homeService: HomeService;
   krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner: (query?: string) => Promise<KrogerProductSearchResponse>;
+  notificationPersistenceMode: NotificationPersistenceMode;
   notificationPreferenceStore: NotificationPreferenceStore;
   notificationService: NotificationService;
   shoppingListMutationService: ShoppingListMutationService;

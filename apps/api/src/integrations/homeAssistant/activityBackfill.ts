@@ -11,6 +11,7 @@ import {
   matchTrackedPhoneEntity,
   shouldStartHomeAssistantActivityListener,
 } from './activityListener.js';
+import { logger as defaultLogger } from '../../observability/logger.js';
 
 const DEFAULT_BACKFILL_LOOKBACK_HOURS = 24;
 const HOME_ASSISTANT_ACTIVITY_REQUEST_TIMEOUT_MS = 8_000;
@@ -55,7 +56,7 @@ export async function fetchHomeAssistantActivityWindow(
   config: AppConfig,
   options: HomeAssistantActivityWindowOptions,
 ): Promise<HomeAssistantStateChangedEvent[]> {
-  const logger = options.logger ?? console;
+  const logger = options.logger ?? defaultLogger;
 
   if (!shouldAttemptHomeAssistantActivityBackfill(config)) {
     return [];

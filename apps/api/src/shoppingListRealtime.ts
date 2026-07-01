@@ -4,6 +4,7 @@ import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 
 import type { ShoppingCategory, ShoppingListItem, ShoppingStore } from './contracts.js';
+import { logger } from './observability/logger.js';
 
 export const SHOPPING_LIST_LIVE_PATH = '/api/shopping-list/live';
 
@@ -469,22 +470,5 @@ function now(): string {
 }
 
 function logRealtime(event: string, details: Record<string, unknown>): void {
-  const detailText = Object.entries(details)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${key}=${safeLogValue(value)}`)
-    .join(' ');
-
-  console.info(`[shopping-list-live] ${event}${detailText ? ` ${detailText}` : ''}`);
-}
-
-function safeLogValue(value: unknown): string {
-  if (typeof value === 'string') {
-    return value.replace(/\s+/g, '_').slice(0, 120);
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-
-  return JSON.stringify(value).replace(/\s+/g, '_').slice(0, 120);
+  logger.info(`[shopping-list-live] ${event}`, details);
 }

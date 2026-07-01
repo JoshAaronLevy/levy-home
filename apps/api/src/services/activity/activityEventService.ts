@@ -11,6 +11,7 @@ import {
   type HomeAssistantEventPayload,
   type LevyHomeEvent,
 } from '../../contracts.js';
+import { logger, safeErrorMessage } from '../../observability/logger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
 import {
   eventTimestamp,
@@ -67,7 +68,9 @@ export async function fetchNormalizedHomeAssistantHistoryEvents(
       .filter(shouldIncludePhoneStateChangedEvent)
       .map((event) => normalizePhoneStateChangedEvent(event));
   } catch (error) {
-    console.warn(`Home Assistant activity history unavailable for /api/events: ${safeErrorMessage(error)}`);
+    logger.warn('Home Assistant activity history unavailable for /api/events.', {
+      error: safeErrorMessage(error),
+    });
     return [];
   }
 }
@@ -97,8 +100,4 @@ function activityEventKey(event: LevyHomeEvent): string {
     event.display.title,
     event.display.body,
   ].join('|');
-}
-
-function safeErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown error.';
 }

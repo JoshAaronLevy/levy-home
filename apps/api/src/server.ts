@@ -14,12 +14,14 @@ import {
   createHomeAssistantActivityListener,
   type HomeAssistantStateChangedEvent,
 } from './integrations/homeAssistant/activityListener.js';
+import { logger, type Logger, safeErrorMessage } from './observability/logger.js';
 import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
 
-export function startServer(config = readConfig()): void {
+export function startServer(config = readConfig(), options: { logger?: Logger } = {}): void {
+  const serverLogger = options.logger ?? logger;
   const activityStore = createRecentActivityStore(500);
   const shoppingListRealtime = createShoppingListRealtimeHub();
-  const app = createApp({ config, activityStore, shoppingListRealtime });
+  const app = createApp({ config, activityStore, logger: serverLogger, shoppingListRealtime });
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -30,26 +32,28 @@ export function startServer(config = readConfig()): void {
     activityStore.add(normalizedEvent);
 
     if (event.ingestionSource !== 'history') {
-      console.info(`Home Assistant phone activity stored ${normalizedEvent.entityId}.`);
+      serverLogger.info('Home Assistant phone activity stored.', { entityId: normalizedEvent.entityId });
     }
   };
   const activityListener = createHomeAssistantActivityListener(config, {
+    logger: serverLogger,
     onStateChanged: storeHomeAssistantPhoneActivity,
   });
 
   const server = app.listen(config.port, () => {
-    console.log(`Levy Home API listening on http://localhost:${config.port}`);
+    serverLogger.info('Levy Home API listening.', { port: config.port });
     activityListener?.start();
     void backfillHomeAssistantActivity(config, {
+      logger: serverLogger,
       onStateChanged: storeHomeAssistantPhoneActivity,
     })
       .then((eventCount) => {
         if (eventCount > 0) {
-          console.info(`Home Assistant activity backfill stored ${eventCount} event(s) from the last 24 hours.`);
+          serverLogger.info('Home Assistant activity backfill stored events.', { eventCount });
         }
       })
       .catch((error) => {
-        console.warn(`Home Assistant activity backfill failed: ${safeErrorMessage(error)}`);
+        serverLogger.warn('Home Assistant activity backfill failed.', { error: safeErrorMessage(error) });
       });
   });
 
@@ -74,7 +78,9 @@ export function startServer(config = readConfig()): void {
     }
 
     isShuttingDown = true;
-    console.info(`Levy Home API received ${signal}. gracefully shutting down previous deployment.`);
+    serverLogger.info('Levy Home API received shutdown signal; gracefully shutting down previous deployment.', {
+      signal,
+    });
 
     const forceExit = setTimeout(() => {
       process.exit(1);
@@ -85,7 +91,7 @@ export function startServer(config = readConfig()): void {
 
     server.close((error) => {
       if (error) {
-        console.error(`Levy Home API shutdown failed: ${safeErrorMessage(error)}`);
+        serverLogger.error('Levy Home API shutdown failed.', { error: safeErrorMessage(error) });
         process.exit(1);
       }
 
@@ -96,10 +102,6 @@ export function startServer(config = readConfig()): void {
 
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
-}
-
-function safeErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown error.';
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

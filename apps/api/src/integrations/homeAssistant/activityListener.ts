@@ -1,4 +1,5 @@
 import type { AppConfig, TrackedPhoneEntity, TrackedPhoneEntityPattern } from '../../config.js';
+import { logger as defaultLogger } from '../../observability/logger.js';
 
 export type HomeAssistantStateChangedEvent = {
   id?: string;
@@ -158,7 +159,7 @@ class DefaultHomeAssistantActivityListener implements HomeAssistantActivityListe
     }
 
     this.WebSocketImpl = WebSocketImpl;
-    this.logger = options.logger ?? console;
+    this.logger = options.logger ?? defaultLogger;
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? DEFAULT_RECONNECT_DELAYS_MS;
     this.setTimeoutFn = options.setTimeoutFn ?? setTimeout;
     this.clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
