@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { LightGroupStatus } from './contracts.js';
+import { getApnsPrivateKey } from './services/apple/config.js';
 
 export type HomeAssistantMode = 'mock' | 'live';
 export type APNsDefaultEnvironment = 'sandbox' | 'production';
@@ -45,7 +46,6 @@ export type AppConfig = {
     teamId?: string;
     bundleId?: string;
     privateKey?: string;
-    privateKeyPath?: string;
     defaultEnvironment: APNsDefaultEnvironment;
   };
   homeAssistant: {
@@ -67,6 +67,8 @@ export type AppConfig = {
 };
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const privateKey = getApnsPrivateKey(env.APNS_PRIVATE_KEY);
+
   return {
     port: readNumber(env.PORT, 4000),
     haWebhookSecret: readOptionalString(env.LEVY_HOME_HA_WEBHOOK_SECRET),
@@ -89,8 +91,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       keyId: readOptionalString(env.APNS_KEY_ID),
       teamId: readOptionalString(env.APNS_TEAM_ID),
       bundleId: readOptionalString(env.APNS_BUNDLE_ID) ?? 'com.levyhome.app',
-      privateKey: readOptionalString(env.APNS_PRIVATE_KEY)?.replace(/\\n/g, '\n'),
-      privateKeyPath: readOptionalString(env.APNS_PRIVATE_KEY_PATH),
+      privateKey,
       defaultEnvironment: readAPNsDefaultEnvironment(env.APNS_ENVIRONMENT),
     },
     homeAssistant: {

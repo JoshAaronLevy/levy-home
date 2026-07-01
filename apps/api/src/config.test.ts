@@ -42,6 +42,21 @@ test('readConfig parses Kroger API diagnostic configuration', () => {
   assert.equal(config.kroger.shoppingStoreName, 'King Soopers');
 });
 
+test('readConfig parses quoted APNs private key env values with escaped newlines', () => {
+  const config = readConfig({
+    APNS_PRIVATE_KEY: '"-----BEGIN PRIVATE KEY-----\\nabc123\\n-----END PRIVATE KEY-----"',
+  });
+
+  assert.equal(config.apns.privateKey, '-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----');
+});
+
+test('readConfig rejects APNs private key values without .p8 markers', () => {
+  assert.throws(
+    () => readConfig({ APNS_PRIVATE_KEY: '"not-a-p8-key"' }),
+    /APNS_PRIVATE_KEY is not a valid \.p8 private key value\./,
+  );
+});
+
 test('readConfig parses curated Home Assistant light entities', () => {
   const config = readConfig({
     HOME_ASSISTANT_LIGHT_ENTITIES:

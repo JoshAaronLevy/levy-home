@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import http2 from 'node:http2';
 
 import type { AppConfig } from './config.js';
@@ -58,10 +57,10 @@ function readCredentials(config: AppConfig): APNsCredentials {
     missingFields.push('APNS_BUNDLE_ID');
   }
 
-  const privateKey = readPrivateKey(config);
+  const privateKey = config.apns.privateKey;
 
   if (!privateKey) {
-    missingFields.push('APNS_PRIVATE_KEY or APNS_PRIVATE_KEY_PATH');
+    missingFields.push('APNS_PRIVATE_KEY');
   }
 
   if (missingFields.length > 0) {
@@ -74,23 +73,6 @@ function readCredentials(config: AppConfig): APNsCredentials {
     bundleId: config.apns.bundleId!,
     privateKey: privateKey!,
   };
-}
-
-function readPrivateKey(config: AppConfig): string | undefined {
-  if (config.apns.privateKey) {
-    return config.apns.privateKey;
-  }
-
-  if (!config.apns.privateKeyPath) {
-    return undefined;
-  }
-
-  try {
-    return readFileSync(config.apns.privateKeyPath, 'utf8');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new APNsConfigurationError(`Unable to read APNs private key file: ${message}`);
-  }
 }
 
 function endpointForEnvironment(environment: APNsEnvironment): string {
