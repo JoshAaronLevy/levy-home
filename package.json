@@ -8,6 +8,7 @@
   "scripts": {
     "api:build": "npm run build -w @levy-home/api",
     "api:dev": "npm run dev -w @levy-home/api",
+    "api:migrate": "npm run migrate -w @levy-home/api",
     "api:start": "npm run start -w @levy-home/api",
     "api:test": "npm run test -w @levy-home/api",
     "api:typecheck": "npm run typecheck -w @levy-home/api"
