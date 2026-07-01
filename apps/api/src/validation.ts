@@ -21,7 +21,7 @@ import {
   isNotificationPreferenceCategory,
   LEVY_HOME_EVENT_TYPES,
 } from './contracts.js';
-import { HTTPError } from './httpError.js';
+import { HTTPError } from './http/errors.js';
 
 type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string; code?: string };
 

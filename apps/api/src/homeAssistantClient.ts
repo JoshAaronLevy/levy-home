@@ -8,7 +8,7 @@ import type {
   PersonPresenceStatus,
   PresenceState,
 } from './contracts.js';
-import { HTTPError } from './httpError.js';
+import { HTTPError } from './http/errors.js';
 
 export type HomeAssistantFacade = {
   getGarageStatus(): Promise<GarageStatus>;

@@ -8,7 +8,7 @@ import { createRecentActivityStore } from '../../../src/activityStore.js';
 import type { PushSender } from '../../../src/apnsService.js';
 import type { LevyHomeEvent } from '../../../src/contracts.js';
 import type { HomeAssistantStateChangedEvent } from '../../../src/homeAssistantActivityClient.js';
-import { createApp } from '../../../src/server.js';
+import { createApp } from '../../../src/app.js';
 import { FakePushSender } from '../../support/fakePushSender.js';
 import { startHttpServer, type StartedHttpServer } from '../../support/httpServer.js';
 import { testConfig } from '../../support/testConfig.js';

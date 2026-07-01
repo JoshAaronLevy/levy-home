@@ -9,7 +9,7 @@ import type {
   QuickActionResult,
 } from './contracts.js';
 import type { HomeAssistantFacade } from './homeAssistantClient.js';
-import { HTTPError } from './httpError.js';
+import { HTTPError } from './http/errors.js';
 
 const importantSeverities = new Set(['warning', 'critical']);
 
