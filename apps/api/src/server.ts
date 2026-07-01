@@ -952,7 +952,7 @@ export function startServer(config = readConfig()): void {
     }
 
     isShuttingDown = true;
-    console.info(`Levy Home API received ${signal}; shutting down.`);
+    console.info(`Levy Home API received ${signal}. gracefully shutting down previous deployment.`);
 
     const forceExit = setTimeout(() => {
       process.exit(1);
