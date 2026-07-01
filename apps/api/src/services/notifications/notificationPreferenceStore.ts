@@ -7,54 +7,80 @@ import {
   type RegisteredDevice,
 } from '../../contracts.js';
 import {
+  createInMemoryNotificationPreferenceRepository,
+  createPostgresNotificationPreferenceRepository,
+  type NotificationPreferenceRepository,
+} from '../../repositories/notificationPreferenceRepository.js';
+import {
   createDeviceLookupKey,
   type DeviceRegistry,
 } from './deviceRegistry.js';
 
 export type NotificationPreferenceStore = {
-  getPreferences: (locator?: DevicePreferenceLocator) => NotificationPreference[];
-  isNotificationEnabled: (device: RegisteredDevice, category: NotificationPreference['category']) => boolean;
-  updatePreferences: (update: NotificationPreferencesUpdateRequest) => NotificationPreference[];
+  getPreferences: (locator?: DevicePreferenceLocator) => Promise<NotificationPreference[]>;
+  isNotificationEnabled: (
+    device: RegisteredDevice,
+    category: NotificationPreference['category'],
+  ) => Promise<boolean>;
+  updatePreferences: (update: NotificationPreferencesUpdateRequest) => Promise<NotificationPreference[]>;
 };
 
-export function createInMemoryNotificationPreferenceStore(
+export function createNotificationPreferenceStore(
   deviceRegistry: Pick<DeviceRegistry, 'getDevice'>,
+  repository: NotificationPreferenceRepository,
 ): NotificationPreferenceStore {
-  const preferencesByDeviceKey = new Map<string, NotificationPreference[]>();
-
   return {
-    getPreferences(locator) {
+    async getPreferences(locator) {
       if (!locator) {
         return GARAGE_NOTIFICATION_PREFERENCES;
       }
 
-      return preferencesByDeviceKey.get(preferenceKeyForLocator(locator, deviceRegistry)) ??
-        GARAGE_NOTIFICATION_PREFERENCES;
+      const deviceKey = await preferenceKeyForLocator(locator, deviceRegistry);
+      const updates = await repository.getPreferenceUpdates(deviceKey);
+
+      return updates
+        ? applyPreferenceUpdates(GARAGE_NOTIFICATION_PREFERENCES, updates)
+        : GARAGE_NOTIFICATION_PREFERENCES;
     },
-    isNotificationEnabled(device, category) {
-      const preferences = preferencesByDeviceKey.get(preferenceKeyForDevice(device)) ??
-        GARAGE_NOTIFICATION_PREFERENCES;
+    async isNotificationEnabled(device, category) {
+      const updates = await repository.getPreferenceUpdates(preferenceKeyForDevice(device));
+      const preferences = updates
+        ? applyPreferenceUpdates(GARAGE_NOTIFICATION_PREFERENCES, updates)
+        : GARAGE_NOTIFICATION_PREFERENCES;
       const preference = preferences.find((entry) => entry.category === category);
 
       return preference?.isEnabled ?? true;
     },
-    updatePreferences(update) {
-      const deviceKey = preferenceKeyForLocator(update.locator, deviceRegistry);
+    async updatePreferences(update) {
+      const deviceKey = await preferenceKeyForLocator(update.locator, deviceRegistry);
       const preferences = applyPreferenceUpdates(GARAGE_NOTIFICATION_PREFERENCES, update.preferences);
 
-      preferencesByDeviceKey.set(deviceKey, preferences);
+      await repository.savePreferences(deviceKey, preferences);
 
       return preferences;
     },
   };
 }
 
-export function preferenceKeyForLocator(
+export function createInMemoryNotificationPreferenceStore(
+  deviceRegistry: Pick<DeviceRegistry, 'getDevice'>,
+  repository: NotificationPreferenceRepository = createInMemoryNotificationPreferenceRepository(),
+): NotificationPreferenceStore {
+  return createNotificationPreferenceStore(deviceRegistry, repository);
+}
+
+export function createPostgresNotificationPreferenceStore(
+  deviceRegistry: Pick<DeviceRegistry, 'getDevice'>,
+): NotificationPreferenceStore {
+  return createNotificationPreferenceStore(deviceRegistry, createPostgresNotificationPreferenceRepository());
+}
+
+export async function preferenceKeyForLocator(
   locator: DevicePreferenceLocator,
   deviceRegistry: Pick<DeviceRegistry, 'getDevice'>,
-): string {
+): Promise<string> {
   if ('deviceId' in locator) {
-    const device = deviceRegistry.getDevice(locator.deviceId);
+    const device = await deviceRegistry.getDevice(locator.deviceId);
 
     if (device) {
       return preferenceKeyForDevice(device);

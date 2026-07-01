@@ -35,9 +35,10 @@ export function createNotificationService(options: {
     async sendEventPush(payload) {
       const display = getEventDisplayMetadata(payload.type);
       const preferenceCategory = notificationCategoryForEvent(payload);
+      const devices = await options.deviceRegistry.listDevices();
       const summary = preferenceCategory
         ? await sendPushToRegisteredDevices({
-            devices: options.deviceRegistry.listDevices(),
+            devices,
             notificationPreferenceStore: options.notificationPreferenceStore,
             pushSender: options.pushSender,
             payload: {
@@ -56,9 +57,11 @@ export function createNotificationService(options: {
             reason: 'No APNs notification preference category is configured for this event type.',
           };
     },
-    sendTestPush(payload) {
+    async sendTestPush(payload) {
+      const devices = await options.deviceRegistry.listDevices();
+
       return sendPushToRegisteredDevices({
-        devices: options.deviceRegistry.listDevices(),
+        devices,
         notificationPreferenceStore: options.notificationPreferenceStore,
         pushSender: options.pushSender,
         payload,
@@ -72,8 +75,10 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
   const apnsDevices = options.devices.filter((device) => device.provider === 'apns');
   const preferenceCategory = options.preferenceCategory;
   const enabledDevices = preferenceCategory
-    ? apnsDevices.filter((device) =>
-        options.notificationPreferenceStore.isNotificationEnabled(device, preferenceCategory),
+    ? await filterPreferenceEnabledDevices(
+        apnsDevices,
+        options.notificationPreferenceStore,
+        preferenceCategory,
       )
     : apnsDevices;
   const results: APNsSendResult[] = [];
@@ -118,6 +123,23 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
     ...(configurationError ? { configurationError } : {}),
     results,
   };
+}
+
+async function filterPreferenceEnabledDevices(
+  devices: RegisteredDevice[],
+  notificationPreferenceStore: Pick<NotificationPreferenceStore, 'isNotificationEnabled'>,
+  preferenceCategory: NotificationPreferenceCategory,
+): Promise<RegisteredDevice[]> {
+  const devicePreferencePairs = await Promise.all(
+    devices.map(async (device) => ({
+      device,
+      isEnabled: await notificationPreferenceStore.isNotificationEnabled(device, preferenceCategory),
+    })),
+  );
+
+  return devicePreferencePairs
+    .filter(({ isEnabled }) => isEnabled)
+    .map(({ device }) => device);
 }
 
 export function testPushMessage(summary: PushSendSummary): string {

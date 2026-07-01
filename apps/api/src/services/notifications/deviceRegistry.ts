@@ -4,6 +4,11 @@ import type {
   RegisterDeviceRequest,
   RegisteredDevice,
 } from '../../contracts.js';
+import {
+  createInMemoryPushDeviceRepository,
+  createPostgresPushDeviceRepository,
+  type PushDeviceRepository,
+} from '../../repositories/pushDeviceRepository.js';
 
 export type DeviceRegistrationResult = {
   device: RegisteredDevice;
@@ -12,55 +17,62 @@ export type DeviceRegistrationResult = {
 };
 
 export type DeviceRegistry = {
-  count: () => number;
-  getDevice: (deviceId: string) => RegisteredDevice | undefined;
-  listDevices: () => RegisteredDevice[];
-  registerDevice: (registration: RegisterDeviceRequest) => DeviceRegistrationResult;
+  count: () => Promise<number>;
+  getDevice: (deviceId: string) => Promise<RegisteredDevice | undefined>;
+  listDevices: () => Promise<RegisteredDevice[]>;
+  registerDevice: (registration: RegisterDeviceRequest) => Promise<DeviceRegistrationResult>;
 };
 
-export function createInMemoryDeviceRegistry(): DeviceRegistry {
-  const registeredDevicesById = new Map<string, RegisteredDevice>();
-  const registeredDeviceIdsByLookupKey = new Map<string, string>();
-
+export function createDeviceRegistry(repository: PushDeviceRepository): DeviceRegistry {
   return {
     count() {
-      return registeredDevicesById.size;
+      return repository.countDevices();
     },
     getDevice(deviceId) {
-      return registeredDevicesById.get(deviceId);
+      return repository.findDeviceById(deviceId);
     },
     listDevices() {
-      return Array.from(registeredDevicesById.values());
+      return repository.listDevices();
     },
-    registerDevice(registration) {
+    async registerDevice(registration) {
       const lookupKey = createDeviceLookupKey(registration);
-      const existingDeviceId = registeredDeviceIdsByLookupKey.get(lookupKey);
+      const existingDevice = await repository.findDeviceByLookupKey(lookupKey);
       const now = new Date().toISOString();
       const device: RegisteredDevice = {
-        ...(existingDeviceId ? registeredDevicesById.get(existingDeviceId) : undefined),
-        id: existingDeviceId ?? createDeviceId(registration),
+        ...existingDevice,
+        id: existingDevice?.id ?? createDeviceId(registration),
         token: registration.token,
         platform: registration.platform,
         provider: registration.provider,
         ...(registration.environment ? { environment: registration.environment } : {}),
         ...(registration.appVersion ? { appVersion: registration.appVersion } : {}),
         ...(registration.deviceName ? { deviceName: registration.deviceName } : {}),
-        registeredAt: existingDeviceId
-          ? (registeredDevicesById.get(existingDeviceId)?.registeredAt ?? now)
-          : now,
+        registeredAt: existingDevice?.registeredAt ?? now,
         lastSeenAt: now,
       };
-
-      registeredDevicesById.set(device.id, device);
-      registeredDeviceIdsByLookupKey.set(lookupKey, device.id);
+      const savedDevice = await repository.saveDevice({
+        ...device,
+        lookupKey,
+        tokenHash: createDeviceTokenHash(registration.token),
+      });
 
       return {
-        device,
-        registeredDeviceCount: registeredDevicesById.size,
-        statusCode: existingDeviceId ? 200 : 201,
+        device: savedDevice,
+        registeredDeviceCount: await repository.countDevices(),
+        statusCode: existingDevice ? 200 : 201,
       };
     },
   };
+}
+
+export function createInMemoryDeviceRegistry(
+  repository: PushDeviceRepository = createInMemoryPushDeviceRepository(),
+): DeviceRegistry {
+  return createDeviceRegistry(repository);
+}
+
+export function createPostgresDeviceRegistry(): DeviceRegistry {
+  return createDeviceRegistry(createPostgresPushDeviceRepository());
 }
 
 export function createDeviceLookupKey(
@@ -78,6 +90,10 @@ export function createDeviceId(
   const prefix = registration.provider === 'apns' ? `apns-${environment}` : 'expo';
 
   return `${prefix}-${hashToken(registration.token).slice(0, 16)}`;
+}
+
+export function createDeviceTokenHash(token: string): string {
+  return hashToken(token);
 }
 
 export function deviceResponse(device: RegisteredDevice): Omit<RegisteredDevice, 'token'> {

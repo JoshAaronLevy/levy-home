@@ -26,6 +26,10 @@ export function getDatabaseClient(): DatabaseQuery {
   return databaseClient;
 }
 
+export function isDatabaseConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
 export function resetDatabaseClientForTests(): void {
   databaseClient = undefined;
 }

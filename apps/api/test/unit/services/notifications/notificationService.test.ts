@@ -16,13 +16,13 @@ test('notification service honors per-device garage preferences for event pushes
     pushSender,
   });
 
-  deviceRegistry.registerDevice({
+  await deviceRegistry.registerDevice({
     token: 'sample-apns-token',
     platform: 'ios',
     provider: 'apns',
     environment: 'sandbox',
   });
-  notificationPreferenceStore.updatePreferences({
+  await notificationPreferenceStore.updatePreferences({
     locator: {
       token: 'sample-apns-token',
       provider: 'apns',

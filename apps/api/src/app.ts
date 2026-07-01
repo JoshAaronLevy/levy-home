@@ -9,7 +9,7 @@ import { createAPNsPushSender, type PushSender } from './integrations/apple/apns
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
 import type { KrogerProductSearchResponse } from './contracts.js';
-import { DatabaseConfigurationError } from './db/client.js';
+import { DatabaseConfigurationError, isDatabaseConfigured } from './db/client.js';
 import { createHomeAssistantFacade } from './integrations/homeAssistant/facade.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './http/errors.js';
@@ -24,8 +24,16 @@ import {
 } from './repositories/todoLocationRepository.js';
 import { createPostgresUserStore, type UserStore } from './repositories/userRepository.js';
 import { createActivityEventService } from './services/activity/activityEventService.js';
-import { createInMemoryDeviceRegistry } from './services/notifications/deviceRegistry.js';
-import { createInMemoryNotificationPreferenceStore } from './services/notifications/notificationPreferenceStore.js';
+import {
+  createInMemoryDeviceRegistry,
+  createPostgresDeviceRegistry,
+  type DeviceRegistry,
+} from './services/notifications/deviceRegistry.js';
+import {
+  createInMemoryNotificationPreferenceStore,
+  createPostgresNotificationPreferenceStore,
+  type NotificationPreferenceStore,
+} from './services/notifications/notificationPreferenceStore.js';
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
 import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
@@ -34,6 +42,8 @@ export type CreateAppOptions = {
   config?: AppConfig;
   activityStore?: RecentActivityStore;
   pushSender?: PushSender;
+  deviceRegistry?: DeviceRegistry;
+  notificationPreferenceStore?: NotificationPreferenceStore;
   shoppingListStore?: ShoppingListStore;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   userStore?: UserStore;
@@ -46,8 +56,15 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const config = options.config ?? readConfig();
   const app = express();
   const activityStore = options.activityStore ?? createRecentActivityStore(500);
-  const deviceRegistry = createInMemoryDeviceRegistry();
-  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const usePersistentNotificationStores = isDatabaseConfigured();
+  const deviceRegistry =
+    options.deviceRegistry ??
+    (usePersistentNotificationStores ? createPostgresDeviceRegistry() : createInMemoryDeviceRegistry());
+  const notificationPreferenceStore =
+    options.notificationPreferenceStore ??
+    (usePersistentNotificationStores
+      ? createPostgresNotificationPreferenceStore(deviceRegistry)
+      : createInMemoryNotificationPreferenceStore(deviceRegistry));
   const homeAssistant = createHomeAssistantFacade(config);
   const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);

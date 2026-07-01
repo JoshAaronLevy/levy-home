@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import { asyncHandler } from '../http/asyncHandler.js';
 import type { NotificationPreferenceStore } from '../services/notifications/notificationPreferenceStore.js';
 import {
   validateNotificationPreferencesBody,
@@ -15,25 +16,25 @@ export function createNotificationPreferenceRoutes(
 ): Router {
   const router = Router();
 
-  router.get('/api/notification-preferences', (req, res) => {
+  router.get('/api/notification-preferences', asyncHandler(async (req, res) => {
     const locator = validateNotificationPreferencesQuery(req.query);
 
     res.json({
       ok: true,
-      preferences: deps.notificationPreferenceStore.getPreferences(locator),
+      preferences: await deps.notificationPreferenceStore.getPreferences(locator),
       syncedAt: new Date().toISOString(),
     });
-  });
+  }));
 
-  router.put('/api/notification-preferences', (req, res) => {
+  router.put('/api/notification-preferences', asyncHandler(async (req, res) => {
     const update = validateNotificationPreferencesBody(req.body);
 
     res.json({
       ok: true,
-      preferences: deps.notificationPreferenceStore.updatePreferences(update),
+      preferences: await deps.notificationPreferenceStore.updatePreferences(update),
       syncedAt: new Date().toISOString(),
     });
-  });
+  }));
 
   return router;
 }
