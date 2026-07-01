@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { CreateToDoLocationRequest } from '../../../src/contracts.js';
-import type { DatabaseQuery } from '../../../src/dbClient.js';
-import { createToDoLocation, fetchToDoLocations } from '../../../src/todoLocationStore.js';
+import type { DatabaseQuery } from '../../../src/db/client.js';
+import { createToDoLocation, fetchToDoLocations } from '../../../src/repositories/todoLocationRepository.js';
 
 test('fetchToDoLocations maps todo_locations rows into API contracts', async () => {
   const database: DatabaseQuery = async <Row extends Record<string, unknown> = Record<string, unknown>>(

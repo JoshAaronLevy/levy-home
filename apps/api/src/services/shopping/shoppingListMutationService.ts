@@ -9,8 +9,8 @@ import type {
   UpdateShoppingListItemRequest,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
+import type { ShoppingListStore } from '../../repositories/shoppingListRepository.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
-import type { ShoppingListStore } from '../../shoppingListStore.js';
 
 export type ShoppingListMutationService = {
   createItem: (request: CreateShoppingListItemRequest, mutationId: string) => Promise<ShoppingListMutationResponse>;

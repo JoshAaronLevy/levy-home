@@ -7,8 +7,8 @@ import type {
   ShoppingStore,
 } from '../../../../src/contracts.js';
 import { HTTPError } from '../../../../src/http/errors.js';
+import type { ShoppingListStore } from '../../../../src/repositories/shoppingListRepository.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../../../src/shoppingListRealtime.js';
-import type { ShoppingListStore } from '../../../../src/shoppingListStore.js';
 import { createShoppingListMutationService } from '../../../../src/services/shopping/shoppingListMutationService.js';
 
 test('shopping mutation service creates items and broadcasts successful mutations', async () => {

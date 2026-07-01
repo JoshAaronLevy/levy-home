@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import type { UsersResponse } from '../contracts.js';
 import { asyncHandler } from '../http/asyncHandler.js';
-import type { UserStore } from '../userStore.js';
+import type { UserStore } from '../repositories/userRepository.js';
 
 export type UserRouteDependencies = {
   userStore: UserStore;

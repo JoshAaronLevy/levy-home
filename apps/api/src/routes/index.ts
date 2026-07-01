@@ -11,9 +11,9 @@ import type { DeviceRegistry } from '../services/notifications/deviceRegistry.js
 import type { NotificationPreferenceStore } from '../services/notifications/notificationPreferenceStore.js';
 import type { NotificationService } from '../services/notifications/notificationService.js';
 import type { ShoppingListMutationService } from '../services/shopping/shoppingListMutationService.js';
-import type { ShoppingListStore } from '../shoppingListStore.js';
-import type { ToDoLocationStore } from '../todoLocationStore.js';
-import type { UserStore } from '../userStore.js';
+import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
+import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
+import type { UserStore } from '../repositories/userRepository.js';
 import { createActivityRoutes } from './activityRoutes.js';
 import { createDebugRoutes } from './debugRoutes.js';
 import { createDeviceRoutes } from './deviceRoutes.js';

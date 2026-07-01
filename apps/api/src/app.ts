@@ -9,7 +9,7 @@ import { createAPNsPushSender, type PushSender } from './integrations/apple/apns
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
 import type { KrogerProductSearchResponse } from './contracts.js';
-import { DatabaseConfigurationError } from './dbClient.js';
+import { DatabaseConfigurationError } from './db/client.js';
 import { createHomeAssistantFacade } from './integrations/homeAssistant/facade.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './http/errors.js';
@@ -17,18 +17,18 @@ import { noStoreCacheControl } from './http/middleware/cacheControl.js';
 import { lookupAndWriteKrogerProductResponse, type KrogerProductDiagnosticRunner } from './integrations/kroger/productDiagnostics.js';
 import { searchKrogerProducts } from './integrations/kroger/productClient.js';
 import { registerRoutes } from './routes/index.js';
+import { createPostgresShoppingListStore, type ShoppingListStore } from './repositories/shoppingListRepository.js';
+import {
+  createPostgresToDoLocationStore,
+  type ToDoLocationStore,
+} from './repositories/todoLocationRepository.js';
+import { createPostgresUserStore, type UserStore } from './repositories/userRepository.js';
 import { createActivityEventService } from './services/activity/activityEventService.js';
 import { createInMemoryDeviceRegistry } from './services/notifications/deviceRegistry.js';
 import { createInMemoryNotificationPreferenceStore } from './services/notifications/notificationPreferenceStore.js';
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
-import { createPostgresShoppingListStore, type ShoppingListStore } from './shoppingListStore.js';
 import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
-import {
-  createPostgresToDoLocationStore,
-  type ToDoLocationStore,
-} from './todoLocationStore.js';
-import { createPostgresUserStore, type UserStore } from './userStore.js';
 
 export type CreateAppOptions = {
   config?: AppConfig;

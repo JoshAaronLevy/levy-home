@@ -10,7 +10,7 @@ import {
   mutationIdForRequest,
   readShoppingListItemId,
 } from '../services/shopping/shoppingListMutationService.js';
-import type { ShoppingListStore } from '../shoppingListStore.js';
+import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
 import {
   validateCreateShoppingListItemBody,
   validateShoppingListItemLookupQuery,
