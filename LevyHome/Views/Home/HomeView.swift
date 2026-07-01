@@ -21,6 +21,7 @@ private struct HomeContentView: View {
     @StateObject private var quickActionsViewModel: QuickActionsViewModel
     @State private var searchText = ""
     @State private var isShowingConfirmationDialog = false
+    @State private var isWeatherExpanded = false
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     init(
@@ -38,10 +39,25 @@ private struct HomeContentView: View {
             VStack(alignment: .leading, spacing: AppSpacing.large) {
                 HomeHeaderView()
 
-                HomeWeatherSummaryCard(
-                    data: weatherViewModel.displayData,
-                    isLoading: weatherViewModel.isLoading || weatherViewModel.isRefreshing
-                )
+                if isWeatherExpanded {
+                    HomeWeatherExpandedCard(
+                        data: weatherViewModel.expandedData,
+                        isLoading: weatherViewModel.isLoading || weatherViewModel.isRefreshing
+                    ) {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
+                            isWeatherExpanded = false
+                        }
+                    }
+                } else {
+                    HomeWeatherSummaryCard(
+                        data: weatherViewModel.displayData,
+                        isLoading: weatherViewModel.isLoading || weatherViewModel.isRefreshing
+                    ) {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
+                            isWeatherExpanded = true
+                        }
+                    }
+                }
 
                 HomeSearchRow(searchText: $searchText)
 
@@ -399,9 +415,10 @@ private struct HomeAvatarView: View {
 private struct HomeWeatherSummaryCard: View {
     let data: HomeWeatherSummaryData
     let isLoading: Bool
+    let expandAction: () -> Void
 
     var body: some View {
-        HStack(spacing: AppSpacing.large) {
+        HStack(spacing: AppSpacing.medium) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(data.dateText)
                     .font(.system(size: 18, weight: .medium))
@@ -454,6 +471,12 @@ private struct HomeWeatherSummaryCard: View {
                     .foregroundStyle(HomePalette.gold)
                     .accessibilityHidden(true)
             }
+
+            WeatherPanelToggleButton(
+                systemName: "chevron.down",
+                accessibilityLabel: "Expand weather",
+                action: expandAction
+            )
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, AppSpacing.large)
@@ -464,31 +487,370 @@ private struct HomeWeatherSummaryCard: View {
                 .stroke(HomePalette.hairline, lineWidth: 1)
         }
         .shadow(color: HomePalette.shadow.opacity(0.45), radius: 10, y: 5)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(data.accessibilityLabel)
+    }
+}
+
+private struct HomeWeatherExpandedCard: View {
+    let data: HomeWeatherExpandedData
+    let isLoading: Bool
+    let collapseAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.large) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(data.summary.dateText)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(HomePalette.ink)
+                        .lineLimit(1)
+
+                    Text(data.summary.conditionText)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: AppSpacing.small)
+
+                if isLoading && data.summary.isPlaceholder {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 34)
+                } else {
+                    Image(systemName: data.summary.systemImage)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(HomePalette.gold, Color(red: 0.72, green: 0.82, blue: 0.92))
+                        .font(.system(size: 30, weight: .semibold))
+                        .frame(width: 34)
+                }
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(data.summary.currentTemperatureText)
+                        .font(.system(size: 31, weight: .semibold))
+                        .foregroundStyle(HomePalette.ink)
+                        .lineLimit(1)
+
+                    Text(data.summary.highLowTemperatureText)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                        .lineLimit(1)
+                }
+
+                WeatherPanelToggleButton(
+                    systemName: "chevron.up",
+                    accessibilityLabel: "Collapse weather",
+                    action: collapseAction
+                )
+            }
+
+            HomeWeatherTemperatureChart(data: data.chart)
+
+            Divider()
+                .overlay(HomePalette.hairline)
+
+            HomeWeatherPrecipitationRow(summary: data.precipitationSummary)
+
+            Divider()
+                .overlay(HomePalette.hairline)
+
+            HomeWeatherTomorrowSection(data: data.tomorrow)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppSpacing.large)
+        .background(HomePalette.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(HomePalette.hairline, lineWidth: 1)
+        }
+        .shadow(color: HomePalette.shadow.opacity(0.45), radius: 12, y: 6)
+    }
+}
+
+private struct WeatherPanelToggleButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(HomePalette.secondaryInk)
+                .frame(width: 32, height: 32)
+                .background(HomePalette.connector, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(HomePalette.hairline, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct HomeWeatherTemperatureChart: View {
+    let data: HomeWeatherChartData
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            HStack {
+                Label("Temperature", systemImage: "chart.xyaxis.line")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(HomePalette.ink)
+
+                Spacer()
+            }
+
+            HStack(alignment: .top, spacing: AppSpacing.small) {
+                VStack(alignment: .trailing) {
+                    ForEach(Array(data.yAxisValues.enumerated()), id: \.offset) { _, value in
+                        Text("\(value)°")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(HomePalette.secondaryInk)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
+                .frame(width: 34, height: 136)
+
+                VStack(spacing: AppSpacing.small) {
+                    HomeWeatherChartPlot(data: data)
+                        .frame(height: 136)
+
+                    HomeWeatherChartXAxis(data: data)
+                        .frame(height: 16)
+                }
+            }
+        }
+    }
+}
+
+private struct HomeWeatherChartPlot: View {
+    let data: HomeWeatherChartData
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(data.yAxisValues.indices, id: \.self) { index in
+                    Rectangle()
+                        .fill(HomePalette.hairline)
+                        .frame(height: 1)
+                        .position(
+                            x: proxy.size.width / 2,
+                            y: yPosition(forIndex: index, count: data.yAxisValues.count, height: proxy.size.height)
+                        )
+                }
+
+                if data.points.count > 1 {
+                    Path { path in
+                        guard let firstPoint = data.points.first else {
+                            return
+                        }
+
+                        path.move(to: point(for: firstPoint, size: proxy.size))
+
+                        for chartPoint in data.points.dropFirst() {
+                            path.addLine(to: point(for: chartPoint, size: proxy.size))
+                        }
+                    }
+                    .stroke(HomePalette.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                }
+
+                ForEach(data.points) { chartPoint in
+                    Circle()
+                        .fill(HomePalette.gold)
+                        .frame(width: 7, height: 7)
+                        .overlay {
+                            Circle()
+                                .stroke(HomePalette.surface, lineWidth: 2)
+                        }
+                        .position(point(for: chartPoint, size: proxy.size))
+                }
+
+                if data.points.isEmpty {
+                    Text("Forecast unavailable")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                }
+            }
+        }
+    }
+
+    private func yPosition(forIndex index: Int, count: Int, height: CGFloat) -> CGFloat {
+        guard count > 1 else {
+            return height / 2
+        }
+
+        return CGFloat(index) / CGFloat(count - 1) * height
+    }
+
+    private func point(for chartPoint: HomeWeatherChartPoint, size: CGSize) -> CGPoint {
+        let span = max(data.maximumTemperature - data.minimumTemperature, 1)
+        let normalizedY = (data.maximumTemperature - chartPoint.temperature) / span
+
+        return CGPoint(
+            x: chartPoint.position * size.width,
+            y: min(max(normalizedY, 0), 1) * size.height
+        )
+    }
+}
+
+private struct HomeWeatherChartXAxis: View {
+    let data: HomeWeatherChartData
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                ForEach(data.xAxisLabels) { label in
+                    Text(label.label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                        .lineLimit(1)
+                        .position(
+                            x: min(max(label.position * proxy.size.width, 22), proxy.size.width - 22),
+                            y: 8
+                        )
+                }
+            }
+        }
+    }
+}
+
+private struct HomeWeatherPrecipitationRow: View {
+    let summary: String
+
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            Image(systemName: "cloud.rain.fill")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(HomePalette.blue, Color(red: 0.72, green: 0.82, blue: 0.92))
+                .font(.system(size: 22, weight: .semibold))
+                .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Precipitation")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(HomePalette.secondaryInk)
+
+                Text(summary)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(HomePalette.ink)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.86)
+            }
+        }
+    }
+}
+
+private struct HomeWeatherTomorrowSection: View {
+    let data: HomeWeatherTomorrowSummaryData
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            Label("Tomorrow", systemImage: "calendar")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(HomePalette.ink)
+
+            HStack(spacing: 0) {
+                HomeWeatherMetricView(title: "High", value: data.highText)
+                HomeWeatherMetricDivider()
+                HomeWeatherMetricView(title: "Low", value: data.lowText)
+                HomeWeatherMetricDivider()
+                HomeWeatherMetricView(title: "Avg", value: data.averageText)
+                HomeWeatherMetricDivider()
+                HomeWeatherMetricView(title: "Rain", value: data.precipitationChanceText)
+            }
+        }
+    }
+}
+
+private struct HomeWeatherMetricView: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(HomePalette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(HomePalette.secondaryInk)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct HomeWeatherMetricDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(HomePalette.hairline)
+            .frame(width: 1, height: 34)
     }
 }
 
 private struct HomeWeatherSummaryCard_Previews: PreviewProvider {
     static var previews: some View {
-        HomeWeatherSummaryCard(
-            data: HomeWeatherSummaryData(
-                dateText: "Wed. Jul 1",
-                attributionURL: URL(string: "https://weatherkit.apple.com/legal-attribution.html"),
-                systemImage: "cloud.sun.fill",
-                currentTemperatureText: "74°",
-                highLowTemperatureText: "82°/58°",
-                conditionText: "Partly Cloudy",
-                isPlaceholder: false,
-                isStale: false
-            ),
-            isLoading: false
-        )
-            .padding()
-            .background(HomePalette.background)
+        VStack(spacing: AppSpacing.large) {
+            HomeWeatherSummaryCard(
+                data: HomeWeatherSummaryData(
+                    dateText: "Wed. Jul 1",
+                    attributionURL: URL(string: "https://weatherkit.apple.com/legal-attribution.html"),
+                    systemImage: "cloud.sun.fill",
+                    currentTemperatureText: "74°",
+                    highLowTemperatureText: "82°/58°",
+                    conditionText: "Partly Cloudy",
+                    isPlaceholder: false,
+                    isStale: false
+                ),
+                isLoading: false,
+                expandAction: {}
+            )
+
+            HomeWeatherExpandedCard(
+                data: HomeWeatherExpandedData(
+                    summary: HomeWeatherSummaryData(
+                        dateText: "Wed. Jul 1",
+                        attributionURL: URL(string: "https://weatherkit.apple.com/legal-attribution.html"),
+                        systemImage: "cloud.sun.fill",
+                        currentTemperatureText: "74°",
+                        highLowTemperatureText: "82°/58°",
+                        conditionText: "Partly Cloudy",
+                        isPlaceholder: false,
+                        isStale: false
+                    ),
+                    chart: HomeWeatherChartData(
+                        points: [
+                            HomeWeatherChartPoint(id: 1, position: 0.12, temperature: 66),
+                            HomeWeatherChartPoint(id: 2, position: 0.28, temperature: 73),
+                            HomeWeatherChartPoint(id: 3, position: 0.42, temperature: 80),
+                            HomeWeatherChartPoint(id: 4, position: 0.62, temperature: 84),
+                            HomeWeatherChartPoint(id: 5, position: 0.82, temperature: 76)
+                        ],
+                        xAxisLabels: HomeWeatherChartData.standardXAxisLabels,
+                        yAxisValues: [89, 82, 75, 68, 61],
+                        minimumTemperature: 61,
+                        maximumTemperature: 89
+                    ),
+                    precipitationSummary: "Chance of light rain in the afternoon.",
+                    tomorrow: HomeWeatherTomorrowSummaryData(
+                        highText: "79°",
+                        lowText: "61°",
+                        averageText: "73°",
+                        precipitationChanceText: "35%"
+                    )
+                ),
+                isLoading: false,
+                collapseAction: {}
+            )
+        }
+        .padding()
+        .background(HomePalette.background)
     }
 }
-
 struct GarageCompletionWatchPolicy: Equatable {
     let expectedState: GarageStatus.State
     let inProgressState: GarageStatus.State

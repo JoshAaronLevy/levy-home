@@ -79,6 +79,23 @@ final class HomeWeatherService: HomeWeatherServicing {
         let weather = try await weatherService.weather(for: location)
         let attribution = try? await weatherService.attribution
         let dailyWeather = weather.dailyForecast.forecast.first
+        let hourlyForecast = weather.hourlyForecast.forecast.map { hour in
+            HomeWeatherForecastPoint(
+                date: hour.date,
+                temperature: hour.temperature,
+                conditionDescription: hour.condition.description,
+                precipitationChance: hour.precipitationChance,
+                precipitationDescription: hour.precipitation.description
+            )
+        }
+        let dailyForecast = weather.dailyForecast.forecast.map { day in
+            HomeWeatherDailyForecast(
+                date: day.date,
+                highTemperature: day.highTemperature,
+                lowTemperature: day.lowTemperature,
+                precipitationChance: day.precipitationChance
+            )
+        }
 
         return HomeWeatherSnapshot(
             currentTemperature: weather.currentWeather.temperature,
@@ -87,7 +104,9 @@ final class HomeWeatherService: HomeWeatherServicing {
             conditionDescription: weather.currentWeather.condition.description,
             symbolName: weather.currentWeather.symbolName,
             attributionURL: attribution?.legalPageURL,
-            fetchedAt: now()
+            fetchedAt: now(),
+            hourlyForecast: hourlyForecast,
+            dailyForecast: dailyForecast
         )
     }
 }
