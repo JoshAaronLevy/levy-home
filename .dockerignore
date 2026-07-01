@@ -13,6 +13,7 @@ tmp
 apps/api/dist
 apps/api/.env
 apps/api/.env.*
+apps/api/*.p8
 
 LevyHome.xcodeproj
 LevyHome
