@@ -6,6 +6,7 @@ struct HomeView: View {
     var body: some View {
         HomeContentView(
             homeViewModel: HomeOverviewViewModel(service: appEnvironment.homeStatusService),
+            weatherViewModel: HomeWeatherViewModel(service: appEnvironment.homeWeatherService),
             quickActionsViewModel: QuickActionsViewModel(
                 service: appEnvironment.quickActionService,
                 appLogStore: appEnvironment.appLogStore
@@ -16,6 +17,7 @@ struct HomeView: View {
 
 private struct HomeContentView: View {
     @StateObject private var homeViewModel: HomeOverviewViewModel
+    @StateObject private var weatherViewModel: HomeWeatherViewModel
     @StateObject private var quickActionsViewModel: QuickActionsViewModel
     @State private var searchText = ""
     @State private var isShowingConfirmationDialog = false
@@ -23,9 +25,11 @@ private struct HomeContentView: View {
 
     init(
         homeViewModel: HomeOverviewViewModel,
+        weatherViewModel: HomeWeatherViewModel,
         quickActionsViewModel: QuickActionsViewModel
     ) {
         _homeViewModel = StateObject(wrappedValue: homeViewModel)
+        _weatherViewModel = StateObject(wrappedValue: weatherViewModel)
         _quickActionsViewModel = StateObject(wrappedValue: quickActionsViewModel)
     }
 
@@ -34,7 +38,10 @@ private struct HomeContentView: View {
             VStack(alignment: .leading, spacing: AppSpacing.large) {
                 HomeHeaderView()
 
-                HomeWeatherSummaryCard()
+                HomeWeatherSummaryCard(
+                    data: weatherViewModel.displayData,
+                    isLoading: weatherViewModel.isLoading || weatherViewModel.isRefreshing
+                )
 
                 HomeSearchRow(searchText: $searchText)
 
@@ -76,13 +83,15 @@ private struct HomeContentView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             async let home: Void = homeViewModel.loadIfNeeded()
+            async let weather: Void = weatherViewModel.loadIfNeeded()
             async let actions: Void = quickActionsViewModel.loadIfNeeded()
-            _ = await (home, actions)
+            _ = await (home, weather, actions)
         }
         .refreshable {
             async let home: Void = homeViewModel.refresh()
+            async let weather: Void = weatherViewModel.refresh()
             async let actions: Void = quickActionsViewModel.refresh()
-            _ = await (home, actions)
+            _ = await (home, weather, actions)
         }
         .confirmationDialog(
             quickActionsViewModel.pendingConfirmationAction?.title ?? "Confirm Action",
@@ -388,38 +397,63 @@ private struct HomeAvatarView: View {
 }
 
 private struct HomeWeatherSummaryCard: View {
+    let data: HomeWeatherSummaryData
+    let isLoading: Bool
+
     var body: some View {
         HStack(spacing: AppSpacing.large) {
-            Text(Self.dateFormatter.string(from: Date()))
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(HomePalette.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(data.dateText)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(HomePalette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                if let attributionURL = data.attributionURL {
+                    Link("Weather", destination: attributionURL)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                        .lineLimit(1)
+                } else {
+                    Text("Weather")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer(minLength: AppSpacing.small)
 
-            Image(systemName: "cloud.sun.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(HomePalette.gold, Color(red: 0.72, green: 0.82, blue: 0.92))
-                .font(.system(size: 28, weight: .semibold))
-                .frame(width: 34)
+            if isLoading && data.isPlaceholder {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 34)
+            } else {
+                Image(systemName: data.systemImage)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(HomePalette.gold, Color(red: 0.72, green: 0.82, blue: 0.92))
+                    .font(.system(size: 28, weight: .semibold))
+                    .frame(width: 34)
+            }
 
-            Text("74°")
+            Text(data.currentTemperatureText)
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(HomePalette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.84)
 
-            Text("82°/58°")
+            Text(data.highLowTemperatureText)
                 .font(.system(size: 21, weight: .regular))
                 .foregroundStyle(HomePalette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.84)
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(HomePalette.secondaryInk)
-                .accessibilityHidden(true)
+            if data.isStale {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(HomePalette.gold)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, AppSpacing.large)
@@ -431,20 +465,25 @@ private struct HomeWeatherSummaryCard: View {
         }
         .shadow(color: HomePalette.shadow.opacity(0.45), radius: 10, y: 5)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Weather, \(Self.dateFormatter.string(from: Date())), partly cloudy, current 74 degrees, high 82, low 58.")
+        .accessibilityLabel(data.accessibilityLabel)
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "EEE. MMM d"
-        return formatter
-    }()
 }
 
 private struct HomeWeatherSummaryCard_Previews: PreviewProvider {
     static var previews: some View {
-        HomeWeatherSummaryCard()
+        HomeWeatherSummaryCard(
+            data: HomeWeatherSummaryData(
+                dateText: "Wed. Jul 1",
+                attributionURL: URL(string: "https://weatherkit.apple.com/legal-attribution.html"),
+                systemImage: "cloud.sun.fill",
+                currentTemperatureText: "74°",
+                highLowTemperatureText: "82°/58°",
+                conditionText: "Partly Cloudy",
+                isPlaceholder: false,
+                isStale: false
+            ),
+            isLoading: false
+        )
             .padding()
             .background(HomePalette.background)
     }
@@ -1327,6 +1366,17 @@ private enum HomePalette {
                     recentImportantEvent: nil,
                     generatedAt: "2026-06-12T14:00:02Z",
                     isPartial: false
+                )
+            },
+            weatherViewModel: HomeWeatherViewModel {
+                HomeWeatherSnapshot(
+                    currentTemperature: Measurement(value: 74, unit: UnitTemperature.fahrenheit),
+                    highTemperature: Measurement(value: 82, unit: UnitTemperature.fahrenheit),
+                    lowTemperature: Measurement(value: 58, unit: UnitTemperature.fahrenheit),
+                    conditionDescription: "Partly Cloudy",
+                    symbolName: "cloud.sun.fill",
+                    attributionURL: URL(string: "https://weatherkit.apple.com/legal-attribution.html"),
+                    fetchedAt: Date()
                 )
             },
             quickActionsViewModel: QuickActionsViewModel(

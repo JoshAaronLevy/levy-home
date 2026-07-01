@@ -5,6 +5,7 @@ struct AppEnvironment {
     let appLogStore: AppLogStore
     let apiClient: APIClient
     let homeStatusService: HomeStatusServicing
+    let homeWeatherService: HomeWeatherServicing
     let quickActionService: QuickActionServicing
     let notificationPreferencesService: NotificationPreferencesService
     let themePreferenceService: ThemePreferenceService
@@ -15,6 +16,7 @@ struct AppEnvironment {
         appLogStore: AppLogStore? = nil,
         apiClient: APIClient? = nil,
         homeStatusService: HomeStatusServicing? = nil,
+        homeWeatherService: HomeWeatherServicing? = nil,
         quickActionService: QuickActionServicing? = nil,
         notificationPreferencesService: NotificationPreferencesService? = nil,
         themePreferenceService: ThemePreferenceService? = nil,
@@ -26,6 +28,7 @@ struct AppEnvironment {
         self.appLogStore = resolvedLogStore
         self.apiClient = resolvedAPIClient
         self.homeStatusService = homeStatusService ?? HomeStatusService(apiClient: resolvedAPIClient)
+        self.homeWeatherService = homeWeatherService ?? HomeWeatherService()
         self.quickActionService = quickActionService ?? QuickActionService(
             apiClient: resolvedAPIClient,
             appLogStore: resolvedLogStore

@@ -57,6 +57,10 @@
 		B10000000000000000000001 /* HomeStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* HomeStatusService.swift */; };
 		B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HomeOverviewViewModel.swift */; };
 		B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* HomeOverviewViewModelTests.swift */; };
+		B30000000000000000000001 /* HomeWeatherSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000011 /* HomeWeatherSnapshot.swift */; };
+		B30000000000000000000002 /* HomeWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000012 /* HomeWeatherService.swift */; };
+		B30000000000000000000003 /* HomeWeatherViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000013 /* HomeWeatherViewModel.swift */; };
+		B30000000000000000000004 /* HomeWeatherViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000014 /* HomeWeatherViewModelTests.swift */; };
 		B20000000000000000000001 /* QuickActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* QuickActionService.swift */; };
 		B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* QuickActionsViewModel.swift */; };
 		B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* QuickActionsViewModelTests.swift */; };
@@ -141,6 +145,10 @@
 		B10000000000000000000011 /* HomeStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatusService.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HomeOverviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* HomeOverviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModelTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000011 /* HomeWeatherSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherSnapshot.swift; sourceTree = "<group>"; };
+		B30000000000000000000012 /* HomeWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherService.swift; sourceTree = "<group>"; };
+		B30000000000000000000013 /* HomeWeatherViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherViewModel.swift; sourceTree = "<group>"; };
+		B30000000000000000000014 /* HomeWeatherViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherViewModelTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000011 /* QuickActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionService.swift; sourceTree = "<group>"; };
 		B20000000000000000000012 /* QuickActionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModel.swift; sourceTree = "<group>"; };
 		B20000000000000000000013 /* QuickActionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModelTests.swift; sourceTree = "<group>"; };
@@ -325,6 +333,7 @@
 				A40000000000000000000012 /* EventSeverity.swift */,
 				A40000000000000000000013 /* LevyHomeEvent.swift */,
 				A40000000000000000000014 /* HomeOverview.swift */,
+				B30000000000000000000011 /* HomeWeatherSnapshot.swift */,
 				A40000000000000000000015 /* GarageStatus.swift */,
 				A40000000000000000000016 /* LightSummary.swift */,
 				A40000000000000000000017 /* QuickAction.swift */,
@@ -345,6 +354,7 @@
 				A70000000000000000000012 /* APIClientTests.swift */,
 				A80000000000000000000015 /* ActivityViewModelTests.swift */,
 				B10000000000000000000013 /* HomeOverviewViewModelTests.swift */,
+				B30000000000000000000014 /* HomeWeatherViewModelTests.swift */,
 				B20000000000000000000013 /* QuickActionsViewModelTests.swift */,
 				B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */,
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
@@ -361,6 +371,7 @@
 				E70000000000000000000011 /* ShoppingListLiveService.swift */,
 				A80000000000000000000012 /* DateFormattingService.swift */,
 				B10000000000000000000011 /* HomeStatusService.swift */,
+				B30000000000000000000012 /* HomeWeatherService.swift */,
 				B20000000000000000000011 /* QuickActionService.swift */,
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 				D10000000000000000000012 /* ThemePreferenceService.swift */,
@@ -374,6 +385,7 @@
 			children = (
 				A80000000000000000000011 /* ActivityViewModel.swift */,
 				B10000000000000000000012 /* HomeOverviewViewModel.swift */,
+				B30000000000000000000013 /* HomeWeatherViewModel.swift */,
 				B20000000000000000000012 /* QuickActionsViewModel.swift */,
 				A90000000000000000000012 /* NotificationPreferencesViewModel.swift */,
 				D10000000000000000000013 /* ThemePreferenceViewModel.swift */,
@@ -544,6 +556,7 @@
 				A40000000000000000000002 /* EventSeverity.swift in Sources */,
 				A40000000000000000000003 /* LevyHomeEvent.swift in Sources */,
 				A40000000000000000000004 /* HomeOverview.swift in Sources */,
+				B30000000000000000000001 /* HomeWeatherSnapshot.swift in Sources */,
 				A40000000000000000000005 /* GarageStatus.swift in Sources */,
 				A40000000000000000000006 /* LightSummary.swift in Sources */,
 				A40000000000000000000007 /* QuickAction.swift in Sources */,
@@ -560,6 +573,8 @@
 				A80000000000000000000004 /* EventCardView.swift in Sources */,
 				B10000000000000000000001 /* HomeStatusService.swift in Sources */,
 				B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */,
+				B30000000000000000000002 /* HomeWeatherService.swift in Sources */,
+				B30000000000000000000003 /* HomeWeatherViewModel.swift in Sources */,
 				B20000000000000000000001 /* QuickActionService.swift in Sources */,
 				B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */,
 				A90000000000000000000001 /* NotificationPreferencesService.swift in Sources */,
@@ -584,6 +599,7 @@
 				A70000000000000000000002 /* APIClientTests.swift in Sources */,
 				A80000000000000000000005 /* ActivityViewModelTests.swift in Sources */,
 				B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */,
+				B30000000000000000000004 /* HomeWeatherViewModelTests.swift in Sources */,
 				B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */,
 				B20000000000000000000004 /* GarageCompletionWatchPolicyTests.swift in Sources */,
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
