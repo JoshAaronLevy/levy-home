@@ -17,7 +17,6 @@ struct HomeView: View {
 private struct HomeContentView: View {
     @StateObject private var homeViewModel: HomeOverviewViewModel
     @StateObject private var quickActionsViewModel: QuickActionsViewModel
-    @State private var selectedMode: HomeMode = .now
     @State private var searchText = ""
     @State private var isShowingConfirmationDialog = false
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
@@ -33,9 +32,9 @@ private struct HomeContentView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: AppSpacing.large) {
-                HomeHeaderView(statusData: homeViewModel.statusData)
+                HomeHeaderView()
 
-                HomeModeRailView(selectedMode: $selectedMode)
+                HomeWeatherSummaryCard()
 
                 HomeSearchRow(searchText: $searchText)
 
@@ -334,8 +333,6 @@ private struct HomeContentView: View {
 }
 
 private struct HomeHeaderView: View {
-    let statusData: HomeOverviewStatusData
-
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.medium) {
             HStack(alignment: .top) {
@@ -345,20 +342,6 @@ private struct HomeHeaderView: View {
                         .foregroundStyle(HomePalette.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-
-                    HStack(spacing: AppSpacing.small) {
-                        StatusBadgeView(
-                            label: statusData.label,
-                            systemImage: statusData.systemImage,
-                            tone: statusData.tone
-                        )
-
-                        Text("\(HomeDaypart.currentTitle) - 2 people tracked")
-                            .font(.caption)
-                            .foregroundStyle(HomePalette.secondaryInk)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
                 }
 
                 Spacer(minLength: AppSpacing.medium)
@@ -404,50 +387,66 @@ private struct HomeAvatarView: View {
     }
 }
 
-private struct HomeModeRailView: View {
-    @Binding var selectedMode: HomeMode
-
+private struct HomeWeatherSummaryCard: View {
     var body: some View {
-        HStack(spacing: AppSpacing.xSmall) {
-            ForEach(HomeMode.allCases) { mode in
-                Button {
-                    selectedMode = mode
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: mode.systemImage)
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(width: 18)
+        HStack(spacing: AppSpacing.large) {
+            Text(Self.dateFormatter.string(from: Date()))
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(HomePalette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
 
-                        Text(mode.title)
-                            .font(.system(size: 16, weight: .medium))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.68)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, AppSpacing.xSmall)
-                    .padding(.vertical, AppSpacing.medium)
-                    .contentShape(Capsule(style: .continuous))
-                    .foregroundStyle(selectedMode == mode ? HomePalette.blue : HomePalette.ink)
-                    .background {
-                        if selectedMode == mode {
-                            Capsule(style: .continuous)
-                                .fill(HomePalette.surface)
-                                .shadow(color: HomePalette.shadow, radius: 12, y: 7)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                .accessibilityAddTraits(selectedMode == mode ? .isSelected : [])
-            }
+            Spacer(minLength: AppSpacing.small)
+
+            Image(systemName: "cloud.sun.fill")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(HomePalette.gold, Color(red: 0.72, green: 0.82, blue: 0.92))
+                .font(.system(size: 28, weight: .semibold))
+                .frame(width: 34)
+
+            Text("74°")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(HomePalette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+
+            Text("82°/58°")
+                .font(.system(size: 21, weight: .regular))
+                .foregroundStyle(HomePalette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(HomePalette.secondaryInk)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
-        .padding(AppSpacing.xSmall)
-        .background(HomePalette.railBackground, in: Capsule(style: .continuous))
+        .padding(.horizontal, AppSpacing.large)
+        .frame(height: 58)
+        .background(HomePalette.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
-            Capsule(style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(HomePalette.hairline, lineWidth: 1)
         }
+        .shadow(color: HomePalette.shadow.opacity(0.45), radius: 10, y: 5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Weather, \(Self.dateFormatter.string(from: Date())), partly cloudy, current 74 degrees, high 82, low 58.")
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE. MMM d"
+        return formatter
+    }()
+}
+
+private struct HomeWeatherSummaryCard_Previews: PreviewProvider {
+    static var previews: some View {
+        HomeWeatherSummaryCard()
+            .padding()
+            .background(HomePalette.background)
     }
 }
 
@@ -1166,41 +1165,6 @@ private struct InlineStatusView: View {
     }
 }
 
-private enum HomeMode: String, CaseIterable, Identifiable {
-    case now
-    case rooms
-    case automations
-    case activity
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .now:
-            return "Now"
-        case .rooms:
-            return "Rooms"
-        case .automations:
-            return "Auto"
-        case .activity:
-            return "Activity"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .now:
-            return "waveform"
-        case .rooms:
-            return "house"
-        case .automations:
-            return "wand.and.stars"
-        case .activity:
-            return "clock"
-        }
-    }
-}
-
 private struct AutomationShortcut: Identifiable {
     let id = UUID()
     let title: String
@@ -1228,26 +1192,6 @@ private enum ShortcutTone {
         case .blue:
             return HomePalette.blue
         }
-    }
-}
-
-private enum HomeDaypart {
-    static var currentTitle: String {
-        let calendar = Calendar.current
-        let weekday = calendar.weekdaySymbols[calendar.component(.weekday, from: Date()) - 1]
-        let hour = calendar.component(.hour, from: Date())
-
-        let daypart: String
-        switch hour {
-        case 5..<12:
-            daypart = "morning"
-        case 12..<17:
-            daypart = "afternoon"
-        default:
-            daypart = "evening"
-        }
-
-        return "\(weekday) \(daypart)"
     }
 }
 
@@ -1303,10 +1247,6 @@ private enum HomePalette {
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
-    )
-    static let railBackground = adaptive(
-        light: UIColor(red: 0.96, green: 0.95, blue: 0.92, alpha: 0.72),
-        dark: UIColor(red: 0.13, green: 0.13, blue: 0.14, alpha: 0.72)
     )
     static let ink = adaptive(
         light: UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0),
