@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { clampRecentActivityLimit, createRecentActivityStore } from './activityStore.js';
-import type { LevyHomeEvent } from './contracts.js';
+import { clampRecentActivityLimit, createRecentActivityStore } from '../../../../src/activityStore.js';
+import type { LevyHomeEvent } from '../../../../src/contracts.js';
 
 test('recent activity store returns newest events first and caps stored events', () => {
   const store = createRecentActivityStore(2);

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { AppConfig } from './config.js';
+import type { AppConfig } from '../../../../src/config.js';
 import {
   backfillHomeAssistantActivity,
   fetchHomeAssistantActivityWindow,
-} from './homeAssistantActivityBackfill.js';
-import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClient.js';
+} from '../../../../src/homeAssistantActivityBackfill.js';
+import type { HomeAssistantStateChangedEvent } from '../../../../src/homeAssistantActivityClient.js';
 
 const baseConfig: AppConfig = {
   port: 0,

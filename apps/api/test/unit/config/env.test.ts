@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { readConfig } from './config.js';
+import { readConfig } from '../../../src/config.js';
 
 test('readConfig defaults Home Assistant activity ingestion to disabled with no tracked phone entities', () => {
   const config = readConfig({});

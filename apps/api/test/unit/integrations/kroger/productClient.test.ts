@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import type { AppConfig } from './config.js';
-import { lookupAndWriteKrogerProductResponse, normalizeKrogerProducts } from './krogerClient.js';
+import type { AppConfig } from '../../../../src/config.js';
+import { lookupAndWriteKrogerProductResponse, normalizeKrogerProducts } from '../../../../src/krogerClient.js';
 
 test('lookupAndWriteKrogerProductResponse fetches a token, searches products, and writes the Kroger response', async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'levy-home-kroger-'));

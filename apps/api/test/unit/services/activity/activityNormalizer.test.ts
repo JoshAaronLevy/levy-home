@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import {
   normalizePhoneStateChangedEvent,
   shouldIncludePhoneStateChangedEvent,
-} from './activityNormalizer.js';
-import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClient.js';
+} from '../../../../src/activityNormalizer.js';
+import type { HomeAssistantStateChangedEvent } from '../../../../src/homeAssistantActivityClient.js';
 
 test('normalizePhoneStateChangedEvent creates a home-arrival Activity event', () => {
   const event = normalizePhoneStateChangedEvent(sampleStateChangedEvent());

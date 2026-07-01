@@ -3,8 +3,8 @@ import { createServer, type IncomingMessage, type RequestListener, type Server }
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 
-import type { AppConfig } from './config.js';
-import { createHomeAssistantFacade } from './homeAssistantClient.js';
+import type { AppConfig } from '../../../../src/config.js';
+import { createHomeAssistantFacade } from '../../../../src/homeAssistantClient.js';
 
 test('live Home Assistant facade opens and closes the configured garage cover', async () => {
   const serviceCalls: Array<{ path: string; body: unknown }> = [];

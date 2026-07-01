@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { DatabaseQuery } from './dbClient.js';
-import { fetchUsersData } from './userStore.js';
+import type { DatabaseQuery } from '../../../src/dbClient.js';
+import { fetchUsersData } from '../../../src/userStore.js';
 
 test('fetchUsersData maps the users table into API contracts', async () => {
   const database: DatabaseQuery = async <Row extends Record<string, unknown> = Record<string, unknown>>(

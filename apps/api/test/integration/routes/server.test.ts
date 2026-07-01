@@ -1,75 +1,20 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 
-import { normalizePhoneStateChangedEvent } from './activityNormalizer.js';
-import { createRecentActivityStore } from './activityStore.js';
-import type { PushSender } from './apnsService.js';
-import type { AppConfig } from './config.js';
-import type { APNsSendRequest, APNsSendResult } from './contracts.js';
-import type { LevyHomeEvent } from './contracts.js';
-import type { HomeAssistantStateChangedEvent } from './homeAssistantActivityClient.js';
-import { createApp } from './server.js';
+import { normalizePhoneStateChangedEvent } from '../../../src/activityNormalizer.js';
+import { createRecentActivityStore } from '../../../src/activityStore.js';
+import type { PushSender } from '../../../src/apnsService.js';
+import type { LevyHomeEvent } from '../../../src/contracts.js';
+import type { HomeAssistantStateChangedEvent } from '../../../src/homeAssistantActivityClient.js';
+import { createApp } from '../../../src/server.js';
+import { FakePushSender } from '../../support/fakePushSender.js';
+import { startHttpServer, type StartedHttpServer } from '../../support/httpServer.js';
+import { testConfig } from '../../support/testConfig.js';
 
-let server: Server | undefined;
+let testServer: StartedHttpServer | undefined;
 let baseURL: string;
-
-const testConfig: AppConfig = {
-  port: 0,
-  haWebhookSecret: 'test-secret',
-  kroger: {
-    clientId: 'test-kroger-client-id',
-    clientSecret: 'test-kroger-client-secret',
-    apiBaseURL: 'https://api.kroger.test/v1',
-    productResponseFilePath: '/tmp/kroger-product-response.json',
-    normalizedProductResponseFilePath: '/tmp/kroger-products-normalized.json',
-    productSearchLimit: 10,
-    locationId: '62000008',
-    shoppingStoreId: 2,
-    shoppingStoreName: 'King Soopers',
-  },
-  apns: {
-    bundleId: 'com.levyhome.app',
-    defaultEnvironment: 'sandbox',
-  },
-  homeAssistant: {
-    mode: 'mock',
-    garageCoverEntityId: 'cover.test_garage',
-    allLightsEntityId: 'light.test_all_lights',
-    lightGroups: [
-      { id: 'upstairs_hallway', name: 'Upstairs Hallway', entityId: 'light.upstairs_hallway' },
-      { id: 'playroom_lamp', name: 'Playroom', entityId: 'light.playroom_lamp' },
-    ],
-    lightEntities: [],
-    mockTotalLightCount: 12,
-    activity: {
-      isEnabled: false,
-      trackedPhoneEntities: [],
-      trackedPhoneEntityPatterns: [],
-    },
-  },
-};
-
-class FakePushSender implements PushSender {
-  readonly requests: APNsSendRequest[] = [];
-
-  constructor(private readonly results: Partial<APNsSendResult>[] = []) {}
-
-  async send(request: APNsSendRequest): Promise<APNsSendResult> {
-    this.requests.push(request);
-    const result = this.results.shift();
-
-    return {
-      provider: 'apns',
-      deviceId: request.device.id,
-      success: true,
-      statusCode: 200,
-      isInvalidToken: false,
-      ...result,
-    };
-  }
-}
 
 beforeEach(async () => {
   await startTestServer(createApp({ config: testConfig }));
@@ -389,33 +334,17 @@ async function restartTestServer(app: ReturnType<typeof createApp>): Promise<voi
 }
 
 async function startTestServer(app: ReturnType<typeof createApp>): Promise<void> {
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  testServer = await startHttpServer(app);
+  baseURL = testServer.baseURL;
 }
 
 async function stopTestServer(): Promise<void> {
-  if (!server) {
+  if (!testServer) {
     return;
   }
 
-  await new Promise<void>((resolve, reject) => {
-    server?.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve();
-    });
-  });
-
-  server = undefined;
+  await testServer.close();
+  testServer = undefined;
 }
 
 test('GET /api/home/overview returns a narrow home overview', async () => {
@@ -742,14 +671,7 @@ test('/api/events returns normalized Home Assistant phone activity from the shar
   const activityStore = createRecentActivityStore();
   const app = createApp({ config: testConfig, activityStore });
 
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  await startTestServer(app);
 
   activityStore.add(normalizePhoneStateChangedEvent(sampleStateChangedEvent()));
 
@@ -770,14 +692,7 @@ test('/api/events filters recent activity by since timestamp', async () => {
   const activityStore = createRecentActivityStore(500);
   const app = createApp({ config: testConfig, activityStore });
 
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  await startTestServer(app);
 
   activityStore.add(testActivityEvent('old', '2026-06-14T16:59:59.000Z'));
   activityStore.add(testActivityEvent('first-recent', '2026-06-14T17:00:00.000Z'));
@@ -864,14 +779,7 @@ test('/api/events returns local events and Home Assistant history for an explici
     activityStore,
   });
 
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  await startTestServer(app);
 
   try {
     const response = await getJSON(
@@ -946,14 +854,7 @@ test('/api/events returns local events when Home Assistant history is unavailabl
     activityStore,
   });
 
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  await startTestServer(app);
 
   try {
     const response = await getJSON(
@@ -1091,14 +992,7 @@ async function withTestServer(pushSender: PushSender, action: () => Promise<void
   await closeServer();
   const app = createApp({ config: testConfig, pushSender });
 
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  await startTestServer(app);
 
   await action();
 }
@@ -1145,14 +1039,7 @@ async function withLiveHomeAssistantStates(
     },
   });
 
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
-      resolve();
-    });
-  });
-
-  const address = server?.address() as AddressInfo;
-  baseURL = `http://127.0.0.1:${address.port}`;
+  await startTestServer(app);
 
   try {
     await action();
@@ -1232,22 +1119,7 @@ async function getJSON(path: string): Promise<any> {
 }
 
 async function closeServer(): Promise<void> {
-  if (!server) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    server?.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve();
-    });
-  });
-
-  server = undefined;
+  await stopTestServer();
 }
 
 async function postJSON(

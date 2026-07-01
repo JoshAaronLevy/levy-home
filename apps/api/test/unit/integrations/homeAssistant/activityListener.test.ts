@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 
-import type { AppConfig } from './config.js';
+import type { AppConfig } from '../../../../src/config.js';
 import {
   createHomeAssistantActivityListener,
   resolveHomeAssistantWebSocketURL,
   shouldStartHomeAssistantActivityListener,
   type HomeAssistantStateChangedEvent,
-} from './homeAssistantActivityClient.js';
+} from '../../../../src/homeAssistantActivityClient.js';
 
 type FakeWebSocketListener = (() => void) | ((event: { data: unknown }) => void) | ((event: unknown) => void);
 
