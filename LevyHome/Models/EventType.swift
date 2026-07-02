@@ -6,6 +6,8 @@ enum EventType: Codable, Equatable, Hashable {
     case garageLeftOpen10Min
     case garageOpenedAfterHours
     case garageStillOpenAt10PM
+    case partnerLeftHome
+    case partnerArrivedHome
     case doorbellPressed
     case doorbellPersonDetected
     case doorbellMotionDetected
@@ -24,6 +26,10 @@ enum EventType: Codable, Equatable, Hashable {
             return "garage_opened_after_hours"
         case .garageStillOpenAt10PM:
             return "garage_still_open_at_10pm"
+        case .partnerLeftHome:
+            return "partner_left_home"
+        case .partnerArrivedHome:
+            return "partner_arrived_home"
         case .doorbellPressed:
             return "doorbell_pressed"
         case .doorbellPersonDetected:
@@ -49,6 +55,10 @@ enum EventType: Codable, Equatable, Hashable {
             self = .garageOpenedAfterHours
         case "garage_still_open_at_10pm":
             self = .garageStillOpenAt10PM
+        case "partner_left_home":
+            self = .partnerLeftHome
+        case "partner_arrived_home":
+            self = .partnerArrivedHome
         case "doorbell_pressed":
             self = .doorbellPressed
         case "doorbell_person_detected":

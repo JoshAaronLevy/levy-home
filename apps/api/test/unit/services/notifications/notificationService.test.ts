@@ -54,3 +54,38 @@ test('notification service honors per-device garage preferences for event pushes
   assert.equal(pushSender.requests.length, 1);
   assert.equal(pushSender.requests[0].title, 'Garage closed');
 });
+
+test('notification service sends partner presence event pushes through partner preference', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const push = await notificationService.sendEventPush({
+    type: 'partner_left_home',
+    entityId: 'device_tracker.mallorys_iphone',
+    category: 'presence',
+    severity: 'normal',
+    source: 'home_assistant',
+    title: 'Mallory left home',
+    message: 'Mallory left home.',
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].title, 'Mallory left home');
+  assert.equal(pushSender.requests[0].body, 'Mallory left home.');
+  assert.deepEqual(pushSender.requests[0].data, { category: 'partner_presence' });
+});

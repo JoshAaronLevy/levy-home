@@ -72,6 +72,50 @@ test('garage event pushes honor per-device notification preferences', async () =
   assert.equal(pushSender.requests[0].title, 'Garage closed');
 });
 
+test('partner presence webhook event sends a Levy Home push notification', async () => {
+  const pushSender = new FakePushSender();
+
+  await routes.restart(createApp({ config: testConfig, pushSender }));
+
+  await routes.postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const created = await routes.postJSON(
+    '/api/ha/events',
+    {
+      type: 'partner_left_home',
+      category: 'presence',
+      severity: 'normal',
+      entityId: 'device_tracker.mallorys_iphone',
+      source: 'home_assistant',
+      title: 'Mallory left home',
+      message: 'Mallory left home.',
+      metadata: {
+        actor: 'Mallory',
+        recipient: 'Josh',
+        oldState: 'home',
+        newState: 'not_home',
+      },
+    },
+    { Authorization: 'Bearer test-secret' },
+  );
+
+  assert.equal(created.ok, true);
+  assert.equal(created.event.type, 'partner_left_home');
+  assert.equal(created.event.category, 'presence');
+  assert.equal(created.event.display.title, 'Mallory left home');
+  assert.equal(created.event.display.body, 'Mallory left home.');
+  assert.equal(created.event.push.attempted, true);
+  assert.equal(created.event.push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].title, 'Mallory left home');
+  assert.equal(pushSender.requests[0].body, 'Mallory left home.');
+});
+
 test('event webhook stores events and /api/events returns them', async () => {
   const created = await routes.postJSON(
     '/api/ha/events',

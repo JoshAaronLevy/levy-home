@@ -88,11 +88,11 @@ function readOptionalCategory(value: unknown): ValidationResult<HomeAssistantEve
     return { ok: true, value: undefined };
   }
 
-  if (value === 'garage' || value === 'doorbell' || value === 'phone') {
+  if (value === 'garage' || value === 'doorbell' || value === 'phone' || value === 'presence') {
     return { ok: true, value };
   }
 
-  return { ok: false, error: 'category must be garage, doorbell, or phone when provided.' };
+  return { ok: false, error: 'category must be garage, doorbell, phone, or presence when provided.' };
 }
 
 function readOptionalPayloadSeverity(value: unknown): ValidationResult<HomeAssistantEventSeverity | undefined> {

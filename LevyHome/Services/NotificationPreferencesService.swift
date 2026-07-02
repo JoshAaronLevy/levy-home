@@ -1,9 +1,9 @@
 import Foundation
 
 protocol NotificationPreferencesServicing {
-    func loadGaragePreferences() -> [NotificationPreference]
+    func loadPreferences() -> [NotificationPreference]
     func setPreference(_ category: NotificationPreferenceCategory, isEnabled: Bool)
-    func syncGaragePreferences(
+    func syncPreferences(
         deviceToken: String,
         provider: PushProvider,
         environment: APNsEnvironment
@@ -23,8 +23,8 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
         self.apiClient = apiClient
     }
 
-    func loadGaragePreferences() -> [NotificationPreference] {
-        Self.defaultGaragePreferences.map { preference in
+    func loadPreferences() -> [NotificationPreference] {
+        Self.defaultPreferences.map { preference in
             NotificationPreference(
                 category: preference.category,
                 isEnabled: storedValue(for: preference.category) ?? preference.isEnabled,
@@ -38,7 +38,7 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
         userDefaults.set(isEnabled, forKey: key(for: category))
     }
 
-    func syncGaragePreferences(
+    func syncPreferences(
         deviceToken: String,
         provider: PushProvider = .apns,
         environment: APNsEnvironment
@@ -48,7 +48,7 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
         }
 
         let request = NotificationPreferencesUpdateRequest(
-            preferences: loadGaragePreferences().map {
+            preferences: loadPreferences().map {
                 NotificationPreferenceUpdate(category: $0.category, isEnabled: $0.isEnabled)
             },
             deviceToken: deviceToken,
@@ -72,7 +72,7 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
         "\(keyPrefix).\(category.rawValue)"
     }
 
-    static let defaultGaragePreferences = [
+    static let defaultPreferences = [
         NotificationPreference(
             category: .garageOpened,
             isEnabled: true,
@@ -102,6 +102,12 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
             isEnabled: true,
             title: "Garage still open at 10 PM",
             detail: "Notify at bedtime if the garage is still open."
+        ),
+        NotificationPreference(
+            category: .partnerPresence,
+            isEnabled: true,
+            title: "Partner presence",
+            detail: "Notify when your partner leaves or arrives home."
         )
     ]
 }

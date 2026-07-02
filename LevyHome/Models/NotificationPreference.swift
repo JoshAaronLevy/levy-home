@@ -6,6 +6,7 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
     case garageLeftOpen
     case garageAfterHours
     case garageStillOpenAt10PM
+    case partnerPresence
     case unknown(String)
 
     var rawValue: String {
@@ -20,6 +21,8 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
             return "garage_after_hours"
         case .garageStillOpenAt10PM:
             return "garage_still_open_at_10pm"
+        case .partnerPresence:
+            return "partner_presence"
         case .unknown(let rawValue):
             return rawValue
         }
@@ -37,6 +40,8 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
             self = .garageAfterHours
         case "garage_still_open_at_10pm":
             self = .garageStillOpenAt10PM
+        case "partner_presence":
+            self = .partnerPresence
         default:
             self = .unknown(rawValue)
         }

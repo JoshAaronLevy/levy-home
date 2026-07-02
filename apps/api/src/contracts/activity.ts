@@ -4,6 +4,8 @@ export const LEVY_HOME_EVENT_TYPES = [
   'garage_left_open_10_min',
   'garage_opened_after_hours',
   'garage_still_open_at_10pm',
+  'partner_left_home',
+  'partner_arrived_home',
   'doorbell_pressed',
   'doorbell_person_detected',
   'doorbell_motion_detected',
@@ -13,7 +15,7 @@ export const LEVY_HOME_EVENT_TYPES = [
 export type LevyHomeEventType = (typeof LEVY_HOME_EVENT_TYPES)[number];
 
 export type DisplaySeverity = 'info' | 'warning' | 'critical';
-export type HomeAssistantEventCategory = 'garage' | 'doorbell' | 'phone';
+export type HomeAssistantEventCategory = 'garage' | 'doorbell' | 'phone' | 'presence';
 export type HomeAssistantEventSeverity = 'normal' | 'high';
 
 export type HomeAssistantEntityDiscoveryCandidate = {
@@ -86,6 +88,16 @@ export const EVENT_DISPLAY_METADATA: Record<LevyHomeEventType, EventDisplayMetad
     title: 'Garage still open',
     body: 'The garage is still open at 10 PM.',
     severity: 'critical',
+  },
+  partner_left_home: {
+    title: 'Partner left home',
+    body: 'A household member left home.',
+    severity: 'info',
+  },
+  partner_arrived_home: {
+    title: 'Partner arrived home',
+    body: 'A household member arrived home.',
+    severity: 'info',
   },
   doorbell_pressed: {
     title: 'Doorbell pressed',

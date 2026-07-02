@@ -36,7 +36,7 @@ export async function createStoredEvent(
   payload: HomeAssistantEventPayload,
   options: { notificationService: Pick<NotificationService, 'sendEventPush'> },
 ): Promise<LevyHomeEvent> {
-  const display = getEventDisplayMetadata(payload.type);
+  const display = eventDisplayMetadataForPayload(payload);
   const isActivityOnlyPhoneEvent = payload.type === 'phone_state_changed' || payload.category === 'phone';
   const push = isActivityOnlyPhoneEvent
     ? undefined
@@ -56,6 +56,20 @@ export async function createStoredEvent(
     receivedAt: new Date().toISOString(),
     display,
     ...(push ? { push } : {}),
+  };
+}
+
+function eventDisplayMetadataForPayload(payload: HomeAssistantEventPayload) {
+  const display = getEventDisplayMetadata(payload.type);
+
+  if (payload.type !== 'partner_left_home' && payload.type !== 'partner_arrived_home') {
+    return display;
+  }
+
+  return {
+    ...display,
+    title: payload.title ?? display.title,
+    body: payload.message ?? display.body,
   };
 }
 

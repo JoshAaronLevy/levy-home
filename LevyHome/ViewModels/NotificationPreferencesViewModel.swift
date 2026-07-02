@@ -15,12 +15,12 @@ final class NotificationPreferencesViewModel: ObservableObject {
 
     init(service: NotificationPreferencesServicing) {
         self.service = service
-        preferences = service.loadGaragePreferences()
+        preferences = service.loadPreferences()
     }
 
     func setPreference(_ preference: NotificationPreference, isEnabled: Bool) {
         service.setPreference(preference.category, isEnabled: isEnabled)
-        preferences = service.loadGaragePreferences()
+        preferences = service.loadPreferences()
         markLocalChanges()
     }
 
@@ -44,7 +44,7 @@ final class NotificationPreferencesViewModel: ObservableObject {
 
         isSyncing = true
         syncLabel = "Syncing"
-        syncDetail = "Saving garage notification preferences to the API."
+        syncDetail = "Saving notification preferences to the API."
         syncTone = .accent
         syncSystemImage = "arrow.triangle.2.circlepath"
 
@@ -53,7 +53,7 @@ final class NotificationPreferencesViewModel: ObservableObject {
         }
 
         do {
-            _ = try await service.syncGaragePreferences(
+            _ = try await service.syncPreferences(
                 deviceToken: deviceToken,
                 provider: provider,
                 environment: environment

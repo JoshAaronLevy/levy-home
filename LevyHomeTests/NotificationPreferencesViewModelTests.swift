@@ -22,10 +22,10 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
         super.tearDown()
     }
 
-    func testLoadsFiveGaragePreferencesEnabledByDefault() {
+    func testLoadsNotificationPreferencesEnabledByDefault() {
         let viewModel = makeViewModel()
 
-        XCTAssertEqual(viewModel.preferences.count, 5)
+        XCTAssertEqual(viewModel.preferences.count, 6)
         XCTAssertEqual(
             viewModel.preferences.map(\.category),
             [
@@ -33,7 +33,8 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
                 .garageClosed,
                 .garageLeftOpen,
                 .garageAfterHours,
-                .garageStillOpenAt10PM
+                .garageStillOpenAt10PM,
+                .partnerPresence
             ]
         )
         XCTAssertTrue(viewModel.preferences.allSatisfy(\.isEnabled))
@@ -78,7 +79,7 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
         XCTAssertEqual(service.syncRequests.first?.deviceToken, "abc123")
         XCTAssertEqual(service.syncRequests.first?.provider, .apns)
         XCTAssertEqual(service.syncRequests.first?.environment, .sandbox)
-        XCTAssertEqual(service.syncRequests.first?.preferences.map(\.category), NotificationPreferencesService.defaultGaragePreferences.map(\.category))
+        XCTAssertEqual(service.syncRequests.first?.preferences.map(\.category), NotificationPreferencesService.defaultPreferences.map(\.category))
     }
 
     func testSyncFailureKeepsLocalPreferencesAndShowsDegradedState() async {
@@ -123,7 +124,7 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
 }
 
 private final class MockNotificationPreferencesService: NotificationPreferencesServicing {
-    private var storedPreferences = NotificationPreferencesService.defaultGaragePreferences
+    private var storedPreferences = NotificationPreferencesService.defaultPreferences
     private let error: Error?
     private(set) var syncRequests: [NotificationPreferencesUpdateRequest] = []
 
@@ -131,7 +132,7 @@ private final class MockNotificationPreferencesService: NotificationPreferencesS
         self.error = error
     }
 
-    func loadGaragePreferences() -> [NotificationPreference] {
+    func loadPreferences() -> [NotificationPreference] {
         storedPreferences
     }
 
@@ -150,7 +151,7 @@ private final class MockNotificationPreferencesService: NotificationPreferencesS
         }
     }
 
-    func syncGaragePreferences(
+    func syncPreferences(
         deviceToken: String,
         provider: PushProvider,
         environment: APNsEnvironment

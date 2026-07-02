@@ -120,11 +120,17 @@ test('notification validators parse preference updates, queries, and test pushes
   assert.deepEqual(
     validateNotificationPreferencesBody({
       deviceId: ' device-1 ',
-      preferences: [{ category: 'garage_opened', isEnabled: false }],
+      preferences: [
+        { category: 'garage_opened', isEnabled: false },
+        { category: 'partner_presence', isEnabled: true },
+      ],
     }),
     {
       locator: { deviceId: 'device-1' },
-      preferences: [{ category: 'garage_opened', isEnabled: false }],
+      preferences: [
+        { category: 'garage_opened', isEnabled: false },
+        { category: 'partner_presence', isEnabled: true },
+      ],
     },
   );
   assert.deepEqual(
@@ -174,18 +180,18 @@ test('quick action validator accepts curated actions and rejects arbitrary Home 
 
 test('Home Assistant event validator returns validation results without throwing', () => {
   assert.deepEqual(validateHomeAssistantEventPayload({
-    type: 'phone_state_changed',
-    entityId: ' device_tracker.josh_iphone ',
-    category: 'phone',
+    type: 'partner_arrived_home',
+    entityId: ' device_tracker.mallorys_iphone ',
+    category: 'presence',
     severity: 'normal',
     occurredAt: '2026-06-30T12:00:00Z',
     metadata: { from: 'not_home', to: 'home' },
   }), {
     ok: true,
     value: {
-      type: 'phone_state_changed',
-      entityId: 'device_tracker.josh_iphone',
-      category: 'phone',
+      type: 'partner_arrived_home',
+      entityId: 'device_tracker.mallorys_iphone',
+      category: 'presence',
       severity: 'normal',
       occurredAt: '2026-06-30T12:00:00Z',
       metadata: { from: 'not_home', to: 'home' },

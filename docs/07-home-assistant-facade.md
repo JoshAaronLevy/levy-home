@@ -49,8 +49,8 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `POST` | `/api/home/actions/lights-off` | Explicit all-lights-off action. |
 | `POST` | `/api/home/actions/light-groups/:groupId/off` | Explicit curated light-group off action. |
 | `POST` | `/api/devices/register` | Provider-aware push-device registration for native APNs tokens and legacy Expo push tokens. |
-| `GET` | `/api/notification-preferences` | Garage notification preferences, optionally scoped by `deviceId` or provider-aware device token query params. |
-| `PUT` | `/api/notification-preferences` | Sync per-device garage notification preferences by registered `deviceId` or provider-aware token. |
+| `GET` | `/api/notification-preferences` | Notification preferences, optionally scoped by `deviceId` or provider-aware device token query params. |
+| `PUT` | `/api/notification-preferences` | Sync per-device notification preferences by registered `deviceId` or provider-aware token. |
 | `POST` | `/api/debug/send-test-push` | Debug APNs test push to registered APNs devices with provider-neutral counts. |
 | `GET` | `/api/debug/home-assistant/phone-entities` | Protected Home Assistant phone-entity discovery helper for Phase 1 activity setup. |
 | `POST` | `/api/ha/events` | Home Assistant event webhook. |
@@ -65,14 +65,15 @@ Device registration is provider-aware:
 - Legacy Expo-style registrations are still accepted with `pushToken` and are treated as `provider: "expo"`.
 - Tokens are not returned in registration responses.
 
-Notification preferences are currently in-memory backend state. They can sync from the native app, be fetched for manual verification, and are used for garage APNs push filtering while the API process is running. They reset when the API restarts until durable backend persistence is added.
+Notification preferences are database-backed when `DATABASE_URL` is configured and fall back to in-memory state for local no-database development. They can sync from the native app, be fetched for manual verification, and are used for APNs push filtering.
 
-Stage 16 APNs behavior:
+APNs behavior:
 
 - Debug test pushes use registered APNs devices and return provider-neutral counts such as `sentNotificationCount`, `failedNotificationCount`, and `invalidTokenCount`.
-- Debug test pushes are diagnostics and do not apply garage notification category preferences.
+- Debug test pushes are diagnostics and do not apply notification category preferences.
 - Garage Home Assistant events map to the five garage preference categories and only send APNs pushes to devices where that category is enabled.
-- If APNs credentials are missing, `/api/debug/send-test-push` returns a readable `503` error instead of crashing. Garage event ingestion still stores the event and records the missing-credentials reason in `event.push`.
+- Partner presence Home Assistant events map to the `partner_presence` category and only send APNs pushes to devices where that category is enabled.
+- If APNs credentials are missing, `/api/debug/send-test-push` returns a readable `503` error instead of crashing. Notification-capable event ingestion still stores the event and records the missing-credentials reason in `event.push`.
 - Expo-style device registrations remain accepted for compatibility, but this backend stage does not send Expo pushes.
 
 ## Manual Checks
@@ -125,7 +126,8 @@ curl -X PUT http://localhost:4000/api/notification-preferences \
     "preferences": [
       { "category": "garage_opened", "isEnabled": false },
       { "category": "garage_left_open", "isEnabled": true },
-      { "category": "garage_after_hours", "isEnabled": true }
+      { "category": "garage_after_hours", "isEnabled": true },
+      { "category": "partner_presence", "isEnabled": true }
     ]
   }'
 
@@ -160,6 +162,86 @@ curl -X POST http://localhost:4000/api/ha/events \
   }'
 
 curl http://localhost:4000/api/events
+```
+
+To trigger Levy Home partner-presence notifications from Home Assistant, configure a reusable `rest_command` and replace the old Home Assistant mobile-app notification action with the REST call. Keep the existing automation triggers and Josh-is-home condition; remove or replace the `notify.mobile_app_josh_iphone` action so Home Assistant does not also send its own push.
+
+Add secrets in Home Assistant `secrets.yaml`:
+
+```yaml
+levy_home_api_events_url: https://levy-home.onrender.com/api/ha/events
+levy_home_ha_authorization_header: Bearer YOUR_LEVY_HOME_HA_WEBHOOK_SECRET
+```
+
+Add this command in Home Assistant configuration:
+
+```yaml
+rest_command:
+  levy_home_event:
+    url: !secret levy_home_api_events_url
+    method: POST
+    headers:
+      Authorization: !secret levy_home_ha_authorization_header
+      Content-Type: application/json
+    payload: "{{ payload_json }}"
+```
+
+Use this action for `Mallory Left Home - Notify Josh`:
+
+```yaml
+actions:
+  - action: rest_command.levy_home_event
+    data:
+      payload_json: >-
+        {{
+          {
+            "type": "partner_left_home",
+            "category": "presence",
+            "severity": "normal",
+            "entityId": "device_tracker.mallorys_iphone",
+            "source": "home_assistant",
+            "occurredAt": trigger.to_state.last_changed.isoformat(),
+            "title": "Mallory left home",
+            "message": "Mallory left home.",
+            "metadata": {
+              "actor": "Mallory",
+              "recipient": "Josh",
+              "oldState": trigger.from_state.state,
+              "newState": trigger.to_state.state,
+              "automation": "Mallory Left Home - Notify Josh"
+            }
+          } | to_json
+        }}
+mode: single
+```
+
+Use this action for `Mallory Arrived Home - Notify Josh`:
+
+```yaml
+actions:
+  - action: rest_command.levy_home_event
+    data:
+      payload_json: >-
+        {{
+          {
+            "type": "partner_arrived_home",
+            "category": "presence",
+            "severity": "normal",
+            "entityId": "device_tracker.mallorys_iphone",
+            "source": "home_assistant",
+            "occurredAt": trigger.to_state.last_changed.isoformat(),
+            "title": "Mallory is home",
+            "message": "Mallory is home.",
+            "metadata": {
+              "actor": "Mallory",
+              "recipient": "Josh",
+              "oldState": trigger.from_state.state,
+              "newState": trigger.to_state.state,
+              "automation": "Mallory Arrived Home - Notify Josh"
+            }
+          } | to_json
+        }}
+mode: single
 ```
 
 To safely discover candidate Josh/Mallory iPhone entities from Home Assistant live mode:

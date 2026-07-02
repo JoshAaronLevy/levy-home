@@ -10,16 +10,16 @@ struct NotificationPreferencesView: View {
             systemImage: "slider.horizontal.3"
         ) {
             NavigationLink {
-                GarageNotificationPreferencesView(viewModel: viewModel)
+                NotificationCategoryPreferencesView(viewModel: viewModel)
             } label: {
                 HStack(spacing: AppSpacing.medium) {
-                    Image(systemName: "door.garage.closed")
+                    Image(systemName: "bell.badge")
                         .font(.title3)
                         .foregroundStyle(AppColors.accent)
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                        Text("Garage")
+                        Text("Categories")
                             .font(.headline)
                             .foregroundStyle(.primary)
 
@@ -47,15 +47,15 @@ struct NotificationPreferencesView: View {
     }
 }
 
-private struct GarageNotificationPreferencesView: View {
+private struct NotificationCategoryPreferencesView: View {
     @ObservedObject var viewModel: NotificationPreferencesViewModel
 
     var body: some View {
         ScrollView {
             InfoPanel(
-                title: "Garage Notifications",
-                subtitle: "Choose which garage notifications this device should receive.",
-                systemImage: "door.garage.closed"
+                title: "Notification Categories",
+                subtitle: "Choose which notifications this device should receive.",
+                systemImage: "bell.badge"
             ) {
                 VStack(spacing: 0) {
                     ForEach(viewModel.preferences) { preference in
@@ -71,7 +71,7 @@ private struct GarageNotificationPreferencesView: View {
             .padding(AppSpacing.screen)
         }
         .background(AppColors.pageBackground)
-        .navigationTitle("Garage")
+        .navigationTitle("Categories")
     }
 
     private func preferenceToggle(_ preference: NotificationPreference) -> some View {

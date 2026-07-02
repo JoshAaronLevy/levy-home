@@ -108,12 +108,12 @@ struct DebugView: View {
 
                 InfoPanel(
                     title: "Preference Sync",
-                    subtitle: "API adapter for garage notification preferences.",
+                    subtitle: "API adapter for notification preferences.",
                     systemImage: "slider.horizontal.3"
                 ) {
                     VStack(alignment: .leading, spacing: AppSpacing.medium) {
                         statusRow(
-                            title: "Garage preferences",
+                            title: "Notification preferences",
                             detail: notificationPreferencesViewModel.syncDetail,
                             badgeLabel: notificationPreferencesViewModel.syncLabel,
                             badgeImage: notificationPreferencesViewModel.syncSystemImage,

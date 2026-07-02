@@ -199,6 +199,8 @@ export function notificationCategoryForEvent(
     garage_left_open_10_min: 'garage_left_open',
     garage_opened_after_hours: 'garage_after_hours',
     garage_still_open_at_10pm: 'garage_still_open_at_10pm',
+    partner_left_home: 'partner_presence',
+    partner_arrived_home: 'partner_presence',
   };
   const category = categoryByEventType[payload.type];
 

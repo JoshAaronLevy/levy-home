@@ -1,5 +1,5 @@
 import {
-  GARAGE_NOTIFICATION_PREFERENCES,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   type DevicePreferenceLocator,
   type NotificationPreference,
   type NotificationPreferencesUpdateRequest,
@@ -32,28 +32,28 @@ export function createNotificationPreferenceStore(
   return {
     async getPreferences(locator) {
       if (!locator) {
-        return GARAGE_NOTIFICATION_PREFERENCES;
+        return DEFAULT_NOTIFICATION_PREFERENCES;
       }
 
       const deviceKey = await preferenceKeyForLocator(locator, deviceRegistry);
       const updates = await repository.getPreferenceUpdates(deviceKey);
 
       return updates
-        ? applyPreferenceUpdates(GARAGE_NOTIFICATION_PREFERENCES, updates)
-        : GARAGE_NOTIFICATION_PREFERENCES;
+        ? applyPreferenceUpdates(DEFAULT_NOTIFICATION_PREFERENCES, updates)
+        : DEFAULT_NOTIFICATION_PREFERENCES;
     },
     async isNotificationEnabled(device, category) {
       const updates = await repository.getPreferenceUpdates(preferenceKeyForDevice(device));
       const preferences = updates
-        ? applyPreferenceUpdates(GARAGE_NOTIFICATION_PREFERENCES, updates)
-        : GARAGE_NOTIFICATION_PREFERENCES;
+        ? applyPreferenceUpdates(DEFAULT_NOTIFICATION_PREFERENCES, updates)
+        : DEFAULT_NOTIFICATION_PREFERENCES;
       const preference = preferences.find((entry) => entry.category === category);
 
       return preference?.isEnabled ?? true;
     },
     async updatePreferences(update) {
       const deviceKey = await preferenceKeyForLocator(update.locator, deviceRegistry);
-      const preferences = applyPreferenceUpdates(GARAGE_NOTIFICATION_PREFERENCES, update.preferences);
+      const preferences = applyPreferenceUpdates(DEFAULT_NOTIFICATION_PREFERENCES, update.preferences);
 
       await repository.savePreferences(deviceKey, preferences);
 

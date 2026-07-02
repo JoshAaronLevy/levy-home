@@ -48,7 +48,7 @@ test('notification preferences can be synced and fetched by device token or devi
   );
 
   assert.equal(tokenSync.ok, true);
-  assert.equal(tokenFetch.preferences.length, 5);
+  assert.equal(tokenFetch.preferences.length, 6);
   assert.equal(
     tokenFetch.preferences.find((preference: { category: string }) => preference.category === 'garage_opened')
       .isEnabled,
@@ -56,6 +56,11 @@ test('notification preferences can be synced and fetched by device token or devi
   );
   assert.equal(
     tokenFetch.preferences.find((preference: { category: string }) => preference.category === 'garage_closed')
+      .isEnabled,
+    true,
+  );
+  assert.equal(
+    tokenFetch.preferences.find((preference: { category: string }) => preference.category === 'partner_presence')
       .isEnabled,
     true,
   );

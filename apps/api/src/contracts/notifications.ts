@@ -62,7 +62,8 @@ export type NotificationPreferenceCategory =
   | 'garage_closed'
   | 'garage_left_open'
   | 'garage_after_hours'
-  | 'garage_still_open_at_10pm';
+  | 'garage_still_open_at_10pm'
+  | 'partner_presence';
 
 export type NotificationPreference = {
   category: NotificationPreferenceCategory;
@@ -89,7 +90,7 @@ export type NotificationPreferencesUpdateRequest = {
   locator: DevicePreferenceLocator;
 };
 
-export const GARAGE_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
   {
     category: 'garage_opened',
     isEnabled: true,
@@ -120,12 +121,18 @@ export const GARAGE_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     title: 'Garage still open at 10 PM',
     detail: 'Notify at bedtime if the garage is still open.',
   },
+  {
+    category: 'partner_presence',
+    isEnabled: true,
+    title: 'Partner presence',
+    detail: 'Notify when your partner leaves or arrives home.',
+  },
 ];
 
-const garageNotificationPreferenceCategorySet = new Set<string>(
-  GARAGE_NOTIFICATION_PREFERENCES.map((preference) => preference.category),
+const notificationPreferenceCategorySet = new Set<string>(
+  DEFAULT_NOTIFICATION_PREFERENCES.map((preference) => preference.category),
 );
 
 export function isNotificationPreferenceCategory(value: unknown): value is NotificationPreferenceCategory {
-  return typeof value === 'string' && garageNotificationPreferenceCategorySet.has(value);
+  return typeof value === 'string' && notificationPreferenceCategorySet.has(value);
 }
