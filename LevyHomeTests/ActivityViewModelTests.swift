@@ -99,6 +99,24 @@ final class ActivityViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "The API returned HTTP 500.")
     }
 
+    func testCancelledRefreshKeepsExistingEventsWithoutError() async {
+        var responses: [Result<EventsResponse, Error>] = [
+            .success(EventsResponse(ok: true, events: [Self.event(id: "event-1")])),
+            .failure(URLError(.cancelled))
+        ]
+
+        let viewModel = ActivityViewModel { _, _, _ in
+            try responses.removeFirst().get()
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.events.map(\.id), ["event-1"])
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.isRefreshing)
+    }
+
     func testLoadOlderAppendsPreviousWindowWithoutDuplicatingEvents() async {
         let now = Self.date("2026-06-15T17:00:00Z")
         var requestedWindows: [(Date, Date)] = []

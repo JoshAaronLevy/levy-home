@@ -136,6 +136,25 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isPerforming)
     }
 
+    func testCancelledRefreshKeepsExistingActionsWithoutMessage() async {
+        let service = MockQuickActionService()
+        service.catalog = Self.catalog()
+        let viewModel = QuickActionsViewModel(service: service)
+
+        await viewModel.loadIfNeeded()
+
+        let loadedActionIDs = viewModel.actions.map(\.id)
+        service.fetchHandler = {
+            throw URLError(.cancelled)
+        }
+
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.actions.map(\.id), loadedActionIDs)
+        XCTAssertNil(viewModel.message)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
     func testDuplicateTapsAreIgnoredWhileActionIsInProgress() async throws {
         let service = MockQuickActionService()
         service.catalog = QuickActionCatalog(
@@ -264,10 +283,16 @@ private final class MockQuickActionService: QuickActionServicing {
         message: "Action completed.",
         refreshedHomeOverview: nil
     )
+    var fetchHandler: (() async throws -> QuickActionCatalog)?
     var performHandler: ((QuickActionRequest) async throws -> QuickActionResult)?
 
     func fetchCatalog() async throws -> QuickActionCatalog {
         fetchCount += 1
+
+        if let fetchHandler {
+            return try await fetchHandler()
+        }
+
         return catalog
     }
 

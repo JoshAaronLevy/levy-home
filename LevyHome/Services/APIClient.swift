@@ -257,6 +257,16 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if error.isTaskCancellation {
+                appLogStore?.record(
+                    level: .info,
+                    category: "API",
+                    title: "Cancelled \(requestLabel)",
+                    detail: nil
+                )
+                throw CancellationError()
+            }
+
             appLogStore?.record(
                 level: .error,
                 category: "API",

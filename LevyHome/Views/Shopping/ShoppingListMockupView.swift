@@ -521,6 +521,10 @@ final class ShoppingListViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
+            guard !error.isTaskCancellation else {
+                return false
+            }
+
             errorMessage = error.localizedDescription
             hasLoaded = true
             return false
@@ -1048,33 +1052,33 @@ private struct ShoppingListContentView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
+                AppScreenHeader(title: "Shopping") {
+                    AppHeaderIconButton(
+                        systemImage: "plus",
+                        accessibilityLabel: "Add shopping item"
+                    ) {
+                        editorMode = .add
+                    }
+                }
+
                 if viewModel.isLoading {
                     loadingView
                 } else {
                     contentView
                 }
             }
-            .padding(AppSpacing.screen)
+            .padding(.horizontal, AppSpacing.screen)
+            .padding(.top, AppSpacing.large)
+            .padding(.bottom, AppSpacing.xLarge * 3)
         }
-        .background(AppColors.pageBackground)
-        .navigationTitle("Shopping")
+        .appScreenChrome()
         .task {
             await viewModel.loadIfNeeded()
         }
         .refreshable {
             await viewModel.refresh()
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    editorMode = .add
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add shopping item")
-            }
         }
         .sheet(item: $editorMode) { mode in
             ShoppingItemEditorSheet(

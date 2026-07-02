@@ -145,6 +145,26 @@ final class HomeOverviewViewModelTests: XCTestCase {
         )
     }
 
+    func testCancelledRefreshKeepsExistingOverviewWithoutError() async {
+        var responses: [Result<HomeOverview, Error>] = [
+            .success(Self.overview()),
+            .failure(URLError(.cancelled))
+        ]
+
+        let viewModel = HomeOverviewViewModel {
+            try responses.removeFirst().get()
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.refresh()
+
+        XCTAssertNotNil(viewModel.overview)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.statusData.label, "Live")
+        XCTAssertNil(viewModel.statusMessage)
+        XCTAssertFalse(viewModel.isRefreshing)
+    }
+
     private static func overview(
         garageStatus: GarageStatus = GarageStatus(
             state: .closed,

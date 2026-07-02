@@ -211,6 +211,10 @@ final class QuickActionsViewModel: ObservableObject {
                 detail: Self.catalogLogDetail(displayActions)
             )
         } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
             actions = []
             message = QuickActionMessage(text: error.localizedDescription, tone: .error)
             hasLoaded = true

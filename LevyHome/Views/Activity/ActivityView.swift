@@ -18,18 +18,24 @@ private struct ActivityContentView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
+                AppScreenHeader(
+                    title: "Activity",
+                    subtitle: "Recent home and phone events"
+                )
+
                 if viewModel.isLoading {
                     loadingView
                 } else {
                     contentView
                 }
             }
-            .padding(AppSpacing.screen)
+            .padding(.horizontal, AppSpacing.screen)
+            .padding(.top, AppSpacing.large)
+            .padding(.bottom, AppSpacing.xLarge * 3)
         }
-        .background(AppColors.pageBackground)
-        .navigationTitle("Activity")
+        .appScreenChrome()
         .task {
             await viewModel.loadIfNeeded()
         }

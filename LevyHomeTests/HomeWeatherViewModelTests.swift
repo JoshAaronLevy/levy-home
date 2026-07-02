@@ -4,6 +4,13 @@ import XCTest
 
 @MainActor
 final class HomeWeatherViewModelTests: XCTestCase {
+    func testStaticHomeLocationProviderUsesLevyHomeCoordinate() async throws {
+        let location = try await StaticHomeLocationProvider.levyHome.location()
+
+        XCTAssertEqual(location.coordinate.latitude, 39.5388289, accuracy: 0.000001)
+        XCTAssertEqual(location.coordinate.longitude, -105.0305231, accuracy: 0.000001)
+    }
+
     func testLoadIfNeededLoadsWeatherSnapshot() async {
         let now = Self.date("2026-07-01T16:00:00Z")
         let viewModel = HomeWeatherViewModel(now: { now }) {

@@ -226,6 +226,19 @@ final class APIClientTests: XCTestCase {
         }
     }
 
+    func testPreservesCancelledRequestsAsCancellation() async {
+        MockURLProtocol.requestHandler = { _ in
+            throw URLError(.cancelled)
+        }
+
+        do {
+            _ = try await client.fetchHomeOverview()
+            XCTFail("Expected cancellation")
+        } catch {
+            XCTAssertTrue(error.isTaskCancellation, "Expected cancellation, got \(error)")
+        }
+    }
+
     func testRejectsInvalidBaseURLBeforeNetwork() async {
         let client = APIClient(baseURL: URL(string: "ftp://example.com")!)
 

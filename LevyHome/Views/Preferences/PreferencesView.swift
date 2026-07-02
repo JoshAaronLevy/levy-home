@@ -51,8 +51,10 @@ private struct PreferencesContentView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
+                AppScreenHeader(title: "Preferences")
+
                 NotificationDeliveryStatusView(
                     viewModel: pushRegistrationViewModel,
                     preferencesViewModel: viewModel
@@ -68,10 +70,11 @@ private struct PreferencesContentView: View {
                     developerLink
                 }
             }
-            .padding(AppSpacing.screen)
+            .padding(.horizontal, AppSpacing.screen)
+            .padding(.top, AppSpacing.large)
+            .padding(.bottom, AppSpacing.xLarge * 3)
         }
-        .background(AppColors.pageBackground)
-        .navigationTitle("Preferences")
+        .appScreenChrome()
     }
 
     private var developerLink: some View {

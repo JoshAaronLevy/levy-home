@@ -33,6 +33,22 @@ struct ToDoView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
+                AppScreenHeader(title: "To Do") {
+                    AppHeaderControlGroup {
+                        AppHeaderGroupedButton(
+                            systemImage: "line.3.horizontal.decrease",
+                            accessibilityLabel: "Filter to dos"
+                        ) {}
+
+                        AppHeaderGroupedButton(
+                            systemImage: "plus",
+                            accessibilityLabel: "Add to do"
+                        ) {
+                            isShowingAddSheet = true
+                        }
+                    }
+                }
+
                 ToDoSummaryCard(
                     openTaskCount: openTaskCount,
                     dueTodayCount: dueTodayCount,
@@ -46,27 +62,11 @@ struct ToDoView: View {
                     ToDoTaskSectionView(section: section, usersById: usersById)
                 }
             }
-            .padding(AppSpacing.screen)
-            .padding(.bottom, AppSpacing.xLarge)
+            .padding(.horizontal, AppSpacing.screen)
+            .padding(.top, AppSpacing.large)
+            .padding(.bottom, AppSpacing.xLarge * 3)
         }
-        .background(AppColors.pageBackground)
-        .navigationTitle("To Do")
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                }
-                .accessibilityLabel("Filter to dos")
-
-                Button {
-                    isShowingAddSheet = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add to do")
-            }
-        }
+        .appScreenChrome()
         .sheet(isPresented: $isShowingAddSheet) {
             ToDoEditorSheet()
                 .presentationDetents([.large])

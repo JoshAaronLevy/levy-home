@@ -363,7 +363,7 @@ private struct HomeHeaderView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: AppSpacing.small) {
                     Text("Levy Home")
-                        .font(.system(size: 42, weight: .bold, design: .serif))
+                        .font(.system(size: 34, weight: .bold, design: .serif))
                         .foregroundStyle(HomePalette.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)

@@ -80,6 +80,10 @@ final class ActivityViewModel: ObservableObject {
             events = mergedEvents(existing: events, incoming: response.events)
             errorMessage = nil
         } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
             errorMessage = error.localizedDescription
         }
     }
@@ -109,6 +113,10 @@ final class ActivityViewModel: ObservableObject {
             errorMessage = nil
             hasLoaded = true
         } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
             errorMessage = error.localizedDescription
             hasLoaded = true
         }

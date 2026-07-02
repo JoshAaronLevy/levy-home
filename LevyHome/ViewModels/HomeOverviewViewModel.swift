@@ -181,6 +181,10 @@ final class HomeOverviewViewModel: ObservableObject {
             errorMessage = nil
             hasLoaded = true
         } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
             errorMessage = error.localizedDescription
             hasLoaded = true
         }

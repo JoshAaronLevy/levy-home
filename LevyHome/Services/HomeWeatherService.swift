@@ -10,42 +10,22 @@ protocol HomeLocationProviding {
     func location() async throws -> CLLocation
 }
 
-actor GeocodedHomeLocationProvider: HomeLocationProviding {
-    private let addresses: [String]
-    private let geocoder: CLGeocoder
-    private var cachedLocation: CLLocation?
+struct StaticHomeLocationProvider: HomeLocationProviding {
+    static let levyHome = StaticHomeLocationProvider(
+        latitude: 39.5388289,
+        longitude: -105.0305231
+    )
 
     init(
-        addresses: [String] = [
-            "9774 Bucknell Ct, Highlands Ranch, CO 80129",
-            "9774 Bucknell Ct, Littleton, CO 80129"
-        ],
-        geocoder: CLGeocoder = CLGeocoder()
+        latitude: CLLocationDegrees,
+        longitude: CLLocationDegrees
     ) {
-        self.addresses = addresses
-        self.geocoder = geocoder
+        self.location = CLLocation(latitude: latitude, longitude: longitude)
     }
 
-    func location() async throws -> CLLocation {
-        if let cachedLocation {
-            return cachedLocation
-        }
+    private let location: CLLocation
 
-        var lastError: Error?
-        for address in addresses {
-            do {
-                let placemarks = try await geocoder.geocodeAddressString(address)
-                if let location = placemarks.first?.location {
-                    cachedLocation = location
-                    return location
-                }
-            } catch {
-                lastError = error
-            }
-        }
-
-        throw lastError ?? HomeWeatherServiceError.homeLocationUnavailable
-    }
+    func location() async throws -> CLLocation { location }
 }
 
 enum HomeWeatherServiceError: LocalizedError {
@@ -65,7 +45,7 @@ final class HomeWeatherService: HomeWeatherServicing {
     private let now: () -> Date
 
     init(
-        homeLocationProvider: HomeLocationProviding = GeocodedHomeLocationProvider(),
+        homeLocationProvider: HomeLocationProviding = StaticHomeLocationProvider.levyHome,
         weatherService: WeatherService = .shared,
         now: @escaping () -> Date = Date.init
     ) {
