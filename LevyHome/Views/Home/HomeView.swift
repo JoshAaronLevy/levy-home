@@ -109,10 +109,7 @@ private struct HomeContentView: View {
         .preferredColorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            async let home: Void = homeViewModel.loadIfNeeded()
-            async let weather: Void = weatherViewModel.refreshForHomeVisit()
-            async let actions: Void = quickActionsViewModel.loadIfNeeded()
-            _ = await (home, weather, actions)
+            await loadHomeContentIfNeeded()
         }
         .onChange(of: isSelected) { _, newValue in
             guard newValue else {
@@ -120,7 +117,7 @@ private struct HomeContentView: View {
             }
 
             Task {
-                await weatherViewModel.refreshForHomeVisit()
+                await refreshWeatherForHomeVisit()
             }
         }
         .onChange(of: scenePhase) { _, newValue in
@@ -129,14 +126,11 @@ private struct HomeContentView: View {
             }
 
             Task {
-                await weatherViewModel.refreshForHomeVisit()
+                await refreshWeatherForHomeVisit()
             }
         }
         .refreshable {
-            async let home: Void = homeViewModel.refresh()
-            async let weather: Void = weatherViewModel.refresh()
-            async let actions: Void = quickActionsViewModel.refresh()
-            _ = await (home, weather, actions)
+            await refreshHomeContent()
         }
         .confirmationDialog(
             quickActionsViewModel.pendingConfirmationAction?.title ?? "Confirm Action",
@@ -155,6 +149,44 @@ private struct HomeContentView: View {
             }
         } message: { action in
             Text("\(action.subtitle) This will send a command through the Levy Home API.")
+        }
+    }
+
+    private func loadHomeContentIfNeeded() async {
+        await runHomeContentOperation {
+            async let home: Void = homeViewModel.loadIfNeeded()
+            async let weather: Void = weatherViewModel.refreshForHomeVisit()
+            async let actions: Void = quickActionsViewModel.loadIfNeeded()
+            _ = await (home, weather, actions)
+        }
+    }
+
+    private func refreshHomeContent() async {
+        await runHomeContentOperation {
+            async let home: Void = homeViewModel.refresh()
+            async let weather: Void = weatherViewModel.refresh()
+            async let actions: Void = quickActionsViewModel.refresh()
+            _ = await (home, weather, actions)
+        }
+    }
+
+    private func refreshWeatherForHomeVisit() async {
+        await runHomeContentOperation {
+            await weatherViewModel.refreshForHomeVisit()
+        }
+    }
+
+    private func runHomeContentOperation(
+        _ operation: @escaping @MainActor () async -> Void
+    ) async {
+        let task = Task { @MainActor in
+            await operation()
+        }
+
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            // SwiftUI may cancel view tasks around refresh gestures; keep the requested load alive.
         }
     }
 

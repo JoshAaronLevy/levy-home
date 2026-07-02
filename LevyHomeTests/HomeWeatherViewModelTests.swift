@@ -34,6 +34,32 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(fallbackProvider.requestCount, 1)
     }
 
+    func testHomeWeatherServiceDoesNotFallbackWhenPrimaryRequestIsCancelled() async {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        let primaryProvider = MockCoordinateWeatherProvider(
+            result: .failure(CancellationError())
+        )
+        let fallbackProvider = MockCoordinateWeatherProvider(
+            result: .success(Self.snapshot(current: 78, fetchedAt: now))
+        )
+        let service = HomeWeatherService(
+            homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
+            primaryWeatherProvider: primaryProvider,
+            fallbackWeatherProvider: fallbackProvider,
+            now: { now }
+        )
+
+        do {
+            _ = try await service.fetchSnapshot()
+            XCTFail("Expected cancellation to be preserved.")
+        } catch {
+            XCTAssertTrue(error.isTaskCancellation)
+        }
+
+        XCTAssertEqual(primaryProvider.requestCount, 1)
+        XCTAssertEqual(fallbackProvider.requestCount, 0)
+    }
+
     func testOpenMeteoProviderBuildsFallbackSnapshot() async throws {
         let now = Self.date("2026-07-01T16:00:00Z")
         var capturedRequest: URLRequest?

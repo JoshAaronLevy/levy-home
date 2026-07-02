@@ -74,6 +74,10 @@ final class HomeWeatherService: HomeWeatherServicing {
                 fetchedAt: fetchedAt
             )
         } catch {
+            guard !error.isTaskCancellation else {
+                throw error
+            }
+
             guard let fallbackWeatherProvider else {
                 throw error
             }
