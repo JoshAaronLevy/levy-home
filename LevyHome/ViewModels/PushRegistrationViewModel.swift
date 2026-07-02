@@ -26,7 +26,7 @@ final class PushRegistrationViewModel: ObservableObject {
     private let stateStore: PushRegistrationStateStoring
     private let apnsEnvironment: APNsEnvironment
     private let appVersion: String?
-    private let deviceName: String?
+    private var deviceName: String?
     private let now: () -> Date
 
     init(
@@ -43,8 +43,12 @@ final class PushRegistrationViewModel: ObservableObject {
         self.stateStore = stateStore
         self.apnsEnvironment = apnsEnvironment
         self.appVersion = appVersion
-        self.deviceName = deviceName
+        self.deviceName = Self.normalizedDeviceName(deviceName)
         self.now = now
+    }
+
+    func updateDeviceName(_ deviceName: String?) {
+        self.deviceName = Self.normalizedDeviceName(deviceName)
     }
 
     func refreshStatus() async {
@@ -52,7 +56,12 @@ final class PushRegistrationViewModel: ObservableObject {
             return
         }
 
-        apply(await service.currentSnapshot(), preserveDeveloperMessage: true)
+        let snapshot = await service.currentSnapshot()
+        apply(snapshot, preserveDeveloperMessage: true)
+
+        if shouldSyncDeviceWithAPIOnRefresh(snapshot) {
+            await syncDeviceWithAPIIfPossible(snapshot)
+        }
     }
 
     func requestRegistration() async {
@@ -259,5 +268,22 @@ final class PushRegistrationViewModel: ObservableObject {
         apiRegistrationDetail = detail
         apiRegistrationTone = .neutral
         apiRegistrationSystemImage = "forward"
+    }
+
+    private func shouldSyncDeviceWithAPIOnRefresh(_ snapshot: PushRegistrationSnapshot) -> Bool {
+        deviceRegistrationService != nil
+            && snapshot.availability == .available
+            && snapshot.permissionStatus.allowsNotifications
+            && snapshot.hasDeviceToken
+    }
+
+    private static func normalizedDeviceName(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return trimmedValue.isEmpty ? nil : trimmedValue
     }
 }

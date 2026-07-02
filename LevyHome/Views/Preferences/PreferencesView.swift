@@ -57,7 +57,8 @@ private struct PreferencesContentView: View {
 
                 NotificationDeliveryStatusView(
                     viewModel: pushRegistrationViewModel,
-                    preferencesViewModel: viewModel
+                    preferencesViewModel: viewModel,
+                    deviceName: notificationRegistrationDeviceName
                 )
 
                 ThemePreferenceRowView(viewModel: themePreferenceViewModel)
@@ -90,6 +91,12 @@ private struct PreferencesContentView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Developer")
+    }
+
+    private var notificationRegistrationDeviceName: String? {
+        let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return trimmedName.isEmpty ? nil : trimmedName
     }
 }
 

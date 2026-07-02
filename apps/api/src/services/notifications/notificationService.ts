@@ -36,9 +36,22 @@ export function createNotificationService(options: {
       const display = getEventDisplayMetadata(payload.type);
       const preferenceCategory = notificationCategoryForEvent(payload);
       const devices = await options.deviceRegistry.listDevices();
+      const recipientTarget = notificationRecipientTargetForEvent(payload);
+      const targetDevices = recipientTarget
+        ? filterDevicesForRecipient(devices, recipientTarget)
+        : devices;
+
+      if (recipientTarget && targetDevices.length === 0) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: `No registered APNs devices match recipient "${recipientTarget}".`,
+        };
+      }
+
       const summary = preferenceCategory
         ? await sendPushToRegisteredDevices({
-            devices,
+            devices: targetDevices,
             notificationPreferenceStore: options.notificationPreferenceStore,
             pushSender: options.pushSender,
             payload: {
@@ -206,4 +219,39 @@ export function notificationCategoryForEvent(
   const category = categoryByEventType[payload.type];
 
   return isNotificationPreferenceCategory(category) ? category : undefined;
+}
+
+function notificationRecipientTargetForEvent(payload: HomeAssistantEventPayload): string | undefined {
+  if (payload.type !== 'partner_left_home' && payload.type !== 'partner_arrived_home') {
+    return undefined;
+  }
+
+  const recipient = payload.metadata?.recipient;
+
+  return typeof recipient === 'string' && recipient.trim().length > 0
+    ? recipient.trim()
+    : undefined;
+}
+
+function filterDevicesForRecipient(
+  devices: RegisteredDevice[],
+  recipient: string,
+): RegisteredDevice[] {
+  const normalizedRecipient = normalizeRecipientText(recipient);
+
+  if (!normalizedRecipient) {
+    return devices;
+  }
+
+  return devices.filter((device) => {
+    const normalizedDeviceName = normalizeRecipientText(device.deviceName);
+
+    return normalizedDeviceName.includes(normalizedRecipient);
+  });
+}
+
+function normalizeRecipientText(value: unknown): string {
+  return typeof value === 'string'
+    ? value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+    : '';
 }

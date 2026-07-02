@@ -32,6 +32,7 @@ test('garage event pushes honor per-device notification preferences', async () =
     platform: 'ios',
     provider: 'apns',
     environment: 'sandbox',
+    deviceName: 'Josh',
   });
   await routes.putJSON('/api/notification-preferences', {
     deviceToken: 'sample-apns-token',
@@ -82,6 +83,7 @@ test('partner presence webhook event sends a Levy Home push notification', async
     platform: 'ios',
     provider: 'apns',
     environment: 'sandbox',
+    deviceName: 'Josh',
   });
 
   const created = await routes.postJSON(

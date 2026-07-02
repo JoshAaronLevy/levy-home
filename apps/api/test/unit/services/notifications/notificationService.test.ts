@@ -90,6 +90,91 @@ test('notification service sends partner presence event pushes through partner p
   assert.deepEqual(pushSender.requests[0].data, { category: 'partner_presence' });
 });
 
+test('notification service sends partner presence pushes only to the metadata recipient', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+  await deviceRegistry.registerDevice({
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory',
+  });
+
+  const push = await notificationService.sendEventPush({
+    type: 'partner_left_home',
+    entityId: 'device_tracker.josh_iphone',
+    category: 'presence',
+    severity: 'normal',
+    source: 'home_assistant',
+    title: 'Josh left home',
+    message: "Josh left. But don't worry. He loves you too much to be gone for long",
+    metadata: {
+      actor: 'Josh',
+      recipient: 'Mallory',
+    },
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].device.token, 'mallory-apns-token');
+  assert.equal(pushSender.requests[0].title, 'Josh left home');
+  assert.equal(pushSender.requests[0].body, "Josh left. But don't worry. He loves you too much to be gone for long");
+});
+
+test('notification service skips recipient-targeted partner presence pushes without a matching device', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+
+  const push = await notificationService.sendEventPush({
+    type: 'partner_left_home',
+    entityId: 'device_tracker.josh_iphone',
+    category: 'presence',
+    severity: 'normal',
+    source: 'home_assistant',
+    title: 'Josh left home',
+    message: "Josh left. But don't worry. He loves you too much to be gone for long",
+    metadata: {
+      actor: 'Josh',
+      recipient: 'Mallory',
+    },
+  });
+
+  assert.equal(push.attempted, false);
+  assert.equal(push.skipped, true);
+  assert.equal(push.reason, 'No registered APNs devices match recipient "Mallory".');
+  assert.equal(pushSender.requests.length, 0);
+});
+
 test('notification service sends lighting automation pushes through lighting preference', async () => {
   const deviceRegistry = createInMemoryDeviceRegistry();
   const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);

@@ -3,6 +3,17 @@ import SwiftUI
 struct NotificationDeliveryStatusView: View {
     @ObservedObject var viewModel: PushRegistrationViewModel
     @ObservedObject var preferencesViewModel: NotificationPreferencesViewModel
+    let deviceName: String?
+
+    init(
+        viewModel: PushRegistrationViewModel,
+        preferencesViewModel: NotificationPreferencesViewModel,
+        deviceName: String? = nil
+    ) {
+        self.viewModel = viewModel
+        self.preferencesViewModel = preferencesViewModel
+        self.deviceName = deviceName
+    }
 
     var body: some View {
         InfoPanel(
@@ -51,7 +62,8 @@ struct NotificationDeliveryStatusView: View {
             }
             .buttonStyle(.plain)
         }
-        .task {
+        .task(id: deviceName ?? "") {
+            viewModel.updateDeviceName(deviceName)
             await viewModel.refreshStatus()
         }
     }

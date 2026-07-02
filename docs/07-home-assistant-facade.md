@@ -73,6 +73,7 @@ APNs behavior:
 - Debug test pushes are diagnostics and do not apply notification category preferences.
 - Garage Home Assistant events map to the five garage preference categories and only send APNs pushes to devices where that category is enabled.
 - Partner presence Home Assistant events map to the `partner_presence` category and only send APNs pushes to devices where that category is enabled.
+- Partner presence events with `metadata.recipient` only send APNs pushes to registered Levy Home devices whose stored device owner/name matches that recipient.
 - Selected lighting automation Home Assistant events map to the `lighting_automation` category and only send APNs pushes to devices where that category is enabled.
 - If APNs credentials are missing, `/api/debug/send-test-push` returns a readable `503` error instead of crashing. Notification-capable event ingestion still stores the event and records the missing-credentials reason in `event.push`.
 - Expo-style device registrations remain accepted for compatibility, but this backend stage does not send Expo pushes.
@@ -242,6 +243,84 @@ actions:
               "oldState": trigger.from_state.state,
               "newState": trigger.to_state.state,
               "automation": "Mallory Arrived Home - Notify Josh"
+            }
+          } | to_json
+        }}
+mode: single
+```
+
+Use this full automation for `Josh Left Home - Notify Mallory`:
+
+```yaml
+alias: Josh Left Home - Notify Mallory
+description: ""
+triggers:
+  - trigger: state
+    entity_id: device_tracker.josh_iphone
+    from: home
+conditions:
+  - condition: state
+    entity_id: device_tracker.mallorys_iphone
+    state: home
+actions:
+  - action: rest_command.levy_home_event
+    data:
+      payload_json: >-
+        {{
+          {
+            "type": "partner_left_home",
+            "category": "presence",
+            "severity": "normal",
+            "entityId": "device_tracker.josh_iphone",
+            "source": "home_assistant",
+            "occurredAt": trigger.to_state.last_changed.isoformat(),
+            "title": "Josh left home",
+            "message": "Josh left. But don't worry. He loves you too much to be gone for long",
+            "metadata": {
+              "actor": "Josh",
+              "recipient": "Mallory",
+              "oldState": trigger.from_state.state if trigger.from_state else none,
+              "newState": trigger.to_state.state if trigger.to_state else none,
+              "automation": "Josh Left Home - Notify Mallory"
+            }
+          } | to_json
+        }}
+mode: single
+```
+
+Use this full automation for `Josh Arrived Home - Notify Mallory`:
+
+```yaml
+alias: Josh Arrived Home - Notify Mallory
+description: ""
+triggers:
+  - trigger: state
+    entity_id: device_tracker.josh_iphone
+    to: home
+conditions:
+  - condition: state
+    entity_id: device_tracker.mallorys_iphone
+    state: home
+actions:
+  - action: rest_command.levy_home_event
+    data:
+      payload_json: >-
+        {{
+          {
+            "type": "partner_arrived_home",
+            "category": "presence",
+            "severity": "normal",
+            "entityId": "device_tracker.josh_iphone",
+            "source": "home_assistant",
+            "occurredAt": trigger.to_state.last_changed.isoformat(),
+            "title": "Josh arrived home",
+            "message": "Prepare to be loved on... Josh arrived home.",
+            "metadata": {
+              "actor": "Josh",
+              "recipient": "Mallory",
+              "oldState": trigger.from_state.state if trigger.from_state else none,
+              "newState": trigger.to_state.state if trigger.to_state else none,
+              "automation": "Josh Arrived Home - Notify Mallory"
             }
           } | to_json
         }}

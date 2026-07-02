@@ -138,6 +138,45 @@ final class PushRegistrationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.deviceToken, "abc123")
     }
 
+    func testRefreshSyncsExistingDeviceTokenWithUpdatedDeviceName() async {
+        let apiService = MockDeviceRegistrationService(
+            response: RegisterDeviceResponse(
+                ok: true,
+                registeredDeviceCount: 2,
+                device: nil
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: MockNotificationService(
+                currentSnapshot: PushRegistrationSnapshot(
+                    permissionStatus: .authorized,
+                    availability: .available,
+                    deviceToken: "abc123",
+                    errorMessage: nil
+                )
+            ),
+            deviceRegistrationService: apiService,
+            apnsEnvironment: .sandbox,
+            appVersion: "0.1.0",
+            deviceName: "Josh"
+        )
+
+        viewModel.updateDeviceName("Mallory")
+        await viewModel.refreshStatus()
+
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Synced")
+        XCTAssertEqual(apiService.requests, [
+            RegisterDeviceRequest(
+                token: "abc123",
+                platform: .iOS,
+                provider: .apns,
+                environment: .sandbox,
+                appVersion: "0.1.0",
+                deviceName: "Mallory"
+            )
+        ])
+    }
+
     func testRefreshDoesNotRestorePersistedAPISyncStateForDifferentToken() async {
         let stateStore = MockPushRegistrationStateStore(
             apiSyncState: PushAPISyncState(
