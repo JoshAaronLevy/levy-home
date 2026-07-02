@@ -23,22 +23,28 @@ final class PushRegistrationViewModel: ObservableObject {
 
     private let service: NotificationServicing
     private let deviceRegistrationService: DeviceRegistrationServicing?
+    private let stateStore: PushRegistrationStateStoring
     private let apnsEnvironment: APNsEnvironment
     private let appVersion: String?
     private let deviceName: String?
+    private let now: () -> Date
 
     init(
         service: NotificationServicing,
         deviceRegistrationService: DeviceRegistrationServicing? = nil,
+        stateStore: PushRegistrationStateStoring = PushRegistrationStateStore(),
         apnsEnvironment: APNsEnvironment = .sandbox,
         appVersion: String? = nil,
-        deviceName: String? = nil
+        deviceName: String? = nil,
+        now: @escaping () -> Date = Date.init
     ) {
         self.service = service
         self.deviceRegistrationService = deviceRegistrationService
+        self.stateStore = stateStore
         self.apnsEnvironment = apnsEnvironment
         self.appVersion = appVersion
         self.deviceName = deviceName
+        self.now = now
     }
 
     func refreshStatus() async {
@@ -136,7 +142,7 @@ final class PushRegistrationViewModel: ObservableObject {
             registrationDetail = "This device has a native APNs token. Backend sync comes next."
             registrationTone = .success
             registrationSystemImage = "checkmark.circle"
-            applyAPISyncPending()
+            applyPersistedAPISyncIfAvailable(for: snapshot)
             return
         }
 
@@ -195,10 +201,15 @@ final class PushRegistrationViewModel: ObservableObject {
                 )
             )
 
-            apiRegistrationLabel = "Synced"
-            apiRegistrationDetail = "This device is registered with the Levy Home API."
-            apiRegistrationTone = .success
-            apiRegistrationSystemImage = "checkmark.circle"
+            applyAPISyncSynced()
+            stateStore.saveAPISyncState(
+                PushAPISyncState(
+                    deviceToken: token,
+                    environment: apnsEnvironment,
+                    registeredDeviceCount: response.registeredDeviceCount,
+                    syncedAt: now()
+                )
+            )
             developerStatusMessage = "API device registration succeeded. Registered devices: \(response.registeredDeviceCount)."
         } catch {
             apiRegistrationLabel = "Failed"
@@ -207,6 +218,26 @@ final class PushRegistrationViewModel: ObservableObject {
             apiRegistrationSystemImage = "exclamationmark.triangle"
             developerStatusMessage = "API device registration failed: \(error.localizedDescription)"
         }
+    }
+
+    private func applyPersistedAPISyncIfAvailable(for snapshot: PushRegistrationSnapshot) {
+        guard
+            let token = snapshot.deviceToken,
+            let syncState = stateStore.loadAPISyncState(),
+            syncState.matches(deviceToken: token, environment: apnsEnvironment)
+        else {
+            applyAPISyncPending()
+            return
+        }
+
+        applyAPISyncSynced()
+    }
+
+    private func applyAPISyncSynced() {
+        apiRegistrationLabel = "Synced"
+        apiRegistrationDetail = "This device is registered with the Levy Home API."
+        apiRegistrationTone = .success
+        apiRegistrationSystemImage = "checkmark.circle"
     }
 
     private func applyAPISyncPending() {

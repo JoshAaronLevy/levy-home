@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import XCTest
 @testable import LevyHome
 
@@ -9,6 +10,100 @@ final class HomeWeatherViewModelTests: XCTestCase {
 
         XCTAssertEqual(location.coordinate.latitude, 39.5388289, accuracy: 0.000001)
         XCTAssertEqual(location.coordinate.longitude, -105.0305231, accuracy: 0.000001)
+    }
+
+    func testHomeWeatherServiceFallsBackWhenPrimaryWeatherProviderFails() async throws {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        let fallbackSnapshot = Self.snapshot(current: 78, condition: "Rain", fetchedAt: now)
+        let primaryProvider = MockCoordinateWeatherProvider(
+            result: .failure(HomeWeatherServiceError.homeLocationUnavailable)
+        )
+        let fallbackProvider = MockCoordinateWeatherProvider(result: .success(fallbackSnapshot))
+        let service = HomeWeatherService(
+            homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
+            primaryWeatherProvider: primaryProvider,
+            fallbackWeatherProvider: fallbackProvider,
+            now: { now }
+        )
+
+        let snapshot = try await service.fetchSnapshot()
+
+        XCTAssertEqual(snapshot.currentTemperature, fallbackSnapshot.currentTemperature)
+        XCTAssertEqual(snapshot.conditionDescription, "Rain")
+        XCTAssertEqual(primaryProvider.requestCount, 1)
+        XCTAssertEqual(fallbackProvider.requestCount, 1)
+    }
+
+    func testOpenMeteoProviderBuildsFallbackSnapshot() async throws {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        var capturedRequest: URLRequest?
+        MockWeatherURLProtocol.requestHandler = { request in
+            capturedRequest = request
+            return Self.response(
+                for: request,
+                json: """
+                {
+                  "timezone": "America/Denver",
+                  "current": {
+                    "time": "2026-07-01T14:00",
+                    "temperature_2m": 76.2,
+                    "weather_code": 61,
+                    "precipitation": 0.03
+                  },
+                  "hourly": {
+                    "time": ["2026-07-01T14:00", "2026-07-01T15:00"],
+                    "temperature_2m": [76.2, 78.1],
+                    "precipitation_probability": [30, 45],
+                    "precipitation": [0.02, 0.04],
+                    "weather_code": [61, 80]
+                  },
+                  "daily": {
+                    "time": ["2026-07-01", "2026-07-02"],
+                    "temperature_2m_max": [82.4, 86.1],
+                    "temperature_2m_min": [58.2, 62.0],
+                    "precipitation_probability_max": [45, 20],
+                    "weather_code": [61, 2]
+                  }
+                }
+                """
+            )
+        }
+        defer { MockWeatherURLProtocol.requestHandler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockWeatherURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let provider = OpenMeteoHomeWeatherProvider(
+            baseURL: URL(string: "https://api.open-meteo.test/v1/forecast")!,
+            session: session
+        )
+
+        let snapshot = try await provider.fetchSnapshot(
+            for: CLLocation(latitude: 39.5388289, longitude: -105.0305231),
+            fetchedAt: now
+        )
+        let queryItems = Dictionary(
+            uniqueKeysWithValues: (URLComponents(
+                url: try XCTUnwrap(capturedRequest?.url),
+                resolvingAgainstBaseURL: false
+            )?.queryItems ?? []).map { ($0.name, $0.value) }
+        )
+
+        XCTAssertEqual(capturedRequest?.url?.host, "api.open-meteo.test")
+        XCTAssertEqual(queryItems["temperature_unit"] ?? nil, "fahrenheit")
+        XCTAssertEqual(queryItems["timezone"] ?? nil, "auto")
+        XCTAssertEqual(queryItems["forecast_days"] ?? nil, "3")
+        XCTAssertEqual(snapshot.currentTemperature.value, 76.2, accuracy: 0.001)
+        XCTAssertEqual(snapshot.conditionDescription, "Rain")
+        XCTAssertEqual(snapshot.symbolName, "cloud.rain.fill")
+        XCTAssertEqual(try XCTUnwrap(snapshot.highTemperature).value, 82.4, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(snapshot.lowTemperature).value, 58.2, accuracy: 0.001)
+        XCTAssertEqual(snapshot.hourlyForecast.count, 2)
+        XCTAssertEqual(snapshot.hourlyForecast[1].precipitationChance, 0.45, accuracy: 0.001)
+        XCTAssertEqual(snapshot.hourlyForecast[1].precipitationDescription, "rain")
+        XCTAssertEqual(snapshot.dailyForecast.count, 2)
+        XCTAssertEqual(try XCTUnwrap(snapshot.dailyForecast[0].precipitationChance), 0.45, accuracy: 0.001)
+        XCTAssertEqual(snapshot.attributionURL, URL(string: "https://open-meteo.com/"))
     }
 
     func testLoadIfNeededLoadsWeatherSnapshot() async {
@@ -185,4 +280,67 @@ final class HomeWeatherViewModelTests: XCTestCase {
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
     }
+
+    private static func response(
+        for request: URLRequest,
+        statusCode: Int = 200,
+        json: String
+    ) -> (HTTPURLResponse, Data) {
+        (
+            HTTPURLResponse(
+                url: request.url ?? URL(string: "https://api.open-meteo.test")!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!,
+            Data(json.utf8)
+        )
+    }
+}
+
+private final class MockCoordinateWeatherProvider: CoordinateWeatherSnapshotLoading {
+    private let result: Result<HomeWeatherSnapshot, Error>
+    private(set) var requestCount = 0
+
+    init(result: Result<HomeWeatherSnapshot, Error>) {
+        self.result = result
+    }
+
+    func fetchSnapshot(
+        for location: CLLocation,
+        fetchedAt: Date
+    ) async throws -> HomeWeatherSnapshot {
+        requestCount += 1
+        return try result.get()
+    }
+}
+
+private final class MockWeatherURLProtocol: URLProtocol {
+    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
