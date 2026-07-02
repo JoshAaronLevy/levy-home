@@ -49,6 +49,19 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(event.push?.attempted, true)
     }
 
+    func testDecodesLightingAutomationEvent() throws {
+        let event = try decodeEvent(
+            type: "study_lights_on",
+            displaySeverity: "info",
+            category: "lighting"
+        )
+
+        XCTAssertEqual(event.type, .studyLightsOn)
+        XCTAssertEqual(event.category, .lighting)
+        XCTAssertEqual(event.display.severity, .info)
+        XCTAssertEqual(event.push?.attempted, true)
+    }
+
     func testDecodesPhoneActivityEventWithoutPushMetadata() throws {
         let json = """
         {
@@ -277,6 +290,12 @@ final class ModelDecodingTests: XCTestCase {
                 "isEnabled": true,
                 "title": "Partner presence",
                 "detail": "Notify when your partner leaves or arrives home."
+              },
+              {
+                "category": "lighting_automation",
+                "isEnabled": true,
+                "title": "Lighting automations",
+                "detail": "Notify when selected lighting automations finish."
               }
             ]
             """
@@ -290,7 +309,8 @@ final class ModelDecodingTests: XCTestCase {
                 .garageLeftOpen,
                 .garageAfterHours,
                 .garageStillOpenAt10PM,
-                .partnerPresence
+                .partnerPresence,
+                .lightingAutomation
             ]
         )
         XCTAssertTrue(preferences.allSatisfy(\.isEnabled))

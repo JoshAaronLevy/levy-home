@@ -108,6 +108,12 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
             isEnabled: true,
             title: "Partner presence",
             detail: "Notify when your partner leaves or arrives home."
+        ),
+        NotificationPreference(
+            category: .lightingAutomation,
+            isEnabled: true,
+            title: "Lighting automations",
+            detail: "Notify when selected lighting automations finish."
         )
     ]
 }

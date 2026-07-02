@@ -89,3 +89,37 @@ test('notification service sends partner presence event pushes through partner p
   assert.equal(pushSender.requests[0].body, 'Mallory left home.');
   assert.deepEqual(pushSender.requests[0].data, { category: 'partner_presence' });
 });
+
+test('notification service sends lighting automation pushes through lighting preference', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const push = await notificationService.sendEventPush({
+    type: 'study_lights_on',
+    entityId: 'automation.study_on_bright',
+    category: 'lighting',
+    severity: 'normal',
+    source: 'home_assistant',
+    message: 'Study: Let there be light!',
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].title, 'Study lights on');
+  assert.equal(pushSender.requests[0].body, 'Study: Let there be light!');
+  assert.deepEqual(pushSender.requests[0].data, { category: 'lighting_automation' });
+});

@@ -73,6 +73,7 @@ APNs behavior:
 - Debug test pushes are diagnostics and do not apply notification category preferences.
 - Garage Home Assistant events map to the five garage preference categories and only send APNs pushes to devices where that category is enabled.
 - Partner presence Home Assistant events map to the `partner_presence` category and only send APNs pushes to devices where that category is enabled.
+- Selected lighting automation Home Assistant events map to the `lighting_automation` category and only send APNs pushes to devices where that category is enabled.
 - If APNs credentials are missing, `/api/debug/send-test-push` returns a readable `503` error instead of crashing. Notification-capable event ingestion still stores the event and records the missing-credentials reason in `event.push`.
 - Expo-style device registrations remain accepted for compatibility, but this backend stage does not send Expo pushes.
 
@@ -127,7 +128,8 @@ curl -X PUT http://localhost:4000/api/notification-preferences \
       { "category": "garage_opened", "isEnabled": false },
       { "category": "garage_left_open", "isEnabled": true },
       { "category": "garage_after_hours", "isEnabled": true },
-      { "category": "partner_presence", "isEnabled": true }
+      { "category": "partner_presence", "isEnabled": true },
+      { "category": "lighting_automation", "isEnabled": true }
     ]
   }'
 
@@ -240,6 +242,58 @@ actions:
               "oldState": trigger.from_state.state,
               "newState": trigger.to_state.state,
               "automation": "Mallory Arrived Home - Notify Josh"
+            }
+          } | to_json
+        }}
+mode: single
+```
+
+Use this full automation for `Study On Bright` when the lights should still turn on exactly as before and then send a Levy Home app notification:
+
+```yaml
+alias: Study On Bright
+description: ""
+triggers:
+  - device_id: 12d671f1d1064ff9df53625dbfd0d434
+    domain: lutron_caseta
+    type: press
+    subtype: "on"
+    trigger: device
+conditions: []
+actions:
+  - action: light.turn_on
+    metadata: {}
+    target:
+      entity_id:
+        - light.study_study_lamp_1
+        - light.study_study_lamp_2
+        - light.study_study_lamp_3
+    data:
+      transition: 1
+      color_temp_kelvin: 4500
+      brightness_pct: 75
+  - delay:
+      seconds: 1
+  - action: rest_command.levy_home_event
+    data:
+      payload_json: >-
+        {{
+          {
+            "type": "study_lights_on",
+            "category": "lighting",
+            "severity": "normal",
+            "entityId": "automation.study_on_bright",
+            "source": "home_assistant",
+            "occurredAt": now().isoformat(),
+            "message": "Study: Let there be light!",
+            "metadata": {
+              "automation": "Study On Bright",
+              "trigger": "lutron_caseta_on_press",
+              "lights": [
+                "light.study_study_lamp_1",
+                "light.study_study_lamp_2",
+                "light.study_study_lamp_3"
+              ]
             }
           } | to_json
         }}

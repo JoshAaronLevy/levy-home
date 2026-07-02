@@ -70,6 +70,8 @@ struct EventCardView: View {
             return "exclamationmark.triangle"
         case .partnerLeftHome, .partnerArrivedHome:
             return "person.2"
+        case .studyLightsOn:
+            return "lightbulb"
         case .doorbellPressed:
             return "bell"
         case .doorbellPersonDetected:

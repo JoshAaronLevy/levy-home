@@ -116,6 +116,46 @@ test('partner presence webhook event sends a Levy Home push notification', async
   assert.equal(pushSender.requests[0].body, 'Mallory left home.');
 });
 
+test('lighting automation webhook event sends a Levy Home push notification', async () => {
+  const pushSender = new FakePushSender();
+
+  await routes.restart(createApp({ config: testConfig, pushSender }));
+
+  await routes.postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const created = await routes.postJSON(
+    '/api/ha/events',
+    {
+      type: 'study_lights_on',
+      category: 'lighting',
+      severity: 'normal',
+      entityId: 'automation.study_on_bright',
+      source: 'home_assistant',
+      message: 'Study: Let there be light!',
+      metadata: {
+        automation: 'Study On Bright',
+      },
+    },
+    { Authorization: 'Bearer test-secret' },
+  );
+
+  assert.equal(created.ok, true);
+  assert.equal(created.event.type, 'study_lights_on');
+  assert.equal(created.event.category, 'lighting');
+  assert.equal(created.event.display.title, 'Study lights on');
+  assert.equal(created.event.display.body, 'Study: Let there be light!');
+  assert.equal(created.event.push.attempted, true);
+  assert.equal(created.event.push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].title, 'Study lights on');
+  assert.equal(pushSender.requests[0].body, 'Study: Let there be light!');
+});
+
 test('event webhook stores events and /api/events returns them', async () => {
   const created = await routes.postJSON(
     '/api/ha/events',

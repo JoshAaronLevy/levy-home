@@ -63,7 +63,8 @@ export type NotificationPreferenceCategory =
   | 'garage_left_open'
   | 'garage_after_hours'
   | 'garage_still_open_at_10pm'
-  | 'partner_presence';
+  | 'partner_presence'
+  | 'lighting_automation';
 
 export type NotificationPreference = {
   category: NotificationPreferenceCategory;
@@ -126,6 +127,12 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     isEnabled: true,
     title: 'Partner presence',
     detail: 'Notify when your partner leaves or arrives home.',
+  },
+  {
+    category: 'lighting_automation',
+    isEnabled: true,
+    title: 'Lighting automations',
+    detail: 'Notify when selected lighting automations finish.',
   },
 ];
 

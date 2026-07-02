@@ -123,6 +123,7 @@ test('notification validators parse preference updates, queries, and test pushes
       preferences: [
         { category: 'garage_opened', isEnabled: false },
         { category: 'partner_presence', isEnabled: true },
+        { category: 'lighting_automation', isEnabled: true },
       ],
     }),
     {
@@ -130,6 +131,7 @@ test('notification validators parse preference updates, queries, and test pushes
       preferences: [
         { category: 'garage_opened', isEnabled: false },
         { category: 'partner_presence', isEnabled: true },
+        { category: 'lighting_automation', isEnabled: true },
       ],
     },
   );
@@ -180,21 +182,21 @@ test('quick action validator accepts curated actions and rejects arbitrary Home 
 
 test('Home Assistant event validator returns validation results without throwing', () => {
   assert.deepEqual(validateHomeAssistantEventPayload({
-    type: 'partner_arrived_home',
-    entityId: ' device_tracker.mallorys_iphone ',
-    category: 'presence',
+    type: 'study_lights_on',
+    entityId: ' automation.study_on_bright ',
+    category: 'lighting',
     severity: 'normal',
     occurredAt: '2026-06-30T12:00:00Z',
-    metadata: { from: 'not_home', to: 'home' },
+    metadata: { automation: 'Study On Bright' },
   }), {
     ok: true,
     value: {
-      type: 'partner_arrived_home',
-      entityId: 'device_tracker.mallorys_iphone',
-      category: 'presence',
+      type: 'study_lights_on',
+      entityId: 'automation.study_on_bright',
+      category: 'lighting',
       severity: 'normal',
       occurredAt: '2026-06-30T12:00:00Z',
-      metadata: { from: 'not_home', to: 'home' },
+      metadata: { automation: 'Study On Bright' },
     },
   });
 

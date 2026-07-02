@@ -62,7 +62,7 @@ export async function createStoredEvent(
 function eventDisplayMetadataForPayload(payload: HomeAssistantEventPayload) {
   const display = getEventDisplayMetadata(payload.type);
 
-  if (payload.type !== 'partner_left_home' && payload.type !== 'partner_arrived_home') {
+  if (!usesPayloadDisplayMetadata(payload.type)) {
     return display;
   }
 
@@ -71,6 +71,10 @@ function eventDisplayMetadataForPayload(payload: HomeAssistantEventPayload) {
     title: payload.title ?? display.title,
     body: payload.message ?? display.body,
   };
+}
+
+function usesPayloadDisplayMetadata(type: HomeAssistantEventPayload['type']): boolean {
+  return type === 'partner_left_home' || type === 'partner_arrived_home' || type === 'study_lights_on';
 }
 
 export async function fetchNormalizedHomeAssistantHistoryEvents(
