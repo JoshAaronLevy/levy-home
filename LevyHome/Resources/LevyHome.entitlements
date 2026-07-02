@@ -10,8 +10,6 @@
 	<true/>
 	<key>com.apple.developer.push-to-talk</key>
 	<true/>
-	<key>com.apple.developer.usernotifications.communication</key>
-	<true/>
 	<key>com.apple.developer.weatherkit</key>
 	<true/>
 	<key>com.apple.developer.wifi-aware</key>
