@@ -166,6 +166,8 @@ curl http://localhost:4000/api/events
 
 To trigger Levy Home partner-presence notifications from Home Assistant, configure a reusable `rest_command` and replace the old Home Assistant mobile-app notification action with the REST call. Keep the existing automation triggers and Josh-is-home condition; remove or replace the `notify.mobile_app_josh_iphone` action so Home Assistant does not also send its own push.
 
+`rest_command.levy_home_event` will not appear in the Home Assistant action picker until the `rest_command:` YAML exists in Home Assistant configuration and Home Assistant has restarted. If you search for `rest` before that configuration is loaded, there may be no matching action to select.
+
 Add secrets in Home Assistant `secrets.yaml`:
 
 ```yaml
