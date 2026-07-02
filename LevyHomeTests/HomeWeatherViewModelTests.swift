@@ -145,6 +145,20 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayData.currentTemperatureText, "71°")
     }
 
+    func testRefreshForHomeVisitReloadsAfterFirstLoad() async {
+        var loadCount = 0
+        let viewModel = HomeWeatherViewModel {
+            loadCount += 1
+            return Self.snapshot(current: Double(70 + loadCount))
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.refreshForHomeVisit()
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(viewModel.displayData.currentTemperatureText, "72°")
+    }
+
     func testFailureWithoutSnapshotShowsUnavailablePlaceholder() async {
         let viewModel = HomeWeatherViewModel {
             throw HomeWeatherServiceError.homeLocationUnavailable
@@ -175,6 +189,25 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayData.currentTemperatureText, "74°")
         XCTAssertEqual(viewModel.errorMessage, "Weather is unavailable.")
         XCTAssertTrue(viewModel.displayData.isStale)
+        XCTAssertFalse(viewModel.displayData.isPlaceholder)
+    }
+
+    func testCancelledRefreshKeepsSnapshotWithoutWeatherError() async {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        var responses: [Result<HomeWeatherSnapshot, Error>] = [
+            .success(Self.snapshot(current: 74, fetchedAt: now)),
+            .failure(CancellationError())
+        ]
+        let viewModel = HomeWeatherViewModel(now: { now }) {
+            try responses.removeFirst().get()
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.displayData.currentTemperatureText, "74°")
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.displayData.isStale)
         XCTAssertFalse(viewModel.displayData.isPlaceholder)
     }
 

@@ -181,6 +181,10 @@ final class HomeWeatherViewModel: ObservableObject {
         await load(isRefresh: false)
     }
 
+    func refreshForHomeVisit() async {
+        await load(isRefresh: hasLoaded)
+    }
+
     func refresh() async {
         await load(isRefresh: true)
     }
@@ -206,6 +210,10 @@ final class HomeWeatherViewModel: ObservableObject {
             errorMessage = nil
             hasLoaded = true
         } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
             errorMessage = "Weather is unavailable."
             hasLoaded = true
         }

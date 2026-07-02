@@ -2,6 +2,11 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(\.appEnvironment) private var appEnvironment
+    let isSelected: Bool
+
+    init(isSelected: Bool = true) {
+        self.isSelected = isSelected
+    }
 
     var body: some View {
         HomeContentView(
@@ -10,12 +15,14 @@ struct HomeView: View {
             quickActionsViewModel: QuickActionsViewModel(
                 service: appEnvironment.quickActionService,
                 appLogStore: appEnvironment.appLogStore
-            )
+            ),
+            isSelected: isSelected
         )
     }
 }
 
 private struct HomeContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var homeViewModel: HomeOverviewViewModel
     @StateObject private var weatherViewModel: HomeWeatherViewModel
     @StateObject private var quickActionsViewModel: QuickActionsViewModel
@@ -27,12 +34,16 @@ private struct HomeContentView: View {
     init(
         homeViewModel: HomeOverviewViewModel,
         weatherViewModel: HomeWeatherViewModel,
-        quickActionsViewModel: QuickActionsViewModel
+        quickActionsViewModel: QuickActionsViewModel,
+        isSelected: Bool = true
     ) {
         _homeViewModel = StateObject(wrappedValue: homeViewModel)
         _weatherViewModel = StateObject(wrappedValue: weatherViewModel)
         _quickActionsViewModel = StateObject(wrappedValue: quickActionsViewModel)
+        self.isSelected = isSelected
     }
+
+    private let isSelected: Bool
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -99,9 +110,27 @@ private struct HomeContentView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             async let home: Void = homeViewModel.loadIfNeeded()
-            async let weather: Void = weatherViewModel.loadIfNeeded()
+            async let weather: Void = weatherViewModel.refreshForHomeVisit()
             async let actions: Void = quickActionsViewModel.loadIfNeeded()
             _ = await (home, weather, actions)
+        }
+        .onChange(of: isSelected) { _, newValue in
+            guard newValue else {
+                return
+            }
+
+            Task {
+                await weatherViewModel.refreshForHomeVisit()
+            }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active, isSelected else {
+                return
+            }
+
+            Task {
+                await weatherViewModel.refreshForHomeVisit()
+            }
         }
         .refreshable {
             async let home: Void = homeViewModel.refresh()

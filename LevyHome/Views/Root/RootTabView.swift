@@ -1,14 +1,17 @@
 import SwiftUI
 
 struct RootTabView: View {
+    @State private var selectedTab: RootTab = .home
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
-                HomeView()
+                HomeView(isSelected: selectedTab == .home)
             }
             .tabItem {
                 Label("Home", systemImage: "house")
             }
+            .tag(RootTab.home)
 
             NavigationStack {
                 ShoppingListMockupView()
@@ -16,6 +19,7 @@ struct RootTabView: View {
             .tabItem {
                 Label("List", systemImage: "cart")
             }
+            .tag(RootTab.list)
 
             NavigationStack {
                 ToDoView()
@@ -23,6 +27,7 @@ struct RootTabView: View {
             .tabItem {
                 Label("To Do", systemImage: "checkmark.circle")
             }
+            .tag(RootTab.todo)
 
             NavigationStack {
                 PreferencesView()
@@ -30,8 +35,16 @@ struct RootTabView: View {
             .tabItem {
                 Label("Preferences", systemImage: "gearshape")
             }
+            .tag(RootTab.preferences)
         }
     }
+}
+
+private enum RootTab: Hashable {
+    case home
+    case list
+    case todo
+    case preferences
 }
 
 #Preview {
