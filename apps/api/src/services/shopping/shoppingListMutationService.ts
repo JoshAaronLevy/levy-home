@@ -3,18 +3,25 @@ import type { Request } from 'express';
 
 import type {
   CreateShoppingListItemRequest,
+  DeleteShoppingListItemRequest,
   DeleteShoppingListItemResponse,
+  EventPushStatus,
   ShoppingListItem,
   ShoppingListMutationResponse,
   UpdateShoppingListItemRequest,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import type { ShoppingListStore } from '../../repositories/shoppingListRepository.js';
+import type { ListMutationPushAction, NotificationService } from '../notifications/notificationService.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
 
 export type ShoppingListMutationService = {
   createItem: (request: CreateShoppingListItemRequest, mutationId: string) => Promise<ShoppingListMutationResponse>;
-  deleteItem: (itemId: number, mutationId: string) => Promise<DeleteShoppingListItemResponse>;
+  deleteItem: (
+    itemId: number,
+    mutationId: string,
+    request?: DeleteShoppingListItemRequest,
+  ) => Promise<DeleteShoppingListItemResponse>;
   updateItem: (
     itemId: number,
     request: UpdateShoppingListItemRequest,
@@ -23,10 +30,11 @@ export type ShoppingListMutationService = {
 };
 
 export function createShoppingListMutationService(options: {
+  notificationService?: Pick<NotificationService, 'sendListMutationPush'>;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   shoppingListStore: ShoppingListStore;
 }): ShoppingListMutationService {
-  const { shoppingListRealtime, shoppingListStore } = options;
+  const { notificationService, shoppingListRealtime, shoppingListStore } = options;
 
   return {
     async createItem(request, mutationId) {
@@ -41,6 +49,7 @@ export function createShoppingListMutationService(options: {
         const response = shoppingListMutationResponse(item, mutationId);
 
         shoppingListRealtime?.broadcastItemCreated(item, mutationId);
+        response.push = await sendShoppingListMutationPush(notificationService, item, 'created', request.actor);
 
         return response;
       } catch (error) {
@@ -51,7 +60,7 @@ export function createShoppingListMutationService(options: {
         throw error;
       }
     },
-    async deleteItem(itemId, mutationId) {
+    async deleteItem(itemId, mutationId, request = {}) {
       const item = await shoppingListStore.deleteItem(itemId);
 
       if (!item) {
@@ -67,6 +76,7 @@ export function createShoppingListMutationService(options: {
       };
 
       shoppingListRealtime?.broadcastItemDeleted(itemId, mutationId);
+      response.push = await sendShoppingListMutationPush(notificationService, item, 'deleted', request.actor);
 
       return response;
     },
@@ -95,6 +105,12 @@ export function createShoppingListMutationService(options: {
         const response = shoppingListMutationResponse(item, mutationId);
 
         shoppingListRealtime?.broadcastItemUpdated(item, mutationId);
+        response.push = await sendShoppingListMutationPush(
+          notificationService,
+          item,
+          request.purchased === true ? 'completed' : 'updated',
+          request.actor,
+        );
 
         return response;
       } catch (error) {
@@ -131,6 +147,32 @@ function shoppingListMutationResponse(item: ShoppingListItem, mutationId: string
     mutationId,
     generatedAt: new Date().toISOString(),
   };
+}
+
+async function sendShoppingListMutationPush(
+  notificationService: Pick<NotificationService, 'sendListMutationPush'> | undefined,
+  item: ShoppingListItem,
+  action: ListMutationPushAction,
+  actor?: string,
+): Promise<EventPushStatus | undefined> {
+  if (!notificationService) {
+    return undefined;
+  }
+
+  try {
+    return await notificationService.sendListMutationPush({
+      listType: 'shopping',
+      action,
+      itemName: item.name,
+      actor,
+    });
+  } catch (error) {
+    return {
+      attempted: false,
+      skipped: true,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function shoppingItemNotFoundError(): HTTPError {

@@ -1,5 +1,6 @@
 import type {
   CreateShoppingListItemRequest,
+  DeleteShoppingListItemRequest,
   ShoppingItemStoreListing,
   UpdateShoppingListItemRequest,
 } from '../contracts/shopping.js';
@@ -15,9 +16,11 @@ const allowedCreateShoppingItemBodyKeys = new Set([
   'categoryId',
   'image',
   'storeListings',
+  'actor',
   'mutationId',
 ]);
 const allowedUpdateShoppingItemBodyKeys = allowedCreateShoppingItemBodyKeys;
+const allowedDeleteShoppingItemBodyKeys = new Set(['actor', 'mutationId']);
 
 export function validateCreateShoppingListItemBody(input: unknown): CreateShoppingListItemRequest {
   if (!isPlainRecord(input)) {
@@ -33,6 +36,7 @@ export function validateCreateShoppingListItemBody(input: unknown): CreateShoppi
   const categoryId = readOptionalShoppingCategoryId(input.categoryId);
   const image = readOptionalNullableShoppingItemString(input.image, 'image');
   const storeListings = readOptionalShoppingStoreListings(input.storeListings);
+  const actor = readOptionalShoppingActor(input.actor);
   const mutationId = readOptionalShoppingMutationId(input.mutationId);
 
   return {
@@ -44,6 +48,7 @@ export function validateCreateShoppingListItemBody(input: unknown): CreateShoppi
     categoryId: categoryId ?? null,
     ...(image !== undefined ? { image } : {}),
     storeListings: storeListings ?? [],
+    ...(actor ? { actor } : {}),
     ...(mutationId ? { mutationId } : {}),
   };
 }
@@ -89,7 +94,12 @@ export function validateUpdateShoppingListItemBody(input: unknown): UpdateShoppi
     request.storeListings = readRequiredShoppingStoreListings(input.storeListings);
   }
 
+  const actor = readOptionalShoppingActor(input.actor);
   const mutationId = readOptionalShoppingMutationId(input.mutationId);
+
+  if (actor) {
+    request.actor = actor;
+  }
 
   if (mutationId) {
     request.mutationId = mutationId;
@@ -100,6 +110,26 @@ export function validateUpdateShoppingListItemBody(input: unknown): UpdateShoppi
   }
 
   return request;
+}
+
+export function validateDeleteShoppingListItemBody(input: unknown): DeleteShoppingListItemRequest {
+  if (input === undefined || input === null) {
+    return {};
+  }
+
+  if (!isPlainRecord(input)) {
+    throw invalidShoppingItem('Expected a JSON object shopping item payload.');
+  }
+
+  rejectUnsupportedShoppingItemFields(input, allowedDeleteShoppingItemBodyKeys);
+
+  const actor = readOptionalShoppingActor(input.actor);
+  const mutationId = readOptionalShoppingMutationId(input.mutationId);
+
+  return {
+    ...(actor ? { actor } : {}),
+    ...(mutationId ? { mutationId } : {}),
+  };
 }
 
 export function validateShoppingListItemLookupQuery(input: Record<string, unknown>): string {
@@ -273,6 +303,19 @@ function readOptionalShoppingMutationId(value: unknown): string | undefined {
 
   if (typeof value !== 'string') {
     throw invalidShoppingItem('mutationId must be a string when provided.');
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readOptionalShoppingActor(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    throw invalidShoppingItem('actor must be a string when provided.');
   }
 
   const trimmed = value.trim();

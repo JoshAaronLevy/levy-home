@@ -18,7 +18,8 @@ struct ShoppingListMockupView: View {
                     viewerIdentity: viewerIdentity,
                     appLogStore: appEnvironment.appLogStore
                 ),
-                currentViewerId: viewerIdentity.viewerId
+                currentViewerId: viewerIdentity.viewerId,
+                currentActorName: viewerIdentity.displayName
             )
         )
         .id(viewerIdentity.viewerId)
@@ -124,6 +125,7 @@ final class ShoppingListViewModel: ObservableObject {
     private let searchKrogerProducts: KrogerProductSearch?
     private let liveService: ShoppingListLiveServicing?
     private let currentViewerId: String?
+    private let currentActorName: String?
     private var hasLoaded = false
     private var isSyncingLiveSnapshot = false
     private var liveUpdatesTask: Task<Void, Never>?
@@ -241,11 +243,13 @@ final class ShoppingListViewModel: ObservableObject {
     convenience init(
         apiClient: APIClient,
         liveService: ShoppingListLiveServicing? = nil,
-        currentViewerId: String? = nil
+        currentViewerId: String? = nil,
+        currentActorName: String? = nil
     ) {
         self.init(
             liveService: liveService,
             currentViewerId: currentViewerId,
+            currentActorName: currentActorName,
             loadShoppingList: {
                 try await apiClient.fetchShoppingList()
             },
@@ -262,7 +266,7 @@ final class ShoppingListViewModel: ObservableObject {
                 try await apiClient.updateShoppingListItem(id: itemId, request)
             },
             deleteShoppingListItem: { itemId in
-                try await apiClient.deleteShoppingListItem(id: itemId)
+                try await apiClient.deleteShoppingListItem(id: itemId, actor: currentActorName)
             }
         )
     }
@@ -270,11 +274,13 @@ final class ShoppingListViewModel: ObservableObject {
     convenience init(
         liveService: ShoppingListLiveServicing? = nil,
         currentViewerId: String? = nil,
+        currentActorName: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader
     ) {
         self.init(
             liveService: liveService,
             currentViewerId: currentViewerId,
+            currentActorName: currentActorName,
             loadShoppingList: loadShoppingList,
             lookupShoppingListItem: { name in
                 ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
@@ -295,6 +301,7 @@ final class ShoppingListViewModel: ObservableObject {
     init(
         liveService: ShoppingListLiveServicing? = nil,
         currentViewerId: String? = nil,
+        currentActorName: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader,
         lookupShoppingListItem: @escaping ShoppingListLookup,
         searchKrogerProducts: KrogerProductSearch? = nil,
@@ -310,6 +317,7 @@ final class ShoppingListViewModel: ObservableObject {
         self.searchKrogerProducts = searchKrogerProducts
         self.liveService = liveService
         self.currentViewerId = currentViewerId
+        self.currentActorName = currentActorName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 
     deinit {
@@ -427,7 +435,7 @@ final class ShoppingListViewModel: ObservableObject {
         }
 
         do {
-            let response = try await createShoppingListItem(draft.createRequest())
+            let response = try await createShoppingListItem(draft.createRequest(actor: currentActorName))
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
             errorMessage = nil
@@ -438,13 +446,13 @@ final class ShoppingListViewModel: ObservableObject {
     }
 
     fileprivate func updateItem(id itemId: Int, with draft: ShoppingItemDraft) async throws {
-        try await updateItem(id: itemId, request: draft.updateRequest())
+        try await updateItem(id: itemId, request: draft.updateRequest(actor: currentActorName))
     }
 
     fileprivate func addBackToNeeded(_ item: ShoppingListItem, from draft: ShoppingItemDraft) async throws {
         try await updateItem(
             id: item.id,
-            request: draft.addBackRequest()
+            request: draft.addBackRequest(actor: currentActorName)
         )
     }
 
@@ -452,7 +460,7 @@ final class ShoppingListViewModel: ObservableObject {
         do {
             try await updateItem(
                 id: item.id,
-                request: UpdateShoppingListItemRequest(purchased: purchased)
+                request: UpdateShoppingListItemRequest(purchased: purchased, actor: currentActorName)
             )
         } catch {
             errorMessage = error.localizedDescription
@@ -469,7 +477,7 @@ final class ShoppingListViewModel: ObservableObject {
         do {
             try await updateItem(
                 id: item.id,
-                request: UpdateShoppingListItemRequest(quantity: nextQuantity)
+                request: UpdateShoppingListItemRequest(quantity: nextQuantity, actor: currentActorName)
             )
         } catch {
             errorMessage = error.localizedDescription
@@ -763,7 +771,7 @@ fileprivate struct ShoppingItemDraft: Equatable {
         quantity = max(1, quantity + delta)
     }
 
-    func createRequest() -> CreateShoppingListItemRequest {
+    func createRequest(actor: String? = nil) -> CreateShoppingListItemRequest {
         CreateShoppingListItemRequest(
             name: trimmedName,
             brand: normalizedOptionalText(brand),
@@ -772,11 +780,12 @@ fileprivate struct ShoppingItemDraft: Equatable {
             purchased: purchased,
             categoryId: selectedCategoryId,
             image: normalizedOptionalText(image),
-            storeListings: storeListings
+            storeListings: storeListings,
+            actor: actor
         )
     }
 
-    func updateRequest() -> UpdateShoppingListItemRequest {
+    func updateRequest(actor: String? = nil) -> UpdateShoppingListItemRequest {
         UpdateShoppingListItemRequest(
             name: trimmedName,
             brand: nullableString(brand),
@@ -785,18 +794,20 @@ fileprivate struct ShoppingItemDraft: Equatable {
             purchased: purchased,
             categoryId: nullableCategoryId,
             image: nullableString(image),
-            storeListings: storeListings
+            storeListings: storeListings,
+            actor: actor
         )
     }
 
-    func addBackRequest() -> UpdateShoppingListItemRequest {
+    func addBackRequest(actor: String? = nil) -> UpdateShoppingListItemRequest {
         UpdateShoppingListItemRequest(
             quantity: quantity,
             notes: optionalNullableString(notes),
             purchased: false,
             categoryId: selectedCategoryId.map { .value($0) },
             image: optionalNullableString(image),
-            storeListings: storeListings.isEmpty ? nil : storeListings
+            storeListings: storeListings.isEmpty ? nil : storeListings,
+            actor: actor
         )
     }
 

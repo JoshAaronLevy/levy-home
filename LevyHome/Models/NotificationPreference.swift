@@ -8,6 +8,8 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
     case garageStillOpenAt10PM
     case partnerPresence
     case lightingAutomation
+    case shoppingList
+    case todoList
     case unknown(String)
 
     var rawValue: String {
@@ -26,6 +28,10 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
             return "partner_presence"
         case .lightingAutomation:
             return "lighting_automation"
+        case .shoppingList:
+            return "shopping_list"
+        case .todoList:
+            return "todo_list"
         case .unknown(let rawValue):
             return rawValue
         }
@@ -47,6 +53,10 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
             self = .partnerPresence
         case "lighting_automation":
             self = .lightingAutomation
+        case "shopping_list":
+            self = .shoppingList
+        case "todo_list":
+            self = .todoList
         default:
             self = .unknown(rawValue)
         }

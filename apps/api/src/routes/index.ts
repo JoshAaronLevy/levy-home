@@ -13,6 +13,8 @@ import type { NotificationService } from '../services/notifications/notification
 import type { ShoppingListMutationService } from '../services/shopping/shoppingListMutationService.js';
 import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
 import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
+import type { ToDoListStore } from '../repositories/todoListRepository.js';
+import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
 import type { UserStore } from '../repositories/userRepository.js';
 import { createActivityRoutes } from './activityRoutes.js';
 import { createDebugRoutes } from './debugRoutes.js';
@@ -22,6 +24,7 @@ import { createHomeRoutes } from './homeRoutes.js';
 import { createNotificationPreferenceRoutes } from './notificationPreferenceRoutes.js';
 import { createShoppingListRoutes } from './shoppingListRoutes.js';
 import { createToDoLocationRoutes } from './todoLocationRoutes.js';
+import { createToDoListRoutes } from './todoListRoutes.js';
 import { createUserRoutes } from './userRoutes.js';
 
 export type AppRouteDependencies = {
@@ -39,6 +42,8 @@ export type AppRouteDependencies = {
   shoppingListMutationService: ShoppingListMutationService;
   shoppingListStore: ShoppingListStore;
   toDoLocationStore: ToDoLocationStore;
+  toDoListMutationService: ToDoListMutationService;
+  toDoListStore: ToDoListStore;
   userStore: UserStore;
 };
 
@@ -50,6 +55,7 @@ export function registerRoutes(app: Express, deps: AppRouteDependencies): void {
   app.use(createHomeRoutes(deps));
   app.use(createUserRoutes(deps));
   app.use(createToDoLocationRoutes(deps));
+  app.use(createToDoListRoutes(deps));
   app.use(createShoppingListRoutes(deps));
   app.use(createActivityRoutes(deps));
 }

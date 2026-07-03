@@ -137,6 +137,53 @@ test('notification service sends partner presence pushes only to the metadata re
   assert.equal(pushSender.requests[0].body, "Josh left. But don't worry. He loves you too much to be gone for long");
 });
 
+test('notification service sends list mutation pushes only to the other resident', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+  await deviceRegistry.registerDevice({
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory',
+  });
+
+  const push = await notificationService.sendListMutationPush({
+    listType: 'shopping',
+    action: 'created',
+    itemName: 'Whole milk',
+    actor: 'Josh',
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].device.token, 'mallory-apns-token');
+  assert.equal(pushSender.requests[0].title, 'Shopping list updated');
+  assert.equal(pushSender.requests[0].body, 'Josh added Whole milk.');
+  assert.deepEqual(pushSender.requests[0].data, {
+    category: 'shopping_list',
+    listType: 'shopping',
+    action: 'created',
+    actor: 'Josh',
+    itemName: 'Whole milk',
+  });
+});
+
 test('notification service skips recipient-targeted partner presence pushes without a matching device', async () => {
   const deviceRegistry = createInMemoryDeviceRegistry();
   const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);

@@ -64,7 +64,9 @@ export type NotificationPreferenceCategory =
   | 'garage_after_hours'
   | 'garage_still_open_at_10pm'
   | 'partner_presence'
-  | 'lighting_automation';
+  | 'lighting_automation'
+  | 'shopping_list'
+  | 'todo_list';
 
 export type NotificationPreference = {
   category: NotificationPreferenceCategory;
@@ -133,6 +135,18 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     isEnabled: true,
     title: 'Lighting automations',
     detail: 'Notify when selected lighting automations finish.',
+  },
+  {
+    category: 'shopping_list',
+    isEnabled: true,
+    title: 'Shopping list',
+    detail: 'Notify when someone else updates the shopping list.',
+  },
+  {
+    category: 'todo_list',
+    isEnabled: true,
+    title: 'To-do list',
+    detail: 'Notify when someone else updates the to-do list.',
   },
 ];
 

@@ -1,3 +1,5 @@
+import type { EventPushStatus } from './activity.js';
+
 export type ShoppingListItem = {
   id: number;
   name: string;
@@ -81,6 +83,7 @@ export type CreateShoppingListItemRequest = {
   categoryId?: number | null;
   image?: string | null;
   storeListings?: ShoppingItemStoreListing[];
+  actor?: string;
   mutationId?: string;
 };
 
@@ -93,6 +96,12 @@ export type UpdateShoppingListItemRequest = {
   categoryId?: number | null;
   image?: string | null;
   storeListings?: ShoppingItemStoreListing[];
+  actor?: string;
+  mutationId?: string;
+};
+
+export type DeleteShoppingListItemRequest = {
+  actor?: string;
   mutationId?: string;
 };
 
@@ -128,6 +137,7 @@ export type ShoppingListMutationResponse = {
   item: ShoppingListItem;
   mutationId: string;
   generatedAt: string;
+  push?: EventPushStatus;
 };
 
 export type DeleteShoppingListItemResponse = {
@@ -136,4 +146,5 @@ export type DeleteShoppingListItemResponse = {
   item: ShoppingListItem;
   mutationId: string;
   generatedAt: string;
+  push?: EventPushStatus;
 };

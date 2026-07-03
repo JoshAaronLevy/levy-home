@@ -2,11 +2,20 @@ import MapKit
 import SwiftUI
 
 struct ToDoView: View {
+    @Environment(\.appEnvironment) private var appEnvironment
+    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @StateObject private var viewModel = ToDoViewModel()
     @State private var isShowingAddSheet = false
 
     private let events = ToDoPreviewData.calendarEvents
-    private let sections = ToDoPreviewData.taskSections
-    private let users = ToDoPreviewData.users
+
+    private var sections: [ToDoTaskSection] {
+        viewModel.hasLoaded ? viewModel.sections : ToDoPreviewData.taskSections
+    }
+
+    private var users: [LevyHomeUser] {
+        viewModel.users.isEmpty ? ToDoPreviewData.users : viewModel.users
+    }
 
     private var usersById: [Int: LevyHomeUser] {
         Dictionary(uniqueKeysWithValues: users.map { ($0.id, $0) })
@@ -58,8 +67,27 @@ struct ToDoView: View {
 
                 ToDoCalendarPanel(events: events)
 
+                if let errorMessage = viewModel.errorMessage {
+                    ToDoErrorBanner(message: errorMessage) {
+                        Task {
+                            await viewModel.load(apiClient: appEnvironment.apiClient)
+                        }
+                    }
+                }
+
                 ForEach(sections) { section in
-                    ToDoTaskSectionView(section: section, usersById: usersById)
+                    ToDoTaskSectionView(
+                        section: section,
+                        usersById: usersById
+                    ) { task in
+                        Task {
+                            await viewModel.toggleCompletion(
+                                task,
+                                apiClient: appEnvironment.apiClient,
+                                actor: currentActorName
+                            )
+                        }
+                    }
                 }
             }
             .padding(.horizontal, AppSpacing.screen)
@@ -67,11 +95,264 @@ struct ToDoView: View {
             .padding(.bottom, AppSpacing.xLarge * 3)
         }
         .appScreenChrome()
+        .task {
+            await viewModel.load(apiClient: appEnvironment.apiClient)
+        }
+        .refreshable {
+            await viewModel.load(apiClient: appEnvironment.apiClient, force: true)
+        }
         .sheet(isPresented: $isShowingAddSheet) {
-            ToDoEditorSheet()
+            ToDoEditorSheet(
+                users: users,
+                recentLocations: viewModel.locations.isEmpty ? ToDoPreviewData.recentLocations : viewModel.locations,
+                currentUserId: viewModel.userId(for: currentResidentName)
+            ) { draft in
+                try await viewModel.createTask(
+                    from: draft,
+                    apiClient: appEnvironment.apiClient,
+                    actor: currentActorName
+                )
+            }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    private var currentActorName: String? {
+        let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty ? nil : trimmedName
+    }
+}
+
+@MainActor
+private final class ToDoViewModel: ObservableObject {
+    @Published private(set) var items: [ToDoItem] = []
+    @Published private(set) var categories: [ToDoCategory] = []
+    @Published private(set) var locations: [ToDoLocation] = []
+    @Published private(set) var users: [LevyHomeUser] = []
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var hasLoaded = false
+    @Published private(set) var isLoading = false
+    @Published private(set) var mutatingItemIDs: Set<Int> = []
+
+    var sections: [ToDoTaskSection] {
+        guard !items.isEmpty else {
+            return []
+        }
+
+        return [
+            ToDoTaskSection(
+                id: "todo-list",
+                title: "To Do",
+                systemImage: "checklist",
+                tone: .accent,
+                tasks: items.map { task(from: $0) }
+            )
+        ]
+    }
+
+    func load(apiClient: APIClient, force: Bool = false) async {
+        guard !isLoading || force else {
+            return
+        }
+
+        isLoading = true
+
+        defer {
+            isLoading = false
+        }
+
+        do {
+            async let todoListResponse = apiClient.fetchToDoList()
+            async let usersResponse = apiClient.fetchUsers()
+            let (todoList, fetchedUsers) = try await (todoListResponse, usersResponse)
+
+            items = todoList.items
+            categories = todoList.categories
+            locations = todoList.locations
+            users = fetchedUsers.users
+            hasLoaded = true
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+            hasLoaded = true
+        }
+    }
+
+    func createTask(from draft: ToDoDraft, apiClient: APIClient, actor: String?) async throws {
+        let locationIds = try await resolveLocationIds(from: draft, apiClient: apiClient)
+        let request = CreateToDoItemRequest(
+            name: draft.trimmedName,
+            status: .open,
+            locationIds: locationIds,
+            date: Self.isoString(from: draft.date),
+            recurring: draft.recurring.flatMap { ToDoItemRecurring(rawValue: $0.rawValue) },
+            createdBy: draft.createdBy,
+            actor: actor
+        )
+
+        let response = try await apiClient.createToDoItem(request)
+        apply(response.item)
+        errorMessage = nil
+    }
+
+    func toggleCompletion(_ task: ToDoTask, apiClient: APIClient, actor: String?) async {
+        guard !mutatingItemIDs.contains(task.id) else {
+            return
+        }
+
+        mutatingItemIDs.insert(task.id)
+
+        defer {
+            mutatingItemIDs.remove(task.id)
+        }
+
+        do {
+            let nextStatus: ToDoItemStatus = task.isCompleted ? .open : .completed
+            let response = try await apiClient.updateToDoItem(
+                id: task.id,
+                UpdateToDoItemRequest(status: nextStatus, actor: actor)
+            )
+
+            apply(response.item)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func userId(for residentName: String) -> Int? {
+        let normalizedResidentName = residentName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalizedResidentName.isEmpty else {
+            return users.first?.id
+        }
+
+        return users.first { user in
+            user.firstName.localizedCaseInsensitiveCompare(normalizedResidentName) == .orderedSame ||
+                user.fullName.localizedCaseInsensitiveCompare(normalizedResidentName) == .orderedSame
+        }?.id ?? users.first?.id
+    }
+
+    private func resolveLocationIds(
+        from draft: ToDoDraft,
+        apiClient: APIClient
+    ) async throws -> [Int] {
+        if let locationIds = draft.locationIds, !locationIds.isEmpty {
+            return locationIds
+        }
+
+        let locationName = draft.trimmedLocation
+
+        guard !locationName.isEmpty else {
+            return []
+        }
+
+        if let existingLocation = locations.first(where: { Self.isSameLocation($0.displayTitle, locationName) }) {
+            return [existingLocation.id]
+        }
+
+        guard draft.saveLocation else {
+            return []
+        }
+
+        let response = try await apiClient.createToDoLocation(
+            CreateToDoLocationRequest(
+                name: locationName,
+                address: nil,
+                mapkitTitle: locationName,
+                mapkitSubtitle: nil,
+                latitude: nil,
+                longitude: nil,
+                createdBy: draft.createdBy,
+                favoritedBy: [draft.createdBy]
+            )
+        )
+
+        locations.insert(response.location, at: 0)
+
+        return [response.location.id]
+    }
+
+    private func apply(_ item: ToDoItem) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index] = item
+        } else {
+            items.insert(item, at: 0)
+        }
+    }
+
+    private func task(from item: ToDoItem) -> ToDoTask {
+        ToDoTask(
+            id: item.id,
+            name: item.name,
+            locationIds: item.locationIds.isEmpty ? nil : item.locationIds,
+            date: Self.date(from: item.date),
+            recurring: item.recurring.flatMap { ToDoRecurring(rawValue: $0.rawValue) },
+            createdBy: item.createdBy,
+            createdDate: Self.date(from: item.createdDate) ?? Date(),
+            status: ToDoStatus(rawValue: item.status.rawValue) ?? .open,
+            locationDisplayText: item.locationDisplayText,
+            isLinkedToFamilyCalendar: false,
+            previewNote: nil
+        )
+    }
+
+    private static func isSameLocation(_ first: String, _ second: String) -> Bool {
+        first.trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare(second.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+    }
+
+    private static func date(from value: String?) -> Date? {
+        guard let value else {
+            return nil
+        }
+
+        return iso8601WithFractionalSeconds.date(from: value) ?? iso8601.date(from: value)
+    }
+
+    private static func isoString(from date: Date?) -> String? {
+        date.map { iso8601WithFractionalSeconds.string(from: $0) }
+    }
+
+    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+}
+
+private struct ToDoErrorBanner: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
+
+            Text(message)
+                .font(.subheadline)
+                .lineLimit(2)
+                .layoutPriority(1)
+
+            Button(action: onRetry) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Retry to-do list")
+        }
+        .foregroundStyle(AppColors.warning)
+        .padding(AppSpacing.medium)
+        .background(AppColors.warningSoft)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
     }
 }
 
@@ -238,6 +519,7 @@ private struct ToDoCalendarEventRow: View {
 private struct ToDoTaskSectionView: View {
     let section: ToDoTaskSection
     let usersById: [Int: LevyHomeUser]
+    let onToggleCompletion: (ToDoTask) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -261,7 +543,12 @@ private struct ToDoTaskSectionView: View {
                 .padding(.leading, AppSpacing.large)
 
             ForEach(section.tasks) { task in
-                ToDoTaskRow(task: task, creator: task.createdBy.flatMap { usersById[$0] })
+                ToDoTaskRow(
+                    task: task,
+                    creator: task.createdBy.flatMap { usersById[$0] }
+                ) {
+                    onToggleCompletion(task)
+                }
 
                 if task.id != section.tasks.last?.id {
                     Divider()
@@ -281,13 +568,18 @@ private struct ToDoTaskSectionView: View {
 private struct ToDoTaskRow: View {
     let task: ToDoTask
     let creator: LevyHomeUser?
+    let onToggleCompletion: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.medium) {
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(task.isCompleted ? AppColors.success : AppColors.accent)
-                .frame(width: 30, height: 30)
+            Button(action: onToggleCompletion) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(task.isCompleted ? AppColors.success : AppColors.accent)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(task.isCompleted ? "Reopen to do" : "Complete to do")
 
             VStack(alignment: .leading, spacing: AppSpacing.small) {
                 HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
@@ -494,27 +786,54 @@ private struct ToDoEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var locationSearch = ToDoLocationSearchViewModel()
     @State private var draft = ToDoDraft()
+    @State private var isSaving = false
+    @State private var saveErrorMessage: String?
 
-    private let categories = ToDoPreviewData.categories
-    private let users = ToDoPreviewData.users
-    private let recentLocations = ToDoPreviewData.recentLocations
+    private let users: [LevyHomeUser]
+    private let recentLocations: [ToDoLocation]
     private let dueDateOptions = ToDoPreviewData.dueDateOptions
+    private let onAdd: (ToDoDraft) async throws -> Void
+
+    init(
+        users: [LevyHomeUser],
+        recentLocations: [ToDoLocation],
+        currentUserId: Int?,
+        onAdd: @escaping (ToDoDraft) async throws -> Void
+    ) {
+        let resolvedUsers = users.isEmpty ? ToDoPreviewData.users : users
+
+        self.users = resolvedUsers
+        self.recentLocations = recentLocations.isEmpty ? ToDoPreviewData.recentLocations : recentLocations
+        self.onAdd = onAdd
+        _draft = State(
+            initialValue: ToDoDraft(
+                createdBy: currentUserId ?? resolvedUsers.first?.id ?? 1
+            )
+        )
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppSpacing.large) {
                     titleSection
-                    categorySection
                     detailsSection
                     locationSection
                     summarySection
 
+                    if let saveErrorMessage {
+                        ToDoInlineBadge(
+                            text: saveErrorMessage,
+                            systemImage: "exclamationmark.triangle.fill",
+                            tone: .warning
+                        )
+                    }
+
                     PrimaryActionButton(
-                        title: "Add To Do",
+                        title: isSaving ? "Adding" : "Add To Do",
                         systemImage: "plus"
                     ) {
-                        dismiss()
+                        save()
                     }
                 }
                 .padding(AppSpacing.screen)
@@ -532,9 +851,10 @@ private struct ToDoEditorSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        dismiss()
+                        save()
                     }
                     .fontWeight(.semibold)
+                    .disabled(isSaving || !draft.isValid)
                 }
             }
         }
@@ -548,29 +868,6 @@ private struct ToDoEditorSheet: View {
                 text: $draft.name,
                 prompt: "What needs doing?"
             )
-        }
-    }
-
-    private var categorySection: some View {
-        ToDoFormPanel(title: "Category", systemImage: "folder") {
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: AppSpacing.small),
-                    GridItem(.flexible(), spacing: AppSpacing.small)
-                ],
-                spacing: AppSpacing.small
-            ) {
-                ForEach(categories) { category in
-                    ToDoChoiceButton(
-                        title: category.title,
-                        systemImage: category.systemImage,
-                        isSelected: draft.categoryID == category.id,
-                        tone: category.tone
-                    ) {
-                        draft.categoryID = category.id
-                    }
-                }
-            }
         }
     }
 
@@ -594,17 +891,6 @@ private struct ToDoEditorSheet: View {
                     .padding(.vertical, AppSpacing.medium)
 
                 ToDoRecurringPicker(selectedRecurring: $draft.recurring)
-
-                Divider()
-                    .padding(.leading, 42)
-                    .padding(.vertical, AppSpacing.medium)
-
-                ToDoToggleRow(
-                    title: "Add to Family Calendar",
-                    subtitle: "Creates a calendar event when saved",
-                    systemImage: "calendar.badge.plus",
-                    isOn: $draft.addToFamilyCalendar
-                )
             }
         }
     }
@@ -674,7 +960,7 @@ private struct ToDoEditorSheet: View {
 
     private var summarySection: some View {
         HStack(spacing: AppSpacing.medium) {
-            ToDoIconBadge(systemImage: selectedCategory.systemImage, tone: selectedCategory.tone)
+            ToDoIconBadge(systemImage: "checklist", tone: .accent)
 
             VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
                 Text(draft.name.isEmpty ? "New to do" : draft.name)
@@ -718,21 +1004,17 @@ private struct ToDoEditorSheet: View {
         }
     }
 
-    private var selectedCategory: ToDoCategoryOption {
-        categories.first { $0.id == draft.categoryID } ?? categories[0]
-    }
-
     private var selectedDueDate: ToDoDueDateOption {
         dueDateOptions.first { $0.id == draft.dueDateID } ?? dueDateOptions[0]
     }
 
     private var selectedUser: LevyHomeUser {
-        users.first { $0.id == draft.createdBy } ?? users[0]
+        users.first { $0.id == draft.createdBy } ?? ToDoPreviewData.users[0]
     }
 
     private var summaryText: String {
         let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(selectedCategory.title) • \(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
+        return "\(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
     }
 
     private func selectLocationSearchSuggestion(_ suggestion: ToDoLocationSearchSuggestion) {
@@ -748,6 +1030,25 @@ private struct ToDoEditorSheet: View {
 
     private func isSavedLocationMatch(input: String, saved: String) -> Bool {
         input == saved || input.hasPrefix("\(saved),")
+    }
+
+    private func save() {
+        guard draft.isValid, !isSaving else {
+            return
+        }
+
+        isSaving = true
+        saveErrorMessage = nil
+
+        Task {
+            do {
+                try await onAdd(draft)
+                dismiss()
+            } catch {
+                saveErrorMessage = error.localizedDescription
+                isSaving = false
+            }
+        }
     }
 }
 
@@ -912,36 +1213,6 @@ private struct ToDoLocationSearchField: View {
             RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
-    }
-}
-
-private struct ToDoChoiceButton: View {
-    let title: String
-    let systemImage: String
-    let isSelected: Bool
-    let tone: ToDoTone
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: AppSpacing.small) {
-                Image(systemName: systemImage)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, AppSpacing.medium)
-            .frame(height: 42)
-            .foregroundStyle(isSelected ? Color.white : tone.foregroundColor)
-            .background(isSelected ? tone.foregroundColor : tone.backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -1415,25 +1686,32 @@ private struct ToDoTask: Identifiable {
 }
 
 private struct ToDoDraft {
-    var name = "Schedule dentist"
+    var name = ""
     var locationIds: [Int]?
     var date: Date? = ToDoPreviewData.today
     var recurring: ToDoRecurring?
-    var createdBy = 1
+    var createdBy: Int
     var createdDate = Date()
     var status: ToDoStatus = .open
-    var categoryID = "appointments"
     var dueDateID = "today"
-    var addToFamilyCalendar = true
-    var location = "Cherry Creek Dental"
+    var location = ""
     var saveLocation = true
-}
 
-private struct ToDoCategoryOption: Identifiable {
-    let id: String
-    let title: String
-    let systemImage: String
-    let tone: ToDoTone
+    init(createdBy: Int = 1) {
+        self.createdBy = createdBy
+    }
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedLocation: String {
+        location.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var isValid: Bool {
+        !trimmedName.isEmpty
+    }
 }
 
 private struct ToDoDueDateOption: Identifiable {
@@ -1544,33 +1822,6 @@ private enum ToDoPreviewData {
     static let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)
     static let thisWeek = Calendar.current.date(byAdding: .day, value: 4, to: today)
     static let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: today)
-
-    static let categories = [
-        ToDoCategoryOption(
-            id: "appointments",
-            title: "Appointments",
-            systemImage: "calendar",
-            tone: .accent
-        ),
-        ToDoCategoryOption(
-            id: "house-projects",
-            title: "House",
-            systemImage: "wrench.and.screwdriver",
-            tone: .warning
-        ),
-        ToDoCategoryOption(
-            id: "family",
-            title: "Family",
-            systemImage: "person.2",
-            tone: .success
-        ),
-        ToDoCategoryOption(
-            id: "admin",
-            title: "Admin",
-            systemImage: "doc.text",
-            tone: .neutral
-        )
-    ]
 
     static let users = [
         LevyHomeUser(

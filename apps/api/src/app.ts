@@ -24,6 +24,7 @@ import {
   createPostgresToDoLocationStore,
   type ToDoLocationStore,
 } from './repositories/todoLocationRepository.js';
+import { createPostgresToDoListStore, type ToDoListStore } from './repositories/todoListRepository.js';
 import { createPostgresUserStore, type UserStore } from './repositories/userRepository.js';
 import { createActivityEventService } from './services/activity/activityEventService.js';
 import {
@@ -38,6 +39,7 @@ import {
 } from './services/notifications/notificationPreferenceStore.js';
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
+import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
 import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
 
 export type CreateAppOptions = {
@@ -51,6 +53,8 @@ export type CreateAppOptions = {
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   userStore?: UserStore;
   toDoLocationStore?: ToDoLocationStore;
+  toDoListStore?: ToDoListStore;
+  toDoListMutationService?: ToDoListMutationService;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
   notificationPersistenceMode?: NotificationPersistenceMode;
@@ -86,11 +90,19 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime;
   const shoppingListMutationService = createShoppingListMutationService({
+    notificationService,
     shoppingListRealtime,
     shoppingListStore,
   });
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
+  const toDoListStore = options.toDoListStore ?? createPostgresToDoListStore();
+  const toDoListMutationService =
+    options.toDoListMutationService ??
+    createToDoListMutationService({
+      notificationService,
+      toDoListStore,
+    });
   const krogerProductDiagnosticRunner =
     options.krogerProductDiagnosticRunner ??
     ((query?: string) => lookupAndWriteKrogerProductResponse(config, { query }));
@@ -118,6 +130,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     shoppingListMutationService,
     shoppingListStore,
     toDoLocationStore,
+    toDoListMutationService,
+    toDoListStore,
     userStore,
   });
 

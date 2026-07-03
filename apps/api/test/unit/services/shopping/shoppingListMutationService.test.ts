@@ -10,11 +10,14 @@ import { HTTPError } from '../../../../src/http/errors.js';
 import type { ShoppingListStore } from '../../../../src/repositories/shoppingListRepository.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../../../src/shoppingListRealtime.js';
 import { createShoppingListMutationService } from '../../../../src/services/shopping/shoppingListMutationService.js';
+import type { ListMutationPushPayload } from '../../../../src/services/notifications/notificationService.js';
 
-test('shopping mutation service creates items and broadcasts successful mutations', async () => {
+test('shopping mutation service creates items, broadcasts successful mutations, and sends actor push', async () => {
   const broadcasts: string[] = [];
+  const pushes: ListMutationPushPayload[] = [];
   const createdItem = shoppingItem({ id: 1, name: 'Whole milk' });
   const service = createShoppingListMutationService({
+    notificationService: recordingNotificationService(pushes),
     shoppingListRealtime: recordingRealtimeBroadcaster(broadcasts),
     shoppingListStore: shoppingStore({
       async createItem() {
@@ -26,12 +29,21 @@ test('shopping mutation service creates items and broadcasts successful mutation
     }),
   });
 
-  const response = await service.createItem({ name: 'Whole milk' }, 'mutation-1');
+  const response = await service.createItem({ name: 'Whole milk', actor: 'Josh' }, 'mutation-1');
 
   assert.equal(response.ok, true);
   assert.equal(response.item, createdItem);
   assert.equal(response.mutationId, 'mutation-1');
+  assert.equal(response.push?.attempted, true);
   assert.deepEqual(broadcasts, ['created:1:mutation-1']);
+  assert.deepEqual(pushes, [
+    {
+      listType: 'shopping',
+      action: 'created',
+      itemName: 'Whole milk',
+      actor: 'Josh',
+    },
+  ]);
 });
 
 test('shopping mutation service rejects duplicate item creates before writing', async () => {
@@ -141,6 +153,20 @@ function recordingRealtimeBroadcaster(broadcasts: string[]): ShoppingListRealtim
     },
     broadcastCategoriesChanged(categories: ShoppingCategory[], mutationId: string) {
       broadcasts.push(`categories:${categories.length}:${mutationId}`);
+    },
+  };
+}
+
+function recordingNotificationService(pushes: ListMutationPushPayload[]) {
+  return {
+    async sendListMutationPush(payload: ListMutationPushPayload) {
+      pushes.push(payload);
+
+      return {
+        attempted: true,
+        skipped: false,
+        sentNotificationCount: 1,
+      };
     },
   };
 }

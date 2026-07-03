@@ -19,10 +19,21 @@ export type PushSendOptions = {
   pushSender: PushSender;
   payload: TestPushPayload;
   preferenceCategory?: NotificationPreferenceCategory;
+  data?: Record<string, string>;
+};
+
+export type ListMutationPushAction = 'created' | 'updated' | 'deleted' | 'completed';
+
+export type ListMutationPushPayload = {
+  listType: 'shopping' | 'todo';
+  action: ListMutationPushAction;
+  itemName: string;
+  actor?: string;
 };
 
 export type NotificationService = {
   sendEventPush: (payload: HomeAssistantEventPayload) => Promise<EventPushStatus>;
+  sendListMutationPush: (payload: ListMutationPushPayload) => Promise<EventPushStatus>;
   sendTestPush: (payload: TestPushPayload) => Promise<PushSendSummary>;
 };
 
@@ -70,6 +81,57 @@ export function createNotificationService(options: {
             reason: 'No APNs notification preference category is configured for this event type.',
           };
     },
+    async sendListMutationPush(payload) {
+      const actor = readNotificationActor(payload.actor);
+
+      if (!actor) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: 'No list mutation actor was provided for push delivery.',
+        };
+      }
+
+      const devices = await options.deviceRegistry.listDevices();
+      const recipient = counterpartRecipientForActor(actor);
+      const targetDevices = recipient
+        ? filterDevicesForRecipient(devices, recipient)
+        : filterDevicesExcludingActor(devices, actor);
+
+      if (targetDevices.length === 0) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: recipient
+            ? `No registered APNs devices match recipient "${recipient}".`
+            : `No registered APNs devices match someone other than "${actor}".`,
+        };
+      }
+
+      const preferenceCategory = notificationCategoryForList(payload.listType);
+      const summary = await sendPushToRegisteredDevices({
+        devices: targetDevices,
+        notificationPreferenceStore: options.notificationPreferenceStore,
+        pushSender: options.pushSender,
+        payload: {
+          title: titleForListMutation(payload.listType),
+          body: bodyForListMutation({
+            ...payload,
+            actor,
+          }),
+        },
+        preferenceCategory,
+        data: {
+          category: preferenceCategory,
+          listType: payload.listType,
+          action: payload.action,
+          actor,
+          itemName: payload.itemName,
+        },
+      });
+
+      return pushStatusFromSummary(summary, preferenceCategory);
+    },
     async sendTestPush(payload) {
       const devices = await options.deviceRegistry.listDevices();
 
@@ -104,7 +166,7 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
           device,
           title: options.payload.title,
           body: options.payload.body,
-          data: options.preferenceCategory ? { category: options.preferenceCategory } : { debug: 'true' },
+          data: options.data ?? (options.preferenceCategory ? { category: options.preferenceCategory } : { debug: 'true' }),
         }),
       );
     } catch (error) {
@@ -248,6 +310,66 @@ function filterDevicesForRecipient(
 
     return normalizedDeviceName.includes(normalizedRecipient);
   });
+}
+
+function filterDevicesExcludingActor(
+  devices: RegisteredDevice[],
+  actor: string,
+): RegisteredDevice[] {
+  const normalizedActor = normalizeRecipientText(actor);
+
+  if (!normalizedActor) {
+    return [];
+  }
+
+  return devices.filter((device) => {
+    const normalizedDeviceName = normalizeRecipientText(device.deviceName);
+
+    return normalizedDeviceName.length > 0 && !normalizedDeviceName.includes(normalizedActor);
+  });
+}
+
+function notificationCategoryForList(listType: ListMutationPushPayload['listType']): NotificationPreferenceCategory {
+  return listType === 'shopping' ? 'shopping_list' : 'todo_list';
+}
+
+function readNotificationActor(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function counterpartRecipientForActor(actor: string): string | undefined {
+  const normalizedActor = normalizeRecipientText(actor);
+
+  if (normalizedActor.includes('josh')) {
+    return 'Mallory';
+  }
+
+  if (normalizedActor.includes('mallory')) {
+    return 'Josh';
+  }
+
+  return undefined;
+}
+
+function titleForListMutation(listType: ListMutationPushPayload['listType']): string {
+  return listType === 'shopping' ? 'Shopping list updated' : 'To-do list updated';
+}
+
+function bodyForListMutation(payload: ListMutationPushPayload & { actor: string }): string {
+  const itemName = payload.itemName.trim().length > 0 ? payload.itemName.trim() : 'an item';
+
+  switch (payload.action) {
+    case 'created':
+      return `${payload.actor} added ${itemName}.`;
+    case 'deleted':
+      return `${payload.actor} removed ${itemName}.`;
+    case 'completed':
+      return payload.listType === 'shopping'
+        ? `${payload.actor} checked off ${itemName}.`
+        : `${payload.actor} completed ${itemName}.`;
+    case 'updated':
+      return `${payload.actor} updated ${itemName}.`;
+  }
 }
 
 function normalizeRecipientText(value: unknown): string {

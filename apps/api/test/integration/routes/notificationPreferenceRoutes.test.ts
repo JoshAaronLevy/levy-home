@@ -48,7 +48,7 @@ test('notification preferences can be synced and fetched by device token or devi
   );
 
   assert.equal(tokenSync.ok, true);
-  assert.equal(tokenFetch.preferences.length, 7);
+  assert.equal(tokenFetch.preferences.length, 9);
   assert.equal(
     tokenFetch.preferences.find((preference: { category: string }) => preference.category === 'garage_opened')
       .isEnabled,

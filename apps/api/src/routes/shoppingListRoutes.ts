@@ -13,6 +13,7 @@ import {
 import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
 import {
   validateCreateShoppingListItemBody,
+  validateDeleteShoppingListItemBody,
   validateShoppingListItemLookupQuery,
   validateShoppingProductSearchQuery,
   validateUpdateShoppingListItemBody,
@@ -75,8 +76,9 @@ export function createShoppingListRoutes(deps: ShoppingListRouteDependencies): R
 
   router.delete('/api/shopping-list/items/:itemId', asyncHandler(async (req, res) => {
     const itemId = readShoppingListItemId(req.params.itemId);
-    const mutationId = mutationIdForRequest(req);
-    const response = await deps.shoppingListMutationService.deleteItem(itemId, mutationId);
+    const request = validateDeleteShoppingListItemBody(req.body);
+    const mutationId = mutationIdForRequest(req, request.mutationId);
+    const response = await deps.shoppingListMutationService.deleteItem(itemId, mutationId, request);
 
     res.json(response);
   }));
