@@ -37,11 +37,14 @@ struct StaticHomeLocationProvider: HomeLocationProviding {
 
 enum HomeWeatherServiceError: LocalizedError {
     case homeLocationUnavailable
+    case requestTimedOut
 
     var errorDescription: String? {
         switch self {
         case .homeLocationUnavailable:
             return "Home weather location is unavailable."
+        case .requestTimedOut:
+            return "Home weather request timed out."
         }
     }
 }
@@ -51,17 +54,20 @@ final class HomeWeatherService: HomeWeatherServicing {
     private let primaryWeatherProvider: CoordinateWeatherSnapshotLoading
     private let fallbackWeatherProvider: CoordinateWeatherSnapshotLoading?
     private let now: () -> Date
+    private let providerTimeout: Duration
 
     init(
         homeLocationProvider: HomeLocationProviding = StaticHomeLocationProvider.levyHome,
         primaryWeatherProvider: CoordinateWeatherSnapshotLoading = WeatherKitHomeWeatherProvider(),
         fallbackWeatherProvider: CoordinateWeatherSnapshotLoading? = OpenMeteoHomeWeatherProvider(),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        providerTimeout: Duration = .seconds(8)
     ) {
         self.homeLocationProvider = homeLocationProvider
         self.primaryWeatherProvider = primaryWeatherProvider
         self.fallbackWeatherProvider = fallbackWeatherProvider
         self.now = now
+        self.providerTimeout = providerTimeout
     }
 
     func fetchSnapshot() async throws -> HomeWeatherSnapshot {
@@ -69,7 +75,8 @@ final class HomeWeatherService: HomeWeatherServicing {
         let fetchedAt = now()
 
         do {
-            return try await primaryWeatherProvider.fetchSnapshot(
+            return try await fetchSnapshot(
+                using: primaryWeatherProvider,
                 for: location,
                 fetchedAt: fetchedAt
             )
@@ -82,10 +89,41 @@ final class HomeWeatherService: HomeWeatherServicing {
                 throw error
             }
 
-            return try await fallbackWeatherProvider.fetchSnapshot(
+            return try await fetchSnapshot(
+                using: fallbackWeatherProvider,
                 for: location,
                 fetchedAt: fetchedAt
             )
+        }
+    }
+
+    private func fetchSnapshot(
+        using provider: CoordinateWeatherSnapshotLoading,
+        for location: CLLocation,
+        fetchedAt: Date
+    ) async throws -> HomeWeatherSnapshot {
+        let timeout = providerTimeout
+
+        return try await withThrowingTaskGroup(of: HomeWeatherSnapshot.self) { group in
+            defer { group.cancelAll() }
+
+            group.addTask {
+                try await provider.fetchSnapshot(
+                    for: location,
+                    fetchedAt: fetchedAt
+                )
+            }
+
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw HomeWeatherServiceError.requestTimedOut
+            }
+
+            guard let snapshot = try await group.next() else {
+                throw HomeWeatherServiceError.requestTimedOut
+            }
+
+            return snapshot
         }
     }
 }

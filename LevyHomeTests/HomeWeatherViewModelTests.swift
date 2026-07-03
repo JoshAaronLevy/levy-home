@@ -60,6 +60,27 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(fallbackProvider.requestCount, 0)
     }
 
+    func testHomeWeatherServiceFallsBackWhenPrimaryWeatherProviderTimesOut() async throws {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        let fallbackSnapshot = Self.snapshot(current: 81, condition: "Clear", fetchedAt: now)
+        let primaryProvider = HangingCoordinateWeatherProvider()
+        let fallbackProvider = MockCoordinateWeatherProvider(result: .success(fallbackSnapshot))
+        let service = HomeWeatherService(
+            homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
+            primaryWeatherProvider: primaryProvider,
+            fallbackWeatherProvider: fallbackProvider,
+            now: { now },
+            providerTimeout: .milliseconds(10)
+        )
+
+        let snapshot = try await service.fetchSnapshot()
+
+        XCTAssertEqual(snapshot.currentTemperature, fallbackSnapshot.currentTemperature)
+        XCTAssertEqual(snapshot.conditionDescription, "Clear")
+        XCTAssertEqual(primaryProvider.requestCount, 1)
+        XCTAssertEqual(fallbackProvider.requestCount, 1)
+    }
+
     func testOpenMeteoProviderBuildsFallbackSnapshot() async throws {
         let now = Self.date("2026-07-01T16:00:00Z")
         var capturedRequest: URLRequest?
@@ -371,6 +392,19 @@ private final class MockCoordinateWeatherProvider: CoordinateWeatherSnapshotLoad
     ) async throws -> HomeWeatherSnapshot {
         requestCount += 1
         return try result.get()
+    }
+}
+
+private final class HangingCoordinateWeatherProvider: CoordinateWeatherSnapshotLoading {
+    private(set) var requestCount = 0
+
+    func fetchSnapshot(
+        for location: CLLocation,
+        fetchedAt: Date
+    ) async throws -> HomeWeatherSnapshot {
+        requestCount += 1
+        try await Task.sleep(for: .seconds(60))
+        throw CancellationError()
     }
 }
 

@@ -2983,6 +2983,7 @@ private struct ShoppingItemRow: View {
                         .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
                         .lineLimit(2)
                         .minimumScaleFactor(0.82)
+                        .truncationMode(.tail)
 
                     if let detailText = displayItem.detailText {
                         Text(detailText)
@@ -3000,9 +3001,7 @@ private struct ShoppingItemRow: View {
                         }
                     }
                 }
-                .layoutPriority(1)
-
-                Spacer(minLength: AppSpacing.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 VStack(alignment: .trailing, spacing: AppSpacing.medium) {
                     if isMutating {
@@ -3016,10 +3015,12 @@ private struct ShoppingItemRow: View {
                             .foregroundStyle(AppColors.mutedText)
                     }
                 }
+                .frame(minWidth: 54, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
             }
             .padding(AppSpacing.medium)
             .background(AppColors.panelBackground)
-            .opacity(displayItem.item.purchased ? 0.72 : 1)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(displayItem.accessibilityLabel)
             .contentShape(Rectangle())
