@@ -5,7 +5,8 @@ struct ToDoView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     @StateObject private var viewModel = ToDoViewModel()
-    @State private var isShowingAddSheet = false
+    @State private var editorMode: ToDoEditorMode?
+    @State private var pendingDeleteTask: ToDoTask?
 
     private let events = ToDoPreviewData.calendarEvents
 
@@ -53,7 +54,7 @@ struct ToDoView: View {
                             systemImage: "plus",
                             accessibilityLabel: "Add to do"
                         ) {
-                            isShowingAddSheet = true
+                            editorMode = .add
                         }
                     }
                 }
@@ -87,6 +88,10 @@ struct ToDoView: View {
                                 actor: currentActorName
                             )
                         }
+                    } onEdit: { task in
+                        editorMode = .edit(task)
+                    } onDelete: { task in
+                        pendingDeleteTask = task
                     }
                 }
             }
@@ -101,26 +106,73 @@ struct ToDoView: View {
         .refreshable {
             await viewModel.load(apiClient: appEnvironment.apiClient, force: true)
         }
-        .sheet(isPresented: $isShowingAddSheet) {
+        .sheet(item: $editorMode) { mode in
             ToDoEditorSheet(
+                mode: mode,
                 users: users,
                 recentLocations: viewModel.locations.isEmpty ? ToDoPreviewData.recentLocations : viewModel.locations,
                 currentUserId: viewModel.userId(for: currentResidentName)
             ) { draft in
-                try await viewModel.createTask(
-                    from: draft,
-                    apiClient: appEnvironment.apiClient,
-                    actor: currentActorName
-                )
+                switch mode {
+                case .add:
+                    try await viewModel.createTask(
+                        from: draft,
+                        apiClient: appEnvironment.apiClient,
+                        actor: currentActorName
+                    )
+                case .edit(let task):
+                    try await viewModel.updateTask(
+                        task,
+                        from: draft,
+                        apiClient: appEnvironment.apiClient,
+                        actor: currentActorName
+                    )
+                }
             }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .alert(
+            "Delete To Do?",
+            isPresented: Binding(
+                get: { pendingDeleteTask != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteTask = nil
+                    }
+                }
+            ),
+            presenting: pendingDeleteTask
+        ) { task in
+            Button("Delete", role: .destructive) {
+                Task {
+                    await delete(task)
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingDeleteTask = nil
+            }
+        } message: { task in
+            Text("Remove \(task.name) from the shared to-do list.")
         }
     }
 
     private var currentActorName: String? {
         let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedName.isEmpty ? nil : trimmedName
+    }
+
+    private func delete(_ task: ToDoTask) async {
+        defer {
+            pendingDeleteTask = nil
+        }
+
+        await viewModel.deleteTask(
+            task,
+            apiClient: appEnvironment.apiClient,
+            actor: currentActorName
+        )
     }
 }
 
@@ -196,6 +248,35 @@ private final class ToDoViewModel: ObservableObject {
         errorMessage = nil
     }
 
+    func updateTask(_ task: ToDoTask, from draft: ToDoDraft, apiClient: APIClient, actor: String?) async throws {
+        guard !mutatingItemIDs.contains(task.id) else {
+            return
+        }
+
+        mutatingItemIDs.insert(task.id)
+
+        defer {
+            mutatingItemIDs.remove(task.id)
+        }
+
+        let locationIds = try await resolveLocationIds(from: draft, apiClient: apiClient)
+        let request = UpdateToDoItemRequest(
+            name: draft.trimmedName,
+            status: ToDoItemStatus(rawValue: draft.status.rawValue),
+            locationIds: locationIds,
+            date: draft.date.map { .value(Self.isoString(from: $0) ?? "") } ?? .null,
+            recurring: draft.recurring
+                .flatMap { ToDoItemRecurring(rawValue: $0.rawValue) }
+                .map { .value($0) } ?? .null,
+            createdBy: .value(draft.createdBy),
+            actor: actor
+        )
+        let response = try await apiClient.updateToDoItem(id: task.id, request)
+
+        apply(response.item)
+        errorMessage = nil
+    }
+
     func toggleCompletion(_ task: ToDoTask, apiClient: APIClient, actor: String?) async {
         guard !mutatingItemIDs.contains(task.id) else {
             return
@@ -221,6 +302,26 @@ private final class ToDoViewModel: ObservableObject {
         }
     }
 
+    func deleteTask(_ task: ToDoTask, apiClient: APIClient, actor: String?) async {
+        guard !mutatingItemIDs.contains(task.id) else {
+            return
+        }
+
+        mutatingItemIDs.insert(task.id)
+
+        defer {
+            mutatingItemIDs.remove(task.id)
+        }
+
+        do {
+            let response = try await apiClient.deleteToDoItem(id: task.id, actor: actor)
+            items.removeAll { $0.id == response.itemId }
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func userId(for residentName: String) -> Int? {
         let normalizedResidentName = residentName.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -238,7 +339,9 @@ private final class ToDoViewModel: ObservableObject {
         from draft: ToDoDraft,
         apiClient: APIClient
     ) async throws -> [Int] {
-        if let locationIds = draft.locationIds, !locationIds.isEmpty {
+        if let locationIds = draft.locationIds,
+           !locationIds.isEmpty,
+           locationNameMatchesSelectedIds(draft.trimmedLocation, locationIds: locationIds) {
             return locationIds
         }
 
@@ -272,6 +375,21 @@ private final class ToDoViewModel: ObservableObject {
         locations.insert(response.location, at: 0)
 
         return [response.location.id]
+    }
+
+    private func locationNameMatchesSelectedIds(_ locationName: String, locationIds: [Int]) -> Bool {
+        guard !locationName.isEmpty else {
+            return true
+        }
+
+        let selectedLocations = locations.filter { locationIds.contains($0.id) }
+        let singleLocationMatches = selectedLocations.contains { Self.isSameLocation($0.displayTitle, locationName) }
+        let combinedLocationText = selectedLocations
+            .map(\.displayTitle)
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            .joined(separator: ", ")
+
+        return singleLocationMatches || Self.isSameLocation(combinedLocationText, locationName)
     }
 
     private func apply(_ item: ToDoItem) {
@@ -520,6 +638,8 @@ private struct ToDoTaskSectionView: View {
     let section: ToDoTaskSection
     let usersById: [Int: LevyHomeUser]
     let onToggleCompletion: (ToDoTask) -> Void
+    let onEdit: (ToDoTask) -> Void
+    let onDelete: (ToDoTask) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -548,6 +668,10 @@ private struct ToDoTaskSectionView: View {
                     creator: task.createdBy.flatMap { usersById[$0] }
                 ) {
                     onToggleCompletion(task)
+                } onEdit: {
+                    onEdit(task)
+                } onDelete: {
+                    onDelete(task)
                 }
 
                 if task.id != section.tasks.last?.id {
@@ -569,53 +693,73 @@ private struct ToDoTaskRow: View {
     let task: ToDoTask
     let creator: LevyHomeUser?
     let onToggleCompletion: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.medium) {
-            Button(action: onToggleCompletion) {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(task.isCompleted ? AppColors.success : AppColors.accent)
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(task.isCompleted ? "Reopen to do" : "Complete to do")
+        SwipeRevealActionRow(
+            actionLabel: "Delete",
+            systemImage: "trash",
+            action: onDelete
+        ) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                Button(action: onToggleCompletion) {
+                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(task.isCompleted ? AppColors.success : AppColors.accent)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(task.isCompleted ? "Reopen to do" : "Complete to do")
 
-            VStack(alignment: .leading, spacing: AppSpacing.small) {
-                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
-                    Text(task.name)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(task.isCompleted ? AppColors.mutedText : .primary)
-                        .strikethrough(task.isCompleted, color: AppColors.mutedText)
-                        .lineLimit(2)
+                VStack(alignment: .leading, spacing: AppSpacing.small) {
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
+                        Text(task.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(task.isCompleted ? AppColors.mutedText : .primary)
+                            .strikethrough(task.isCompleted, color: AppColors.mutedText)
+                            .lineLimit(2)
 
-                    if task.isLinkedToFamilyCalendar {
-                        ToDoInlineBadge(text: "Family", systemImage: "calendar", tone: .accent)
+                        if task.isLinkedToFamilyCalendar {
+                            ToDoInlineBadge(text: "Family", systemImage: "calendar", tone: .accent)
+                        }
                     }
-                }
 
-                if let note = task.previewNote {
-                    Text(note)
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.mutedText)
-                        .lineLimit(2)
-                }
+                    if let note = task.previewNote {
+                        Text(note)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.mutedText)
+                            .lineLimit(2)
+                    }
 
-                ToDoLocationRow(text: task.locationDisplayText)
+                    ToDoLocationRow(text: task.locationDisplayText)
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: AppSpacing.small)
+
+                VStack(alignment: .trailing, spacing: AppSpacing.small) {
+                    ToDoDueBadge(text: task.dateDisplayText, tone: task.dateTone)
+
+                    ToDoAssigneeStack(initials: creator.map { [$0.initials] } ?? ["?"])
+                }
             }
-            .layoutPriority(1)
+            .padding(AppSpacing.medium)
+            .background(AppColors.panelBackground)
+            .opacity(task.isCompleted ? 0.72 : 1)
+            .accessibilityElement(children: .combine)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onEdit)
+            .contextMenu {
+                Button(action: onEdit) {
+                    Label("Edit", systemImage: "pencil")
+                }
 
-            Spacer(minLength: AppSpacing.small)
-
-            VStack(alignment: .trailing, spacing: AppSpacing.small) {
-                ToDoDueBadge(text: task.dateDisplayText, tone: task.dateTone)
-
-                ToDoAssigneeStack(initials: creator.map { [$0.initials] } ?? ["?"])
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                }
             }
         }
-        .padding(AppSpacing.medium)
-        .opacity(task.isCompleted ? 0.72 : 1)
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -789,26 +933,28 @@ private struct ToDoEditorSheet: View {
     @State private var isSaving = false
     @State private var saveErrorMessage: String?
 
+    private let mode: ToDoEditorMode
     private let users: [LevyHomeUser]
     private let recentLocations: [ToDoLocation]
     private let dueDateOptions = ToDoPreviewData.dueDateOptions
-    private let onAdd: (ToDoDraft) async throws -> Void
+    private let onSave: (ToDoDraft) async throws -> Void
 
     init(
+        mode: ToDoEditorMode,
         users: [LevyHomeUser],
         recentLocations: [ToDoLocation],
         currentUserId: Int?,
-        onAdd: @escaping (ToDoDraft) async throws -> Void
+        onSave: @escaping (ToDoDraft) async throws -> Void
     ) {
         let resolvedUsers = users.isEmpty ? ToDoPreviewData.users : users
+        let resolvedUserId = currentUserId ?? resolvedUsers.first?.id ?? 1
 
+        self.mode = mode
         self.users = resolvedUsers
         self.recentLocations = recentLocations.isEmpty ? ToDoPreviewData.recentLocations : recentLocations
-        self.onAdd = onAdd
+        self.onSave = onSave
         _draft = State(
-            initialValue: ToDoDraft(
-                createdBy: currentUserId ?? resolvedUsers.first?.id ?? 1
-            )
+            initialValue: mode.initialDraft(currentUserId: resolvedUserId)
         )
     }
 
@@ -830,8 +976,8 @@ private struct ToDoEditorSheet: View {
                     }
 
                     PrimaryActionButton(
-                        title: isSaving ? "Adding" : "Add To Do",
-                        systemImage: "plus"
+                        title: isSaving ? savingTitle : actionTitle,
+                        systemImage: actionSystemImage
                     ) {
                         save()
                     }
@@ -840,7 +986,7 @@ private struct ToDoEditorSheet: View {
                 .padding(.bottom, AppSpacing.xLarge)
             }
             .background(AppColors.pageBackground)
-            .navigationTitle("New To Do")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -850,13 +996,49 @@ private struct ToDoEditorSheet: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button(actionTitle) {
                         save()
                     }
                     .fontWeight(.semibold)
                     .disabled(isSaving || !draft.isValid)
                 }
             }
+        }
+    }
+
+    private var navigationTitle: String {
+        switch mode {
+        case .add:
+            return "New To Do"
+        case .edit:
+            return "To Do Details"
+        }
+    }
+
+    private var actionTitle: String {
+        switch mode {
+        case .add:
+            return "Add To Do"
+        case .edit:
+            return "Save Changes"
+        }
+    }
+
+    private var savingTitle: String {
+        switch mode {
+        case .add:
+            return "Adding"
+        case .edit:
+            return "Saving"
+        }
+    }
+
+    private var actionSystemImage: String {
+        switch mode {
+        case .add:
+            return "plus"
+        case .edit:
+            return "checkmark"
         }
     }
 
@@ -1005,7 +1187,20 @@ private struct ToDoEditorSheet: View {
     }
 
     private var selectedDueDate: ToDoDueDateOption {
-        dueDateOptions.first { $0.id == draft.dueDateID } ?? dueDateOptions[0]
+        if let option = dueDateOptions.first(where: { $0.id == draft.dueDateID }) {
+            return option
+        }
+
+        if let date = draft.date {
+            return ToDoDueDateOption(
+                id: "custom",
+                title: Self.shortDateFormatter.string(from: date),
+                tone: .accent,
+                date: date
+            )
+        }
+
+        return dueDateOptions[0]
     }
 
     private var selectedUser: LevyHomeUser {
@@ -1042,7 +1237,7 @@ private struct ToDoEditorSheet: View {
 
         Task {
             do {
-                try await onAdd(draft)
+                try await onSave(draft)
                 dismiss()
             } catch {
                 saveErrorMessage = error.localizedDescription
@@ -1050,6 +1245,12 @@ private struct ToDoEditorSheet: View {
             }
         }
     }
+
+    private static let shortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter
+    }()
 }
 
 private struct ToDoFormPanel<Content: View>: View {
@@ -1685,6 +1886,29 @@ private struct ToDoTask: Identifiable {
     }()
 }
 
+private enum ToDoEditorMode: Identifiable {
+    case add
+    case edit(ToDoTask)
+
+    var id: String {
+        switch self {
+        case .add:
+            return "add"
+        case .edit(let task):
+            return "edit-\(task.id)"
+        }
+    }
+
+    func initialDraft(currentUserId: Int) -> ToDoDraft {
+        switch self {
+        case .add:
+            return ToDoDraft(createdBy: currentUserId)
+        case .edit(let task):
+            return ToDoDraft(task: task, fallbackCreatedBy: currentUserId)
+        }
+    }
+}
+
 private struct ToDoDraft {
     var name = ""
     var locationIds: [Int]?
@@ -1701,6 +1925,19 @@ private struct ToDoDraft {
         self.createdBy = createdBy
     }
 
+    init(task: ToDoTask, fallbackCreatedBy: Int) {
+        name = task.name
+        locationIds = task.locationIds
+        date = task.date
+        recurring = task.recurring
+        createdBy = task.createdBy ?? fallbackCreatedBy
+        createdDate = task.createdDate
+        status = task.status
+        dueDateID = Self.dueDateID(for: task.date)
+        location = task.locationDisplayText == "No location" ? "" : task.locationDisplayText
+        saveLocation = false
+    }
+
     var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -1711,6 +1948,26 @@ private struct ToDoDraft {
 
     var isValid: Bool {
         !trimmedName.isEmpty
+    }
+
+    private static func dueDateID(for date: Date?) -> String {
+        guard let date else {
+            return "none"
+        }
+
+        if Calendar.current.isDateInToday(date) {
+            return "today"
+        }
+
+        if Calendar.current.isDateInTomorrow(date) {
+            return "tomorrow"
+        }
+
+        if let thisWeek = ToDoPreviewData.thisWeek, Calendar.current.isDate(date, inSameDayAs: thisWeek) {
+            return "this-week"
+        }
+
+        return "custom"
     }
 }
 

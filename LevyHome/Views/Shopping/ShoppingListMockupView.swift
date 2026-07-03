@@ -1055,6 +1055,9 @@ private struct ShoppingListContentView: View {
     @StateObject private var viewModel: ShoppingListViewModel
     @State private var searchText = ""
     @State private var selectedCategoryId: Int?
+    @State private var appliedFilters = ShoppingListFilters()
+    @State private var draftFilters = ShoppingListFilters()
+    @State private var isShowingFilterSheet = false
     @State private var editorMode: ShoppingItemEditorMode?
     @State private var pendingDeleteItem: ShoppingListItem?
 
@@ -1097,6 +1100,22 @@ private struct ShoppingListContentView: View {
                 viewModel: viewModel
             )
             .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingFilterSheet) {
+            ShoppingListFilterSheet(
+                filters: $draftFilters,
+                onClear: {
+                    appliedFilters = ShoppingListFilters()
+                    draftFilters = ShoppingListFilters()
+                    isShowingFilterSheet = false
+                },
+                onApply: {
+                    appliedFilters = draftFilters
+                    isShowingFilterSheet = false
+                }
+            )
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .alert(
@@ -1178,8 +1197,12 @@ private struct ShoppingListContentView: View {
             viewerInitials: viewModel.activeViewerInitials,
             remainingText: "\(neededItemCount) left of \(totalItemCount)",
             estimatedTotalText: estimatedRemainingTotalText,
+            isFilterActive: appliedFilters.isActive,
             onStartShop: {},
-            onFilter: {}
+            onFilter: {
+                draftFilters = appliedFilters
+                isShowingFilterSheet = true
+            }
         )
         .animation(.easeInOut(duration: 0.16), value: viewModel.activeViewerInitials)
     }
@@ -1207,10 +1230,12 @@ private struct ShoppingListContentView: View {
             subtitle: viewModel.items.isEmpty ? "The database list is empty." : "Try a product name, store, or category.",
             systemImage: viewModel.items.isEmpty ? "cart" : "magnifyingglass"
         ) {
-            if !searchText.isEmpty || selectedCategoryId != nil {
+            if !searchText.isEmpty || selectedCategoryId != nil || appliedFilters.isActive {
                 Button {
                     searchText = ""
                     selectedCategoryId = nil
+                    appliedFilters = ShoppingListFilters()
+                    draftFilters = ShoppingListFilters()
                 } label: {
                     Label("Clear Filter", systemImage: "xmark.circle")
                         .font(.subheadline.weight(.semibold))
@@ -1246,6 +1271,9 @@ private struct ShoppingListContentView: View {
 
                 return displayItem.matches(trimmedSearch)
             }
+            .filter { displayItem in
+                appliedFilters.matches(displayItem, storesById: storesById)
+            }
     }
 
     private var displayItems: [ShoppingListDisplayItem] {
@@ -1257,6 +1285,10 @@ private struct ShoppingListContentView: View {
                 category: category(for: item, categoriesById: categoriesById)
             )
         }
+    }
+
+    private var storesById: [Int: ShoppingStore] {
+        Dictionary(uniqueKeysWithValues: viewModel.stores.map { ($0.id, $0) })
     }
 
     private var filterCategories: [ShoppingCategory] {
@@ -1370,10 +1402,266 @@ private struct ShoppingListSearchField: View {
     }
 }
 
+private struct ShoppingListFilterSheet: View {
+    @Binding var filters: ShoppingListFilters
+    let onClear: () -> Void
+    let onApply: () -> Void
+
+    @State private var isStatusExpanded = true
+    @State private var isStoreExpanded = true
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: AppSpacing.medium) {
+                        ShoppingFilterAccordionSection(
+                            title: "Status",
+                            systemImage: "checkmark.circle",
+                            isExpanded: $isStatusExpanded
+                        ) {
+                            ShoppingFilterOptionRow(
+                                title: "Needed",
+                                systemImage: "cart.badge.plus",
+                                isSelected: filters.neededOnly
+                            ) {
+                                filters.neededOnly.toggle()
+                            }
+                        }
+
+                        ShoppingFilterAccordionSection(
+                            title: "Store",
+                            systemImage: "storefront",
+                            isExpanded: $isStoreExpanded
+                        ) {
+                            VStack(spacing: AppSpacing.small) {
+                                ForEach(ShoppingStoreFilterOption.allCases) { store in
+                                    ShoppingFilterOptionRow(
+                                        title: store.title,
+                                        systemImage: store.systemImage,
+                                        isSelected: filters.selectedStores.contains(store)
+                                    ) {
+                                        filters.toggleStore(store)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(AppSpacing.screen)
+                }
+
+                Divider()
+
+                HStack(spacing: AppSpacing.medium) {
+                    Button(action: onClear) {
+                        Label("Clear", systemImage: "xmark.circle")
+                            .font(.headline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .foregroundStyle(AppColors.accent)
+                            .background(AppColors.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: onApply) {
+                        Label("Apply", systemImage: "checkmark.circle.fill")
+                            .font(.headline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .foregroundStyle(Color.white)
+                            .background(AppColors.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, AppSpacing.screen)
+                .padding(.vertical, AppSpacing.medium)
+                .background(AppColors.pageBackground)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle("Filters")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct ShoppingFilterAccordionSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @Binding var isExpanded: Bool
+    private let content: () -> Content
+
+    init(
+        title: String,
+        systemImage: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        _isExpanded = isExpanded
+        self.content = content
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: AppSpacing.small) {
+                content()
+            }
+            .padding(.top, AppSpacing.medium)
+        } label: {
+            HStack(spacing: AppSpacing.small) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.accent)
+                    .frame(width: 24)
+
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+        }
+        .tint(AppColors.accent)
+        .padding(AppSpacing.medium)
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ShoppingFilterOptionRow: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AppSpacing.medium) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isSelected ? AppColors.accent : AppColors.mutedText)
+                    .frame(width: 24)
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: AppSpacing.small)
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(isSelected ? AppColors.accent : AppColors.mutedText)
+            }
+            .padding(.horizontal, AppSpacing.medium)
+            .frame(height: 48)
+            .background(isSelected ? AppColors.accentSoft : AppColors.insetPanelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+fileprivate struct ShoppingListFilters: Equatable {
+    var neededOnly = false
+    var selectedStores: Set<ShoppingStoreFilterOption> = []
+
+    var isActive: Bool {
+        neededOnly || !selectedStores.isEmpty
+    }
+
+    mutating func toggleStore(_ store: ShoppingStoreFilterOption) {
+        if selectedStores.contains(store) {
+            selectedStores.remove(store)
+        } else {
+            selectedStores.insert(store)
+        }
+    }
+
+    func matches(
+        _ displayItem: ShoppingListDisplayItem,
+        storesById: [Int: ShoppingStore]
+    ) -> Bool {
+        if neededOnly && displayItem.item.purchased {
+            return false
+        }
+
+        return selectedStores.allSatisfy { store in
+            displayItem.matches(storeFilter: store, storesById: storesById)
+        }
+    }
+}
+
+fileprivate enum ShoppingStoreFilterOption: String, CaseIterable, Identifiable {
+    case kingSoopers
+    case target
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .kingSoopers:
+            return "King Soopers"
+        case .target:
+            return "Target"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .kingSoopers:
+            return "basket.fill"
+        case .target:
+            return "cart.fill"
+        }
+    }
+
+    func matches(
+        listing: ShoppingItemStoreListing,
+        fallbackStore: ShoppingStore?
+    ) -> Bool {
+        let searchableValues = [
+            listing.storeName,
+            fallbackStore?.name,
+            listing.source,
+            listing.krogerLocationId,
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+
+        if searchableValues.contains(where: matchesStoreName) {
+            return true
+        }
+
+        switch self {
+        case .kingSoopers:
+            return listing.storeId == 2
+        case .target:
+            return listing.storeId == 1
+        }
+    }
+
+    private func matchesStoreName(_ value: String) -> Bool {
+        switch self {
+        case .kingSoopers:
+            return value.contains("king soopers")
+                || value.contains("kingsoopers")
+                || value.contains("kroger")
+        case .target:
+            return value.contains("target")
+        }
+    }
+}
+
 private struct ShoppingListSummaryCard: View {
     let viewerInitials: [String]
     let remainingText: String
     let estimatedTotalText: String
+    let isFilterActive: Bool
     let onStartShop: () -> Void
     let onFilter: () -> Void
 
@@ -1416,12 +1704,13 @@ private struct ShoppingListSummaryCard: View {
                 Image(systemName: "line.3.horizontal.decrease")
                     .font(.subheadline.weight(.semibold))
                     .frame(width: 34, height: 34)
-                    .foregroundStyle(AppColors.accent)
-                    .background(AppColors.accentSoft)
+                    .foregroundStyle(isFilterActive ? Color.white : AppColors.accent)
+                    .background(isFilterActive ? AppColors.accent : AppColors.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Filter shopping list")
+            .accessibilityValue(isFilterActive ? "Active" : "Inactive")
         }
         .padding(AppSpacing.medium)
         .background(AppColors.panelBackground)
@@ -2669,83 +2958,80 @@ private struct ShoppingItemRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.medium) {
-            Button(action: onTogglePurchased) {
-                Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.accent)
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.plain)
-            .disabled(isMutating)
-            .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
-
-            itemImage
-
-            VStack(alignment: .leading, spacing: AppSpacing.small) {
-                Text(displayItem.item.name)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
-                    .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
-
-                if let detailText = displayItem.detailText {
-                    Text(detailText)
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.mutedText)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+        SwipeRevealActionRow(
+            actionLabel: "Delete",
+            systemImage: "trash",
+            action: onDelete
+        ) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                Button(action: onTogglePurchased) {
+                    Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.accent)
+                        .frame(width: 30, height: 30)
                 }
+                .buttonStyle(.plain)
+                .disabled(isMutating)
+                .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
 
-                if !displayItem.storeListings.isEmpty {
-                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                        ForEach(displayItem.storeListings) { listing in
-                            ShoppingStoreListingSummaryRow(listing: listing)
+                itemImage
+
+                VStack(alignment: .leading, spacing: AppSpacing.small) {
+                    Text(displayItem.item.name)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
+                        .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
+
+                    if let detailText = displayItem.detailText {
+                        Text(detailText)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.mutedText)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !displayItem.storeListings.isEmpty {
+                        VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                            ForEach(displayItem.storeListings) { listing in
+                                ShoppingStoreListingSummaryRow(listing: listing)
+                            }
                         }
                     }
                 }
-            }
-            .layoutPriority(1)
+                .layoutPriority(1)
 
-            Spacer(minLength: AppSpacing.small)
+                Spacer(minLength: AppSpacing.small)
 
-            VStack(alignment: .trailing, spacing: AppSpacing.medium) {
-                if isMutating {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    RowQuantityBadge(quantity: displayItem.item.quantity)
+                VStack(alignment: .trailing, spacing: AppSpacing.medium) {
+                    if isMutating {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        RowQuantityBadge(quantity: displayItem.item.quantity)
 
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(AppColors.mutedText)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(AppColors.mutedText)
+                    }
                 }
             }
-        }
-        .padding(AppSpacing.medium)
-        .opacity(displayItem.item.purchased ? 0.72 : 1)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(displayItem.accessibilityLabel)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onEdit)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
-            }
+            .padding(AppSpacing.medium)
+            .background(AppColors.panelBackground)
+            .opacity(displayItem.item.purchased ? 0.72 : 1)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(displayItem.accessibilityLabel)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onEdit)
+            .contextMenu {
+                Button(action: onEdit) {
+                    Label("Edit", systemImage: "pencil")
+                }
 
-            Button(action: onEdit) {
-                Label("Edit", systemImage: "pencil")
-            }
-            .tint(AppColors.accent)
-        }
-        .contextMenu {
-            Button(action: onEdit) {
-                Label("Edit", systemImage: "pencil")
-            }
-
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                }
             }
         }
     }
@@ -2904,6 +3190,19 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
         }
 
         return lhs.item.name.localizedCaseInsensitiveCompare(rhs.item.name) == .orderedAscending
+    }
+}
+
+private extension ShoppingListDisplayItem {
+    func matches(
+        storeFilter: ShoppingStoreFilterOption,
+        storesById: [Int: ShoppingStore]
+    ) -> Bool {
+        storeListings.contains { listing in
+            let fallbackStore = listing.storeId.flatMap { storesById[$0] }
+
+            return storeFilter.matches(listing: listing, fallbackStore: fallbackStore)
+        }
     }
 }
 

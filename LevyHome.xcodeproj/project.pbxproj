@@ -25,6 +25,7 @@
 		A20000000000000000000005 /* PrimaryActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* PrimaryActionButton.swift */; };
 		A20000000000000000000006 /* StatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* StatusBadgeView.swift */; };
 		A20000000000000000000007 /* AppScreenChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* AppScreenChrome.swift */; };
+		A20000000000000000000008 /* SwipeRevealActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* SwipeRevealActionRow.swift */; };
 		A30000000000000000000001 /* GarageStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* GarageStatusCard.swift */; };
 		A30000000000000000000002 /* LightSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* LightSummaryCard.swift */; };
 		A30000000000000000000003 /* RecentImportantEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* RecentImportantEventView.swift */; };
@@ -114,6 +115,7 @@
 		A20000000000000000000015 /* PrimaryActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryActionButton.swift; sourceTree = "<group>"; };
 		A20000000000000000000016 /* StatusBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgeView.swift; sourceTree = "<group>"; };
 		A20000000000000000000017 /* AppScreenChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppScreenChrome.swift; sourceTree = "<group>"; };
+		A20000000000000000000018 /* SwipeRevealActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeRevealActionRow.swift; sourceTree = "<group>"; };
 		A30000000000000000000011 /* GarageStatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageStatusCard.swift; sourceTree = "<group>"; };
 		A30000000000000000000012 /* LightSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightSummaryCard.swift; sourceTree = "<group>"; };
 		A30000000000000000000013 /* RecentImportantEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentImportantEventView.swift; sourceTree = "<group>"; };
@@ -319,6 +321,7 @@
 				A20000000000000000000015 /* PrimaryActionButton.swift */,
 				A20000000000000000000016 /* StatusBadgeView.swift */,
 				A20000000000000000000017 /* AppScreenChrome.swift */,
+				A20000000000000000000018 /* SwipeRevealActionRow.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -554,6 +557,7 @@
 				A20000000000000000000005 /* PrimaryActionButton.swift in Sources */,
 				A20000000000000000000006 /* StatusBadgeView.swift in Sources */,
 				A20000000000000000000007 /* AppScreenChrome.swift in Sources */,
+				A20000000000000000000008 /* SwipeRevealActionRow.swift in Sources */,
 				A30000000000000000000001 /* GarageStatusCard.swift in Sources */,
 				A30000000000000000000002 /* LightSummaryCard.swift in Sources */,
 				A30000000000000000000003 /* RecentImportantEventView.swift in Sources */,
