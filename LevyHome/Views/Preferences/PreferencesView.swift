@@ -58,6 +58,7 @@ private struct PreferencesContentView: View {
                 NotificationDeliveryStatusView(
                     viewModel: pushRegistrationViewModel,
                     preferencesViewModel: viewModel,
+                    apnsEnvironment: apnsEnvironment,
                     deviceName: notificationRegistrationDeviceName
                 )
 

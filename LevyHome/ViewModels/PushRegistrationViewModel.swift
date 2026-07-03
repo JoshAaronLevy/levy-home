@@ -81,6 +81,24 @@ final class PushRegistrationViewModel: ObservableObject {
         await syncDeviceWithAPIIfPossible(snapshot)
     }
 
+    func prepareDeliveryIfNeeded() async {
+        guard !isRegistering else {
+            return
+        }
+
+        let snapshot = await service.currentSnapshot()
+        apply(snapshot, preserveDeveloperMessage: true)
+
+        if shouldRequestPermissionOrNativeRegistration(snapshot) {
+            await requestRegistration()
+            return
+        }
+
+        if shouldSyncDeviceWithAPIOnRefresh(snapshot) {
+            await syncDeviceWithAPIIfPossible(snapshot)
+        }
+    }
+
     private func apply(
         _ snapshot: PushRegistrationSnapshot,
         preserveDeveloperMessage: Bool
@@ -174,7 +192,7 @@ final class PushRegistrationViewModel: ObservableObject {
         }
 
         registrationLabel = "Not registered"
-        registrationDetail = "Open the Developer screen to request notification permission and APNs registration."
+        registrationDetail = "Set up notifications to request permission and register this iPhone."
         registrationTone = .neutral
         registrationSystemImage = "iphone"
         applyAPISyncPending()
@@ -275,6 +293,21 @@ final class PushRegistrationViewModel: ObservableObject {
             && snapshot.availability == .available
             && snapshot.permissionStatus.allowsNotifications
             && snapshot.hasDeviceToken
+    }
+
+    private func shouldRequestPermissionOrNativeRegistration(_ snapshot: PushRegistrationSnapshot) -> Bool {
+        guard snapshot.availability == .available else {
+            return false
+        }
+
+        switch snapshot.permissionStatus {
+        case .notDetermined:
+            return true
+        case .authorized, .provisional, .ephemeral:
+            return !snapshot.hasDeviceToken
+        case .denied, .unknown:
+            return false
+        }
     }
 
     private static func normalizedDeviceName(_ value: String?) -> String? {

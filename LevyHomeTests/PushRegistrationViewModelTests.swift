@@ -107,6 +107,129 @@ final class PushRegistrationViewModelTests: XCTestCase {
         )
     }
 
+    func testPrepareDeliveryRequestsPermissionAndSyncsDeviceWhenNotDetermined() async {
+        let apiService = MockDeviceRegistrationService(
+            response: RegisterDeviceResponse(ok: true, registeredDeviceCount: 2, device: nil)
+        )
+        let service = MockNotificationService(
+            currentSnapshot: PushRegistrationSnapshot(
+                permissionStatus: .notDetermined,
+                availability: .available,
+                deviceToken: nil,
+                errorMessage: nil
+            ),
+            registrationSnapshot: PushRegistrationSnapshot(
+                permissionStatus: .authorized,
+                availability: .available,
+                deviceToken: "abc123",
+                errorMessage: nil
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: service,
+            deviceRegistrationService: apiService,
+            apnsEnvironment: .production,
+            appVersion: "0.1.0",
+            deviceName: "Mallory"
+        )
+
+        await viewModel.prepareDeliveryIfNeeded()
+
+        XCTAssertEqual(service.registrationRequestCount, 1)
+        XCTAssertEqual(viewModel.permissionLabel, "Allowed")
+        XCTAssertEqual(viewModel.registrationLabel, "Registered")
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Synced")
+        XCTAssertEqual(apiService.requests, [
+            RegisterDeviceRequest(
+                token: "abc123",
+                platform: .iOS,
+                provider: .apns,
+                environment: .production,
+                appVersion: "0.1.0",
+                deviceName: "Mallory"
+            )
+        ])
+    }
+
+    func testPrepareDeliveryRegistersNativeTokenWhenPermissionAlreadyAllowedButTokenIsMissing() async {
+        let service = MockNotificationService(
+            currentSnapshot: PushRegistrationSnapshot(
+                permissionStatus: .authorized,
+                availability: .available,
+                deviceToken: nil,
+                errorMessage: nil
+            ),
+            registrationSnapshot: PushRegistrationSnapshot(
+                permissionStatus: .authorized,
+                availability: .available,
+                deviceToken: "abc123",
+                errorMessage: nil
+            )
+        )
+        let viewModel = PushRegistrationViewModel(service: service)
+
+        await viewModel.prepareDeliveryIfNeeded()
+
+        XCTAssertEqual(service.registrationRequestCount, 1)
+        XCTAssertEqual(viewModel.registrationLabel, "Registered")
+        XCTAssertEqual(viewModel.deviceToken, "abc123")
+    }
+
+    func testPrepareDeliverySyncsExistingTokenWithoutRequestingPermissionAgain() async {
+        let apiService = MockDeviceRegistrationService(
+            response: RegisterDeviceResponse(ok: true, registeredDeviceCount: 2, device: nil)
+        )
+        let service = MockNotificationService(
+            currentSnapshot: PushRegistrationSnapshot(
+                permissionStatus: .authorized,
+                availability: .available,
+                deviceToken: "abc123",
+                errorMessage: nil
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: service,
+            deviceRegistrationService: apiService,
+            apnsEnvironment: .production,
+            appVersion: "0.1.0",
+            deviceName: "Josh"
+        )
+
+        await viewModel.prepareDeliveryIfNeeded()
+
+        XCTAssertEqual(service.registrationRequestCount, 0)
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Synced")
+        XCTAssertEqual(apiService.requests, [
+            RegisterDeviceRequest(
+                token: "abc123",
+                platform: .iOS,
+                provider: .apns,
+                environment: .production,
+                appVersion: "0.1.0",
+                deviceName: "Josh"
+            )
+        ])
+    }
+
+    func testPrepareDeliveryDoesNotRequestPermissionAgainWhenDenied() async {
+        let service = MockNotificationService(
+            currentSnapshot: PushRegistrationSnapshot(
+                permissionStatus: .denied,
+                availability: .available,
+                deviceToken: nil,
+                errorMessage: nil
+            )
+        )
+        let viewModel = PushRegistrationViewModel(service: service)
+
+        await viewModel.prepareDeliveryIfNeeded()
+
+        XCTAssertEqual(service.registrationRequestCount, 0)
+        XCTAssertEqual(viewModel.permissionLabel, "Off")
+        XCTAssertEqual(viewModel.registrationLabel, "Blocked")
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Skipped")
+    }
+
     func testRefreshRestoresPersistedAPISyncStateForCurrentTokenAndEnvironment() async {
         let stateStore = MockPushRegistrationStateStore(
             apiSyncState: PushAPISyncState(

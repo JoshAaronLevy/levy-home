@@ -3,15 +3,18 @@ import SwiftUI
 struct NotificationDeliveryStatusView: View {
     @ObservedObject var viewModel: PushRegistrationViewModel
     @ObservedObject var preferencesViewModel: NotificationPreferencesViewModel
+    let apnsEnvironment: APNsEnvironment
     let deviceName: String?
 
     init(
         viewModel: PushRegistrationViewModel,
         preferencesViewModel: NotificationPreferencesViewModel,
+        apnsEnvironment: APNsEnvironment = .sandbox,
         deviceName: String? = nil
     ) {
         self.viewModel = viewModel
         self.preferencesViewModel = preferencesViewModel
+        self.apnsEnvironment = apnsEnvironment
         self.deviceName = deviceName
     }
 
@@ -24,7 +27,8 @@ struct NotificationDeliveryStatusView: View {
             NavigationLink {
                 NotificationDeliveryStatusDetailView(
                     viewModel: viewModel,
-                    preferencesViewModel: preferencesViewModel
+                    preferencesViewModel: preferencesViewModel,
+                    apnsEnvironment: apnsEnvironment
                 )
             } label: {
                 HStack(spacing: AppSpacing.medium) {
@@ -136,6 +140,7 @@ struct NotificationDeliveryStatusView: View {
 private struct NotificationDeliveryStatusDetailView: View {
     @ObservedObject var viewModel: PushRegistrationViewModel
     @ObservedObject var preferencesViewModel: NotificationPreferencesViewModel
+    let apnsEnvironment: APNsEnvironment
 
     var body: some View {
         ScrollView {
@@ -184,6 +189,26 @@ private struct NotificationDeliveryStatusDetailView: View {
                             tone: preferencesViewModel.syncTone
                         )
                     )
+
+                    if let message = viewModel.developerStatusMessage {
+                        ErrorBannerView(message: message, tone: messageTone)
+                    }
+
+                    if shouldShowSetupButton {
+                        PrimaryActionButton(
+                            title: "Set Up Notifications",
+                            systemImage: "bell.badge",
+                            isLoading: viewModel.isRegistering
+                        ) {
+                            Task {
+                                await viewModel.requestRegistration()
+                                await preferencesViewModel.syncPreferences(
+                                    deviceToken: viewModel.deviceToken,
+                                    environment: apnsEnvironment
+                                )
+                            }
+                        }
+                    }
                 }
             }
             .padding(AppSpacing.screen)
@@ -197,6 +222,27 @@ private struct NotificationDeliveryStatusDetailView: View {
 
     private var productSafeAPITone: StatusBadgeTone {
         viewModel.apiRegistrationTone == .critical ? .warning : viewModel.apiRegistrationTone
+    }
+
+    private var shouldShowSetupButton: Bool {
+        viewModel.permissionTone != .success
+            || viewModel.registrationTone != .success
+            || productSafeAPITone != .success
+            || preferencesViewModel.syncTone == .warning
+            || preferencesViewModel.syncTone == .critical
+    }
+
+    private var messageTone: BannerTone {
+        switch viewModel.registrationTone {
+        case .critical:
+            return .error
+        case .warning:
+            return .warning
+        case .success:
+            return .success
+        case .neutral, .accent:
+            return .info
+        }
     }
 
     private func deliveryRow<Badge: View>(
