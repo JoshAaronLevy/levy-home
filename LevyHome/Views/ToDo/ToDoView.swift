@@ -1,3 +1,4 @@
+import EventKit
 import MapKit
 import SwiftUI
 
@@ -5,10 +6,10 @@ struct ToDoView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     @StateObject private var viewModel = ToDoViewModel()
+    @StateObject private var familyCalendarViewModel = ToDoFamilyCalendarViewModel()
     @State private var editorMode: ToDoEditorMode?
     @State private var pendingDeleteTask: ToDoTask?
-
-    private let events = ToDoPreviewData.calendarEvents
+    @State private var selectedCalendarEvent: ToDoCalendarEvent?
 
     private var sections: [ToDoTaskSection] {
         viewModel.hasLoaded ? viewModel.sections : ToDoPreviewData.taskSections
@@ -63,10 +64,21 @@ struct ToDoView: View {
                     openTaskCount: openTaskCount,
                     dueTodayCount: dueTodayCount,
                     completedTaskCount: completedTaskCount,
-                    calendarEventCount: events.count
+                    calendarEventCount: familyCalendarViewModel.eventCount
                 )
 
-                ToDoCalendarPanel(events: events)
+                ToDoCalendarPanel(
+                    state: familyCalendarViewModel.state,
+                    events: familyCalendarViewModel.displayEvents
+                ) { event in
+                    familyCalendarViewModel.toggleCompletion(for: event)
+                } onSelectEvent: { event in
+                    selectedCalendarEvent = event
+                } onRetry: {
+                    Task {
+                        await familyCalendarViewModel.loadToday()
+                    }
+                }
 
                 if let errorMessage = viewModel.errorMessage {
                     ToDoErrorBanner(message: errorMessage) {
@@ -101,10 +113,15 @@ struct ToDoView: View {
         }
         .appScreenChrome()
         .task {
-            await viewModel.load(apiClient: appEnvironment.apiClient)
+            await load()
         }
         .refreshable {
-            await viewModel.load(apiClient: appEnvironment.apiClient, force: true)
+            await load(force: true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            Task {
+                await familyCalendarViewModel.loadToday(force: true)
+            }
         }
         .sheet(item: $editorMode) { mode in
             ToDoEditorSheet(
@@ -130,6 +147,11 @@ struct ToDoView: View {
                 }
             }
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedCalendarEvent) { event in
+            ToDoCalendarEventDetailSheet(event: event)
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .alert(
@@ -161,6 +183,13 @@ struct ToDoView: View {
     private var currentActorName: String? {
         let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedName.isEmpty ? nil : trimmedName
+    }
+
+    private func load(force: Bool = false) async {
+        async let tasksLoad: Void = viewModel.load(apiClient: appEnvironment.apiClient, force: force)
+        async let calendarLoad: Void = familyCalendarViewModel.loadToday(force: force)
+
+        _ = await (tasksLoad, calendarLoad)
     }
 
     private func delete(_ task: ToDoTask) async {
@@ -546,7 +575,11 @@ private struct ToDoSummaryCard: View {
 }
 
 private struct ToDoCalendarPanel: View {
+    let state: ToDoFamilyCalendarState
     let events: [ToDoCalendarEvent]
+    let onToggleCompletion: (ToDoCalendarEvent) -> Void
+    let onSelectEvent: (ToDoCalendarEvent) -> Void
+    let onRetry: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -565,7 +598,7 @@ private struct ToDoCalendarPanel: View {
 
                 Spacer()
 
-                ToDoStatusPill(text: "Synced", systemImage: "checkmark.circle.fill", tone: .success)
+                ToDoStatusPill(text: state.statusText, systemImage: state.statusSystemImage, tone: state.statusTone)
             }
             .padding(.horizontal, AppSpacing.large)
             .padding(.vertical, AppSpacing.medium)
@@ -573,14 +606,7 @@ private struct ToDoCalendarPanel: View {
             Divider()
                 .padding(.leading, AppSpacing.large)
 
-            ForEach(events) { event in
-                ToDoCalendarEventRow(event: event)
-
-                if event.id != events.last?.id {
-                    Divider()
-                        .padding(.leading, 62)
-                }
-            }
+            content
         }
         .background(AppColors.panelBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
@@ -589,17 +615,133 @@ private struct ToDoCalendarPanel: View {
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
     }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .idle, .requestingPermission, .loading:
+            HStack(spacing: AppSpacing.medium) {
+                ProgressView()
+                    .tint(AppColors.accent)
+
+                Text("Syncing Family Calendar...")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(AppSpacing.large)
+        case .permissionNeeded:
+            calendarMessage(
+                title: "Calendar access needed",
+                detail: "Allow calendar access to show today's Family Calendar events.",
+                systemImage: "calendar.badge.exclamationmark",
+                actionTitle: "Try Again"
+            )
+        case .restricted:
+            calendarMessage(
+                title: "Calendar access restricted",
+                detail: "This iPhone is not allowing Levy Home to read calendar events.",
+                systemImage: "lock.circle",
+                actionTitle: nil
+            )
+        case .calendarNotFound:
+            calendarMessage(
+                title: "Family Calendar not found",
+                detail: "No calendar named Family was found on this iPhone.",
+                systemImage: "calendar.badge.exclamationmark",
+                actionTitle: "Refresh"
+            )
+        case .failed(let message):
+            calendarMessage(
+                title: "Family Calendar unavailable",
+                detail: message,
+                systemImage: "exclamationmark.triangle",
+                actionTitle: "Retry"
+            )
+        case .synced:
+            if events.isEmpty {
+                calendarMessage(
+                    title: "Nothing found",
+                    detail: "Nothing found in the Family Calendar for today.",
+                    systemImage: "calendar",
+                    actionTitle: "Refresh"
+                )
+            } else {
+                ForEach(events) { event in
+                    ToDoCalendarEventRow(
+                        event: event,
+                        onToggleCompletion: {
+                            onToggleCompletion(event)
+                        },
+                        onSelect: {
+                            onSelectEvent(event)
+                        }
+                    )
+
+                    if event.id != events.last?.id {
+                        Divider()
+                            .padding(.leading, 92)
+                    }
+                }
+            }
+        }
+    }
+
+    private func calendarMessage(
+        title: String,
+        detail: String,
+        systemImage: String,
+        actionTitle: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                ToDoIconBadge(systemImage: systemImage, tone: state.statusTone)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if let actionTitle {
+                Button(action: onRetry) {
+                    Label(actionTitle, systemImage: "arrow.clockwise")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(AppSpacing.large)
+    }
 }
 
 private struct ToDoCalendarEventRow: View {
     let event: ToDoCalendarEvent
+    let onToggleCompletion: () -> Void
+    let onSelect: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Button(action: onToggleCompletion) {
+                Image(systemName: event.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(event.isCompleted ? AppColors.success : AppColors.accent)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(event.isCompleted ? "Mark calendar event not done" : "Mark calendar event done")
+
             VStack(spacing: 2) {
                 Text(event.time)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(AppColors.accent)
+                    .foregroundStyle(event.isCompleted ? AppColors.mutedText : AppColors.accent)
 
                 Text(event.period)
                     .font(.caption2.weight(.semibold))
@@ -611,15 +753,16 @@ private struct ToDoCalendarEventRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
                     Text(event.title)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(event.isCompleted ? AppColors.mutedText : .primary)
+                        .strikethrough(event.isCompleted, color: AppColors.mutedText)
                         .lineLimit(2)
 
-                    if event.isLinkedToTask {
-                        ToDoInlineBadge(text: "Linked", systemImage: "checkmark.circle.fill", tone: .accent)
+                    if event.isCompleted {
+                        ToDoInlineBadge(text: "Done", systemImage: "checkmark.circle.fill", tone: .success)
                     }
                 }
 
-                ToDoLocationRow(text: event.location)
+                ToDoLocationRow(text: event.locationDisplayText)
             }
 
             Spacer(minLength: AppSpacing.small)
@@ -630,7 +773,93 @@ private struct ToDoCalendarEventRow: View {
                 .padding(.top, AppSpacing.xSmall)
         }
         .padding(AppSpacing.medium)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ToDoCalendarEventDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let event: ToDoCalendarEvent
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    ToDoFormPanel(title: "Event", systemImage: "calendar") {
+                        VStack(alignment: .leading, spacing: AppSpacing.small) {
+                            Text(event.title)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(event.timeRangeText)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppColors.accent)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    ToDoFormPanel(title: "Details", systemImage: "info.circle") {
+                        ToDoCalendarDetailRow(title: "Calendar", value: event.calendarTitle, systemImage: "calendar")
+                        ToDoCalendarDetailRow(title: "Status", value: event.isCompleted ? "Done in Levy Home" : "Not done", systemImage: event.isCompleted ? "checkmark.circle.fill" : "circle")
+                        ToDoCalendarDetailRow(title: "Location", value: event.locationDisplayText, systemImage: "mappin.and.ellipse")
+
+                        if let urlText = event.url?.absoluteString, !urlText.isEmpty {
+                            ToDoCalendarDetailRow(title: "URL", value: urlText, systemImage: "link")
+                        }
+                    }
+
+                    if let notes = event.notes, !notes.isEmpty {
+                        ToDoFormPanel(title: "Notes", systemImage: "note.text") {
+                            Text(notes)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(AppSpacing.screen)
+                .padding(.bottom, AppSpacing.xLarge)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle("Calendar Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ToDoCalendarDetailRow: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+
+                Text(value)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
@@ -1813,13 +2042,355 @@ private struct ToDoLocationSearchSuggestion: Identifiable, Equatable {
     }
 }
 
+@MainActor
+final class FamilyCalendarService {
+    static let shared = FamilyCalendarService()
+
+    private let eventStore: EKEventStore
+    private let calendar: Calendar
+    private let familyCalendarName = "Family"
+
+    init(eventStore: EKEventStore = EKEventStore(), calendar: Calendar = .current) {
+        self.eventStore = eventStore
+        self.calendar = calendar
+    }
+
+    func prepareAccessIfNeeded() async {
+        guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else {
+            return
+        }
+
+        _ = try? await requestFullAccess()
+    }
+
+    fileprivate func loadTodaysFamilyEvents() async throws -> FamilyCalendarLoadResult {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .notDetermined:
+            guard try await requestFullAccess() else {
+                return FamilyCalendarLoadResult(state: .permissionNeeded, events: [])
+            }
+
+            return try readTodaysFamilyEvents()
+        case .fullAccess:
+            return try readTodaysFamilyEvents()
+        case .denied:
+            return FamilyCalendarLoadResult(state: .permissionNeeded, events: [])
+        case .restricted:
+            return FamilyCalendarLoadResult(state: .restricted, events: [])
+        case .writeOnly:
+            return FamilyCalendarLoadResult(state: .permissionNeeded, events: [])
+        @unknown default:
+            return FamilyCalendarLoadResult(state: .failed("Calendar access returned an unknown status."), events: [])
+        }
+    }
+
+    private func requestFullAccess() async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            eventStore.requestFullAccessToEvents { granted, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: granted)
+                }
+            }
+        }
+    }
+
+    private func readTodaysFamilyEvents() throws -> FamilyCalendarLoadResult {
+        let familyCalendars = eventStore.calendars(for: .event).filter { calendar in
+            calendar.title.trimmingCharacters(in: .whitespacesAndNewlines) == familyCalendarName
+        }
+
+        guard !familyCalendars.isEmpty else {
+            return FamilyCalendarLoadResult(state: .calendarNotFound, events: [])
+        }
+
+        let startOfDay = calendar.startOfDay(for: Date())
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            return FamilyCalendarLoadResult(state: .failed("Unable to calculate today's Family Calendar window."), events: [])
+        }
+
+        let predicate = eventStore.predicateForEvents(
+            withStart: startOfDay,
+            end: endOfDay,
+            calendars: familyCalendars
+        )
+        let events = eventStore.events(matching: predicate)
+            .filter { !$0.isDetached }
+            .map(ToDoCalendarEvent.init(event:))
+
+        return FamilyCalendarLoadResult(state: .synced, events: events)
+    }
+}
+
+@MainActor
+private final class ToDoFamilyCalendarViewModel: ObservableObject {
+    @Published private(set) var state: ToDoFamilyCalendarState = .idle
+    @Published private(set) var events: [ToDoCalendarEvent] = []
+
+    private let service: FamilyCalendarService
+    private let userDefaults: UserDefaults
+    private let completionStorageKey = "familyCalendarCompletedEventIDs"
+    private var completedEventIDs: Set<String>
+
+    init(service: FamilyCalendarService? = nil, userDefaults: UserDefaults = .standard) {
+        self.service = service ?? FamilyCalendarService.shared
+        self.userDefaults = userDefaults
+        completedEventIDs = Set(userDefaults.stringArray(forKey: completionStorageKey) ?? [])
+    }
+
+    var eventCount: Int {
+        events.count
+    }
+
+    var displayEvents: [ToDoCalendarEvent] {
+        events.sorted { first, second in
+            if first.isCompleted != second.isCompleted {
+                return !first.isCompleted && second.isCompleted
+            }
+
+            if first.startDate != second.startDate {
+                return first.startDate < second.startDate
+            }
+
+            return first.title.localizedCaseInsensitiveCompare(second.title) == .orderedAscending
+        }
+    }
+
+    func loadToday(force: Bool = false) async {
+        if !force, state == .synced {
+            return
+        }
+
+        state = EKEventStore.authorizationStatus(for: .event) == .notDetermined ? .requestingPermission : .loading
+
+        do {
+            let result = try await service.loadTodaysFamilyEvents()
+            state = result.state
+            events = result.events.map { event in
+                event.withCompletion(completedEventIDs.contains(event.completionID))
+            }
+        } catch {
+            state = .failed(error.localizedDescription)
+            events = []
+        }
+    }
+
+    func toggleCompletion(for event: ToDoCalendarEvent) {
+        if completedEventIDs.contains(event.completionID) {
+            completedEventIDs.remove(event.completionID)
+        } else {
+            completedEventIDs.insert(event.completionID)
+        }
+
+        persistCompletionIDs()
+        events = events.map { existingEvent in
+            guard existingEvent.completionID == event.completionID else {
+                return existingEvent
+            }
+
+            return existingEvent.withCompletion(completedEventIDs.contains(event.completionID))
+        }
+    }
+
+    private func persistCompletionIDs() {
+        userDefaults.set(Array(completedEventIDs).sorted(), forKey: completionStorageKey)
+    }
+}
+
+private struct FamilyCalendarLoadResult {
+    let state: ToDoFamilyCalendarState
+    let events: [ToDoCalendarEvent]
+}
+
+private enum ToDoFamilyCalendarState: Equatable {
+    case idle
+    case requestingPermission
+    case loading
+    case synced
+    case permissionNeeded
+    case restricted
+    case calendarNotFound
+    case failed(String)
+
+    var statusText: String {
+        switch self {
+        case .idle, .requestingPermission, .loading:
+            return "Syncing"
+        case .synced:
+            return "Synced"
+        case .permissionNeeded:
+            return "Permission Needed"
+        case .restricted:
+            return "Restricted"
+        case .calendarNotFound:
+            return "Missing"
+        case .failed:
+            return "Error"
+        }
+    }
+
+    var statusSystemImage: String {
+        switch self {
+        case .idle, .requestingPermission, .loading:
+            return "arrow.triangle.2.circlepath"
+        case .synced:
+            return "checkmark.circle.fill"
+        case .permissionNeeded, .restricted:
+            return "lock.circle"
+        case .calendarNotFound:
+            return "calendar.badge.exclamationmark"
+        case .failed:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    var statusTone: ToDoTone {
+        switch self {
+        case .idle, .requestingPermission, .loading:
+            return .accent
+        case .synced:
+            return .success
+        case .permissionNeeded, .restricted, .calendarNotFound:
+            return .warning
+        case .failed:
+            return .critical
+        }
+    }
+}
+
 private struct ToDoCalendarEvent: Identifiable {
     let id: String
+    let completionID: String
     let title: String
-    let time: String
-    let period: String
-    let location: String
-    let isLinkedToTask: Bool
+    let calendarTitle: String
+    let startDate: Date
+    let endDate: Date
+    let isAllDay: Bool
+    let location: String?
+    let notes: String?
+    let url: URL?
+    let isCompleted: Bool
+
+    init(
+        id: String,
+        completionID: String,
+        title: String,
+        calendarTitle: String,
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool,
+        location: String?,
+        notes: String?,
+        url: URL?,
+        isCompleted: Bool = false
+    ) {
+        self.id = id
+        self.completionID = completionID
+        self.title = title
+        self.calendarTitle = calendarTitle
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = isAllDay
+        self.location = Self.normalizedOptionalText(location)
+        self.notes = Self.normalizedOptionalText(notes)
+        self.url = url
+        self.isCompleted = isCompleted
+    }
+
+    init(event: EKEvent) {
+        let eventIdentifier = event.eventIdentifier ?? event.calendarItemIdentifier
+        let startTimestamp = Int(event.startDate.timeIntervalSince1970)
+        let completionID = "\(eventIdentifier)-\(startTimestamp)"
+
+        self.init(
+            id: completionID,
+            completionID: completionID,
+            title: Self.normalizedOptionalText(event.title) ?? "Untitled event",
+            calendarTitle: event.calendar?.title ?? "Family",
+            startDate: event.startDate,
+            endDate: event.endDate,
+            isAllDay: event.isAllDay,
+            location: event.location,
+            notes: event.notes,
+            url: event.url
+        )
+    }
+
+    var time: String {
+        guard !isAllDay else {
+            return "All"
+        }
+
+        return Self.timeFormatter.string(from: startDate)
+    }
+
+    var period: String {
+        guard !isAllDay else {
+            return "Day"
+        }
+
+        return Self.periodFormatter.string(from: startDate)
+    }
+
+    var timeRangeText: String {
+        if isAllDay {
+            return "All day, \(Self.detailDateFormatter.string(from: startDate))"
+        }
+
+        return "\(Self.detailDateFormatter.string(from: startDate)), \(Self.detailTimeFormatter.string(from: startDate)) - \(Self.detailTimeFormatter.string(from: endDate))"
+    }
+
+    var locationDisplayText: String {
+        location ?? "No location"
+    }
+
+    func withCompletion(_ isCompleted: Bool) -> ToDoCalendarEvent {
+        ToDoCalendarEvent(
+            id: id,
+            completionID: completionID,
+            title: title,
+            calendarTitle: calendarTitle,
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            location: location,
+            notes: notes,
+            url: url,
+            isCompleted: isCompleted
+        )
+    }
+
+    private static func normalizedOptionalText(_ value: String?) -> String? {
+        let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmedValue.isEmpty ? nil : trimmedValue
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm"
+        return formatter
+    }()
+
+    private static let periodFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "a"
+        return formatter
+    }()
+
+    private static let detailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static let detailTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }
 
 private struct ToDoTaskSection: Identifiable {
@@ -2166,25 +2737,6 @@ private enum ToDoPreviewData {
             useCount: 1,
             isActive: true,
             favoritedBy: []
-        )
-    ]
-
-    static let calendarEvents = [
-        ToDoCalendarEvent(
-            id: "grayson-pediatrician",
-            title: "Grayson pediatrician",
-            time: "2:30",
-            period: "PM",
-            location: "Denver Pediatrics",
-            isLinkedToTask: true
-        ),
-        ToDoCalendarEvent(
-            id: "zoe-vet-checkup",
-            title: "Zoe vet checkup",
-            time: "4:15",
-            period: "PM",
-            location: "Maple Vet Clinic",
-            isLinkedToTask: false
         )
     ]
 
