@@ -167,6 +167,39 @@ curl -X POST http://localhost:4000/api/ha/events \
 curl http://localhost:4000/api/events
 ```
 
+To trigger the Levy Home garage-left-open notification from Home Assistant, use the same reusable `rest_command.levy_home_event` shown below, then add an automation that fires when the garage has stayed open for 10 minutes. Keep the `entity_id` aligned with `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID`; this example uses the live Meross cover entity.
+
+```yaml
+alias: Garage - Left Open for 10 Minutes
+description: ""
+triggers:
+  - entity_id: cover.meross_garage_door
+    to: "open"
+    for: "00:10:00"
+    trigger: state
+conditions:
+  - condition: state
+    entity_id: cover.meross_garage_door
+    state: "open"
+actions:
+  - action: rest_command.levy_home_event
+    data:
+      payload_json: |-
+        {{
+          {
+            "type": "garage_left_open_10_min",
+            "category": "garage",
+            "severity": "normal",
+            "entityId": "cover.meross_garage_door",
+            "source": "home_assistant",
+            "occurredAt": now().isoformat(),
+            "title": "Garage left open",
+            "message": "The garage has been open for 10 minutes"
+          } | to_json
+        }}
+mode: single
+```
+
 To trigger Levy Home partner-presence notifications from Home Assistant, configure a reusable `rest_command` and replace the old Home Assistant mobile-app notification action with the REST call. Keep the existing automation triggers and Josh-is-home condition; remove or replace the `notify.mobile_app_josh_iphone` action so Home Assistant does not also send its own push.
 
 `rest_command.levy_home_event` will not appear in the Home Assistant action picker until the `rest_command:` YAML exists in Home Assistant configuration and Home Assistant has restarted. If you search for `rest` before that configuration is loaded, there may be no matching action to select.

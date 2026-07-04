@@ -73,6 +73,50 @@ test('garage event pushes honor per-device notification preferences', async () =
   assert.equal(pushSender.requests[0].title, 'Garage closed');
 });
 
+test('garage left open Home Assistant automation payload sends a Levy Home push notification', async () => {
+  const pushSender = new FakePushSender();
+
+  await routes.restart(createApp({ config: testConfig, pushSender }));
+
+  await routes.postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+
+  const created = await routes.postJSON(
+    '/api/ha/events',
+    {
+      type: 'garage_left_open_10_min',
+      category: 'garage',
+      severity: 'normal',
+      entityId: 'cover.meross_garage_door',
+      source: 'home_assistant',
+      occurredAt: '2026-07-04T12:00:00.000Z',
+      title: 'Garage left open',
+      message: 'The garage has been open for 10 minutes',
+    },
+    { Authorization: 'Bearer test-secret' },
+  );
+
+  assert.equal(created.ok, true);
+  assert.equal(created.event.type, 'garage_left_open_10_min');
+  assert.equal(created.event.category, 'garage');
+  assert.equal(created.event.entityId, 'cover.meross_garage_door');
+  assert.equal(created.event.display.title, 'Garage left open');
+  assert.equal(created.event.display.body, 'The garage has been open for 10 minutes.');
+  assert.equal(created.event.title, 'Garage left open');
+  assert.equal(created.event.message, 'The garage has been open for 10 minutes');
+  assert.equal(created.event.push.attempted, true);
+  assert.equal(created.event.push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].title, 'Garage left open');
+  assert.equal(pushSender.requests[0].body, 'The garage has been open for 10 minutes');
+  assert.deepEqual(pushSender.requests[0].data, { category: 'garage_left_open' });
+});
+
 test('partner presence webhook event sends a Levy Home push notification', async () => {
   const pushSender = new FakePushSender();
 

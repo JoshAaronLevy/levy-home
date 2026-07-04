@@ -179,6 +179,33 @@ Expected:
 - Events are newest first.
 - All five event types are present after the matrix.
 
+## Home Assistant Garage Left Open Automation Check
+
+After `rest_command.levy_home_event` is configured in Home Assistant, add the live automation from `docs/07-home-assistant-facade.md`.
+
+Before testing:
+
+- Confirm the automation `entity_id` matches the live garage cover and `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID`.
+- Leave the Meross app notification enabled until the Levy Home notification arrives reliably.
+- Only run the physical test when someone can safely monitor the real garage.
+
+Test steps:
+
+1. Open the garage from Home Assistant, Meross, the wall control, or Levy Home.
+2. Leave it open for at least 10 minutes.
+3. Wait for the Home Assistant automation to call `rest_command.levy_home_event`.
+4. Confirm the iPhone receives the Levy Home push.
+5. Refresh Activity and confirm `garage_left_open_10_min` appears.
+6. Close the garage.
+7. Re-open the garage for less than 10 minutes, then close it.
+
+Expected:
+
+- The 10-minute open episode sends one Levy Home notification.
+- The Activity event has type `garage_left_open_10_min`.
+- The push respects the `Garage left open` preference.
+- The shorter open episode does not send a notification.
+
 ## Preference Enforcement Check
 
 1. On the iPhone, open Preferences.
