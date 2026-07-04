@@ -46,12 +46,16 @@ struct SwipeRevealActionRow<Content: View>: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(actionLabel)
+            .opacity(actionRevealProgress)
+            .allowsHitTesting(isRevealed)
 
             content
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .offset(x: rowOffset)
                 .simultaneousGesture(revealGesture)
                 .animation(.snappy(duration: 0.18), value: isRevealed)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .clipped()
         .accessibilityAction(named: Text(actionLabel), action)
     }
@@ -59,6 +63,10 @@ struct SwipeRevealActionRow<Content: View>: View {
     private var rowOffset: CGFloat {
         let baseOffset = isRevealed ? -revealWidth : 0
         return min(0, max(-revealWidth, baseOffset + dragTranslation))
+    }
+
+    private var actionRevealProgress: CGFloat {
+        min(1, max(0, abs(rowOffset) / revealWidth))
     }
 
     private var revealGesture: some Gesture {

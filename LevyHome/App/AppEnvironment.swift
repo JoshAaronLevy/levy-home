@@ -28,7 +28,7 @@ struct AppEnvironment {
         self.appLogStore = resolvedLogStore
         self.apiClient = resolvedAPIClient
         self.homeStatusService = homeStatusService ?? HomeStatusService(apiClient: resolvedAPIClient)
-        self.homeWeatherService = homeWeatherService ?? HomeWeatherService()
+        self.homeWeatherService = homeWeatherService ?? HomeWeatherService(appLogStore: resolvedLogStore)
         self.quickActionService = quickActionService ?? QuickActionService(
             apiClient: resolvedAPIClient,
             appLogStore: resolvedLogStore

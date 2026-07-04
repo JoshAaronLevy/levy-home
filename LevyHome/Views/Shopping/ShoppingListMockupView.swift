@@ -3035,6 +3035,7 @@ private struct ShoppingItemRow: View {
                 }
             }
         }
+        .id("\(displayItem.item.id)-\(displayItem.item.purchased)")
     }
 
     @ViewBuilder

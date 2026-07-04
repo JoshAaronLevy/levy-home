@@ -23,7 +23,9 @@ final class HomeWeatherViewModelTests: XCTestCase {
             homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
             primaryWeatherProvider: primaryProvider,
             fallbackWeatherProvider: fallbackProvider,
-            now: { now }
+            tertiaryWeatherProvider: nil,
+            now: { now },
+            fallbackStartDelay: .milliseconds(1)
         )
 
         let snapshot = try await service.fetchSnapshot()
@@ -46,6 +48,7 @@ final class HomeWeatherViewModelTests: XCTestCase {
             homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
             primaryWeatherProvider: primaryProvider,
             fallbackWeatherProvider: fallbackProvider,
+            tertiaryWeatherProvider: nil,
             now: { now }
         )
 
@@ -60,6 +63,32 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(fallbackProvider.requestCount, 0)
     }
 
+    func testHomeWeatherServiceUsesTertiaryProviderWhenPrimaryAndFallbackFail() async throws {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        let tertiarySnapshot = Self.snapshot(current: 83, condition: "Sunny", fetchedAt: now)
+        let primaryProvider = MockCoordinateWeatherProvider(
+            result: .failure(HomeWeatherServiceError.homeLocationUnavailable)
+        )
+        let fallbackProvider = MockCoordinateWeatherProvider(
+            result: .failure(OpenMeteoHomeWeatherProviderError.invalidResponse)
+        )
+        let tertiaryProvider = MockCoordinateWeatherProvider(result: .success(tertiarySnapshot))
+        let service = HomeWeatherService(
+            homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
+            primaryWeatherProvider: primaryProvider,
+            fallbackWeatherProvider: fallbackProvider,
+            tertiaryWeatherProvider: tertiaryProvider,
+            now: { now },
+            fallbackStartDelay: .milliseconds(1)
+        )
+
+        let snapshot = try await service.fetchSnapshot()
+
+        XCTAssertEqual(snapshot.currentTemperature, tertiarySnapshot.currentTemperature)
+        XCTAssertEqual(snapshot.conditionDescription, "Sunny")
+        XCTAssertEqual(tertiaryProvider.requestCount, 1)
+    }
+
     func testHomeWeatherServiceFallsBackWhenPrimaryWeatherProviderTimesOut() async throws {
         let now = Self.date("2026-07-01T16:00:00Z")
         let fallbackSnapshot = Self.snapshot(current: 81, condition: "Clear", fetchedAt: now)
@@ -69,8 +98,10 @@ final class HomeWeatherViewModelTests: XCTestCase {
             homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
             primaryWeatherProvider: primaryProvider,
             fallbackWeatherProvider: fallbackProvider,
+            tertiaryWeatherProvider: nil,
             now: { now },
-            providerTimeout: .milliseconds(10)
+            providerTimeout: .milliseconds(10),
+            fallbackStartDelay: .milliseconds(20)
         )
 
         let snapshot = try await service.fetchSnapshot()
@@ -151,6 +182,113 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot.dailyForecast.count, 2)
         XCTAssertEqual(try XCTUnwrap(snapshot.dailyForecast[0].precipitationChance), 0.45, accuracy: 0.001)
         XCTAssertEqual(snapshot.attributionURL, URL(string: "https://open-meteo.com/"))
+    }
+
+    func testNationalWeatherServiceProviderBuildsForecastSnapshot() async throws {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        var capturedRequests: [URLRequest] = []
+        MockWeatherURLProtocol.requestHandler = { request in
+            capturedRequests.append(request)
+
+            switch request.url?.path {
+            case "/points/39.5388,-105.0305":
+                return Self.response(
+                    for: request,
+                    json: """
+                    {
+                      "properties": {
+                        "forecast": "https://api.weather.test/gridpoints/BOU/61,53/forecast",
+                        "forecastHourly": "https://api.weather.test/gridpoints/BOU/61,53/forecast/hourly"
+                      }
+                    }
+                    """
+                )
+            case "/gridpoints/BOU/61,53/forecast/hourly":
+                return Self.response(
+                    for: request,
+                    json: """
+                    {
+                      "properties": {
+                        "periods": [
+                          {
+                            "startTime": "2026-07-01T10:00:00-06:00",
+                            "isDaytime": true,
+                            "temperature": 77,
+                            "temperatureUnit": "F",
+                            "probabilityOfPrecipitation": { "value": 20 },
+                            "shortForecast": "Areas Of Smoke"
+                          },
+                          {
+                            "startTime": "2026-07-01T11:00:00-06:00",
+                            "isDaytime": true,
+                            "temperature": 80,
+                            "temperatureUnit": "F",
+                            "probabilityOfPrecipitation": { "value": 35 },
+                            "shortForecast": "Slight Chance Rain Showers"
+                          }
+                        ]
+                      }
+                    }
+                    """
+                )
+            case "/gridpoints/BOU/61,53/forecast":
+                return Self.response(
+                    for: request,
+                    json: """
+                    {
+                      "properties": {
+                        "periods": [
+                          {
+                            "startTime": "2026-07-01T06:00:00-06:00",
+                            "isDaytime": true,
+                            "temperature": 84,
+                            "temperatureUnit": "F",
+                            "probabilityOfPrecipitation": { "value": 35 },
+                            "shortForecast": "Slight Chance Rain Showers"
+                          },
+                          {
+                            "startTime": "2026-07-01T18:00:00-06:00",
+                            "isDaytime": false,
+                            "temperature": 56,
+                            "temperatureUnit": "F",
+                            "probabilityOfPrecipitation": { "value": 10 },
+                            "shortForecast": "Partly Cloudy"
+                          }
+                        ]
+                      }
+                    }
+                    """
+                )
+            default:
+                return Self.response(for: request, statusCode: 404, json: "{}")
+            }
+        }
+        defer { MockWeatherURLProtocol.requestHandler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockWeatherURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let provider = NationalWeatherServiceHomeWeatherProvider(
+            baseURL: URL(string: "https://api.weather.test")!,
+            session: session
+        )
+
+        let snapshot = try await provider.fetchSnapshot(
+            for: CLLocation(latitude: 39.5388289, longitude: -105.0305231),
+            fetchedAt: now
+        )
+
+        XCTAssertEqual(capturedRequests.first?.url?.path, "/points/39.5388,-105.0305")
+        XCTAssertEqual(capturedRequests.first?.value(forHTTPHeaderField: "User-Agent"), "LevyHome/1.0")
+        XCTAssertEqual(snapshot.currentTemperature.value, 77, accuracy: 0.001)
+        XCTAssertEqual(snapshot.conditionDescription, "Areas Of Smoke")
+        XCTAssertEqual(snapshot.symbolName, "sun.haze.fill")
+        XCTAssertEqual(snapshot.hourlyForecast.count, 2)
+        XCTAssertEqual(snapshot.hourlyForecast[1].precipitationChance, 0.35, accuracy: 0.001)
+        XCTAssertEqual(snapshot.hourlyForecast[1].precipitationDescription, "showers")
+        XCTAssertEqual(try XCTUnwrap(snapshot.highTemperature).value, 84, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(snapshot.lowTemperature).value, 56, accuracy: 0.001)
+        XCTAssertEqual(snapshot.attributionURL, URL(string: "https://www.weather.gov/"))
     }
 
     func testLoadIfNeededLoadsWeatherSnapshot() async {

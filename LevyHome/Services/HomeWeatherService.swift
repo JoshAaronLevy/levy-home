@@ -17,6 +17,22 @@ protocol CoordinateWeatherSnapshotLoading {
     ) async throws -> HomeWeatherSnapshot
 }
 
+private struct HomeWeatherProviderAttempt {
+    let name: String
+    let provider: CoordinateWeatherSnapshotLoading
+    let startDelay: Duration?
+}
+
+private struct HomeWeatherProviderFailure {
+    let providerName: String
+    let error: Error
+}
+
+private enum HomeWeatherProviderAttemptResult {
+    case success(providerName: String, snapshot: HomeWeatherSnapshot)
+    case failure(HomeWeatherProviderFailure)
+}
+
 struct StaticHomeLocationProvider: HomeLocationProviding {
     static let levyHome = StaticHomeLocationProvider(
         latitude: 39.5388289,
@@ -53,57 +69,182 @@ final class HomeWeatherService: HomeWeatherServicing {
     private let homeLocationProvider: HomeLocationProviding
     private let primaryWeatherProvider: CoordinateWeatherSnapshotLoading
     private let fallbackWeatherProvider: CoordinateWeatherSnapshotLoading?
+    private let tertiaryWeatherProvider: CoordinateWeatherSnapshotLoading?
     private let now: () -> Date
     private let providerTimeout: Duration
+    private let fallbackStartDelay: Duration
+    private let appLogStore: AppLogStore?
 
     init(
         homeLocationProvider: HomeLocationProviding = StaticHomeLocationProvider.levyHome,
         primaryWeatherProvider: CoordinateWeatherSnapshotLoading = WeatherKitHomeWeatherProvider(),
         fallbackWeatherProvider: CoordinateWeatherSnapshotLoading? = OpenMeteoHomeWeatherProvider(),
+        tertiaryWeatherProvider: CoordinateWeatherSnapshotLoading? = NationalWeatherServiceHomeWeatherProvider(),
         now: @escaping () -> Date = Date.init,
-        providerTimeout: Duration = .seconds(8)
+        providerTimeout: Duration = .seconds(8),
+        fallbackStartDelay: Duration = .seconds(1),
+        appLogStore: AppLogStore? = nil
     ) {
         self.homeLocationProvider = homeLocationProvider
         self.primaryWeatherProvider = primaryWeatherProvider
         self.fallbackWeatherProvider = fallbackWeatherProvider
+        self.tertiaryWeatherProvider = tertiaryWeatherProvider
         self.now = now
         self.providerTimeout = providerTimeout
+        self.fallbackStartDelay = fallbackStartDelay
+        self.appLogStore = appLogStore
     }
 
     func fetchSnapshot() async throws -> HomeWeatherSnapshot {
-        let location = try await homeLocationProvider.location()
-        let fetchedAt = now()
-
         do {
-            return try await fetchSnapshot(
-                using: primaryWeatherProvider,
+            let location = try await homeLocationProvider.location()
+            let fetchedAt = now()
+            let attempts = weatherProviderAttempts
+
+            appLogStore?.record(
+                level: .info,
+                category: "Weather",
+                title: "Fetching Home weather",
+                detail: "Providers: \(attempts.map(\.name).joined(separator: ", "))"
+            )
+
+            let result = try await fetchFirstSuccessfulSnapshot(
+                attempts: attempts,
                 for: location,
                 fetchedAt: fetchedAt
             )
+
+            appLogStore?.record(
+                level: .success,
+                category: "Weather",
+                title: "Loaded Home weather",
+                detail: "\(result.providerName): \(Self.temperatureText(result.snapshot.currentTemperature)), \(result.snapshot.conditionDescription)"
+            )
+
+            return result.snapshot
         } catch {
-            guard !error.isTaskCancellation else {
+            if error.isTaskCancellation {
+                appLogStore?.record(
+                    level: .info,
+                    category: "Weather",
+                    title: "Cancelled Home weather refresh",
+                    detail: nil
+                )
                 throw error
             }
 
-            guard let fallbackWeatherProvider else {
-                throw error
-            }
-
-            return try await fetchSnapshot(
-                using: fallbackWeatherProvider,
-                for: location,
-                fetchedAt: fetchedAt
+            appLogStore?.record(
+                level: .error,
+                category: "Weather",
+                title: "Home weather unavailable",
+                detail: error.localizedDescription
             )
+            throw error
         }
     }
 
-    private func fetchSnapshot(
-        using provider: CoordinateWeatherSnapshotLoading,
+    private var weatherProviderAttempts: [HomeWeatherProviderAttempt] {
+        var attempts = [
+            HomeWeatherProviderAttempt(
+                name: "WeatherKit",
+                provider: primaryWeatherProvider,
+                startDelay: nil
+            )
+        ]
+
+        if let fallbackWeatherProvider {
+            attempts.append(
+                HomeWeatherProviderAttempt(
+                    name: "Open-Meteo",
+                    provider: fallbackWeatherProvider,
+                    startDelay: fallbackStartDelay
+                )
+            )
+        }
+
+        if let tertiaryWeatherProvider {
+            attempts.append(
+                HomeWeatherProviderAttempt(
+                    name: "National Weather Service",
+                    provider: tertiaryWeatherProvider,
+                    startDelay: fallbackStartDelay
+                )
+            )
+        }
+
+        return attempts
+    }
+
+    private func fetchFirstSuccessfulSnapshot(
+        attempts: [HomeWeatherProviderAttempt],
         for location: CLLocation,
         fetchedAt: Date
-    ) async throws -> HomeWeatherSnapshot {
-        let timeout = providerTimeout
+    ) async throws -> (providerName: String, snapshot: HomeWeatherSnapshot) {
+        let providerTimeout = providerTimeout
+        var failures: [HomeWeatherProviderFailure] = []
 
+        return try await withThrowingTaskGroup(of: HomeWeatherProviderAttemptResult.self) { group in
+            defer { group.cancelAll() }
+
+            for attempt in attempts {
+                group.addTask {
+                    do {
+                        if let startDelay = attempt.startDelay {
+                            try await Task.sleep(for: startDelay)
+                        }
+
+                        let snapshot = try await Self.fetchSnapshot(
+                            using: attempt.provider,
+                            for: location,
+                            fetchedAt: fetchedAt,
+                            timeout: providerTimeout
+                        )
+
+                        return .success(providerName: attempt.name, snapshot: snapshot)
+                    } catch {
+                        return .failure(
+                            HomeWeatherProviderFailure(
+                                providerName: attempt.name,
+                                error: error
+                            )
+                        )
+                    }
+                }
+            }
+
+            while let result = try await group.next() {
+                switch result {
+                case .success(let providerName, let snapshot):
+                    return (providerName, snapshot)
+                case .failure(let failure):
+                    if failure.error.isTaskCancellation {
+                        throw failure.error
+                    }
+
+                    failures.append(failure)
+                    recordProviderFailure(failure)
+                }
+            }
+
+            throw failures.last?.error ?? HomeWeatherServiceError.requestTimedOut
+        }
+    }
+
+    private func recordProviderFailure(_ failure: HomeWeatherProviderFailure) {
+        appLogStore?.record(
+            level: .warning,
+            category: "Weather",
+            title: "\(failure.providerName) weather failed",
+            detail: failure.error.localizedDescription
+        )
+    }
+
+    private static func fetchSnapshot(
+        using provider: CoordinateWeatherSnapshotLoading,
+        for location: CLLocation,
+        fetchedAt: Date,
+        timeout: Duration
+    ) async throws -> HomeWeatherSnapshot {
         return try await withThrowingTaskGroup(of: HomeWeatherSnapshot.self) { group in
             defer { group.cancelAll() }
 
@@ -125,6 +266,10 @@ final class HomeWeatherService: HomeWeatherServicing {
 
             return snapshot
         }
+    }
+
+    private static func temperatureText(_ temperature: Measurement<UnitTemperature>) -> String {
+        "\(Int(temperature.converted(to: .fahrenheit).value.rounded()))°"
     }
 }
 
@@ -246,6 +391,293 @@ final class OpenMeteoHomeWeatherProvider: CoordinateWeatherSnapshotLoading {
         }
 
         return url
+    }
+}
+
+enum NationalWeatherServiceHomeWeatherProviderError: LocalizedError {
+    case invalidURL
+    case invalidResponse(Int)
+    case missingForecast
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "National Weather Service request could not be built."
+        case .invalidResponse(let statusCode):
+            return "National Weather Service returned HTTP \(statusCode)."
+        case .missingForecast:
+            return "National Weather Service response did not include a usable forecast."
+        }
+    }
+}
+
+final class NationalWeatherServiceHomeWeatherProvider: CoordinateWeatherSnapshotLoading {
+    private let baseURL: URL
+    private let session: URLSession
+    private let decoder: JSONDecoder
+    private let userAgent: String
+
+    init(
+        baseURL: URL = URL(string: "https://api.weather.gov")!,
+        session: URLSession = .shared,
+        decoder: JSONDecoder = JSONDecoder(),
+        userAgent: String = "LevyHome/1.0"
+    ) {
+        self.baseURL = baseURL
+        self.session = session
+        self.decoder = decoder
+        self.userAgent = userAgent
+        self.decoder.dateDecodingStrategy = .custom { decoder in
+            try Self.decodeDate(from: decoder)
+        }
+    }
+
+    func fetchSnapshot(
+        for location: CLLocation,
+        fetchedAt: Date
+    ) async throws -> HomeWeatherSnapshot {
+        let point: NationalWeatherServicePointResponse = try await fetch(url: pointURL(for: location))
+
+        async let hourlyForecast: NationalWeatherServiceForecastResponse = fetch(url: point.properties.forecastHourly)
+        async let dailyForecast: NationalWeatherServiceForecastResponse = fetch(url: point.properties.forecast)
+
+        return try await Self.snapshot(
+            hourlyForecast: hourlyForecast,
+            dailyForecast: dailyForecast,
+            fetchedAt: fetchedAt
+        )
+    }
+
+    private func pointURL(for location: CLLocation) throws -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw NationalWeatherServiceHomeWeatherProviderError.invalidURL
+        }
+
+        let latitude = Self.coordinateText(location.coordinate.latitude)
+        let longitude = Self.coordinateText(location.coordinate.longitude)
+        components.path = "/points/\(latitude),\(longitude)"
+
+        guard let url = components.url else {
+            throw NationalWeatherServiceHomeWeatherProviderError.invalidURL
+        }
+
+        return url
+    }
+
+    private func fetch<Response: Decodable>(url: URL) async throws -> Response {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+        request.setValue("application/geo+json", forHTTPHeaderField: "Accept")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NationalWeatherServiceHomeWeatherProviderError.invalidResponse(-1)
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw NationalWeatherServiceHomeWeatherProviderError.invalidResponse(httpResponse.statusCode)
+        }
+
+        return try decoder.decode(Response.self, from: data)
+    }
+
+    private static func snapshot(
+        hourlyForecast: NationalWeatherServiceForecastResponse,
+        dailyForecast: NationalWeatherServiceForecastResponse,
+        fetchedAt: Date
+    ) throws -> HomeWeatherSnapshot {
+        let hourlyPoints = hourlyForecast.properties.periods.prefix(72).map(\.forecastPoint)
+
+        guard let currentPeriod = hourlyForecast.properties.periods.first,
+              let currentPoint = hourlyPoints.first
+        else {
+            throw NationalWeatherServiceHomeWeatherProviderError.missingForecast
+        }
+
+        let dailyForecasts = dailyForecast.properties.periods.dailyForecasts()
+        let currentDailyForecast = dailyForecasts.first
+
+        return HomeWeatherSnapshot(
+            currentTemperature: currentPoint.temperature,
+            highTemperature: currentDailyForecast?.highTemperature,
+            lowTemperature: currentDailyForecast?.lowTemperature,
+            conditionDescription: currentPoint.conditionDescription,
+            symbolName: Self.symbolName(
+                for: currentPoint.conditionDescription,
+                isDaytime: currentPeriod.isDaytime
+            ),
+            attributionURL: URL(string: "https://www.weather.gov/"),
+            fetchedAt: fetchedAt,
+            hourlyForecast: Array(hourlyPoints),
+            dailyForecast: dailyForecasts
+        )
+    }
+
+    private static func coordinateText(_ value: CLLocationDegrees) -> String {
+        String(format: "%.4f", locale: Locale(identifier: "en_US_POSIX"), value)
+    }
+
+    private static func decodeDate(from decoder: Decoder) throws -> Date {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+
+        if let date = iso8601DateFormatter.date(from: value) {
+            return date
+        }
+
+        throw DecodingError.dataCorruptedError(
+            in: container,
+            debugDescription: "Invalid National Weather Service date: \(value)"
+        )
+    }
+
+    private static let iso8601DateFormatter = ISO8601DateFormatter()
+
+    private static func symbolName(for forecast: String, isDaytime: Bool) -> String {
+        let normalizedForecast = forecast.lowercased()
+
+        if normalizedForecast.contains("thunder") {
+            return "cloud.bolt.rain.fill"
+        }
+
+        if normalizedForecast.contains("snow") {
+            return "cloud.snow.fill"
+        }
+
+        if normalizedForecast.contains("rain") || normalizedForecast.contains("shower") {
+            return "cloud.rain.fill"
+        }
+
+        if normalizedForecast.contains("drizzle") {
+            return "cloud.drizzle.fill"
+        }
+
+        if normalizedForecast.contains("fog") {
+            return "cloud.fog.fill"
+        }
+
+        if normalizedForecast.contains("smoke") || normalizedForecast.contains("haze") {
+            return "sun.haze.fill"
+        }
+
+        if normalizedForecast.contains("cloud") || normalizedForecast.contains("overcast") {
+            return normalizedForecast.contains("partly") ? "cloud.sun.fill" : "cloud.fill"
+        }
+
+        if normalizedForecast.contains("clear") || normalizedForecast.contains("sunny") {
+            return isDaytime ? "sun.max.fill" : "moon.stars.fill"
+        }
+
+        return "cloud.sun.fill"
+    }
+}
+
+private struct NationalWeatherServicePointResponse: Decodable {
+    let properties: Properties
+
+    struct Properties: Decodable {
+        let forecast: URL
+        let forecastHourly: URL
+    }
+}
+
+private struct NationalWeatherServiceForecastResponse: Decodable {
+    let properties: Properties
+
+    struct Properties: Decodable {
+        let periods: [Period]
+    }
+
+    struct Period: Decodable {
+        let startTime: Date
+        let isDaytime: Bool
+        let temperature: Double
+        let temperatureUnit: String
+        let probabilityOfPrecipitation: Probability?
+        let shortForecast: String
+
+        var forecastPoint: HomeWeatherForecastPoint {
+            HomeWeatherForecastPoint(
+                date: startTime,
+                temperature: Measurement(value: fahrenheitTemperature, unit: UnitTemperature.fahrenheit),
+                conditionDescription: shortForecast,
+                precipitationChance: precipitationChance,
+                precipitationDescription: precipitationDescription
+            )
+        }
+
+        private var fahrenheitTemperature: Double {
+            if temperatureUnit.localizedCaseInsensitiveCompare("C") == .orderedSame {
+                return Measurement(value: temperature, unit: UnitTemperature.celsius)
+                    .converted(to: .fahrenheit)
+                    .value
+            }
+
+            return temperature
+        }
+
+        private var precipitationChance: Double {
+            guard let value = probabilityOfPrecipitation?.value else {
+                return 0
+            }
+
+            return min(max(value / 100, 0), 1)
+        }
+
+        private var precipitationDescription: String {
+            let normalizedForecast = shortForecast.lowercased()
+
+            if normalizedForecast.contains("thunder") {
+                return "thunderstorm"
+            }
+
+            if normalizedForecast.contains("snow") {
+                return "snow"
+            }
+
+            if normalizedForecast.contains("shower") {
+                return "showers"
+            }
+
+            if normalizedForecast.contains("rain") || normalizedForecast.contains("drizzle") {
+                return "rain"
+            }
+
+            return precipitationChance > 0 ? "precipitation" : "none"
+        }
+    }
+
+    struct Probability: Decodable {
+        let value: Double?
+    }
+}
+
+private extension Array where Element == NationalWeatherServiceForecastResponse.Period {
+    func dailyForecasts() -> [HomeWeatherDailyForecast] {
+        let calendar = Calendar.current
+        let groupedPeriods = Dictionary(grouping: self) { period in
+            calendar.startOfDay(for: period.startTime)
+        }
+
+        return groupedPeriods.keys.sorted().map { date in
+            let periods = groupedPeriods[date] ?? []
+            let temperatures = periods.map(\.forecastPoint.temperature)
+            let precipitationChance = periods
+                .map(\.forecastPoint.precipitationChance)
+                .max()
+
+            return HomeWeatherDailyForecast(
+                date: date,
+                highTemperature: temperatures.max { first, second in
+                    first.converted(to: .fahrenheit).value < second.converted(to: .fahrenheit).value
+                },
+                lowTemperature: temperatures.min { first, second in
+                    first.converted(to: .fahrenheit).value < second.converted(to: .fahrenheit).value
+                },
+                precipitationChance: precipitationChance
+            )
+        }
     }
 }
 
