@@ -171,7 +171,9 @@ final class QuickActionsViewModelTests: XCTestCase {
             lightGroups: []
         )
 
+        let performStarted = expectation(description: "Quick action perform started")
         service.performHandler = { request in
+            performStarted.fulfill()
             try await Task.sleep(nanoseconds: 100_000_000)
             return QuickActionResult(
                 actionId: request.actionId,
@@ -192,6 +194,7 @@ final class QuickActionsViewModelTests: XCTestCase {
         for _ in 0..<10 where !viewModel.isPerforming {
             await Task.yield()
         }
+        await fulfillment(of: [performStarted], timeout: 1)
 
         XCTAssertTrue(viewModel.isPerforming)
         XCTAssertEqual(viewModel.performingActionID, action.id)

@@ -31,6 +31,25 @@
 		A30000000000000000000003 /* RecentImportantEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* RecentImportantEventView.swift */; };
 		A30000000000000000000004 /* QuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* QuickActionsView.swift */; };
 		A30000000000000000000005 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PreviewData.swift */; };
+		F40000000000000000000001 /* HomeContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000021 /* HomeContentView.swift */; };
+		F40000000000000000000002 /* HomeHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000022 /* HomeHeaderView.swift */; };
+		F40000000000000000000003 /* HomeSearchRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000023 /* HomeSearchRow.swift */; };
+		F40000000000000000000004 /* HomeCapsuleButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000024 /* HomeCapsuleButtonStyle.swift */; };
+		F40000000000000000000005 /* HomeWeatherSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000025 /* HomeWeatherSummaryCard.swift */; };
+		F40000000000000000000006 /* HomeWeatherExpandedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000026 /* HomeWeatherExpandedCard.swift */; };
+		F40000000000000000000007 /* WeatherPanelToggleButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000027 /* WeatherPanelToggleButton.swift */; };
+		F40000000000000000000008 /* HomeWeatherTemperatureChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000028 /* HomeWeatherTemperatureChart.swift */; };
+		F40000000000000000000009 /* HomeWeatherPrecipitationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000029 /* HomeWeatherPrecipitationRow.swift */; };
+		F4000000000000000000000A /* HomeWeatherTomorrowSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4000000000000000000002A /* HomeWeatherTomorrowSection.swift */; };
+		F4000000000000000000000B /* HomeBlueprintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4000000000000000000002B /* HomeBlueprintView.swift */; };
+		F4000000000000000000000C /* AutomationShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4000000000000000000002C /* AutomationShortcut.swift */; };
+		F4000000000000000000000D /* AutomationShortcutStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4000000000000000000002D /* AutomationShortcutStrip.swift */; };
+		F4000000000000000000000E /* ShortcutButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4000000000000000000002E /* ShortcutButton.swift */; };
+		F4000000000000000000000F /* RecentActivityRibbon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4000000000000000000002F /* RecentActivityRibbon.swift */; };
+		F40000000000000000000010 /* ActivityRibbonRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000030 /* ActivityRibbonRow.swift */; };
+		F40000000000000000000011 /* InlineStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000031 /* InlineStatusView.swift */; };
+		F40000000000000000000012 /* GarageCompletionWatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000032 /* GarageCompletionWatchPolicy.swift */; };
+		F40000000000000000000013 /* HomePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000033 /* HomePalette.swift */; };
 		A40000000000000000000001 /* EventType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* EventType.swift */; };
 		A40000000000000000000002 /* EventSeverity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* EventSeverity.swift */; };
 		A40000000000000000000003 /* LevyHomeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* LevyHomeEvent.swift */; };
@@ -136,6 +155,25 @@
 		A30000000000000000000013 /* RecentImportantEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentImportantEventView.swift; sourceTree = "<group>"; };
 		A30000000000000000000014 /* QuickActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsView.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		F40000000000000000000021 /* HomeContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeContentView.swift; sourceTree = "<group>"; };
+		F40000000000000000000022 /* HomeHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHeaderView.swift; sourceTree = "<group>"; };
+		F40000000000000000000023 /* HomeSearchRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSearchRow.swift; sourceTree = "<group>"; };
+		F40000000000000000000024 /* HomeCapsuleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCapsuleButtonStyle.swift; sourceTree = "<group>"; };
+		F40000000000000000000025 /* HomeWeatherSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherSummaryCard.swift; sourceTree = "<group>"; };
+		F40000000000000000000026 /* HomeWeatherExpandedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherExpandedCard.swift; sourceTree = "<group>"; };
+		F40000000000000000000027 /* WeatherPanelToggleButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherPanelToggleButton.swift; sourceTree = "<group>"; };
+		F40000000000000000000028 /* HomeWeatherTemperatureChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherTemperatureChart.swift; sourceTree = "<group>"; };
+		F40000000000000000000029 /* HomeWeatherPrecipitationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherPrecipitationRow.swift; sourceTree = "<group>"; };
+		F4000000000000000000002A /* HomeWeatherTomorrowSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherTomorrowSection.swift; sourceTree = "<group>"; };
+		F4000000000000000000002B /* HomeBlueprintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeBlueprintView.swift; sourceTree = "<group>"; };
+		F4000000000000000000002C /* AutomationShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationShortcut.swift; sourceTree = "<group>"; };
+		F4000000000000000000002D /* AutomationShortcutStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationShortcutStrip.swift; sourceTree = "<group>"; };
+		F4000000000000000000002E /* ShortcutButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutButton.swift; sourceTree = "<group>"; };
+		F4000000000000000000002F /* RecentActivityRibbon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentActivityRibbon.swift; sourceTree = "<group>"; };
+		F40000000000000000000030 /* ActivityRibbonRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRibbonRow.swift; sourceTree = "<group>"; };
+		F40000000000000000000031 /* InlineStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineStatusView.swift; sourceTree = "<group>"; };
+		F40000000000000000000032 /* GarageCompletionWatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageCompletionWatchPolicy.swift; sourceTree = "<group>"; };
+		F40000000000000000000033 /* HomePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePalette.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* EventType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventType.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* EventSeverity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSeverity.swift; sourceTree = "<group>"; };
 		A40000000000000000000013 /* LevyHomeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevyHomeEvent.swift; sourceTree = "<group>"; };
@@ -308,12 +346,61 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000018 /* HomeView.swift */,
+				F40000000000000000000021 /* HomeContentView.swift */,
+				F40000000000000000000022 /* HomeHeaderView.swift */,
+				F40000000000000000000023 /* HomeSearchRow.swift */,
+				F40000000000000000000024 /* HomeCapsuleButtonStyle.swift */,
+				F40000000000000000000042 /* Weather */,
+				F40000000000000000000043 /* Blueprint */,
+				F40000000000000000000044 /* Shortcuts */,
+				F40000000000000000000045 /* Activity */,
 				A30000000000000000000011 /* GarageStatusCard.swift */,
 				A30000000000000000000012 /* LightSummaryCard.swift */,
 				A30000000000000000000013 /* RecentImportantEventView.swift */,
 				A30000000000000000000014 /* QuickActionsView.swift */,
 			);
 			path = Home;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000042 /* Weather */ = {
+			isa = PBXGroup;
+			children = (
+				F40000000000000000000025 /* HomeWeatherSummaryCard.swift */,
+				F40000000000000000000026 /* HomeWeatherExpandedCard.swift */,
+				F40000000000000000000027 /* WeatherPanelToggleButton.swift */,
+				F40000000000000000000028 /* HomeWeatherTemperatureChart.swift */,
+				F40000000000000000000029 /* HomeWeatherPrecipitationRow.swift */,
+				F4000000000000000000002A /* HomeWeatherTomorrowSection.swift */,
+			);
+			path = Weather;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000043 /* Blueprint */ = {
+			isa = PBXGroup;
+			children = (
+				F4000000000000000000002B /* HomeBlueprintView.swift */,
+			);
+			path = Blueprint;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000044 /* Shortcuts */ = {
+			isa = PBXGroup;
+			children = (
+				F4000000000000000000002C /* AutomationShortcut.swift */,
+				F4000000000000000000002D /* AutomationShortcutStrip.swift */,
+				F4000000000000000000002E /* ShortcutButton.swift */,
+			);
+			path = Shortcuts;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000045 /* Activity */ = {
+			isa = PBXGroup;
+			children = (
+				F4000000000000000000002F /* RecentActivityRibbon.swift */,
+				F40000000000000000000030 /* ActivityRibbonRow.swift */,
+				F40000000000000000000031 /* InlineStatusView.swift */,
+			);
+			path = Activity;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000038 /* Activity */ = {
@@ -368,6 +455,7 @@
 		A40000000000000000000021 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				F40000000000000000000041 /* Home */,
 				A40000000000000000000011 /* EventType.swift */,
 				A40000000000000000000012 /* EventSeverity.swift */,
 				A40000000000000000000013 /* LevyHomeEvent.swift */,
@@ -384,6 +472,15 @@
 				E00000000000000000000023 /* ToDo */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000041 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				F40000000000000000000032 /* GarageCompletionWatchPolicy.swift */,
+				F40000000000000000000033 /* HomePalette.swift */,
+			);
+			path = Home;
 			sourceTree = "<group>";
 		};
 		A50000000000000000000004 /* LevyHomeTests */ = {
@@ -638,6 +735,23 @@
 				C10000000000000000000001 /* AppDelegate.swift in Sources */,
 				A10000000000000000000008 /* RootTabView.swift in Sources */,
 				A10000000000000000000009 /* HomeView.swift in Sources */,
+				F40000000000000000000001 /* HomeContentView.swift in Sources */,
+				F40000000000000000000002 /* HomeHeaderView.swift in Sources */,
+				F40000000000000000000003 /* HomeSearchRow.swift in Sources */,
+				F40000000000000000000004 /* HomeCapsuleButtonStyle.swift in Sources */,
+				F40000000000000000000005 /* HomeWeatherSummaryCard.swift in Sources */,
+				F40000000000000000000006 /* HomeWeatherExpandedCard.swift in Sources */,
+				F40000000000000000000007 /* WeatherPanelToggleButton.swift in Sources */,
+				F40000000000000000000008 /* HomeWeatherTemperatureChart.swift in Sources */,
+				F40000000000000000000009 /* HomeWeatherPrecipitationRow.swift in Sources */,
+				F4000000000000000000000A /* HomeWeatherTomorrowSection.swift in Sources */,
+				F4000000000000000000000B /* HomeBlueprintView.swift in Sources */,
+				F4000000000000000000000C /* AutomationShortcut.swift in Sources */,
+				F4000000000000000000000D /* AutomationShortcutStrip.swift in Sources */,
+				F4000000000000000000000E /* ShortcutButton.swift in Sources */,
+				F4000000000000000000000F /* RecentActivityRibbon.swift in Sources */,
+				F40000000000000000000010 /* ActivityRibbonRow.swift in Sources */,
+				F40000000000000000000011 /* InlineStatusView.swift in Sources */,
 				A1000000000000000000000A /* ActivityView.swift in Sources */,
 				A1000000000000000000000B /* NotificationHubView.swift in Sources */,
 				A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */,
@@ -676,6 +790,8 @@
 				A40000000000000000000003 /* LevyHomeEvent.swift in Sources */,
 				A40000000000000000000004 /* HomeOverview.swift in Sources */,
 				B30000000000000000000001 /* HomeWeatherSnapshot.swift in Sources */,
+				F40000000000000000000012 /* GarageCompletionWatchPolicy.swift in Sources */,
+				F40000000000000000000013 /* HomePalette.swift in Sources */,
 				A40000000000000000000005 /* GarageStatus.swift in Sources */,
 				A40000000000000000000006 /* LightSummary.swift in Sources */,
 				A40000000000000000000007 /* QuickAction.swift in Sources */,

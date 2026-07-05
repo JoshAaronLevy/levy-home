@@ -1255,6 +1255,173 @@ LevyHome/Models/Home/
 - Weather, blueprint, shortcuts, and recent activity are separately readable.
 - Existing Home and Quick Actions tests pass.
 
+### Stage 4 Results
+
+Completed on 2026-07-05 as the Home feature extraction.
+
+#### Extracted Home Composition
+
+`HomeView.swift` now contains the app-environment entry wrapper plus the existing preview harness. The screen orchestration moved to:
+
+```text
+LevyHome/Views/Home/HomeContentView.swift
+```
+
+This preserved the existing load, pull-to-refresh, tab-visit weather refresh, app-foreground weather refresh, confirmation dialog, garage toggle, and quick-action completion watcher behavior.
+
+#### Extracted Models And Styling
+
+Moved Home-specific model and styling helpers into:
+
+```text
+LevyHome/Models/Home/GarageCompletionWatchPolicy.swift
+LevyHome/Models/Home/HomePalette.swift
+```
+
+`GarageCompletionWatchPolicy` and the garage-state helper extension now live outside SwiftUI view files while preserving the tested open/close polling policy.
+
+#### Extracted Home UI Components
+
+Moved top-level Home components into:
+
+```text
+LevyHome/Views/Home/HomeHeaderView.swift
+LevyHome/Views/Home/HomeSearchRow.swift
+LevyHome/Views/Home/HomeCapsuleButtonStyle.swift
+```
+
+Moved weather UI into:
+
+```text
+LevyHome/Views/Home/Weather/HomeWeatherSummaryCard.swift
+LevyHome/Views/Home/Weather/HomeWeatherExpandedCard.swift
+LevyHome/Views/Home/Weather/WeatherPanelToggleButton.swift
+LevyHome/Views/Home/Weather/HomeWeatherTemperatureChart.swift
+LevyHome/Views/Home/Weather/HomeWeatherPrecipitationRow.swift
+LevyHome/Views/Home/Weather/HomeWeatherTomorrowSection.swift
+```
+
+`HomeWeatherChartPlot` and `HomeWeatherChartXAxis` are kept private inside `HomeWeatherTemperatureChart.swift`. `HomeWeatherMetricView` and `HomeWeatherMetricDivider` are kept private inside `HomeWeatherTomorrowSection.swift`.
+
+Moved blueprint UI into:
+
+```text
+LevyHome/Views/Home/Blueprint/HomeBlueprintView.swift
+```
+
+The blueprint node, connector, floor-plan, center-node, and decoration helpers are kept private in that file so the drawing math stays together.
+
+Moved shortcut UI into:
+
+```text
+LevyHome/Views/Home/Shortcuts/AutomationShortcut.swift
+LevyHome/Views/Home/Shortcuts/AutomationShortcutStrip.swift
+LevyHome/Views/Home/Shortcuts/ShortcutButton.swift
+```
+
+Moved recent activity/status UI into:
+
+```text
+LevyHome/Views/Home/Activity/RecentActivityRibbon.swift
+LevyHome/Views/Home/Activity/ActivityRibbonRow.swift
+LevyHome/Views/Home/Activity/InlineStatusView.swift
+```
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` with:
+
+- a `Models/Home` group
+- `Views/Home/Weather`, `Views/Home/Blueprint`, `Views/Home/Shortcuts`, and `Views/Home/Activity` groups
+- source-build entries for every extracted Home file in the `LevyHome` app target
+
+#### Test Stabilization
+
+While validating the full suite, `QuickActionsViewModelTests.testDuplicateTapsAreIgnoredWhileActionIsInProgress` exposed an existing race: it waited for `isPerforming`, but the mock service request array could still be empty because the first task had not yet entered `service.perform`.
+
+The test now waits for the mock perform call to start before asserting the duplicate-tap behavior. No production Quick Actions behavior changed.
+
+#### Line-Count Impact
+
+Before Stage 4:
+
+```text
+1853 LevyHome/Views/Home/HomeView.swift
+```
+
+After Stage 4:
+
+```text
+ 398 LevyHome/Views/Home/HomeContentView.swift
+ 380 LevyHome/Views/Home/Blueprint/HomeBlueprintView.swift
+ 139 LevyHome/Views/Home/Weather/HomeWeatherSummaryCard.swift
+ 128 LevyHome/Views/Home/Weather/HomeWeatherTemperatureChart.swift
+ 123 LevyHome/Views/Home/HomeView.swift
+  81 LevyHome/Models/Home/HomePalette.swift
+  77 LevyHome/Views/Home/Weather/HomeWeatherExpandedCard.swift
+  60 LevyHome/Views/Home/Activity/RecentActivityRibbon.swift
+  57 LevyHome/Views/Home/Shortcuts/ShortcutButton.swift
+  56 LevyHome/Views/Home/HomeHeaderView.swift
+  55 LevyHome/Views/Home/Shortcuts/AutomationShortcutStrip.swift
+  55 LevyHome/Models/Home/GarageCompletionWatchPolicy.swift
+  52 LevyHome/Views/Home/Weather/HomeWeatherTomorrowSection.swift
+  43 LevyHome/Views/Home/Activity/ActivityRibbonRow.swift
+  41 LevyHome/Views/Home/HomeSearchRow.swift
+  31 LevyHome/Views/Home/Shortcuts/AutomationShortcut.swift
+  31 LevyHome/Views/Home/Activity/InlineStatusView.swift
+  27 LevyHome/Views/Home/Weather/HomeWeatherPrecipitationRow.swift
+  23 LevyHome/Views/Home/Weather/WeatherPanelToggleButton.swift
+  15 LevyHome/Views/Home/HomeCapsuleButtonStyle.swift
+```
+
+#### Verification
+
+Project file lint:
+
+```bash
+plutil -lint LevyHome.xcodeproj/project.pbxproj
+```
+
+Result:
+
+```text
+LevyHome.xcodeproj/project.pbxproj: OK
+```
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Focused Home and Quick Actions test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -only-testing:LevyHomeTests/GarageCompletionWatchPolicyTests -only-testing:LevyHomeTests/HomeOverviewViewModelTests -only-testing:LevyHomeTests/HomeWeatherViewModelTests -only-testing:LevyHomeTests/QuickActionsViewModelTests
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 34 tests, with 0 failures (0 unexpected).
+```
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
 ## Stage 5: Services Refactor
 
 ### Objective
