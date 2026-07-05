@@ -13,13 +13,7 @@ struct QuickActionsView: View {
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.medium) {
                 if viewModel.isLoading {
-                    HStack(spacing: AppSpacing.medium) {
-                        ProgressView()
-
-                        Text("Loading available actions...")
-                            .font(.subheadline)
-                            .foregroundStyle(AppColors.mutedText)
-                    }
+                    InlineLoadingView(message: "Loading available actions...", font: .subheadline)
                 }
 
                 if let message = viewModel.message {

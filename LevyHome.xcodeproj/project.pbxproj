@@ -26,11 +26,13 @@
 		A20000000000000000000006 /* StatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* StatusBadgeView.swift */; };
 		A20000000000000000000007 /* AppScreenChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* AppScreenChrome.swift */; };
 		A20000000000000000000008 /* SwipeRevealActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* SwipeRevealActionRow.swift */; };
+		F90000000000000000000001 /* InlineLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90000000000000000000021 /* InlineLoadingView.swift */; };
 		A30000000000000000000001 /* GarageStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* GarageStatusCard.swift */; };
 		A30000000000000000000002 /* LightSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* LightSummaryCard.swift */; };
 		A30000000000000000000003 /* RecentImportantEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* RecentImportantEventView.swift */; };
 		A30000000000000000000004 /* QuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* QuickActionsView.swift */; };
 		A30000000000000000000005 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PreviewData.swift */; };
+		F90000000000000000000002 /* ShoppingPreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90000000000000000000022 /* ShoppingPreviewData.swift */; };
 		F40000000000000000000001 /* HomeContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000021 /* HomeContentView.swift */; };
 		F40000000000000000000002 /* HomeHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000022 /* HomeHeaderView.swift */; };
 		F40000000000000000000003 /* HomeSearchRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000023 /* HomeSearchRow.swift */; };
@@ -115,6 +117,7 @@
 		B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* QuickActionsViewModelTests.swift */; };
 		B20000000000000000000004 /* GarageCompletionWatchPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */; };
 		E20000000000000000000003 /* ShoppingListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000013 /* ShoppingListViewModelTests.swift */; };
+		FA0000000000000000000001 /* ToDoViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000011 /* ToDoViewModelTests.swift */; };
 		C10000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* AppDelegate.swift */; };
 		C10000000000000000000002 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* NotificationService.swift */; };
 		C10000000000000000000003 /* PushRegistrationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* PushRegistrationViewModel.swift */; };
@@ -182,11 +185,13 @@
 		A20000000000000000000016 /* StatusBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgeView.swift; sourceTree = "<group>"; };
 		A20000000000000000000017 /* AppScreenChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppScreenChrome.swift; sourceTree = "<group>"; };
 		A20000000000000000000018 /* SwipeRevealActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeRevealActionRow.swift; sourceTree = "<group>"; };
+		F90000000000000000000021 /* InlineLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineLoadingView.swift; sourceTree = "<group>"; };
 		A30000000000000000000011 /* GarageStatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageStatusCard.swift; sourceTree = "<group>"; };
 		A30000000000000000000012 /* LightSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightSummaryCard.swift; sourceTree = "<group>"; };
 		A30000000000000000000013 /* RecentImportantEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentImportantEventView.swift; sourceTree = "<group>"; };
 		A30000000000000000000014 /* QuickActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsView.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		F90000000000000000000022 /* ShoppingPreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingPreviewData.swift; sourceTree = "<group>"; };
 		F40000000000000000000021 /* HomeContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeContentView.swift; sourceTree = "<group>"; };
 		F40000000000000000000022 /* HomeHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHeaderView.swift; sourceTree = "<group>"; };
 		F40000000000000000000023 /* HomeSearchRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSearchRow.swift; sourceTree = "<group>"; };
@@ -258,6 +263,7 @@
 		B20000000000000000000013 /* QuickActionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsViewModelTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageCompletionWatchPolicyTests.swift; sourceTree = "<group>"; };
 		E20000000000000000000013 /* ShoppingListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListViewModelTests.swift; sourceTree = "<group>"; };
+		FA0000000000000000000011 /* ToDoViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoViewModelTests.swift; sourceTree = "<group>"; };
 		C10000000000000000000010 /* LevyHome.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LevyHome.entitlements; sourceTree = "<group>"; };
 		C10000000000000000000011 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		C10000000000000000000012 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -503,6 +509,7 @@
 				A20000000000000000000016 /* StatusBadgeView.swift */,
 				A20000000000000000000017 /* AppScreenChrome.swift */,
 				A20000000000000000000018 /* SwipeRevealActionRow.swift */,
+				F90000000000000000000021 /* InlineLoadingView.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -512,8 +519,17 @@
 			children = (
 				A30000000000000000000015 /* PreviewData.swift */,
 				E00000000000000000000024 /* ToDo */,
+				F90000000000000000000030 /* Shopping */,
 			);
 			path = PreviewSupport;
+			sourceTree = "<group>";
+		};
+		F90000000000000000000030 /* Shopping */ = {
+			isa = PBXGroup;
+			children = (
+				F90000000000000000000022 /* ShoppingPreviewData.swift */,
+			);
+			path = Shopping;
 			sourceTree = "<group>";
 		};
 		A40000000000000000000021 /* Models */ = {
@@ -581,11 +597,20 @@
 				B20000000000000000000013 /* QuickActionsViewModelTests.swift */,
 				B20000000000000000000014 /* GarageCompletionWatchPolicyTests.swift */,
 				E20000000000000000000013 /* ShoppingListViewModelTests.swift */,
+				FA0000000000000000000021 /* ToDo */,
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
 				D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */,
 				C10000000000000000000015 /* PushRegistrationViewModelTests.swift */,
 			);
 			path = LevyHomeTests;
+			sourceTree = "<group>";
+		};
+		FA0000000000000000000021 /* ToDo */ = {
+			isa = PBXGroup;
+			children = (
+				FA0000000000000000000011 /* ToDoViewModelTests.swift */,
+			);
+			path = ToDo;
 			sourceTree = "<group>";
 		};
 		A70000000000000000000021 /* Services */ = {
@@ -908,11 +933,13 @@
 				A20000000000000000000006 /* StatusBadgeView.swift in Sources */,
 				A20000000000000000000007 /* AppScreenChrome.swift in Sources */,
 				A20000000000000000000008 /* SwipeRevealActionRow.swift in Sources */,
+				F90000000000000000000001 /* InlineLoadingView.swift in Sources */,
 				A30000000000000000000001 /* GarageStatusCard.swift in Sources */,
 				A30000000000000000000002 /* LightSummaryCard.swift in Sources */,
 				A30000000000000000000003 /* RecentImportantEventView.swift in Sources */,
 				A30000000000000000000004 /* QuickActionsView.swift in Sources */,
 				A30000000000000000000005 /* PreviewData.swift in Sources */,
+				F90000000000000000000002 /* ShoppingPreviewData.swift in Sources */,
 				A40000000000000000000001 /* EventType.swift in Sources */,
 				A40000000000000000000002 /* EventSeverity.swift in Sources */,
 				A40000000000000000000003 /* LevyHomeEvent.swift in Sources */,
@@ -998,6 +1025,7 @@
 				B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */,
 				B20000000000000000000004 /* GarageCompletionWatchPolicyTests.swift in Sources */,
 				E20000000000000000000003 /* ShoppingListViewModelTests.swift in Sources */,
+				FA0000000000000000000001 /* ToDoViewModelTests.swift in Sources */,
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
 				D10000000000000000000005 /* ThemePreferenceViewModelTests.swift in Sources */,
 				C10000000000000000000005 /* PushRegistrationViewModelTests.swift in Sources */,

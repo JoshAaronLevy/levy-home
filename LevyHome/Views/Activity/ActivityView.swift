@@ -87,14 +87,7 @@ private struct ActivityContentView: View {
     @ViewBuilder
     private var olderActivityFooter: some View {
         if viewModel.isLoadingOlder {
-            HStack(spacing: AppSpacing.medium) {
-                ProgressView()
-
-                Text("Loading earlier activity...")
-                    .font(.body)
-                    .foregroundStyle(AppColors.mutedText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            InlineLoadingView(message: "Loading earlier activity...")
             .frame(maxWidth: .infinity)
             .padding(.vertical, AppSpacing.medium)
         } else {
@@ -115,14 +108,7 @@ private struct ActivityContentView: View {
             subtitle: "Fetching recent home events.",
             systemImage: "clock.arrow.circlepath"
         ) {
-            HStack(spacing: AppSpacing.medium) {
-                ProgressView()
-
-                Text("Checking the event timeline...")
-                    .font(.body)
-                    .foregroundStyle(AppColors.mutedText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            InlineLoadingView(message: "Checking the event timeline...")
         }
     }
 }

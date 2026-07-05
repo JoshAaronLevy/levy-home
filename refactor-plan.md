@@ -1881,6 +1881,17 @@ Review repeated patterns across To Do, Shopping, Home, Preferences, and Activity
 - Shared components are genuinely shared.
 - Feature files remain easy to understand without a maze of generic abstractions.
 
+### Stage 7 Results
+
+Completed on 2026-07-05.
+
+#### Shared UI
+
+- Added `LevyHome/Views/Shared/InlineLoadingView.swift`.
+- Replaced repeated inline loading rows in Activity, Home quick actions, and Shopping with the shared view.
+- Kept feature-specific loading copy in each feature file.
+- Did not introduce a broader theme/design framework because the repeated need was narrow.
+
 ## Stage 8: Test Refactor And Coverage Expansion
 
 ### Objective
@@ -1938,6 +1949,44 @@ LevyHomeTests/
 - New tests cover moved business logic.
 - UI-only components stay lightweight and preview-backed.
 
+### Stage 8 Results
+
+Completed on 2026-07-05.
+
+#### Tests Added Or Expanded
+
+- Added `LevyHomeTests/ToDo/ToDoViewModelTests.swift`.
+- Covered To Do shared-list load success, server failure, cancellation-safe reload, and completion toggle request mapping.
+- Expanded `LevyHomeTests/ShoppingListViewModelTests.swift` to cover live connection badges, insert/update/delete live item messages, presence deduping, and snapshot-required refresh behavior.
+
+#### Verification
+
+Focused tests:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LevyHomeTests/ToDoViewModelTests -only-testing:LevyHomeTests/ShoppingListViewModelTests
+```
+
+Result:
+
+```text
+** TEST SUCCEEDED **
+Executed 9 tests, with 0 failures (0 unexpected).
+```
+
+Full test suite:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+Result:
+
+```text
+** TEST SUCCEEDED **
+Executed 111 tests, with 0 failures (0 unexpected).
+```
+
 ## Stage 9: Preview And Fixture Cleanup
 
 ### Objective
@@ -1962,6 +2011,17 @@ Keep previews and sample data useful after files are split.
 
 - Major extracted views have previews where helpful.
 - Preview fixtures are reusable and not buried in large screen files.
+
+### Stage 9 Results
+
+Completed on 2026-07-05.
+
+#### Preview Fixtures
+
+- Added `LevyHome/PreviewSupport/Shopping/ShoppingPreviewData.swift`.
+- Moved Shopping loaded and empty preview response fixtures out of `ShoppingListView.swift`.
+- Updated Shopping previews to consume the shared preview fixture data.
+- Left existing To Do preview support in place because it had already been moved under `PreviewSupport/ToDo`.
 
 ## Stage 10: Naming And Cleanup Pass
 
@@ -1989,6 +2049,16 @@ Use the refactor to remove confusing names only after behavior is stable.
 
 - File names, type names, and folder names describe their actual role.
 - Temporary aliases or compatibility shims are removed.
+
+### Stage 10 Results
+
+Completed on 2026-07-05.
+
+#### Cleanup
+
+- Removed the temporary `typealias ShoppingListMockupView = ShoppingListView`.
+- Verified there are no remaining source references to `ShoppingListMockupView`.
+- Added the new shared UI, preview fixture, and To Do test files to the Xcode project file.
 
 ## Stage 11: Optional Compile-Time And Tooling Improvements
 
