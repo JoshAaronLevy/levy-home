@@ -2086,6 +2086,50 @@ After the structural refactor, consider lightweight tooling to keep the codebase
 
 - Tooling helps maintainability without blocking normal development.
 
+### Stage 11 Results
+
+Completed on 2026-07-05.
+
+#### Advisory Tooling
+
+- Added `scripts/swift-project-health.sh`.
+- Added `npm run ios:health` as a convenience wrapper.
+- The script reports:
+  - total Swift file count and line count
+  - top Swift files by line count
+  - files at or above the 500-line warning threshold
+  - files at or above the 1,000-line investigation threshold
+  - files with many top-level declarations
+- The script intentionally exits 0 even when warnings are reported, so it can be used locally or in CI without blocking normal development.
+
+#### Current Snapshot
+
+Command:
+
+```bash
+npm run ios:health
+```
+
+Result:
+
+```text
+Swift files: 141
+Total Swift lines: 22854
+
+Files at or above line-count thresholds:
+  investigate  2888  LevyHome/Views/Shopping/ShoppingListView.swift
+  investigate  1097  LevyHome/Views/ToDo/ToDoView.swift
+  warn          756  LevyHomeTests/APIClientTests.swift
+  warn          671  LevyHomeTests/HomeWeatherViewModelTests.swift
+  warn          600  LevyHome/ViewModels/Shopping/ShoppingListViewModel.swift
+  warn          529  LevyHomeTests/PushRegistrationViewModelTests.swift
+
+Files with many top-level declarations:
+     37  LevyHome/Views/Shopping/ShoppingListView.swift
+     17  LevyHome/Models/API/ShoppingAPIResponses.swift
+     15  LevyHome/Views/ToDo/ToDoView.swift
+```
+
 ## Per-Stage Verification Checklist
 
 Run this after each meaningful stage:
