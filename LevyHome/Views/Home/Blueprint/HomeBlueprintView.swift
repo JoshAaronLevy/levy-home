@@ -52,8 +52,6 @@ struct HomeBlueprintView: View {
                 )
                 .shadow(color: .white.opacity(0.9), radius: 2)
 
-                BlueprintDecorations(width: width, height: height)
-
                 CenterHomeNode(size: centerSize)
                     .position(center)
 
@@ -354,27 +352,5 @@ private struct ConnectorLines: Shape {
         }
 
         return path
-    }
-}
-
-private struct BlueprintDecorations: View {
-    let width: CGFloat
-    let height: CGFloat
-
-    var body: some View {
-        Group {
-            decorativeSpark(at: CGPoint(x: width * 0.12, y: height * 0.16))
-            decorativeSpark(at: CGPoint(x: width * 0.92, y: height * 0.14))
-            decorativeSpark(at: CGPoint(x: width * 0.92, y: height * 0.63))
-            decorativeSpark(at: CGPoint(x: width * 0.49, y: height * 0.75))
-        }
-    }
-
-    private func decorativeSpark(at point: CGPoint) -> some View {
-        Image(systemName: "asterisk")
-            .font(.title3.weight(.medium))
-            .foregroundStyle(HomePalette.green.opacity(0.34))
-            .position(point)
-            .accessibilityHidden(true)
     }
 }
