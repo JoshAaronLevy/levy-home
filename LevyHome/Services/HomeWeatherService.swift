@@ -73,6 +73,7 @@ final class HomeWeatherService: HomeWeatherServicing {
     private let now: () -> Date
     private let providerTimeout: Duration
     private let fallbackStartDelay: Duration
+    private let tertiaryStartDelay: Duration
     private let appLogStore: AppLogStore?
 
     init(
@@ -83,6 +84,7 @@ final class HomeWeatherService: HomeWeatherServicing {
         now: @escaping () -> Date = Date.init,
         providerTimeout: Duration = .seconds(8),
         fallbackStartDelay: Duration = .seconds(1),
+        tertiaryStartDelay: Duration = .seconds(3),
         appLogStore: AppLogStore? = nil
     ) {
         self.homeLocationProvider = homeLocationProvider
@@ -92,6 +94,7 @@ final class HomeWeatherService: HomeWeatherServicing {
         self.now = now
         self.providerTimeout = providerTimeout
         self.fallbackStartDelay = fallbackStartDelay
+        self.tertiaryStartDelay = tertiaryStartDelay
         self.appLogStore = appLogStore
     }
 
@@ -167,7 +170,7 @@ final class HomeWeatherService: HomeWeatherServicing {
                 HomeWeatherProviderAttempt(
                     name: "National Weather Service",
                     provider: tertiaryWeatherProvider,
-                    startDelay: fallbackStartDelay
+                    startDelay: tertiaryStartDelay
                 )
             )
         }
@@ -286,7 +289,6 @@ final class WeatherKitHomeWeatherProvider: CoordinateWeatherSnapshotLoading {
     ) async throws -> HomeWeatherSnapshot {
         let weather = try await weatherService.weather(for: location)
         let attribution = try? await weatherService.attribution
-        let dailyWeather = weather.dailyForecast.forecast.first
         let hourlyForecast = weather.hourlyForecast.forecast.map { hour in
             HomeWeatherForecastPoint(
                 date: hour.date,
@@ -304,6 +306,9 @@ final class WeatherKitHomeWeatherProvider: CoordinateWeatherSnapshotLoading {
                 precipitationChance: day.precipitationChance
             )
         }
+        let dailyWeather = dailyForecast.first { forecast in
+            Calendar.current.isDate(forecast.date, inSameDayAs: fetchedAt)
+        } ?? dailyForecast.first
 
         return HomeWeatherSnapshot(
             currentTemperature: weather.currentWeather.temperature,
@@ -496,7 +501,9 @@ final class NationalWeatherServiceHomeWeatherProvider: CoordinateWeatherSnapshot
         }
 
         let dailyForecasts = dailyForecast.properties.periods.dailyForecasts()
-        let currentDailyForecast = dailyForecasts.first
+        let currentDailyForecast = dailyForecasts.first { forecast in
+            Calendar.current.isDate(forecast.date, inSameDayAs: fetchedAt)
+        } ?? dailyForecasts.first
 
         return HomeWeatherSnapshot(
             currentTemperature: currentPoint.temperature,
@@ -696,7 +703,9 @@ private struct OpenMeteoForecastResponse: Decodable {
         let currentCondition = OpenMeteoWeatherCode(current?.weatherCode)
         let dailyForecast = daily?.forecast(timeZone: timeZone) ?? []
         let hourlyForecast = hourly?.forecast(timeZone: timeZone) ?? []
-        let todayForecast = dailyForecast.first
+        let todayForecast = dailyForecast.first { forecast in
+            Calendar.current.isDate(forecast.date, inSameDayAs: fetchedAt)
+        } ?? dailyForecast.first
 
         return HomeWeatherSnapshot(
             currentTemperature: Measurement(value: currentTemperature, unit: UnitTemperature.fahrenheit),

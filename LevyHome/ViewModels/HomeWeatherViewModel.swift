@@ -220,9 +220,10 @@ final class HomeWeatherViewModel: ObservableObject {
     }
 
     private func highLowText(for snapshot: HomeWeatherSnapshot, on date: Date) -> String {
+        let dailyForecast = dailyForecast(in: snapshot, on: date)
         let range = daytimeTemperatureRange(in: snapshot, on: date)
-        let highTemperature = range?.high ?? snapshot.highTemperature
-        let lowTemperature = range?.low ?? snapshot.lowTemperature
+        let highTemperature = dailyForecast?.highTemperature ?? snapshot.highTemperature ?? range?.high
+        let lowTemperature = dailyForecast?.lowTemperature ?? snapshot.lowTemperature ?? range?.low
 
         guard let highTemperature, let lowTemperature else {
             return "--/--"
@@ -232,10 +233,11 @@ final class HomeWeatherViewModel: ObservableObject {
     }
 
     private func chartData(for snapshot: HomeWeatherSnapshot, on date: Date) -> HomeWeatherChartData {
-        let points = daytimeForecastPoints(in: snapshot, on: date)
-        let range = daytimeTemperatureRange(in: snapshot, on: date)
-        let fallbackLow = snapshot.lowTemperature?.converted(to: .fahrenheit).value
-        let fallbackHigh = snapshot.highTemperature?.converted(to: .fahrenheit).value
+        let points = chartForecastPoints(in: snapshot, on: date)
+        let range = temperatureRange(in: points)
+        let dailyForecast = dailyForecast(in: snapshot, on: date)
+        let fallbackLow = (dailyForecast?.lowTemperature ?? snapshot.lowTemperature)?.converted(to: .fahrenheit).value
+        let fallbackHigh = (dailyForecast?.highTemperature ?? snapshot.highTemperature)?.converted(to: .fahrenheit).value
         let low = range?.low.converted(to: .fahrenheit).value ?? fallbackLow ?? 55
         let high = range?.high.converted(to: .fahrenheit).value ?? fallbackHigh ?? 85
         let minimumTemperature = floor(low) - 5
@@ -377,6 +379,28 @@ final class HomeWeatherViewModel: ObservableObject {
             .sorted { $0.date < $1.date }
     }
 
+    private func chartForecastPoints(in snapshot: HomeWeatherSnapshot, on date: Date) -> [HomeWeatherForecastPoint] {
+        let todayPoints = daytimeForecastPoints(in: snapshot, on: date)
+
+        if todayPoints.count >= 2 {
+            return todayPoints
+        }
+
+        for offset in 1...3 {
+            guard let futureDate = calendar.date(byAdding: .day, value: offset, to: date) else {
+                continue
+            }
+
+            let futurePoints = daytimeForecastPoints(in: snapshot, on: futureDate)
+
+            if futurePoints.count >= 2 {
+                return futurePoints
+            }
+        }
+
+        return todayPoints
+    }
+
     private func daytimeTemperatureRange(
         in snapshot: HomeWeatherSnapshot,
         on date: Date
@@ -399,6 +423,15 @@ final class HomeWeatherViewModel: ObservableObject {
         }
 
         return (high: high, low: low)
+    }
+
+    private func dailyForecast(
+        in snapshot: HomeWeatherSnapshot,
+        on date: Date
+    ) -> HomeWeatherDailyForecast? {
+        snapshot.dailyForecast.first { forecast in
+            calendar.isDate(forecast.date, inSameDayAs: date)
+        }
     }
 
     private func averageTemperature(in points: [HomeWeatherForecastPoint]) -> Measurement<UnitTemperature>? {

@@ -79,7 +79,8 @@ final class HomeWeatherViewModelTests: XCTestCase {
             fallbackWeatherProvider: fallbackProvider,
             tertiaryWeatherProvider: tertiaryProvider,
             now: { now },
-            fallbackStartDelay: .milliseconds(1)
+            fallbackStartDelay: .milliseconds(1),
+            tertiaryStartDelay: .milliseconds(1)
         )
 
         let snapshot = try await service.fetchSnapshot()
@@ -87,6 +88,36 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot.currentTemperature, tertiarySnapshot.currentTemperature)
         XCTAssertEqual(snapshot.conditionDescription, "Sunny")
         XCTAssertEqual(tertiaryProvider.requestCount, 1)
+    }
+
+    func testHomeWeatherServicePrefersFallbackProviderBeforeTertiaryProvider() async throws {
+        let now = Self.date("2026-07-01T16:00:00Z")
+        let fallbackSnapshot = Self.snapshot(current: 85, high: 91, low: 59, condition: "Open-Meteo", fetchedAt: now)
+        let tertiarySnapshot = Self.snapshot(current: 73, high: 59, low: 59, condition: "NWS Tonight", fetchedAt: now)
+        let primaryProvider = MockCoordinateWeatherProvider(
+            result: .failure(HomeWeatherServiceError.homeLocationUnavailable)
+        )
+        let fallbackProvider = DelayedCoordinateWeatherProvider(
+            delay: .milliseconds(25),
+            result: .success(fallbackSnapshot)
+        )
+        let tertiaryProvider = MockCoordinateWeatherProvider(result: .success(tertiarySnapshot))
+        let service = HomeWeatherService(
+            homeLocationProvider: StaticHomeLocationProvider(latitude: 39.5, longitude: -105),
+            primaryWeatherProvider: primaryProvider,
+            fallbackWeatherProvider: fallbackProvider,
+            tertiaryWeatherProvider: tertiaryProvider,
+            now: { now },
+            fallbackStartDelay: .milliseconds(1),
+            tertiaryStartDelay: .milliseconds(150)
+        )
+
+        let snapshot = try await service.fetchSnapshot()
+
+        XCTAssertEqual(snapshot.conditionDescription, "Open-Meteo")
+        XCTAssertEqual(snapshot.currentTemperature.value, 85, accuracy: 0.001)
+        XCTAssertEqual(fallbackProvider.requestCount, 1)
+        XCTAssertEqual(tertiaryProvider.requestCount, 0)
     }
 
     func testHomeWeatherServiceFallsBackWhenPrimaryWeatherProviderTimesOut() async throws {
@@ -439,7 +470,7 @@ final class HomeWeatherViewModelTests: XCTestCase {
 
         await viewModel.loadIfNeeded()
 
-        XCTAssertEqual(viewModel.displayData.highLowTemperatureText, "84°/65°")
+        XCTAssertEqual(viewModel.displayData.highLowTemperatureText, "91°/52°")
         XCTAssertEqual(viewModel.expandedData.chart.xAxisLabels.map(\.label), ["8 AM", "12 PM", "4 PM", "8 PM"])
         XCTAssertEqual(viewModel.expandedData.chart.yAxisValues.first, 89)
         XCTAssertEqual(viewModel.expandedData.chart.yAxisValues.last, 60)
@@ -448,6 +479,46 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.expandedData.tomorrow.lowText, "65°")
         XCTAssertEqual(viewModel.expandedData.tomorrow.averageText, "81°")
         XCTAssertEqual(viewModel.expandedData.tomorrow.precipitationChanceText, "35%")
+    }
+
+    func testExpandedChartUsesNextAvailableDaytimeWindowWhenTodayHasNoLineData() async {
+        let now = Self.date("2026-07-04T23:30:00Z")
+        let viewModel = HomeWeatherViewModel(now: { now }, calendar: Self.utcCalendar) {
+            Self.snapshot(
+                current: 72,
+                high: 59,
+                low: 59,
+                hourlyForecast: [
+                    Self.hourly("2026-07-04T23:00:00Z", temperature: 71),
+                    Self.hourly("2026-07-05T06:00:00Z", temperature: 65),
+                    Self.hourly("2026-07-05T09:00:00Z", temperature: 72),
+                    Self.hourly("2026-07-05T12:00:00Z", temperature: 86),
+                    Self.hourly("2026-07-05T15:00:00Z", temperature: 92),
+                    Self.hourly("2026-07-05T18:00:00Z", temperature: 88),
+                    Self.hourly("2026-07-05T21:00:00Z", temperature: 79)
+                ],
+                dailyForecast: [
+                    HomeWeatherDailyForecast(
+                        date: Self.date("2026-07-04T00:00:00Z"),
+                        highTemperature: Measurement(value: 86, unit: UnitTemperature.fahrenheit),
+                        lowTemperature: Measurement(value: 59, unit: UnitTemperature.fahrenheit),
+                        precipitationChance: 0.1
+                    ),
+                    HomeWeatherDailyForecast(
+                        date: Self.date("2026-07-05T00:00:00Z"),
+                        highTemperature: Measurement(value: 93, unit: UnitTemperature.fahrenheit),
+                        lowTemperature: Measurement(value: 64, unit: UnitTemperature.fahrenheit),
+                        precipitationChance: 0.05
+                    )
+                ]
+            )
+        }
+
+        await viewModel.loadIfNeeded()
+
+        XCTAssertEqual(viewModel.displayData.highLowTemperatureText, "86°/59°")
+        XCTAssertGreaterThan(viewModel.expandedData.chart.points.count, 1)
+        XCTAssertEqual(viewModel.expandedData.chart.points.map { Int($0.temperature.rounded()) }, [65, 72, 86, 92, 88, 79])
     }
 
     private static func snapshot(
@@ -543,6 +614,29 @@ private final class HangingCoordinateWeatherProvider: CoordinateWeatherSnapshotL
         requestCount += 1
         try await Task.sleep(for: .seconds(60))
         throw CancellationError()
+    }
+}
+
+private final class DelayedCoordinateWeatherProvider: CoordinateWeatherSnapshotLoading {
+    private let delay: Duration
+    private let result: Result<HomeWeatherSnapshot, Error>
+    private(set) var requestCount = 0
+
+    init(
+        delay: Duration,
+        result: Result<HomeWeatherSnapshot, Error>
+    ) {
+        self.delay = delay
+        self.result = result
+    }
+
+    func fetchSnapshot(
+        for location: CLLocation,
+        fetchedAt: Date
+    ) async throws -> HomeWeatherSnapshot {
+        requestCount += 1
+        try await Task.sleep(for: delay)
+        return try result.get()
     }
 }
 
