@@ -513,6 +513,110 @@ LevyHome/PreviewSupport/ToDo/
 - To Do feature files build cleanly.
 - Full test suite passes.
 
+### Stage 2A Results
+
+Completed on 2026-07-05 as the first To Do feature extraction after the Stage 1 project-file proof.
+
+#### Moved Files
+
+Moved To Do data/state declarations into feature model files:
+
+```text
+LevyHome/Models/ToDo/ToDoModels.swift
+LevyHome/Models/ToDo/ToDoEventKitModels.swift
+```
+
+Moved To Do sample/fallback data into preview support:
+
+```text
+LevyHome/PreviewSupport/ToDo/ToDoPreviewData.swift
+```
+
+The move included:
+
+- `ToDoTaskSection`
+- `ToDoTask`
+- `ToDoDraft`
+- `ToDoEditorMode`
+- `ToDoStatus`
+- `ToDoRecurring`
+- `ToDoDueDateOption`
+- `ToDoTone`
+- `ToDoLocationSearchSuggestion`
+- `ToDoLocation` display helpers
+- `FamilyCalendarLoadResult`
+- `ToDoFamilyCalendarState`
+- `PersonalRemindersLoadResult`
+- `ToDoPersonalRemindersState`
+- `ToDoReminder`
+- `ToDoCalendarEvent`
+- `ToDoPreviewData`
+
+`ToDoDraft` no longer depends directly on `ToDoPreviewData`; both now share `ToDoDateDefaults` so production model defaults and preview data keep the same date behavior without coupling the model to preview fixtures.
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` manually with:
+
+- a `Models/ToDo` group containing `ToDoModels.swift` and `ToDoEventKitModels.swift`
+- a `PreviewSupport/ToDo` group containing `ToDoPreviewData.swift`
+- app-target source entries for all three new files
+
+The test build output confirmed Xcode compiled:
+
+```text
+LevyHome/Models/ToDo/ToDoModels.swift
+LevyHome/Models/ToDo/ToDoEventKitModels.swift
+LevyHome/PreviewSupport/ToDo/ToDoPreviewData.swift
+```
+
+#### Line-Count Impact
+
+After Stage 2A:
+
+```text
+2649 LevyHome/Views/ToDo/ToDoView.swift
+ 271 LevyHome/Models/ToDo/ToDoModels.swift
+ 439 LevyHome/Models/ToDo/ToDoEventKitModels.swift
+ 197 LevyHome/PreviewSupport/ToDo/ToDoPreviewData.swift
+3556 total
+```
+
+For comparison:
+
+- Stage 0 baseline `ToDoView.swift`: 3,633 lines
+- After Stage 1 `ToDoView.swift`: 3,544 lines
+- After Stage 2A `ToDoView.swift`: 2,649 lines
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+Simulator/system logs appeared during the run, including Network framework messages and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the test run.
+
+#### Remaining Stage 2 Work
+
+Stage 2B should move the EventKit services and To Do view models next. `ToDoView.swift` still contains `FamilyCalendarService`, `PersonalRemindersService`, `ToDoViewModel`, `ToDoFamilyCalendarViewModel`, `ToDoPersonalRemindersViewModel`, `ToDoLocationSearchViewModel`, and the screen UI components.
+
 ## Stage 3: Shopping Feature Refactor
 
 ### Why Second
