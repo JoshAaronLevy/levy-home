@@ -613,9 +613,119 @@ Executed 103 tests, with 0 failures (0 unexpected).
 
 Simulator/system logs appeared during the run, including Network framework messages and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the test run.
 
-#### Remaining Stage 2 Work
+#### Remaining Stage 2 Work After Stage 2A
 
 Stage 2B should move the EventKit services and To Do view models next. `ToDoView.swift` still contains `FamilyCalendarService`, `PersonalRemindersService`, `ToDoViewModel`, `ToDoFamilyCalendarViewModel`, `ToDoPersonalRemindersViewModel`, `ToDoLocationSearchViewModel`, and the screen UI components.
+
+### Stage 2B Results
+
+Completed on 2026-07-05 as the service/view-model extraction for the To Do feature.
+
+#### Moved Files
+
+Moved To Do API and location-search view models into:
+
+```text
+LevyHome/ViewModels/ToDo/ToDoViewModel.swift
+LevyHome/ViewModels/ToDo/ToDoLocationSearchViewModel.swift
+```
+
+Moved EventKit-backed view models into:
+
+```text
+LevyHome/ViewModels/ToDo/ToDoFamilyCalendarViewModel.swift
+LevyHome/ViewModels/ToDo/ToDoPersonalRemindersViewModel.swift
+```
+
+Moved EventKit services into:
+
+```text
+LevyHome/Services/EventKit/FamilyCalendarService.swift
+LevyHome/Services/EventKit/PersonalRemindersService.swift
+```
+
+The move included:
+
+- `ToDoViewModel`
+- `ToDoLocationSearchViewModel`
+- `FamilyCalendarService`
+- `PersonalRemindersService`
+- `PersonalRemindersServiceError`
+- `ToDoFamilyCalendarViewModel`
+- `ToDoPersonalRemindersViewModel`
+
+Access-control changes were limited to what cross-file references required. For example, moved view models and services are now internal app-target types, while implementation-only helpers such as `PersonalRemindersServiceError` remain private to their file.
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` manually with:
+
+- a `Services/EventKit` group containing `FamilyCalendarService.swift` and `PersonalRemindersService.swift`
+- a `ViewModels/ToDo` group containing the four To Do view model files
+- app-target source entries for all six new files
+
+The test build output confirmed Xcode compiled:
+
+```text
+LevyHome/Services/EventKit/FamilyCalendarService.swift
+LevyHome/Services/EventKit/PersonalRemindersService.swift
+LevyHome/ViewModels/ToDo/ToDoViewModel.swift
+LevyHome/ViewModels/ToDo/ToDoLocationSearchViewModel.swift
+LevyHome/ViewModels/ToDo/ToDoFamilyCalendarViewModel.swift
+LevyHome/ViewModels/ToDo/ToDoPersonalRemindersViewModel.swift
+```
+
+#### Line-Count Impact
+
+After Stage 2B:
+
+```text
+1938 LevyHome/Views/ToDo/ToDoView.swift
+ 276 LevyHome/ViewModels/ToDo/ToDoViewModel.swift
+  96 LevyHome/ViewModels/ToDo/ToDoFamilyCalendarViewModel.swift
+  96 LevyHome/ViewModels/ToDo/ToDoLocationSearchViewModel.swift
+  93 LevyHome/ViewModels/ToDo/ToDoPersonalRemindersViewModel.swift
+  75 LevyHome/Services/EventKit/FamilyCalendarService.swift
+  89 LevyHome/Services/EventKit/PersonalRemindersService.swift
+```
+
+For comparison:
+
+- Stage 0 baseline `ToDoView.swift`: 3,633 lines
+- After Stage 1 `ToDoView.swift`: 3,544 lines
+- After Stage 2A `ToDoView.swift`: 2,649 lines
+- After Stage 2B `ToDoView.swift`: 1,938 lines
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+The first full test run compiled the moved files but hit one unrelated timing-style failure in `QuickActionsViewModelTests.testDuplicateTapsAreIgnoredWhileActionIsInProgress`. The isolated rerun of that test passed, and a subsequent full-suite rerun passed.
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+Simulator/system logs appeared during the runs, including Network framework messages, WeatherKit auth-service messages, and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the final test run.
+
+#### Remaining Stage 2 Work After Stage 2B
+
+Stage 2C should move the Family Calendar and Personal Reminders UI components next. `ToDoView.swift` still contains the screen-level composition, task-list UI, editor UI, calendar/reminder panels, badges, rows, and sheets.
 
 ## Stage 3: Shopping Feature Refactor
 

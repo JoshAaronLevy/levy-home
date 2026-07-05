@@ -83,6 +83,12 @@
 		E00000000000000000000003 /* ToDoModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000013 /* ToDoModels.swift */; };
 		E00000000000000000000004 /* ToDoEventKitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000014 /* ToDoEventKitModels.swift */; };
 		E00000000000000000000005 /* ToDoPreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000015 /* ToDoPreviewData.swift */; };
+		E00000000000000000000006 /* ToDoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000016 /* ToDoViewModel.swift */; };
+		E00000000000000000000007 /* ToDoLocationSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000017 /* ToDoLocationSearchViewModel.swift */; };
+		E00000000000000000000008 /* FamilyCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000018 /* FamilyCalendarService.swift */; };
+		E00000000000000000000009 /* PersonalRemindersService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000019 /* PersonalRemindersService.swift */; };
+		E0000000000000000000000A /* ToDoFamilyCalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0000000000000000000001A /* ToDoFamilyCalendarViewModel.swift */; };
+		E0000000000000000000000B /* ToDoPersonalRemindersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0000000000000000000001B /* ToDoPersonalRemindersViewModel.swift */; };
 		E10000000000000000000001 /* ShoppingListMockupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* ShoppingListMockupView.swift */; };
 		E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70000000000000000000011 /* ShoppingListLiveService.swift */; };
 /* End PBXBuildFile section */
@@ -179,6 +185,12 @@
 		E00000000000000000000013 /* ToDoModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoModels.swift; sourceTree = "<group>"; };
 		E00000000000000000000014 /* ToDoEventKitModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoEventKitModels.swift; sourceTree = "<group>"; };
 		E00000000000000000000015 /* ToDoPreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoPreviewData.swift; sourceTree = "<group>"; };
+		E00000000000000000000016 /* ToDoViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoViewModel.swift; sourceTree = "<group>"; };
+		E00000000000000000000017 /* ToDoLocationSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoLocationSearchViewModel.swift; sourceTree = "<group>"; };
+		E00000000000000000000018 /* FamilyCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyCalendarService.swift; sourceTree = "<group>"; };
+		E00000000000000000000019 /* PersonalRemindersService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRemindersService.swift; sourceTree = "<group>"; };
+		E0000000000000000000001A /* ToDoFamilyCalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoFamilyCalendarViewModel.swift; sourceTree = "<group>"; };
+		E0000000000000000000001B /* ToDoPersonalRemindersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoPersonalRemindersViewModel.swift; sourceTree = "<group>"; };
 		E10000000000000000000011 /* ShoppingListMockupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListMockupView.swift; sourceTree = "<group>"; };
 		E70000000000000000000011 /* ShoppingListLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -395,6 +407,7 @@
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 				D10000000000000000000012 /* ThemePreferenceService.swift */,
 				C10000000000000000000012 /* NotificationService.swift */,
+				E00000000000000000000025 /* EventKit */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -409,6 +422,7 @@
 				A90000000000000000000012 /* NotificationPreferencesViewModel.swift */,
 				D10000000000000000000013 /* ThemePreferenceViewModel.swift */,
 				C10000000000000000000013 /* PushRegistrationViewModel.swift */,
+				E00000000000000000000026 /* ToDo */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -462,6 +476,26 @@
 			isa = PBXGroup;
 			children = (
 				E00000000000000000000015 /* ToDoPreviewData.swift */,
+			);
+			path = ToDo;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000025 /* EventKit */ = {
+			isa = PBXGroup;
+			children = (
+				E00000000000000000000018 /* FamilyCalendarService.swift */,
+				E00000000000000000000019 /* PersonalRemindersService.swift */,
+			);
+			path = EventKit;
+			sourceTree = "<group>";
+		};
+		E00000000000000000000026 /* ToDo */ = {
+			isa = PBXGroup;
+			children = (
+				E00000000000000000000016 /* ToDoViewModel.swift */,
+				E0000000000000000000001A /* ToDoFamilyCalendarViewModel.swift */,
+				E0000000000000000000001B /* ToDoPersonalRemindersViewModel.swift */,
+				E00000000000000000000017 /* ToDoLocationSearchViewModel.swift */,
 			);
 			path = ToDo;
 			sourceTree = "<group>";
@@ -590,6 +624,12 @@
 				E00000000000000000000003 /* ToDoModels.swift in Sources */,
 				E00000000000000000000004 /* ToDoEventKitModels.swift in Sources */,
 				E00000000000000000000005 /* ToDoPreviewData.swift in Sources */,
+				E00000000000000000000006 /* ToDoViewModel.swift in Sources */,
+				E00000000000000000000007 /* ToDoLocationSearchViewModel.swift in Sources */,
+				E00000000000000000000008 /* FamilyCalendarService.swift in Sources */,
+				E00000000000000000000009 /* PersonalRemindersService.swift in Sources */,
+				E0000000000000000000000A /* ToDoFamilyCalendarViewModel.swift in Sources */,
+				E0000000000000000000000B /* ToDoPersonalRemindersViewModel.swift in Sources */,
 				A20000000000000000000001 /* AppColors.swift in Sources */,
 				A20000000000000000000002 /* AppSpacing.swift in Sources */,
 				A20000000000000000000003 /* InfoPanel.swift in Sources */,
