@@ -49,7 +49,7 @@ struct HomeContentView: View {
                     }
                 }
 
-                HomeSearchRow(searchText: $searchText)
+                // HomeSearchRow(searchText: $searchText)
 
                 statusMessages
 
@@ -65,15 +65,15 @@ struct HomeContentView: View {
                     }
                 }
 
-                AutomationShortcutStrip(
-                    shortcuts: automationShortcuts,
-                    isBusy: quickActionsViewModel.isBusy,
-                    performingActionID: quickActionsViewModel.performingActionID
-                ) { action in
-                    Task {
-                        await select(action)
-                    }
-                }
+                // AutomationShortcutStrip(
+                //     shortcuts: automationShortcuts,
+                //     isBusy: quickActionsViewModel.isBusy,
+                //     performingActionID: quickActionsViewModel.performingActionID
+                // ) { action in
+                //     Task {
+                //         await select(action)
+                //     }
+                // }
 
                 RecentActivityRibbon(
                     recentEventData: homeViewModel.recentImportantEventData,
