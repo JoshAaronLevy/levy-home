@@ -7,7 +7,6 @@ This guide is for tweaking the blueprint section on the Home tab without needing
 Run these from the repo root:
 
 ```sh
-cd /Users/joshlevy/Desktop/levy-home
 LAUNCH_APP=true scripts/build-install-simulator.sh
 ```
 
