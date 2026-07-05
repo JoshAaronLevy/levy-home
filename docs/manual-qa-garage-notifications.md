@@ -40,9 +40,11 @@ HOME_ASSISTANT_MODE=mock
 APNS_KEY_ID=YOUR_KEY_ID
 APNS_TEAM_ID=YOUR_TEAM_ID
 APNS_BUNDLE_ID=com.levyhome.app
-APNS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+APNS_PRIVATE_KEY_PATH=/etc/secrets/AuthKey_YOUR_KEY_ID.p8
 APNS_ENVIRONMENT=sandbox
 ```
+
+`APNS_PRIVATE_KEY` can still be used as a fallback with escaped `\n` newlines, but `APNS_PRIVATE_KEY_PATH` is preferred and wins when both are set.
 
 For real Home Assistant control verification, switch to `HOME_ASSISTANT_MODE=live` and set:
 

@@ -33,7 +33,8 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `APNS_KEY_ID` | Apple APNs Auth Key ID. Required only for APNs sending. |
 | `APNS_TEAM_ID` | Apple Developer Team ID for APNs JWT auth. Required only for APNs sending. |
 | `APNS_BUNDLE_ID` | APNs topic/bundle identifier, currently `com.levyhome.app`. |
-| `APNS_PRIVATE_KEY` | APNs `.p8` private key value with newlines escaped as `\n`. Quoting the value is supported. Do not commit it. |
+| `APNS_PRIVATE_KEY_PATH` | Preferred APNs `.p8` private key file path. On Render Secret Files, use `/etc/secrets/<filename>.p8`. When set, this wins over `APNS_PRIVATE_KEY`. |
+| `APNS_PRIVATE_KEY` | Fallback APNs `.p8` private key value with newlines escaped as `\n`. Quoting the value is supported. Do not commit it. Ignored when `APNS_PRIVATE_KEY_PATH` is set. |
 | `APNS_ENVIRONMENT` | Default APNs endpoint for devices without an environment: `sandbox` or `production`. Native registrations should include their own environment. |
 
 ## Endpoints
@@ -71,6 +72,7 @@ APNs behavior:
 
 - Debug test pushes use registered APNs devices and return provider-neutral counts such as `sentNotificationCount`, `failedNotificationCount`, and `invalidTokenCount`.
 - Debug test pushes are diagnostics and do not apply notification category preferences.
+- Startup logs whether `APNS_PRIVATE_KEY_PATH` loaded successfully when the path is configured. The log includes the file path but never the private key contents.
 - Garage Home Assistant events map to the five garage preference categories and only send APNs pushes to devices where that category is enabled.
 - Partner presence Home Assistant events map to the `partner_presence` category and only send APNs pushes to devices where that category is enabled.
 - Partner presence events with `metadata.recipient` only send APNs pushes to registered Levy Home devices whose stored device owner/name matches that recipient.

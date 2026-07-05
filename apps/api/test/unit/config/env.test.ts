@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import { readConfig } from '../../../src/config.js';
+
+const testApnsPrivateKey = crypto
+  .generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  .privateKey.export({ type: 'pkcs8', format: 'pem' })
+  .toString();
 
 test('readConfig defaults Home Assistant activity ingestion to disabled with no tracked phone entities', () => {
   const config = readConfig({});
@@ -44,10 +53,55 @@ test('readConfig parses Kroger API diagnostic configuration', () => {
 
 test('readConfig parses quoted APNs private key env values with escaped newlines', () => {
   const config = readConfig({
-    APNS_PRIVATE_KEY: '"-----BEGIN PRIVATE KEY-----\\nabc123\\n-----END PRIVATE KEY-----"',
+    APNS_PRIVATE_KEY: `"${testApnsPrivateKey.replace(/\n/g, '\\n')}"`,
   });
 
-  assert.equal(config.apns.privateKey, '-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----');
+  assert.equal(config.apns.privateKey, testApnsPrivateKey.trim());
+  assert.equal(config.apns.privateKeySource, 'inline');
+});
+
+test('readConfig loads APNs private key env values from APNS_PRIVATE_KEY_PATH', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'levy-home-apns-'));
+  const privateKeyPath = path.join(tempDir, 'AuthKey_TEST.p8');
+
+  fs.writeFileSync(privateKeyPath, testApnsPrivateKey);
+
+  const config = readConfig({
+    APNS_PRIVATE_KEY_PATH: privateKeyPath,
+  });
+
+  assert.equal(config.apns.privateKey, testApnsPrivateKey.trim());
+  assert.equal(config.apns.privateKeySource, 'path');
+  assert.equal(config.apns.privateKeyPath, privateKeyPath);
+  assert.equal(config.apns.inlinePrivateKeyIgnored, false);
+});
+
+test('readConfig prefers APNS_PRIVATE_KEY_PATH over APNS_PRIVATE_KEY', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'levy-home-apns-'));
+  const privateKeyPath = path.join(tempDir, 'AuthKey_TEST.p8');
+
+  fs.writeFileSync(privateKeyPath, testApnsPrivateKey);
+
+  const config = readConfig({
+    APNS_PRIVATE_KEY_PATH: privateKeyPath,
+    APNS_PRIVATE_KEY: 'not-used',
+  });
+
+  assert.equal(config.apns.privateKey, testApnsPrivateKey.trim());
+  assert.equal(config.apns.privateKeySource, 'path');
+  assert.equal(config.apns.inlinePrivateKeyIgnored, true);
+});
+
+test('readConfig reports APNS_PRIVATE_KEY_PATH load failures without falling back to inline keys', () => {
+  const config = readConfig({
+    APNS_PRIVATE_KEY_PATH: '/tmp/levy-home-missing-apns-key.p8',
+    APNS_PRIVATE_KEY: `"${testApnsPrivateKey.replace(/\n/g, '\\n')}"`,
+  });
+
+  assert.equal(config.apns.privateKey, undefined);
+  assert.equal(config.apns.privateKeySource, 'path');
+  assert.match(config.apns.privateKeyLoadError ?? '', /ENOENT/);
+  assert.equal(config.apns.inlinePrivateKeyIgnored, true);
 });
 
 test('readConfig rejects APNs private key values without .p8 markers', () => {

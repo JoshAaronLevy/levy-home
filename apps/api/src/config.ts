@@ -2,7 +2,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { LightGroupStatus } from './contracts.js';
-import { getApnsPrivateKey } from './integrations/apple/privateKey.js';
+import {
+  loadApnsPrivateKey,
+  type APNsPrivateKeySource,
+} from './integrations/apple/privateKey.js';
 
 export type HomeAssistantMode = 'mock' | 'live';
 export type APNsDefaultEnvironment = 'sandbox' | 'production';
@@ -46,6 +49,10 @@ export type AppConfig = {
     teamId?: string;
     bundleId?: string;
     privateKey?: string;
+    privateKeySource?: APNsPrivateKeySource;
+    privateKeyPath?: string;
+    privateKeyLoadError?: string;
+    inlinePrivateKeyIgnored?: boolean;
     defaultEnvironment: APNsDefaultEnvironment;
   };
   homeAssistant: {
@@ -67,7 +74,7 @@ export type AppConfig = {
 };
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const privateKey = getApnsPrivateKey(env.APNS_PRIVATE_KEY);
+  const privateKey = loadApnsPrivateKey(env);
 
   return {
     port: readNumber(env.PORT, 4000),
@@ -91,7 +98,11 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       keyId: readOptionalString(env.APNS_KEY_ID),
       teamId: readOptionalString(env.APNS_TEAM_ID),
       bundleId: readOptionalString(env.APNS_BUNDLE_ID) ?? 'com.levyhome.app',
-      privateKey,
+      ...(privateKey.privateKey ? { privateKey: privateKey.privateKey } : {}),
+      privateKeySource: privateKey.source,
+      ...(privateKey.path ? { privateKeyPath: privateKey.path } : {}),
+      ...(privateKey.error ? { privateKeyLoadError: privateKey.error } : {}),
+      inlinePrivateKeyIgnored: privateKey.inlineKeyIgnored,
       defaultEnvironment: readAPNsDefaultEnvironment(env.APNS_ENVIRONMENT),
     },
     homeAssistant: {
@@ -111,6 +122,42 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       },
     },
   };
+}
+
+type ConfigLogger = Pick<Console, 'info' | 'warn'>;
+
+export function logApnsPrivateKeyStatus(config: AppConfig, logger: ConfigLogger): void {
+  const privateKeySource = config.apns.privateKeySource ?? (config.apns.privateKey ? 'inline' : 'none');
+
+  if (privateKeySource === 'path') {
+    if (config.apns.privateKey) {
+      logger.info('APNs private key file loaded.', {
+        envVar: 'APNS_PRIVATE_KEY_PATH',
+        filePath: config.apns.privateKeyPath,
+        inlineEnvVarIgnored: config.apns.inlinePrivateKeyIgnored || undefined,
+      });
+      return;
+    }
+
+    logger.warn('APNs private key file could not be loaded.', {
+      envVar: 'APNS_PRIVATE_KEY_PATH',
+      filePath: config.apns.privateKeyPath,
+      error: config.apns.privateKeyLoadError,
+      inlineEnvVarIgnored: config.apns.inlinePrivateKeyIgnored || undefined,
+    });
+    return;
+  }
+
+  if (privateKeySource === 'inline') {
+    logger.info('APNs private key loaded from inline environment variable.', {
+      envVar: 'APNS_PRIVATE_KEY',
+    });
+    return;
+  }
+
+  logger.warn('APNs private key is not configured; APNs push delivery is unavailable.', {
+    envVar: 'APNS_PRIVATE_KEY_PATH',
+  });
 }
 
 const API_PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

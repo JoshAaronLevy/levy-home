@@ -60,7 +60,7 @@ function readCredentials(config: AppConfig): APNsCredentials {
   const privateKey = config.apns.privateKey;
 
   if (!privateKey) {
-    missingFields.push('APNS_PRIVATE_KEY');
+    missingFields.push(privateKeyMissingReason(config));
   }
 
   if (missingFields.length > 0) {
@@ -73,6 +73,16 @@ function readCredentials(config: AppConfig): APNsCredentials {
     bundleId: config.apns.bundleId!,
     privateKey: privateKey!,
   };
+}
+
+function privateKeyMissingReason(config: AppConfig): string {
+  if (config.apns.privateKeySource === 'path') {
+    return config.apns.privateKeyLoadError
+      ? `APNS_PRIVATE_KEY_PATH (${config.apns.privateKeyLoadError})`
+      : 'APNS_PRIVATE_KEY_PATH';
+  }
+
+  return 'APNS_PRIVATE_KEY';
 }
 
 function endpointForEnvironment(environment: APNsEnvironment): string {

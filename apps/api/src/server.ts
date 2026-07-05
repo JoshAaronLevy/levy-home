@@ -8,7 +8,7 @@ import {
 } from './integrations/homeAssistant/activityNormalizer.js';
 import { createRecentActivityStore } from './activityStore.js';
 import { createApp } from './app.js';
-import { readConfig } from './config.js';
+import { logApnsPrivateKeyStatus, readConfig, type AppConfig } from './config.js';
 import { backfillHomeAssistantActivity } from './integrations/homeAssistant/activityBackfill.js';
 import {
   createHomeAssistantActivityListener,
@@ -17,11 +17,15 @@ import {
 import { logger, type Logger, safeErrorMessage } from './observability/logger.js';
 import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
 
-export function startServer(config = readConfig(), options: { logger?: Logger } = {}): void {
+export function startServer(config?: AppConfig, options: { logger?: Logger } = {}): void {
   const serverLogger = options.logger ?? logger;
+  const resolvedConfig = config ?? readConfig();
+
+  logApnsPrivateKeyStatus(resolvedConfig, serverLogger);
+
   const activityStore = createRecentActivityStore(500);
   const shoppingListRealtime = createShoppingListRealtimeHub();
-  const app = createApp({ config, activityStore, logger: serverLogger, shoppingListRealtime });
+  const app = createApp({ config: resolvedConfig, activityStore, logger: serverLogger, shoppingListRealtime });
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -35,15 +39,15 @@ export function startServer(config = readConfig(), options: { logger?: Logger } 
       serverLogger.info('Home Assistant phone activity stored.', { entityId: normalizedEvent.entityId });
     }
   };
-  const activityListener = createHomeAssistantActivityListener(config, {
+  const activityListener = createHomeAssistantActivityListener(resolvedConfig, {
     logger: serverLogger,
     onStateChanged: storeHomeAssistantPhoneActivity,
   });
 
-  const server = app.listen(config.port, () => {
-    serverLogger.info('Levy Home API listening.', { port: config.port });
+  const server = app.listen(resolvedConfig.port, () => {
+    serverLogger.info('Levy Home API listening.', { port: resolvedConfig.port });
     activityListener?.start();
-    void backfillHomeAssistantActivity(config, {
+    void backfillHomeAssistantActivity(resolvedConfig, {
       logger: serverLogger,
       onStateChanged: storeHomeAssistantPhoneActivity,
     })
