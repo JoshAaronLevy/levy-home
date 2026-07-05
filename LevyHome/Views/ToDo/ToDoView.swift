@@ -7,9 +7,11 @@ struct ToDoView: View {
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     @StateObject private var viewModel = ToDoViewModel()
     @StateObject private var familyCalendarViewModel = ToDoFamilyCalendarViewModel()
+    @StateObject private var personalRemindersViewModel = ToDoPersonalRemindersViewModel()
     @State private var editorMode: ToDoEditorMode?
     @State private var pendingDeleteTask: ToDoTask?
     @State private var selectedCalendarEvent: ToDoCalendarEvent?
+    @State private var selectedReminder: ToDoReminder?
 
     private var sections: [ToDoTaskSection] {
         viewModel.hasLoaded ? viewModel.sections : ToDoPreviewData.taskSections
@@ -76,14 +78,29 @@ struct ToDoView: View {
                     selectedCalendarEvent = event
                 } onRetry: {
                     Task {
-                        await familyCalendarViewModel.loadToday()
+                        await refreshCalendar()
+                    }
+                }
+
+                ToDoRemindersPanel(
+                    state: personalRemindersViewModel.state,
+                    reminders: personalRemindersViewModel.displayReminders
+                ) { reminder in
+                    Task {
+                        await personalRemindersViewModel.complete(reminder)
+                    }
+                } onSelectReminder: { reminder in
+                    selectedReminder = reminder
+                } onRetry: {
+                    Task {
+                        await refreshReminders()
                     }
                 }
 
                 if let errorMessage = viewModel.errorMessage {
                     ToDoErrorBanner(message: errorMessage) {
                         Task {
-                            await viewModel.load(apiClient: appEnvironment.apiClient)
+                            await load(force: true)
                         }
                     }
                 }
@@ -120,7 +137,7 @@ struct ToDoView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             Task {
-                await familyCalendarViewModel.loadToday(force: true)
+                await refreshEventKitContent()
             }
         }
         .sheet(item: $editorMode) { mode in
@@ -151,6 +168,11 @@ struct ToDoView: View {
         }
         .sheet(item: $selectedCalendarEvent) { event in
             ToDoCalendarEventDetailSheet(event: event)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedReminder) { reminder in
+            ToDoReminderDetailSheet(reminder: reminder)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -186,10 +208,48 @@ struct ToDoView: View {
     }
 
     private func load(force: Bool = false) async {
-        async let tasksLoad: Void = viewModel.load(apiClient: appEnvironment.apiClient, force: force)
-        async let calendarLoad: Void = familyCalendarViewModel.loadToday(force: force)
+        await runToDoContentOperation {
+            async let tasksLoad: Void = viewModel.load(apiClient: appEnvironment.apiClient, force: force)
+            async let calendarLoad: Void = familyCalendarViewModel.loadToday(force: force)
+            async let remindersLoad: Void = personalRemindersViewModel.loadReminders(force: force)
 
-        _ = await (tasksLoad, calendarLoad)
+            _ = await (tasksLoad, calendarLoad, remindersLoad)
+        }
+    }
+
+    private func refreshCalendar() async {
+        await runToDoContentOperation {
+            await familyCalendarViewModel.loadToday(force: true)
+        }
+    }
+
+    private func refreshReminders() async {
+        await runToDoContentOperation {
+            await personalRemindersViewModel.loadReminders(force: true)
+        }
+    }
+
+    private func refreshEventKitContent() async {
+        await runToDoContentOperation {
+            async let calendarLoad: Void = familyCalendarViewModel.loadToday(force: true)
+            async let remindersLoad: Void = personalRemindersViewModel.loadReminders(force: true)
+
+            _ = await (calendarLoad, remindersLoad)
+        }
+    }
+
+    private func runToDoContentOperation(
+        _ operation: @escaping @MainActor () async -> Void
+    ) async {
+        let task = Task { @MainActor in
+            await operation()
+        }
+
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            // SwiftUI can cancel view tasks around refresh gestures; keep the requested load alive.
+        }
     }
 
     private func delete(_ task: ToDoTask) async {
@@ -255,6 +315,10 @@ private final class ToDoViewModel: ObservableObject {
             hasLoaded = true
             errorMessage = nil
         } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
             errorMessage = error.localizedDescription
             hasLoaded = true
         }
@@ -546,7 +610,10 @@ private struct ToDoSummaryCard: View {
                 )
             }
 
-            ProgressView(value: Double(completedTaskCount), total: Double(completedTaskCount + openTaskCount))
+            ProgressView(
+                value: Double(completedTaskCount),
+                total: Double(max(completedTaskCount + openTaskCount, 1))
+            )
                 .tint(AppColors.success)
 
             HStack(spacing: AppSpacing.small) {
@@ -598,13 +665,19 @@ private struct ToDoCalendarPanel: View {
 
                 Spacer()
 
-                ToDoStatusPill(text: state.statusText, systemImage: state.statusSystemImage, tone: state.statusTone)
+                ToDoStatusPill(
+                    text: state.statusText(eventCount: events.count),
+                    systemImage: state.statusSystemImage(eventCount: events.count),
+                    tone: state.statusTone
+                )
             }
             .padding(.horizontal, AppSpacing.large)
             .padding(.vertical, AppSpacing.medium)
 
-            Divider()
-                .padding(.leading, AppSpacing.large)
+            if showsContentDivider {
+                Divider()
+                    .padding(.leading, AppSpacing.large)
+            }
 
             content
         }
@@ -613,6 +686,15 @@ private struct ToDoCalendarPanel: View {
         .overlay {
             RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
                 .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+
+    private var showsContentDivider: Bool {
+        switch state {
+        case .synced where events.isEmpty:
+            return false
+        default:
+            return true
         }
     }
 
@@ -649,7 +731,7 @@ private struct ToDoCalendarPanel: View {
                 title: "Family Calendar not found",
                 detail: "No calendar named Family was found on this iPhone.",
                 systemImage: "calendar.badge.exclamationmark",
-                actionTitle: "Refresh"
+                actionTitle: nil
             )
         case .failed(let message):
             calendarMessage(
@@ -659,14 +741,7 @@ private struct ToDoCalendarPanel: View {
                 actionTitle: "Retry"
             )
         case .synced:
-            if events.isEmpty {
-                calendarMessage(
-                    title: "Nothing found",
-                    detail: "Nothing found in the Family Calendar for today.",
-                    systemImage: "calendar",
-                    actionTitle: "Refresh"
-                )
-            } else {
+            if !events.isEmpty {
                 ForEach(events) { event in
                     ToDoCalendarEventRow(
                         event: event,
@@ -858,6 +933,286 @@ private struct ToDoCalendarDetailRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct ToDoRemindersPanel: View {
+    let state: ToDoPersonalRemindersState
+    let reminders: [ToDoReminder]
+    let onCompleteReminder: (ToDoReminder) -> Void
+    let onSelectReminder: (ToDoReminder) -> Void
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: AppSpacing.medium) {
+                ToDoIconBadge(systemImage: "checklist", tone: .accent)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text("Reminders")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Text("iOS Reminders")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+
+                Spacer()
+
+                ToDoStatusPill(
+                    text: state.statusText(reminderCount: reminders.count),
+                    systemImage: state.statusSystemImage(reminderCount: reminders.count),
+                    tone: state.statusTone
+                )
+            }
+            .padding(.horizontal, AppSpacing.large)
+            .padding(.vertical, AppSpacing.medium)
+
+            if showsContentDivider {
+                Divider()
+                    .padding(.leading, AppSpacing.large)
+            }
+
+            content
+        }
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+
+    private var showsContentDivider: Bool {
+        switch state {
+        case .synced where reminders.isEmpty:
+            return false
+        default:
+            return true
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .idle, .requestingPermission, .loading:
+            HStack(spacing: AppSpacing.medium) {
+                ProgressView()
+                    .tint(AppColors.accent)
+
+                Text("Syncing Reminders...")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(AppSpacing.large)
+        case .permissionNeeded:
+            reminderMessage(
+                title: "Reminders access needed",
+                detail: "Allow Reminders access to show your personal reminders.",
+                systemImage: "checklist",
+                actionTitle: "Try Again"
+            )
+        case .restricted:
+            reminderMessage(
+                title: "Reminders access restricted",
+                detail: "This iPhone is not allowing Levy Home to read reminders.",
+                systemImage: "lock.circle",
+                actionTitle: nil
+            )
+        case .failed(let message):
+            reminderMessage(
+                title: "Reminders unavailable",
+                detail: message,
+                systemImage: "exclamationmark.triangle",
+                actionTitle: "Retry"
+            )
+        case .synced:
+            if !reminders.isEmpty {
+                ForEach(reminders) { reminder in
+                    ToDoReminderRow(
+                        reminder: reminder,
+                        onComplete: {
+                            onCompleteReminder(reminder)
+                        },
+                        onSelect: {
+                            onSelectReminder(reminder)
+                        }
+                    )
+
+                    if reminder.id != reminders.last?.id {
+                        Divider()
+                            .padding(.leading, 92)
+                    }
+                }
+            }
+        }
+    }
+
+    private func reminderMessage(
+        title: String,
+        detail: String,
+        systemImage: String,
+        actionTitle: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                ToDoIconBadge(systemImage: systemImage, tone: state.statusTone)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if let actionTitle {
+                Button(action: onRetry) {
+                    Label(actionTitle, systemImage: "arrow.clockwise")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(AppSpacing.large)
+    }
+}
+
+private struct ToDoReminderRow: View {
+    let reminder: ToDoReminder
+    let onComplete: () -> Void
+    let onSelect: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Button(action: onComplete) {
+                Image(systemName: "circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(reminder.dueTone.foregroundColor)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Complete reminder")
+
+            VStack(spacing: 2) {
+                Text(reminder.dueBadgeTitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(reminder.dueTone.foregroundColor)
+
+                Text(reminder.dueBadgeSubtitle)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+            }
+            .frame(width: 48)
+
+            VStack(alignment: .leading, spacing: AppSpacing.small) {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
+                    Text(reminder.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    if let priorityText = reminder.priorityBadgeText {
+                        ToDoInlineBadge(text: priorityText, systemImage: "exclamationmark", tone: .warning)
+                    }
+                }
+
+                ToDoReminderMetadataRow(text: reminder.metadataText)
+            }
+
+            Spacer(minLength: AppSpacing.small)
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+                .padding(.top, AppSpacing.xSmall)
+        }
+        .padding(AppSpacing.medium)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ToDoReminderMetadataRow: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.xSmall) {
+            Image(systemName: "list.bullet")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppColors.mutedText)
+
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(AppColors.mutedText)
+                .lineLimit(2)
+        }
+    }
+}
+
+private struct ToDoReminderDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let reminder: ToDoReminder
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    ToDoFormPanel(title: "Reminder", systemImage: "checklist") {
+                        VStack(alignment: .leading, spacing: AppSpacing.small) {
+                            Text(reminder.title)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(reminder.dueDetailText)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(reminder.dueTone.foregroundColor)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    ToDoFormPanel(title: "Details", systemImage: "info.circle") {
+                        ToDoCalendarDetailRow(title: "List", value: reminder.listTitle, systemImage: "list.bullet")
+                        ToDoCalendarDetailRow(title: "Due", value: reminder.dueDetailText, systemImage: "calendar")
+                        ToDoCalendarDetailRow(title: "Priority", value: reminder.priorityText, systemImage: "exclamationmark.circle")
+
+                        if let urlText = reminder.url?.absoluteString, !urlText.isEmpty {
+                            ToDoCalendarDetailRow(title: "URL", value: urlText, systemImage: "link")
+                        }
+                    }
+
+                    if let notes = reminder.notes, !notes.isEmpty {
+                        ToDoFormPanel(title: "Notes", systemImage: "note.text") {
+                            Text(notes)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(AppSpacing.screen)
+                .padding(.bottom, AppSpacing.xLarge)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle("Reminder")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
             }
         }
     }
@@ -2131,6 +2486,7 @@ private final class ToDoFamilyCalendarViewModel: ObservableObject {
     private let service: FamilyCalendarService
     private let userDefaults: UserDefaults
     private let completionStorageKey = "familyCalendarCompletedEventIDs"
+    private var isLoadingToday = false
     private var completedEventIDs: Set<String>
 
     init(service: FamilyCalendarService? = nil, userDefaults: UserDefaults = .standard) {
@@ -2162,7 +2518,18 @@ private final class ToDoFamilyCalendarViewModel: ObservableObject {
             return
         }
 
+        guard !isLoadingToday else {
+            return
+        }
+
+        isLoadingToday = true
+        let previousState = state
+        let previousEvents = events
         state = EKEventStore.authorizationStatus(for: .event) == .notDetermined ? .requestingPermission : .loading
+
+        defer {
+            isLoadingToday = false
+        }
 
         do {
             let result = try await service.loadTodaysFamilyEvents()
@@ -2171,6 +2538,12 @@ private final class ToDoFamilyCalendarViewModel: ObservableObject {
                 event.withCompletion(completedEventIDs.contains(event.completionID))
             }
         } catch {
+            guard !error.isTaskCancellation else {
+                state = previousState
+                events = previousEvents
+                return
+            }
+
             state = .failed(error.localizedDescription)
             events = []
         }
@@ -2213,12 +2586,12 @@ private enum ToDoFamilyCalendarState: Equatable {
     case calendarNotFound
     case failed(String)
 
-    var statusText: String {
+    func statusText(eventCount: Int) -> String {
         switch self {
         case .idle, .requestingPermission, .loading:
             return "Syncing"
         case .synced:
-            return "Synced"
+            return eventCount == 1 ? "1 event today" : "\(eventCount) events today"
         case .permissionNeeded:
             return "Permission Needed"
         case .restricted:
@@ -2230,12 +2603,12 @@ private enum ToDoFamilyCalendarState: Equatable {
         }
     }
 
-    var statusSystemImage: String {
+    func statusSystemImage(eventCount: Int) -> String {
         switch self {
         case .idle, .requestingPermission, .loading:
             return "arrow.triangle.2.circlepath"
         case .synced:
-            return "checkmark.circle.fill"
+            return "calendar"
         case .permissionNeeded, .restricted:
             return "lock.circle"
         case .calendarNotFound:
@@ -2257,6 +2630,425 @@ private enum ToDoFamilyCalendarState: Equatable {
             return .critical
         }
     }
+}
+
+@MainActor
+private final class PersonalRemindersService {
+    static let shared = PersonalRemindersService()
+
+    private let eventStore: EKEventStore
+    private let calendar: Calendar
+
+    init(eventStore: EKEventStore = EKEventStore(), calendar: Calendar = .current) {
+        self.eventStore = eventStore
+        self.calendar = calendar
+    }
+
+    fileprivate func loadIncompleteReminders() async throws -> PersonalRemindersLoadResult {
+        switch EKEventStore.authorizationStatus(for: .reminder) {
+        case .notDetermined:
+            guard try await requestFullAccess() else {
+                return PersonalRemindersLoadResult(state: .permissionNeeded, reminders: [])
+            }
+
+            return try await readIncompleteReminders()
+        case .fullAccess:
+            return try await readIncompleteReminders()
+        case .denied:
+            return PersonalRemindersLoadResult(state: .permissionNeeded, reminders: [])
+        case .restricted:
+            return PersonalRemindersLoadResult(state: .restricted, reminders: [])
+        case .writeOnly:
+            return PersonalRemindersLoadResult(state: .permissionNeeded, reminders: [])
+        @unknown default:
+            return PersonalRemindersLoadResult(state: .failed("Reminders access returned an unknown status."), reminders: [])
+        }
+    }
+
+    fileprivate func completeReminder(_ reminder: ToDoReminder) async throws {
+        guard let ekReminder = eventStore.calendarItem(withIdentifier: reminder.calendarItemIdentifier) as? EKReminder else {
+            throw PersonalRemindersServiceError.reminderNotFound
+        }
+
+        ekReminder.isCompleted = true
+        try eventStore.save(ekReminder, commit: true)
+    }
+
+    private func requestFullAccess() async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            eventStore.requestFullAccessToReminders { granted, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: granted)
+                }
+            }
+        }
+    }
+
+    private func readIncompleteReminders() async throws -> PersonalRemindersLoadResult {
+        let predicate = eventStore.predicateForIncompleteReminders(
+            withDueDateStarting: nil,
+            ending: nil,
+            calendars: nil
+        )
+        let reminders = await fetchReminders(matching: predicate)
+            .filter { !$0.isCompleted }
+            .map { ToDoReminder(reminder: $0, calendar: calendar) }
+
+        return PersonalRemindersLoadResult(state: .synced, reminders: reminders)
+    }
+
+    private func fetchReminders(matching predicate: NSPredicate) async -> [EKReminder] {
+        await withCheckedContinuation { continuation in
+            eventStore.fetchReminders(matching: predicate) { reminders in
+                continuation.resume(returning: reminders ?? [])
+            }
+        }
+    }
+}
+
+private enum PersonalRemindersServiceError: LocalizedError {
+    case reminderNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .reminderNotFound:
+            return "The reminder could not be found."
+        }
+    }
+}
+
+@MainActor
+private final class ToDoPersonalRemindersViewModel: ObservableObject {
+    @Published private(set) var state: ToDoPersonalRemindersState = .idle
+    @Published private(set) var reminders: [ToDoReminder] = []
+
+    private let service: PersonalRemindersService
+    private var isLoadingReminders = false
+    private var completingReminderIDs = Set<String>()
+
+    init(service: PersonalRemindersService? = nil) {
+        self.service = service ?? PersonalRemindersService.shared
+    }
+
+    var reminderCount: Int {
+        reminders.count
+    }
+
+    var displayReminders: [ToDoReminder] {
+        reminders.sorted { first, second in
+            if first.sortDate != second.sortDate {
+                return first.sortDate < second.sortDate
+            }
+
+            if first.listTitle.localizedCaseInsensitiveCompare(second.listTitle) != .orderedSame {
+                return first.listTitle.localizedCaseInsensitiveCompare(second.listTitle) == .orderedAscending
+            }
+
+            return first.title.localizedCaseInsensitiveCompare(second.title) == .orderedAscending
+        }
+    }
+
+    func loadReminders(force: Bool = false) async {
+        if !force, state == .synced {
+            return
+        }
+
+        guard !isLoadingReminders else {
+            return
+        }
+
+        isLoadingReminders = true
+        let previousState = state
+        let previousReminders = reminders
+        state = EKEventStore.authorizationStatus(for: .reminder) == .notDetermined ? .requestingPermission : .loading
+
+        defer {
+            isLoadingReminders = false
+        }
+
+        do {
+            let result = try await service.loadIncompleteReminders()
+            state = result.state
+            reminders = result.reminders
+        } catch {
+            guard !error.isTaskCancellation else {
+                state = previousState
+                reminders = previousReminders
+                return
+            }
+
+            state = .failed(error.localizedDescription)
+            reminders = []
+        }
+    }
+
+    func complete(_ reminder: ToDoReminder) async {
+        guard !completingReminderIDs.contains(reminder.id) else {
+            return
+        }
+
+        completingReminderIDs.insert(reminder.id)
+
+        defer {
+            completingReminderIDs.remove(reminder.id)
+        }
+
+        do {
+            try await service.completeReminder(reminder)
+            reminders.removeAll { $0.id == reminder.id }
+            state = .synced
+        } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
+            state = .failed(error.localizedDescription)
+        }
+    }
+}
+
+private struct PersonalRemindersLoadResult {
+    let state: ToDoPersonalRemindersState
+    let reminders: [ToDoReminder]
+}
+
+private enum ToDoPersonalRemindersState: Equatable {
+    case idle
+    case requestingPermission
+    case loading
+    case synced
+    case permissionNeeded
+    case restricted
+    case failed(String)
+
+    func statusText(reminderCount: Int) -> String {
+        switch self {
+        case .idle, .requestingPermission, .loading:
+            return "Syncing"
+        case .synced:
+            return reminderCount == 1 ? "1 reminder" : "\(reminderCount) reminders"
+        case .permissionNeeded:
+            return "Permission Needed"
+        case .restricted:
+            return "Restricted"
+        case .failed:
+            return "Error"
+        }
+    }
+
+    func statusSystemImage(reminderCount: Int) -> String {
+        switch self {
+        case .idle, .requestingPermission, .loading:
+            return "arrow.triangle.2.circlepath"
+        case .synced:
+            return "checklist"
+        case .permissionNeeded, .restricted:
+            return "lock.circle"
+        case .failed:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    var statusTone: ToDoTone {
+        switch self {
+        case .idle, .requestingPermission, .loading:
+            return .accent
+        case .synced:
+            return .success
+        case .permissionNeeded, .restricted:
+            return .warning
+        case .failed:
+            return .critical
+        }
+    }
+}
+
+private struct ToDoReminder: Identifiable {
+    let id: String
+    let calendarItemIdentifier: String
+    let title: String
+    let listTitle: String
+    let dueDate: Date?
+    let hasDueTime: Bool
+    let notes: String?
+    let url: URL?
+    let priority: Int
+
+    init(reminder: EKReminder, calendar: Calendar = .current) {
+        let identifier = reminder.calendarItemIdentifier
+        let dueDateComponents = reminder.dueDateComponents
+
+        id = identifier
+        calendarItemIdentifier = identifier
+        title = Self.normalizedOptionalText(reminder.title) ?? "Untitled reminder"
+        listTitle = reminder.calendar?.title ?? "Reminders"
+        dueDate = Self.date(from: dueDateComponents, fallbackCalendar: calendar)
+        hasDueTime = Self.hasTime(in: dueDateComponents)
+        notes = Self.normalizedOptionalText(reminder.notes)
+        url = reminder.url
+        priority = reminder.priority
+    }
+
+    var sortDate: Date {
+        dueDate ?? .distantFuture
+    }
+
+    var dueBadgeTitle: String {
+        guard let dueDate else {
+            return "No"
+        }
+
+        if hasDueTime {
+            return Self.timeFormatter.string(from: dueDate)
+        }
+
+        if Calendar.current.isDateInToday(dueDate) {
+            return "Today"
+        }
+
+        if Calendar.current.isDateInTomorrow(dueDate) {
+            return "Tmrw"
+        }
+
+        if dueDate < Calendar.current.startOfDay(for: Date()) {
+            return Self.monthFormatter.string(from: dueDate)
+        }
+
+        return Self.monthFormatter.string(from: dueDate)
+    }
+
+    var dueBadgeSubtitle: String {
+        guard let dueDate else {
+            return "Date"
+        }
+
+        if hasDueTime {
+            return Self.periodFormatter.string(from: dueDate)
+        }
+
+        if Calendar.current.isDateInToday(dueDate) || Calendar.current.isDateInTomorrow(dueDate) {
+            return "Due"
+        }
+
+        return Self.dayFormatter.string(from: dueDate)
+    }
+
+    var dueDetailText: String {
+        guard let dueDate else {
+            return "No due date"
+        }
+
+        let dateText: String
+        if Calendar.current.isDateInToday(dueDate) {
+            dateText = "today"
+        } else if Calendar.current.isDateInTomorrow(dueDate) {
+            dateText = "tomorrow"
+        } else {
+            dateText = Self.detailDateFormatter.string(from: dueDate)
+        }
+
+        if hasDueTime {
+            return "Due \(dateText) at \(Self.detailTimeFormatter.string(from: dueDate))"
+        }
+
+        return "Due \(dateText)"
+    }
+
+    var metadataText: String {
+        "\(listTitle) - \(dueDetailText)"
+    }
+
+    var priorityText: String {
+        switch priority {
+        case 1...4:
+            return "High"
+        case 5:
+            return "Medium"
+        case 6...9:
+            return "Low"
+        default:
+            return "No priority"
+        }
+    }
+
+    var priorityBadgeText: String? {
+        priorityText == "High" ? "High" : nil
+    }
+
+    var dueTone: ToDoTone {
+        guard let dueDate else {
+            return .neutral
+        }
+
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        if dueDate < startOfToday || Calendar.current.isDateInToday(dueDate) {
+            return .warning
+        }
+
+        return .accent
+    }
+
+    private static func date(from components: DateComponents?, fallbackCalendar: Calendar) -> Date? {
+        guard let components else {
+            return nil
+        }
+
+        let calendar = components.calendar ?? fallbackCalendar
+        return calendar.date(from: components)
+    }
+
+    private static func hasTime(in components: DateComponents?) -> Bool {
+        guard let components else {
+            return false
+        }
+
+        return components.hour != nil || components.minute != nil || components.second != nil
+    }
+
+    private static func normalizedOptionalText(_ value: String?) -> String? {
+        let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmedValue.isEmpty ? nil : trimmedValue
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm"
+        return formatter
+    }()
+
+    private static let periodFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "a"
+        return formatter
+    }()
+
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter
+    }()
+
+    private static let detailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static let detailTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }
 
 private struct ToDoCalendarEvent: Identifiable {
