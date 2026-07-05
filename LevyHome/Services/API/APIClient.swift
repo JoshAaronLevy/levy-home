@@ -1,7 +1,7 @@
 import Foundation
 
 final class APIClient {
-    private enum HTTPMethod: String {
+    enum HTTPMethod: String {
         case get = "GET"
         case delete = "DELETE"
         case patch = "PATCH"
@@ -29,178 +29,7 @@ final class APIClient {
         self.appLogStore = appLogStore
     }
 
-    func fetchRecentEvents(limit: Int? = nil, start: Date? = nil, end: Date? = nil) async throws -> EventsResponse {
-        var queryItems: [URLQueryItem] = []
-
-        if let limit {
-            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
-        }
-
-        if let start {
-            queryItems.append(URLQueryItem(name: "start", value: Self.iso8601Formatter.string(from: start)))
-        }
-
-        if let end {
-            queryItems.append(URLQueryItem(name: "end", value: Self.iso8601Formatter.string(from: end)))
-        }
-
-        return try await send(path: "/api/events", queryItems: queryItems)
-    }
-
-    func fetchHomeOverview() async throws -> HomeOverviewResponse {
-        try await send(path: "/api/home/overview")
-    }
-
-    func fetchQuickActions() async throws -> QuickActionsResponse {
-        try await send(path: "/api/home/actions")
-    }
-
-    func performQuickAction(_ request: QuickActionRequest) async throws -> QuickActionResponse {
-        try await send(path: "/api/home/actions", method: .post, body: request)
-    }
-
-    func fetchUsers() async throws -> UsersResponse {
-        try await send(path: "/api/users")
-    }
-
-    func fetchToDoLocations() async throws -> ToDoLocationsResponse {
-        try await send(path: "/api/todo/locations")
-    }
-
-    func createToDoLocation(_ request: CreateToDoLocationRequest) async throws -> ToDoLocationMutationResponse {
-        try await send(path: "/api/todo/locations", method: .post, body: request)
-    }
-
-    func fetchToDoList() async throws -> ToDoListResponse {
-        try await send(path: "/api/todo-list")
-    }
-
-    func createToDoItem(_ request: CreateToDoItemRequest) async throws -> ToDoListMutationResponse {
-        try await send(
-            path: "/api/todo-list/items",
-            method: .post,
-            body: request,
-            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
-        )
-    }
-
-    func updateToDoItem(
-        id itemId: Int,
-        _ request: UpdateToDoItemRequest
-    ) async throws -> ToDoListMutationResponse {
-        try await send(
-            path: "/api/todo-list/items/\(itemId)",
-            method: .patch,
-            body: request,
-            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
-        )
-    }
-
-    func deleteToDoItem(id itemId: Int, actor: String? = nil) async throws -> DeleteToDoItemResponse {
-        let request = DeleteToDoItemRequest(actor: actor)
-
-        return try await send(
-            path: "/api/todo-list/items/\(itemId)",
-            method: .delete,
-            body: request,
-            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
-        )
-    }
-
-    func fetchShoppingList() async throws -> ShoppingListResponse {
-        try await send(path: "/api/shopping-list")
-    }
-
-    func lookupShoppingListItem(named name: String) async throws -> ShoppingListItemLookupResponse {
-        try await send(
-            path: "/api/shopping-list/items/lookup",
-            queryItems: [
-                URLQueryItem(name: "name", value: name)
-            ]
-        )
-    }
-
-    func fetchKrogerProductDiagnostic(named name: String = "Soy Milk") async throws -> KrogerProductDiagnosticResponse {
-        try await send(
-            path: "/api/debug/kroger/products",
-            queryItems: [
-                URLQueryItem(name: "term", value: name)
-            ]
-        )
-    }
-
-    func searchKrogerProducts(named name: String) async throws -> KrogerProductSearchResponse {
-        try await send(
-            path: "/api/shopping-list/products/search",
-            queryItems: [
-                URLQueryItem(name: "term", value: name)
-            ]
-        )
-    }
-
-    func createShoppingListItem(_ request: CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse {
-        try await send(
-            path: "/api/shopping-list/items",
-            method: .post,
-            body: request,
-            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
-        )
-    }
-
-    func updateShoppingListItem(
-        id itemId: Int,
-        _ request: UpdateShoppingListItemRequest
-    ) async throws -> ShoppingListMutationResponse {
-        try await send(
-            path: "/api/shopping-list/items/\(itemId)",
-            method: .patch,
-            body: request,
-            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
-        )
-    }
-
-    func deleteShoppingListItem(id itemId: Int, actor: String? = nil) async throws -> DeleteShoppingListItemResponse {
-        let request = DeleteShoppingListItemRequest(actor: actor)
-
-        return try await send(
-            path: "/api/shopping-list/items/\(itemId)",
-            method: .delete,
-            body: request,
-            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
-        )
-    }
-
-    func fetchNotificationPreferences() async throws -> NotificationPreferencesResponse {
-        try await send(path: "/api/notification-preferences")
-    }
-
-    func updateNotificationPreferences(
-        _ request: NotificationPreferencesUpdateRequest
-    ) async throws -> NotificationPreferencesResponse {
-        try await send(path: "/api/notification-preferences", method: .put, body: request)
-    }
-
-    func registerDevice(_ request: RegisterDeviceRequest) async throws -> RegisterDeviceResponse {
-        try await send(path: "/api/devices/register", method: .post, body: request)
-    }
-
-    func sendTestPush(_ request: TestPushRequest? = nil) async throws -> TestPushResponse {
-        if let request {
-            return try await send(path: "/api/debug/send-test-push", method: .post, body: request)
-        }
-
-        return try await send(path: "/api/debug/send-test-push", method: .post)
-    }
-
-    func sendNotificationPipelineTest() async throws -> TestNotificationPipelineResponse {
-        try await send(path: "/api/debug/notification-pipeline-test", method: .post)
-    }
-
-    func fetchHealth() async throws -> HealthResponse {
-        try await send(path: "/health")
-    }
-
-    private func send<Response: Decodable>(
+    func send<Response: Decodable>(
         path: String,
         method: HTTPMethod = .get,
         queryItems: [URLQueryItem] = [],
@@ -215,7 +44,7 @@ final class APIClient {
         )
     }
 
-    private func send<Response: Decodable, Body: Encodable>(
+    func send<Response: Decodable, Body: Encodable>(
         path: String,
         method: HTTPMethod,
         queryItems: [URLQueryItem] = [],
@@ -245,7 +74,7 @@ final class APIClient {
         )
     }
 
-    private func send<Response: Decodable>(
+    func send<Response: Decodable>(
         path: String,
         method: HTTPMethod,
         queryItems: [URLQueryItem],
@@ -391,13 +220,7 @@ final class APIClient {
     }
 }
 
-protocol DeviceRegistrationServicing {
-    func registerDevice(_ request: RegisterDeviceRequest) async throws -> RegisterDeviceResponse
-}
-
-extension APIClient: DeviceRegistrationServicing {}
-
-private extension APIClient {
+extension APIClient {
     static let mutationIDHeader = "X-Levy-Home-Mutation-ID"
 
     static let iso8601Formatter: ISO8601DateFormatter = {

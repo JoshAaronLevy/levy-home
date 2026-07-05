@@ -65,6 +65,12 @@
 		A60000000000000000000004 /* APIModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* APIModelDecodingTests.swift */; };
 		A70000000000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* APIClient.swift */; };
 		A70000000000000000000002 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* APIClientTests.swift */; };
+		F70000000000000000000001 /* APIClient+Activity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000021 /* APIClient+Activity.swift */; };
+		F70000000000000000000002 /* APIClient+Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000022 /* APIClient+Home.swift */; };
+		F70000000000000000000003 /* APIClient+Shopping.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000023 /* APIClient+Shopping.swift */; };
+		F70000000000000000000004 /* APIClient+ToDo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000024 /* APIClient+ToDo.swift */; };
+		F70000000000000000000005 /* APIClient+Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000025 /* APIClient+Notifications.swift */; };
+		F70000000000000000000006 /* APIClient+System.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000026 /* APIClient+System.swift */; };
 		A80000000000000000000001 /* ActivityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* ActivityViewModel.swift */; };
 		A80000000000000000000002 /* DateFormattingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* DateFormattingService.swift */; };
 		A80000000000000000000003 /* SeverityBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SeverityBadgeView.swift */; };
@@ -82,6 +88,14 @@
 		B30000000000000000000002 /* HomeWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000012 /* HomeWeatherService.swift */; };
 		B30000000000000000000003 /* HomeWeatherViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000013 /* HomeWeatherViewModel.swift */; };
 		B30000000000000000000004 /* HomeWeatherViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000014 /* HomeWeatherViewModelTests.swift */; };
+		F50000000000000000000001 /* HomeWeatherServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000021 /* HomeWeatherServicing.swift */; };
+		F50000000000000000000002 /* HomeLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000022 /* HomeLocationProvider.swift */; };
+		F50000000000000000000003 /* WeatherKitHomeWeatherProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000023 /* WeatherKitHomeWeatherProvider.swift */; };
+		F50000000000000000000004 /* OpenMeteoHomeWeatherProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000024 /* OpenMeteoHomeWeatherProvider.swift */; };
+		F50000000000000000000005 /* NationalWeatherServiceHomeWeatherProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000025 /* NationalWeatherServiceHomeWeatherProvider.swift */; };
+		F50000000000000000000006 /* OpenMeteoDateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000026 /* OpenMeteoDateParser.swift */; };
+		F50000000000000000000007 /* OpenMeteoWeatherCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000027 /* OpenMeteoWeatherCode.swift */; };
+		F50000000000000000000008 /* WeatherProviderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000028 /* WeatherProviderModels.swift */; };
 		B20000000000000000000001 /* QuickActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* QuickActionService.swift */; };
 		B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* QuickActionsViewModel.swift */; };
 		B20000000000000000000003 /* QuickActionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* QuickActionsViewModelTests.swift */; };
@@ -115,6 +129,10 @@
 		E10000000000000000000001 /* ShoppingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* ShoppingListView.swift */; };
 		E30000000000000000000001 /* ShoppingListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30000000000000000000011 /* ShoppingListViewModel.swift */; };
 		E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70000000000000000000011 /* ShoppingListLiveService.swift */; };
+		F60000000000000000000001 /* ShoppingListLiveServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000021 /* ShoppingListLiveServicing.swift */; };
+		F60000000000000000000002 /* ShoppingListLiveMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000022 /* ShoppingListLiveMessages.swift */; };
+		F60000000000000000000003 /* ShoppingListViewerPresence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000023 /* ShoppingListViewerPresence.swift */; };
+		F60000000000000000000004 /* ShoppingListLiveConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000024 /* ShoppingListLiveConnectionState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -241,6 +259,24 @@
 		E10000000000000000000011 /* ShoppingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListView.swift; sourceTree = "<group>"; };
 		E30000000000000000000011 /* ShoppingListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListViewModel.swift; sourceTree = "<group>"; };
 		E70000000000000000000011 /* ShoppingListLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveService.swift; sourceTree = "<group>"; };
+		F50000000000000000000021 /* HomeWeatherServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWeatherServicing.swift; sourceTree = "<group>"; };
+		F50000000000000000000022 /* HomeLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeLocationProvider.swift; sourceTree = "<group>"; };
+		F50000000000000000000023 /* WeatherKitHomeWeatherProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitHomeWeatherProvider.swift; sourceTree = "<group>"; };
+		F50000000000000000000024 /* OpenMeteoHomeWeatherProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoHomeWeatherProvider.swift; sourceTree = "<group>"; };
+		F50000000000000000000025 /* NationalWeatherServiceHomeWeatherProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalWeatherServiceHomeWeatherProvider.swift; sourceTree = "<group>"; };
+		F50000000000000000000026 /* OpenMeteoDateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoDateParser.swift; sourceTree = "<group>"; };
+		F50000000000000000000027 /* OpenMeteoWeatherCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoWeatherCode.swift; sourceTree = "<group>"; };
+		F50000000000000000000028 /* WeatherProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherProviderModels.swift; sourceTree = "<group>"; };
+		F60000000000000000000021 /* ShoppingListLiveServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveServicing.swift; sourceTree = "<group>"; };
+		F60000000000000000000022 /* ShoppingListLiveMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveMessages.swift; sourceTree = "<group>"; };
+		F60000000000000000000023 /* ShoppingListViewerPresence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListViewerPresence.swift; sourceTree = "<group>"; };
+		F60000000000000000000024 /* ShoppingListLiveConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveConnectionState.swift; sourceTree = "<group>"; };
+		F70000000000000000000021 /* APIClient+Activity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Activity.swift"; sourceTree = "<group>"; };
+		F70000000000000000000022 /* APIClient+Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Home.swift"; sourceTree = "<group>"; };
+		F70000000000000000000023 /* APIClient+Shopping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Shopping.swift"; sourceTree = "<group>"; };
+		F70000000000000000000024 /* APIClient+ToDo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+ToDo.swift"; sourceTree = "<group>"; };
+		F70000000000000000000025 /* APIClient+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Notifications.swift"; sourceTree = "<group>"; };
+		F70000000000000000000026 /* APIClient+System.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+System.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -505,11 +541,11 @@
 		A70000000000000000000021 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				A70000000000000000000011 /* APIClient.swift */,
-				E70000000000000000000011 /* ShoppingListLiveService.swift */,
+				F70000000000000000000030 /* API */,
+				F60000000000000000000030 /* Shopping */,
 				A80000000000000000000012 /* DateFormattingService.swift */,
 				B10000000000000000000011 /* HomeStatusService.swift */,
-				B30000000000000000000012 /* HomeWeatherService.swift */,
+				F50000000000000000000030 /* Weather */,
 				B20000000000000000000011 /* QuickActionService.swift */,
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 				D10000000000000000000012 /* ThemePreferenceService.swift */,
@@ -517,6 +553,48 @@
 				E00000000000000000000025 /* EventKit */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		F50000000000000000000030 /* Weather */ = {
+			isa = PBXGroup;
+			children = (
+				F50000000000000000000021 /* HomeWeatherServicing.swift */,
+				F50000000000000000000022 /* HomeLocationProvider.swift */,
+				B30000000000000000000012 /* HomeWeatherService.swift */,
+				F50000000000000000000023 /* WeatherKitHomeWeatherProvider.swift */,
+				F50000000000000000000024 /* OpenMeteoHomeWeatherProvider.swift */,
+				F50000000000000000000025 /* NationalWeatherServiceHomeWeatherProvider.swift */,
+				F50000000000000000000026 /* OpenMeteoDateParser.swift */,
+				F50000000000000000000027 /* OpenMeteoWeatherCode.swift */,
+				F50000000000000000000028 /* WeatherProviderModels.swift */,
+			);
+			path = Weather;
+			sourceTree = "<group>";
+		};
+		F60000000000000000000030 /* Shopping */ = {
+			isa = PBXGroup;
+			children = (
+				F60000000000000000000021 /* ShoppingListLiveServicing.swift */,
+				F60000000000000000000022 /* ShoppingListLiveMessages.swift */,
+				F60000000000000000000023 /* ShoppingListViewerPresence.swift */,
+				F60000000000000000000024 /* ShoppingListLiveConnectionState.swift */,
+				E70000000000000000000011 /* ShoppingListLiveService.swift */,
+			);
+			path = Shopping;
+			sourceTree = "<group>";
+		};
+		F70000000000000000000030 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				A70000000000000000000011 /* APIClient.swift */,
+				F70000000000000000000021 /* APIClient+Activity.swift */,
+				F70000000000000000000022 /* APIClient+Home.swift */,
+				F70000000000000000000023 /* APIClient+Shopping.swift */,
+				F70000000000000000000024 /* APIClient+ToDo.swift */,
+				F70000000000000000000025 /* APIClient+Notifications.swift */,
+				F70000000000000000000026 /* APIClient+System.swift */,
+			);
+			path = API;
 			sourceTree = "<group>";
 		};
 		A80000000000000000000021 /* ViewModels */ = {
@@ -801,14 +879,32 @@
 				A60000000000000000000002 /* APIRequests.swift in Sources */,
 				A60000000000000000000003 /* APIResponses.swift in Sources */,
 				A70000000000000000000001 /* APIClient.swift in Sources */,
+				F70000000000000000000001 /* APIClient+Activity.swift in Sources */,
+				F70000000000000000000002 /* APIClient+Home.swift in Sources */,
+				F70000000000000000000003 /* APIClient+Shopping.swift in Sources */,
+				F70000000000000000000004 /* APIClient+ToDo.swift in Sources */,
+				F70000000000000000000005 /* APIClient+Notifications.swift in Sources */,
+				F70000000000000000000006 /* APIClient+System.swift in Sources */,
 				E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */,
+				F60000000000000000000001 /* ShoppingListLiveServicing.swift in Sources */,
+				F60000000000000000000002 /* ShoppingListLiveMessages.swift in Sources */,
+				F60000000000000000000003 /* ShoppingListViewerPresence.swift in Sources */,
+				F60000000000000000000004 /* ShoppingListLiveConnectionState.swift in Sources */,
 				A80000000000000000000001 /* ActivityViewModel.swift in Sources */,
 				A80000000000000000000002 /* DateFormattingService.swift in Sources */,
 				A80000000000000000000003 /* SeverityBadgeView.swift in Sources */,
 				A80000000000000000000004 /* EventCardView.swift in Sources */,
 				B10000000000000000000001 /* HomeStatusService.swift in Sources */,
 				B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */,
+				F50000000000000000000001 /* HomeWeatherServicing.swift in Sources */,
+				F50000000000000000000002 /* HomeLocationProvider.swift in Sources */,
 				B30000000000000000000002 /* HomeWeatherService.swift in Sources */,
+				F50000000000000000000003 /* WeatherKitHomeWeatherProvider.swift in Sources */,
+				F50000000000000000000004 /* OpenMeteoHomeWeatherProvider.swift in Sources */,
+				F50000000000000000000005 /* NationalWeatherServiceHomeWeatherProvider.swift in Sources */,
+				F50000000000000000000006 /* OpenMeteoDateParser.swift in Sources */,
+				F50000000000000000000007 /* OpenMeteoWeatherCode.swift in Sources */,
+				F50000000000000000000008 /* WeatherProviderModels.swift in Sources */,
 				B30000000000000000000003 /* HomeWeatherViewModel.swift in Sources */,
 				B20000000000000000000001 /* QuickActionService.swift in Sources */,
 				B20000000000000000000002 /* QuickActionsViewModel.swift in Sources */,

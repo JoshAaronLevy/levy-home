@@ -1526,6 +1526,153 @@ Steps:
 - Each service file has a clear integration boundary.
 - Tests still cover provider fallback, request encoding, response decoding, and cancellation behavior.
 
+### Stage 5 Results
+
+Completed on 2026-07-05.
+
+#### Service Splits
+
+`LevyHome/Services/HomeWeatherService.swift` was split into:
+
+```text
+LevyHome/Services/Weather/HomeWeatherServicing.swift
+LevyHome/Services/Weather/HomeLocationProvider.swift
+LevyHome/Services/Weather/HomeWeatherService.swift
+LevyHome/Services/Weather/WeatherKitHomeWeatherProvider.swift
+LevyHome/Services/Weather/OpenMeteoHomeWeatherProvider.swift
+LevyHome/Services/Weather/NationalWeatherServiceHomeWeatherProvider.swift
+LevyHome/Services/Weather/OpenMeteoDateParser.swift
+LevyHome/Services/Weather/OpenMeteoWeatherCode.swift
+LevyHome/Services/Weather/WeatherProviderModels.swift
+```
+
+Notes:
+
+- Weather orchestration remains in `HomeWeatherService`.
+- WeatherKit, Open-Meteo, and National Weather Service integrations now live in provider-specific files.
+- Open-Meteo parsing/code mapping helpers moved into focused helper files.
+- Provider fallback and cancellation behavior was preserved.
+
+`LevyHome/Services/ShoppingListLiveService.swift` was split into:
+
+```text
+LevyHome/Services/Shopping/ShoppingListLiveServicing.swift
+LevyHome/Services/Shopping/ShoppingListViewerPresence.swift
+LevyHome/Services/Shopping/ShoppingListLiveMessages.swift
+LevyHome/Services/Shopping/ShoppingListLiveConnectionState.swift
+LevyHome/Services/Shopping/ShoppingListLiveService.swift
+```
+
+Notes:
+
+- WebSocket lifecycle code remains in `ShoppingListLiveService`.
+- Protocol, presence models, messages, and connection state are now separate declarations.
+
+`LevyHome/Services/APIClient.swift` was split into:
+
+```text
+LevyHome/Services/API/APIClient.swift
+LevyHome/Services/API/APIClient+Activity.swift
+LevyHome/Services/API/APIClient+Home.swift
+LevyHome/Services/API/APIClient+Shopping.swift
+LevyHome/Services/API/APIClient+ToDo.swift
+LevyHome/Services/API/APIClient+Notifications.swift
+LevyHome/Services/API/APIClient+System.swift
+```
+
+Notes:
+
+- The app still uses one `APIClient` type.
+- The shared request sender remains in `APIClient.swift`.
+- Endpoint methods moved into domain extension files.
+- `DeviceRegistrationServicing` moved alongside notification/device registration endpoints.
+
+#### File-Size Snapshot
+
+Command:
+
+```bash
+wc -l LevyHome/Services/API/*.swift LevyHome/Services/Shopping/*.swift LevyHome/Services/Weather/*.swift
+```
+
+Result:
+
+```text
+      21 LevyHome/Services/API/APIClient+Activity.swift
+      15 LevyHome/Services/API/APIClient+Home.swift
+      35 LevyHome/Services/API/APIClient+Notifications.swift
+      66 LevyHome/Services/API/APIClient+Shopping.swift
+       9 LevyHome/Services/API/APIClient+System.swift
+      47 LevyHome/Services/API/APIClient+ToDo.swift
+     243 LevyHome/Services/API/APIClient.swift
+      10 LevyHome/Services/Shopping/ShoppingListLiveConnectionState.swift
+     151 LevyHome/Services/Shopping/ShoppingListLiveMessages.swift
+     445 LevyHome/Services/Shopping/ShoppingListLiveService.swift
+       5 LevyHome/Services/Shopping/ShoppingListLiveServicing.swift
+      23 LevyHome/Services/Shopping/ShoppingListViewerPresence.swift
+      23 LevyHome/Services/Weather/HomeLocationProvider.swift
+     243 LevyHome/Services/Weather/HomeWeatherService.swift
+      13 LevyHome/Services/Weather/HomeWeatherServicing.swift
+     291 LevyHome/Services/Weather/NationalWeatherServiceHomeWeatherProvider.swift
+      26 LevyHome/Services/Weather/OpenMeteoDateParser.swift
+     208 LevyHome/Services/Weather/OpenMeteoHomeWeatherProvider.swift
+      82 LevyHome/Services/Weather/OpenMeteoWeatherCode.swift
+      51 LevyHome/Services/Weather/WeatherKitHomeWeatherProvider.swift
+       9 LevyHome/Services/Weather/WeatherProviderModels.swift
+    2016 total
+```
+
+#### Verification
+
+Project file lint:
+
+```bash
+plutil -lint LevyHome.xcodeproj/project.pbxproj
+```
+
+Result:
+
+```text
+LevyHome.xcodeproj/project.pbxproj: OK
+```
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Focused tests:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LevyHomeTests/HomeWeatherViewModelTests
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LevyHomeTests/ShoppingListViewModelTests
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LevyHomeTests/APIClientTests
+```
+
+Results:
+
+```text
+HomeWeatherViewModelTests: ** TEST SUCCEEDED **, 16 tests, 0 failures.
+ShoppingListViewModelTests: ** TEST SUCCEEDED **, 1 test, 0 failures.
+APIClientTests: ** TEST SUCCEEDED **, 8 tests, 0 failures.
+```
+
+Full test suite:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+Result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
 ## Stage 6: Models And API DTO Refactor
 
 ### Objective
