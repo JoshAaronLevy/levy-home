@@ -1726,6 +1726,122 @@ LevyHome/Models/API/
 - `ModelDecodingTests` and `APIModelDecodingTests` pass.
 - No backend contract changes are made as part of this refactor.
 
+### Stage 6 Results
+
+Completed on 2026-07-05.
+
+#### API Model Splits
+
+`LevyHome/Models/APIResponses.swift` and `LevyHome/Models/APIRequests.swift` were removed and replaced with domain-oriented files under `LevyHome/Models/API/`:
+
+```text
+LevyHome/Models/API/DeviceAPIRequests.swift
+LevyHome/Models/API/EventsAPIRequests.swift
+LevyHome/Models/API/EventsAPIResponses.swift
+LevyHome/Models/API/HealthAPIResponses.swift
+LevyHome/Models/API/HomeAPIResponses.swift
+LevyHome/Models/API/JSONValue.swift
+LevyHome/Models/API/NotificationAPIRequests.swift
+LevyHome/Models/API/NotificationAPIResponses.swift
+LevyHome/Models/API/NullableAPIValue.swift
+LevyHome/Models/API/QuickActionAPIRequests.swift
+LevyHome/Models/API/QuickActionAPIResponses.swift
+LevyHome/Models/API/ShoppingAPIRequests.swift
+LevyHome/Models/API/ShoppingAPIResponses.swift
+LevyHome/Models/API/ToDoAPIRequests.swift
+LevyHome/Models/API/ToDoAPIResponses.swift
+LevyHome/Models/API/UserAPIResponses.swift
+```
+
+Notes:
+
+- Type names and field names were preserved.
+- No backend contract changes were made.
+- `CreateToDoLocationRequest` moved from the old response file into `ToDoAPIRequests.swift`.
+- `JSONValue` now lives in its own file and remains shared by shopping/Kroger DTOs.
+- `ShoppingListNullableValue` moved into `NullableAPIValue.swift` because it is shared by shopping and to-do update requests.
+- Extra existing request DTOs not listed in the initial target sketch were kept in focused files: `EventsAPIRequests.swift` and `QuickActionAPIRequests.swift`.
+- Device registration request enums live in `DeviceAPIRequests.swift`; device/test-push responses remain with notification responses because they describe push delivery surfaces.
+
+#### File-Size Snapshot
+
+Command:
+
+```bash
+wc -l LevyHome/Models/API/*.swift | sort -nr
+```
+
+Result:
+
+```text
+     883 total
+     375 LevyHome/Models/API/ShoppingAPIResponses.swift
+      85 LevyHome/Models/API/ShoppingAPIRequests.swift
+      84 LevyHome/Models/API/ToDoAPIRequests.swift
+      83 LevyHome/Models/API/ToDoAPIResponses.swift
+      54 LevyHome/Models/API/NotificationAPIResponses.swift
+      53 LevyHome/Models/API/JSONValue.swift
+      33 LevyHome/Models/API/QuickActionAPIRequests.swift
+      26 LevyHome/Models/API/DeviceAPIRequests.swift
+      25 LevyHome/Models/API/UserAPIResponses.swift
+      23 LevyHome/Models/API/NotificationAPIRequests.swift
+      14 LevyHome/Models/API/NullableAPIValue.swift
+      10 LevyHome/Models/API/QuickActionAPIResponses.swift
+       7 LevyHome/Models/API/HealthAPIResponses.swift
+       4 LevyHome/Models/API/HomeAPIResponses.swift
+       4 LevyHome/Models/API/EventsAPIResponses.swift
+       3 LevyHome/Models/API/EventsAPIRequests.swift
+```
+
+#### Verification
+
+Project file lint:
+
+```bash
+plutil -lint LevyHome.xcodeproj/project.pbxproj
+```
+
+Result:
+
+```text
+LevyHome.xcodeproj/project.pbxproj: OK
+```
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Focused tests:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LevyHomeTests/APIModelDecodingTests -only-testing:LevyHomeTests/APIClientTests
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LevyHomeTests/ModelDecodingTests
+```
+
+Results:
+
+```text
+APIModelDecodingTests + APIClientTests: ** TEST SUCCEEDED **, 22 tests, 0 failures.
+ModelDecodingTests: ** TEST SUCCEEDED **, 12 tests, 0 failures.
+```
+
+Full test suite:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+Result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
 ## Stage 7: Shared UI And Theme Cleanup
 
 ### Objective
