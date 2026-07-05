@@ -298,6 +298,79 @@ Make it safe and repeatable to add many Swift files.
 - At least one small file move proves the `.pbxproj` process.
 - Build/test still passes.
 
+### Stage 1 Results
+
+Completed on 2026-07-05 as a small project-file organization proof.
+
+#### Moved File
+
+Moved the self-contained To Do flow layout helper out of the large To Do screen file:
+
+```text
+LevyHome/Views/ToDo/Components/FlowLayout.swift
+```
+
+The implementation was moved without behavior changes. `FlowLayout` is now an internal app-target type instead of a `private` type nested in `ToDoView.swift`, which proves the access-control adjustment that future file splits will need.
+
+Line-count check after the move:
+
+```text
+3544 LevyHome/Views/ToDo/ToDoView.swift
+  90 LevyHome/Views/ToDo/Components/FlowLayout.swift
+3634 total
+```
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` manually with:
+
+- one `PBXBuildFile` entry for `FlowLayout.swift`
+- one `PBXFileReference` entry for `FlowLayout.swift`
+- one `Components` `PBXGroup` under `Views/ToDo`
+- one app-target `PBXSourcesBuildPhase` entry
+
+The test build output confirmed Xcode compiled:
+
+```text
+LevyHome/Views/ToDo/Components/FlowLayout.swift
+```
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+Simulator/system logs appeared during the run, including CA event messages, Network framework connection logs, and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the test run.
+
+#### Pattern For Future Stages
+
+For each new Swift file in later stages:
+
+1. Create the feature subfolder only when the first file moves into it.
+2. Move one declaration group at a time.
+3. Change `private` to internal only when cross-file access requires it.
+4. Add the new file to the matching Xcode group.
+5. Add the new file to the app target's sources build phase.
+6. Run `git diff --check` and the full `xcodebuild test` command.
+
 ## Stage 2: To Do Feature Refactor
 
 ### Why First
