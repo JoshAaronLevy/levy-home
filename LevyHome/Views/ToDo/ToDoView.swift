@@ -210,10 +210,9 @@ struct ToDoView: View {
     private func load(force: Bool = false) async {
         await runToDoContentOperation {
             async let tasksLoad: Void = viewModel.load(apiClient: appEnvironment.apiClient, force: force)
-            async let calendarLoad: Void = familyCalendarViewModel.loadToday(force: force)
-            async let remindersLoad: Void = personalRemindersViewModel.loadReminders(force: force)
+            await loadEventKitContent(force: force)
 
-            _ = await (tasksLoad, calendarLoad, remindersLoad)
+            _ = await tasksLoad
         }
     }
 
@@ -231,11 +230,13 @@ struct ToDoView: View {
 
     private func refreshEventKitContent() async {
         await runToDoContentOperation {
-            async let calendarLoad: Void = familyCalendarViewModel.loadToday(force: true)
-            async let remindersLoad: Void = personalRemindersViewModel.loadReminders(force: true)
-
-            _ = await (calendarLoad, remindersLoad)
+            await loadEventKitContent(force: true)
         }
+    }
+
+    private func loadEventKitContent(force: Bool) async {
+        await familyCalendarViewModel.loadToday(force: force)
+        await personalRemindersViewModel.loadReminders(force: force)
     }
 
     private func runToDoContentOperation(
@@ -2408,14 +2409,6 @@ final class FamilyCalendarService {
     init(eventStore: EKEventStore = EKEventStore(), calendar: Calendar = .current) {
         self.eventStore = eventStore
         self.calendar = calendar
-    }
-
-    func prepareAccessIfNeeded() async {
-        guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else {
-            return
-        }
-
-        _ = try? await requestFullAccess()
     }
 
     fileprivate func loadTodaysFamilyEvents() async throws -> FamilyCalendarLoadResult {

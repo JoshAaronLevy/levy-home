@@ -36,7 +36,6 @@ struct LevyHomeApp: App {
                 .task(id: notificationRegistrationDeviceName ?? "") {
                     pushRegistrationViewModel.updateDeviceName(notificationRegistrationDeviceName)
                     await pushRegistrationViewModel.prepareDeliveryIfNeeded()
-                    await FamilyCalendarService.shared.prepareAccessIfNeeded()
                 }
         }
     }
