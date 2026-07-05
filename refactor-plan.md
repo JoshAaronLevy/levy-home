@@ -1078,7 +1078,106 @@ Executed 103 tests, with 0 failures (0 unexpected).
 
 #### Remaining Stage 3 Work After Stage 3A
 
-Stage 3B should extract `ShoppingListViewModel` into `LevyHome/ViewModels/Shopping/ShoppingListViewModel.swift`, preserving dependency injection closures, live-service handling, live update task cancellation, and existing `ShoppingListViewModelTests` coverage.
+At the end of Stage 3A, the next step was to extract `ShoppingListViewModel` into `LevyHome/ViewModels/Shopping/ShoppingListViewModel.swift`, preserving dependency injection closures, live-service handling, live update task cancellation, and existing `ShoppingListViewModelTests` coverage.
+
+### Stage 3B Results
+
+Completed on 2026-07-05 as the Shopping view-model extraction.
+
+#### Extracted View Model
+
+Moved the production shopping view model from:
+
+```text
+LevyHome/Views/Shopping/ShoppingListView.swift
+```
+
+to:
+
+```text
+LevyHome/ViewModels/Shopping/ShoppingListViewModel.swift
+```
+
+The extracted file now owns:
+
+- `ShoppingListViewModel`
+- `ShoppingLiveStatusBadge`
+- the shared `ResidentIdentity.shoppingListViewerId` helper used by shopping viewer identity and live presence display names
+
+The move preserved the existing dependency injection closures, API-client convenience initializer, live-service connection handling, live message handling, task cancellation, and cancellation-aware refresh behavior.
+
+#### Access-Control Adjustments
+
+`ShoppingItemDraft` remains in `ShoppingListView.swift` for Stage 3C, but it is now module-internal instead of `fileprivate` so the extracted view model can accept drafts and build the existing create/update/add-back requests.
+
+The view-model draft bridge methods are now module-internal instead of `fileprivate`:
+
+```swift
+func createItem(from draft: ShoppingItemDraft) async throws
+func updateItem(id itemId: Int, with draft: ShoppingItemDraft) async throws
+func addBackToNeeded(_ item: ShoppingListItem, from draft: ShoppingItemDraft) async throws
+```
+
+The lower-level request updater remains private inside `ShoppingListViewModel`.
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` with:
+
+- a `ViewModels/Shopping` group
+- a `ShoppingListViewModel.swift` file reference
+- a `ShoppingListViewModel.swift in Sources` build entry for the `LevyHome` app target
+
+#### Line-Count Impact
+
+After Stage 3B:
+
+```text
+2933 LevyHome/Views/Shopping/ShoppingListView.swift
+ 600 LevyHome/ViewModels/Shopping/ShoppingListViewModel.swift
+```
+
+This removes about 600 lines from the Shopping SwiftUI file while keeping the editor, filter, row, and display-model declarations in place for later Stage 3 work.
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Targeted shopping view-model test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -only-testing:LevyHomeTests/ShoppingListViewModelTests
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 1 test, with 0 failures (0 unexpected).
+```
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+#### Remaining Stage 3 Work After Stage 3B
+
+Stage 3C should extract the editor domain and draft-mapping declarations from `ShoppingListView.swift`, especially `ShoppingItemDraft`, `ShoppingItemEditorMode`, `ShoppingDuplicateStatus`, and `normalizedShoppingItemName`, then add or preserve focused draft/request-mapping tests.
 
 ## Stage 4: Home Feature Refactor
 
