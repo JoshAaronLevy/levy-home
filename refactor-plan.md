@@ -814,9 +814,102 @@ Executed 103 tests, with 0 failures (0 unexpected).
 
 Simulator/system logs appeared during the run, including Network framework messages, WeatherKit auth-service messages, CoreAnimation launch metric messages, and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the test run.
 
-#### Remaining Stage 2 Work After Stage 2C
+### Stage 2D Results
 
-Stage 2D should move the shared to-do list UI next: task section, task row, avatar/assignee stack, status/due/inline/icon badges, and location row. `ToDoView.swift` still contains the screen-level orchestration, summary/error views, task-list UI, editor sheet, and editor form controls.
+Completed on 2026-07-05 as the shared to-do list UI and primitive extraction.
+
+#### Moved Files
+
+Moved the shared task-list section and swipe row into:
+
+```text
+LevyHome/Views/ToDo/Components/ToDoTaskListView.swift
+```
+
+Moved shared To Do visual primitives into:
+
+```text
+LevyHome/Views/ToDo/Components/ToDoSharedComponents.swift
+```
+
+The move included:
+
+- `ToDoTaskSectionView`
+- `ToDoTaskRow`
+- `ToDoAvatarStack`
+- `ToDoAssigneeStack`
+- `ToDoStatusPill`
+- `ToDoInlineBadge`
+- `ToDoDueBadge`
+- `ToDoIconBadge`
+- `ToDoLocationRow`
+
+The task row remains closure-driven for complete, edit, and delete behavior. `ToDoTaskRow` is private to the task-list component file; shared primitives remain internal because the summary card, editor sheet, calendar panel, reminders panel, and task-list row all reuse them.
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` manually with:
+
+- `ToDoTaskListView.swift` and `ToDoSharedComponents.swift` in the existing To Do `Components` group
+- app-target source entries for both new files
+
+The test build output confirmed Xcode compiled:
+
+```text
+LevyHome/Views/ToDo/Components/ToDoSharedComponents.swift
+LevyHome/Views/ToDo/Components/ToDoTaskListView.swift
+```
+
+#### Line-Count Impact
+
+After Stage 2D:
+
+```text
+1097 LevyHome/Views/ToDo/ToDoView.swift
+ 136 LevyHome/Views/ToDo/Components/ToDoSharedComponents.swift
+ 130 LevyHome/Views/ToDo/Components/ToDoTaskListView.swift
+ 298 LevyHome/Views/ToDo/Components/ToDoCalendarPanel.swift
+ 281 LevyHome/Views/ToDo/Components/ToDoRemindersPanel.swift
+  90 LevyHome/Views/ToDo/Components/FlowLayout.swift
+```
+
+For comparison:
+
+- Stage 0 baseline `ToDoView.swift`: 3,633 lines
+- After Stage 1 `ToDoView.swift`: 3,544 lines
+- After Stage 2A `ToDoView.swift`: 2,649 lines
+- After Stage 2B `ToDoView.swift`: 1,938 lines
+- After Stage 2C `ToDoView.swift`: 1,361 lines
+- After Stage 2D `ToDoView.swift`: 1,097 lines
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+Simulator/system logs appeared during the run, including Network framework messages and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the test run.
+
+#### Remaining Stage 2 Work After Stage 2D
+
+Stage 2E should move the editor sheet and form controls next: `ToDoEditorSheet`, `ToDoFormPanel`, text/location search fields, created-by row, due-date picker, recurring picker, checkbox row, and form row header. `ToDoView.swift` still contains screen-level orchestration, summary/error views, the editor sheet, and editor form controls.
 
 ## Stage 3: Shopping Feature Refactor
 
