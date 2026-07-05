@@ -723,9 +723,100 @@ Executed 103 tests, with 0 failures (0 unexpected).
 
 Simulator/system logs appeared during the runs, including Network framework messages, WeatherKit auth-service messages, and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the final test run.
 
-#### Remaining Stage 2 Work After Stage 2B
+### Stage 2C Results
 
-Stage 2C should move the Family Calendar and Personal Reminders UI components next. `ToDoView.swift` still contains the screen-level composition, task-list UI, editor UI, calendar/reminder panels, badges, rows, and sheets.
+Completed on 2026-07-05 as the Family Calendar and Personal Reminders UI extraction.
+
+#### Moved Files
+
+Moved the Family Calendar card, event row, event detail sheet, and detail row into:
+
+```text
+LevyHome/Views/ToDo/Components/ToDoCalendarPanel.swift
+```
+
+Moved the Personal Reminders card, reminder row, metadata row, and reminder detail sheet into:
+
+```text
+LevyHome/Views/ToDo/Components/ToDoRemindersPanel.swift
+```
+
+The move preserved the current To Do page behavior:
+
+- the Family Calendar badge still shows today's event count
+- synced zero-event and zero-reminder states remain compact
+- calendar and reminder retry/completion/select actions are still injected from `ToDoView`
+- the existing EventKit permission/load orchestration remains in `ToDoView`
+
+Access-control changes were limited to shared To Do UI primitives that the extracted files now reference:
+
+- `ToDoStatusPill`
+- `ToDoInlineBadge`
+- `ToDoIconBadge`
+- `ToDoLocationRow`
+- `ToDoFormPanel`
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` manually with:
+
+- `ToDoCalendarPanel.swift` and `ToDoRemindersPanel.swift` in the existing To Do `Components` group
+- app-target source entries for both new files
+
+The test build output confirmed Xcode compiled:
+
+```text
+LevyHome/Views/ToDo/Components/ToDoCalendarPanel.swift
+LevyHome/Views/ToDo/Components/ToDoRemindersPanel.swift
+```
+
+#### Line-Count Impact
+
+After Stage 2C:
+
+```text
+1361 LevyHome/Views/ToDo/ToDoView.swift
+ 298 LevyHome/Views/ToDo/Components/ToDoCalendarPanel.swift
+ 281 LevyHome/Views/ToDo/Components/ToDoRemindersPanel.swift
+  90 LevyHome/Views/ToDo/Components/FlowLayout.swift
+```
+
+For comparison:
+
+- Stage 0 baseline `ToDoView.swift`: 3,633 lines
+- After Stage 1 `ToDoView.swift`: 3,544 lines
+- After Stage 2A `ToDoView.swift`: 2,649 lines
+- After Stage 2B `ToDoView.swift`: 1,938 lines
+- After Stage 2C `ToDoView.swift`: 1,361 lines
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+Simulator/system logs appeared during the run, including Network framework messages, WeatherKit auth-service messages, CoreAnimation launch metric messages, and the duplicate `UIAccessibilityLoaderWebShared` warning. They did not fail the test run.
+
+#### Remaining Stage 2 Work After Stage 2C
+
+Stage 2D should move the shared to-do list UI next: task section, task row, avatar/assignee stack, status/due/inline/icon badges, and location row. `ToDoView.swift` still contains the screen-level orchestration, summary/error views, task-list UI, editor sheet, and editor form controls.
 
 ## Stage 3: Shopping Feature Refactor
 
