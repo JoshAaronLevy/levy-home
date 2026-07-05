@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 #endif
 
-struct ShoppingListMockupView: View {
+struct ShoppingListView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
@@ -25,6 +25,8 @@ struct ShoppingListMockupView: View {
         .id(viewerIdentity.viewerId)
     }
 }
+
+typealias ShoppingListMockupView = ShoppingListView
 
 private extension ShoppingListViewerIdentity {
     static func forResidentPreference(

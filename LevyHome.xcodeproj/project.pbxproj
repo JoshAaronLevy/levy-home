@@ -93,7 +93,7 @@
 		E0000000000000000000000D /* ToDoRemindersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0000000000000000000001D /* ToDoRemindersPanel.swift */; };
 		E0000000000000000000000E /* ToDoTaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0000000000000000000001E /* ToDoTaskListView.swift */; };
 		E0000000000000000000000F /* ToDoSharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0000000000000000000001F /* ToDoSharedComponents.swift */; };
-		E10000000000000000000001 /* ShoppingListMockupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* ShoppingListMockupView.swift */; };
+		E10000000000000000000001 /* ShoppingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* ShoppingListView.swift */; };
 		E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70000000000000000000011 /* ShoppingListLiveService.swift */; };
 /* End PBXBuildFile section */
 
@@ -199,7 +199,7 @@
 		E0000000000000000000001D /* ToDoRemindersPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoRemindersPanel.swift; sourceTree = "<group>"; };
 		E0000000000000000000001E /* ToDoTaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoTaskListView.swift; sourceTree = "<group>"; };
 		E0000000000000000000001F /* ToDoSharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoSharedComponents.swift; sourceTree = "<group>"; };
-		E10000000000000000000011 /* ShoppingListMockupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListMockupView.swift; sourceTree = "<group>"; };
+		E10000000000000000000011 /* ShoppingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListView.swift; sourceTree = "<group>"; };
 		E70000000000000000000011 /* ShoppingListLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -515,7 +515,7 @@
 		E10000000000000000000021 /* Shopping */ = {
 			isa = PBXGroup;
 			children = (
-				E10000000000000000000011 /* ShoppingListMockupView.swift */,
+				E10000000000000000000011 /* ShoppingListView.swift */,
 			);
 			path = Shopping;
 			sourceTree = "<group>";
@@ -630,7 +630,7 @@
 				A1000000000000000000000A /* ActivityView.swift in Sources */,
 				A1000000000000000000000B /* NotificationHubView.swift in Sources */,
 				A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */,
-				E10000000000000000000001 /* ShoppingListMockupView.swift in Sources */,
+				E10000000000000000000001 /* ShoppingListView.swift in Sources */,
 				E00000000000000000000001 /* ToDoView.swift in Sources */,
 				E00000000000000000000002 /* FlowLayout.swift in Sources */,
 				E00000000000000000000003 /* ToDoModels.swift in Sources */,

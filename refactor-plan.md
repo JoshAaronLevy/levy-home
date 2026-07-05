@@ -915,7 +915,7 @@ Stage 2E should move the editor sheet and form controls next: `ToDoEditorSheet`,
 
 ### Why Second
 
-`ShoppingListMockupView.swift` is almost as large as `ToDoView.swift` and contains a full live data surface, editor, filters, product search, display models, and helper extensions.
+`ShoppingListView.swift` formerly `ShoppingListMockupView.swift` is almost as large as `ToDoView.swift` and contains a full live data surface, editor, filters, product search, display models, and helper extensions.
 
 ### Proposed File Split
 
@@ -1002,6 +1002,83 @@ LevyHome/PreviewSupport/Shopping/
 - View model remains testable and still covered.
 - The word `Mockup` is removed from the user-facing architecture if practical.
 - Full test suite passes.
+
+### Stage 3A Results
+
+Completed on 2026-07-05 as the Shopping entry-view rename.
+
+#### Renamed Entry View
+
+Renamed the production-backed shopping entry view from:
+
+```text
+LevyHome/Views/Shopping/ShoppingListMockupView.swift
+```
+
+to:
+
+```text
+LevyHome/Views/Shopping/ShoppingListView.swift
+```
+
+The root view type is now:
+
+```swift
+struct ShoppingListView: View
+```
+
+To keep this low-risk while follow-on extraction continues, the file temporarily preserves:
+
+```swift
+typealias ShoppingListMockupView = ShoppingListView
+```
+
+#### Root Tab Wiring
+
+Updated `RootTabView` so the List tab now instantiates `ShoppingListView()` directly.
+
+#### Xcode Project Wiring
+
+Updated `LevyHome.xcodeproj/project.pbxproj` so the existing Shopping source reference now points at `ShoppingListView.swift`.
+
+The test build output confirmed Xcode removed stale `ShoppingListMockupView` build objects and compiled the renamed shopping file successfully.
+
+#### Line-Count Impact
+
+After Stage 3A:
+
+```text
+3529 LevyHome/Views/Shopping/ShoppingListView.swift
+```
+
+The file is two lines larger than the Stage 0 baseline because the temporary compatibility typealias was added.
+
+#### Verification
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+Result: passed with no output.
+
+Full test command:
+
+```bash
+xcodebuild test -project LevyHome.xcodeproj -scheme LevyHome -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+```
+
+Final result:
+
+```text
+** TEST SUCCEEDED **
+Executed 103 tests, with 0 failures (0 unexpected).
+```
+
+#### Remaining Stage 3 Work After Stage 3A
+
+Stage 3B should extract `ShoppingListViewModel` into `LevyHome/ViewModels/Shopping/ShoppingListViewModel.swift`, preserving dependency injection closures, live-service handling, live update task cancellation, and existing `ShoppingListViewModelTests` coverage.
 
 ## Stage 4: Home Feature Refactor
 
@@ -1366,9 +1443,8 @@ Use the refactor to remove confusing names only after behavior is stable.
 ### Candidates
 
 1. `ShoppingListMockupView`
-   - Rename to `ShoppingListView` once the view is clearly production-backed.
-   - Update `RootTabView`.
-   - Consider a temporary typealias if this needs to be a low-risk transition.
+   - Completed in Stage 3A: the file and root type are now `ShoppingListView`, and `RootTabView` uses `ShoppingListView()`.
+   - A temporary `typealias ShoppingListMockupView = ShoppingListView` remains for compatibility and can be removed after the Shopping extraction is complete.
 
 2. Domain state names
    - Keep names expressive and feature-scoped.

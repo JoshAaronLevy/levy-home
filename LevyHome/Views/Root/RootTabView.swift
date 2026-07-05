@@ -14,7 +14,7 @@ struct RootTabView: View {
             .tag(RootTab.home)
 
             NavigationStack {
-                ShoppingListMockupView()
+                ShoppingListView()
             }
             .tabItem {
                 Label("List", systemImage: "cart")
