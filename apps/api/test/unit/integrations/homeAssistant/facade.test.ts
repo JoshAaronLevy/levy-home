@@ -45,6 +45,133 @@ test('live Home Assistant facade opens and closes the configured garage cover', 
   }
 });
 
+test('live Home Assistant facade summarizes configured light groups without an all-lights entity', async () => {
+  const requestedPaths: string[] = [];
+  const states = new Map<string, unknown>([
+    [
+      '/api/states/light.foyer_lights',
+      {
+        entity_id: 'light.foyer_lights',
+        state: 'on',
+        attributes: { entity_id: ['light.foyer_entry', 'light.foyer_stairway'] },
+      },
+    ],
+    [
+      '/api/states/light.playroom_lamp',
+      {
+        entity_id: 'light.playroom_lamp',
+        state: 'off',
+        attributes: { entity_id: ['light.playroom_lamp'] },
+      },
+    ],
+  ]);
+  const server = await startHomeAssistantServer(async (req, res) => {
+    requestedPaths.push(req.url ?? '');
+    const state = req.url ? states.get(req.url) : undefined;
+
+    if (!state) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(state));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade({
+      ...liveConfig(server.baseURL),
+      homeAssistant: {
+        ...liveConfig(server.baseURL).homeAssistant,
+        allLightsEntityId: undefined,
+        lightGroups: [
+          { id: 'foyer', name: 'Foyer', entityId: 'light.foyer_lights' },
+          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom_lamp' },
+        ],
+      },
+    });
+
+    const summary = await facade.getLightSummaryInputs();
+
+    assert.deepEqual(requestedPaths.sort(), [
+      '/api/states/light.foyer_lights',
+      '/api/states/light.playroom_lamp',
+    ]);
+    assert.deepEqual(summary, {
+      allLights: {
+        id: 'all_lights',
+        name: 'All lights',
+        state: 'partially_on',
+        lightsOnCount: 1,
+        totalLightCount: 2,
+      },
+      groups: [
+        {
+          id: 'foyer',
+          name: 'Foyer',
+          state: 'on',
+          lightsOnCount: 2,
+          totalLightCount: 2,
+        },
+        {
+          id: 'playroom',
+          name: 'Playroom',
+          state: 'off',
+          lightsOnCount: 0,
+          totalLightCount: 1,
+        },
+      ],
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('live Home Assistant facade turns off configured light groups when no all-lights entity is configured', async () => {
+  const serviceCalls: Array<{ path: string; body: unknown }> = [];
+  const server = await startHomeAssistantServer(async (req, res) => {
+    if (req.url !== '/api/services/light/turn_off') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    serviceCalls.push({
+      path: req.url,
+      body: await readJSONBody(req),
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify([]));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade({
+      ...liveConfig(server.baseURL),
+      homeAssistant: {
+        ...liveConfig(server.baseURL).homeAssistant,
+        allLightsEntityId: undefined,
+        lightGroups: [
+          { id: 'foyer', name: 'Foyer', entityId: 'light.foyer_lights' },
+          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom_lamp' },
+        ],
+      },
+    });
+
+    await facade.turnOffAllLights();
+
+    assert.deepEqual(serviceCalls, [
+      {
+        path: '/api/services/light/turn_off',
+        body: { entity_id: ['light.foyer_lights', 'light.playroom_lamp'] },
+      },
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
 test('live Home Assistant facade returns per-person device tracker presence', async () => {
   const states = new Map<string, unknown>([
     [

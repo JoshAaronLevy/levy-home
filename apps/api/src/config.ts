@@ -60,7 +60,7 @@ export type AppConfig = {
     baseURL?: string;
     token?: string;
     garageCoverEntityId: string;
-    allLightsEntityId: string;
+    allLightsEntityId?: string;
     lightGroups: CuratedLightGroup[];
     lightEntities: CuratedLightEntity[];
     mockTotalLightCount: number;
@@ -110,7 +110,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       baseURL: readOptionalString(env.HOME_ASSISTANT_BASE_URL),
       token: readOptionalString(env.HOME_ASSISTANT_TOKEN),
       garageCoverEntityId: readOptionalString(env.HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID) ?? 'cover.main_garage_door',
-      allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID) ?? 'light.all_lights',
+      allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID),
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
       lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
       mockTotalLightCount: readNumber(env.MOCK_TOTAL_LIGHT_COUNT, 12),

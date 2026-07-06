@@ -26,9 +26,9 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_PHONE_ENTITIES` | Exact phone home-presence entity IDs to listen for, in `entity_id:Person:Device name` comma-separated format. |
 | `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` | Explicit glob-style phone entity patterns to listen for, in `entity_id_glob:Person:Device name` comma-separated format. Use `*` as the wildcard; Activity only stores `device_tracker` home transitions. |
 | `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID` | Server-side garage cover entity. |
-| `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Server-side all-lights entity/group. |
-| `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. |
-| `HOME_ASSISTANT_LIGHT_ENTITIES` | Curated individual light entities in `entity_id:Display name` comma-separated format. When set, these are used instead of light groups. |
+| `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Optional server-side all-lights entity/group. Leave blank when curated light entities are the source of truth. |
+| `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. Used when `HOME_ASSISTANT_LIGHT_ENTITIES` is blank. |
+| `HOME_ASSISTANT_LIGHT_ENTITIES` | Curated individual light entities in `entity_id:Display name` comma-separated format. When set, these are used instead of `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and light groups. |
 | `MOCK_TOTAL_LIGHT_COUNT` | Mock-mode total light count. |
 | `APNS_KEY_ID` | Apple APNs Auth Key ID. Required only for APNs sending. |
 | `APNS_TEAM_ID` | Apple Developer Team ID for APNs JWT auth. Required only for APNs sending. |
@@ -97,7 +97,7 @@ curl -X POST http://localhost:4000/api/home/actions \
 curl -X POST http://localhost:4000/api/home/actions/light-groups/upstairs_hallway/off
 ```
 
-As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves `HOME_ASSISTANT_LIGHT_GROUPS` blank. The older `downstairs` and `bedrooms` group examples were demo values and do not exist in the live catalog.
+As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves both `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and `HOME_ASSISTANT_LIGHT_GROUPS` blank. The older `downstairs`, `bedrooms`, and `light.all_lights` examples were demo/fallback values and do not exist in the live catalog.
 
 To verify arbitrary Home Assistant payloads are rejected:
 
@@ -379,9 +379,9 @@ actions:
     metadata: {}
     target:
       entity_id:
-        - light.study_study_lamp_1
-        - light.study_study_lamp_2
-        - light.study_study_lamp_3
+        - light.study_lamp_1
+        - light.study_lamp_2
+        - light.study_lamp_3
     data:
       transition: 1
       color_temp_kelvin: 4500
@@ -404,9 +404,9 @@ actions:
               "automation": "Study On Bright",
               "trigger": "lutron_caseta_on_press",
               "lights": [
-                "light.study_study_lamp_1",
-                "light.study_study_lamp_2",
-                "light.study_study_lamp_3"
+                "light.study_lamp_1",
+                "light.study_lamp_2",
+                "light.study_lamp_3"
               ]
             }
           } | to_json

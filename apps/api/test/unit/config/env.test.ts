@@ -21,10 +21,12 @@ test('readConfig defaults Home Assistant activity ingestion to disabled with no 
   assert.deepEqual(config.homeAssistant.activity.trackedPhoneEntityPatterns, []);
 });
 
-test('readConfig defaults Home Assistant light groups to empty instead of demo entities', () => {
+test('readConfig defaults Home Assistant light targets to empty instead of demo entities', () => {
   const config = readConfig({});
 
+  assert.equal(config.homeAssistant.allLightsEntityId, undefined);
   assert.deepEqual(config.homeAssistant.lightGroups, []);
+  assert.deepEqual(config.homeAssistant.lightEntities, []);
 });
 
 test('readConfig parses Kroger API diagnostic configuration', () => {

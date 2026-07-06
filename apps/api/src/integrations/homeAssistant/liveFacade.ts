@@ -56,14 +56,22 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
       };
     }
 
-    const [allLights, groups] = await Promise.all([
-      this.fetchLightGroupState({
-        id: 'all_lights',
-        name: 'All lights',
-        entityId: this.config.homeAssistant.allLightsEntityId,
-      }),
-      Promise.all(this.config.homeAssistant.lightGroups.map((group) => this.fetchLightGroupState(group))),
-    ]);
+    const groups = await Promise.all(
+      this.config.homeAssistant.lightGroups.map((group) => this.fetchLightGroupState(group)),
+    );
+
+    if (!this.config.homeAssistant.allLightsEntityId) {
+      return {
+        allLights: summarizeLightEntities(groups),
+        groups,
+      };
+    }
+
+    const allLights = await this.fetchLightGroupState({
+      id: 'all_lights',
+      name: 'All lights',
+      entityId: this.config.homeAssistant.allLightsEntityId,
+    });
 
     return { allLights, groups };
   }
@@ -88,9 +96,27 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
       return;
     }
 
-    await this.callService('light', 'turn_off', {
-      entity_id: this.config.homeAssistant.allLightsEntityId,
-    });
+    if (this.config.homeAssistant.allLightsEntityId) {
+      await this.callService('light', 'turn_off', {
+        entity_id: this.config.homeAssistant.allLightsEntityId,
+      });
+      return;
+    }
+
+    const lightGroupEntityIds = this.config.homeAssistant.lightGroups.map((group) => group.entityId);
+
+    if (lightGroupEntityIds.length > 0) {
+      await this.callService('light', 'turn_off', {
+        entity_id: lightGroupEntityIds,
+      });
+      return;
+    }
+
+    throw new HTTPError(
+      503,
+      'No Home Assistant light targets are configured.',
+      'home_assistant_lights_not_configured',
+    );
   }
 
   async turnOffLightGroup(groupId: string): Promise<void> {
