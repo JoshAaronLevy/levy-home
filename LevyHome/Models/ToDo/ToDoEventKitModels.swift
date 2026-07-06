@@ -412,6 +412,22 @@ struct ToDoCalendarEvent: Identifiable {
         location ?? "No location"
     }
 
+    var directionsURL: URL? {
+        guard let location else {
+            return nil
+        }
+
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = "maps.apple.com"
+        components.queryItems = [
+            URLQueryItem(name: "daddr", value: location),
+            URLQueryItem(name: "dirflg", value: "d")
+        ]
+
+        return components.url
+    }
+
     func withCompletion(_ isCompleted: Bool) -> ToDoCalendarEvent {
         ToDoCalendarEvent(
             id: id,

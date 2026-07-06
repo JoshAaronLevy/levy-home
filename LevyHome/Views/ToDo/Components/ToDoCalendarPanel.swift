@@ -198,6 +198,7 @@ private struct ToDoCalendarEventRow: View {
 
 struct ToDoCalendarEventDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     let event: ToDoCalendarEvent
 
     var body: some View {
@@ -221,7 +222,21 @@ struct ToDoCalendarEventDetailSheet: View {
                     ToDoFormPanel(title: "Details", systemImage: "info.circle") {
                         ToDoCalendarDetailRow(title: "Calendar", value: event.calendarTitle, systemImage: "calendar")
                         ToDoCalendarDetailRow(title: "Status", value: event.isCompleted ? "Done in Levy Home" : "Not done", systemImage: event.isCompleted ? "checkmark.circle.fill" : "circle")
-                        ToDoCalendarDetailRow(title: "Location", value: event.locationDisplayText, systemImage: "mappin.and.ellipse")
+                        if let directionsURL = event.directionsURL {
+                            Button {
+                                openURL(directionsURL)
+                            } label: {
+                                ToDoCalendarDetailRow(
+                                    title: "Location",
+                                    value: event.locationDisplayText,
+                                    systemImage: "mappin.and.ellipse"
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Open directions to \(event.locationDisplayText)")
+                        } else {
+                            ToDoCalendarDetailRow(title: "Location", value: event.locationDisplayText, systemImage: "mappin.and.ellipse")
+                        }
 
                         if let urlText = event.url?.absoluteString, !urlText.isEmpty {
                             ToDoCalendarDetailRow(title: "URL", value: urlText, systemImage: "link")
