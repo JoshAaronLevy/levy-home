@@ -2,6 +2,7 @@ import type { EventPushStatus } from './activity.js';
 
 export type ToDoStatus = 'open' | 'completed' | 'canceled';
 export type ToDoRecurring = 'daily' | 'weekly' | 'monthly' | 'quarterly';
+export type ToDoItemAlert = unknown;
 
 export type ToDoCategory = {
   id: number;
@@ -17,6 +18,7 @@ export type ToDoItem = {
   locationDisplayText: string;
   date?: string;
   recurring?: ToDoRecurring;
+  alerts: ToDoItemAlert[];
   createdBy?: number;
   createdDate?: string;
 };
@@ -80,6 +82,7 @@ export type CreateToDoItemRequest = {
   locationIds?: number[];
   date?: string | null;
   recurring?: ToDoRecurring | null;
+  alerts?: ToDoItemAlert[] | null;
   createdBy?: number | null;
   actor?: string;
   mutationId?: string;
@@ -91,6 +94,7 @@ export type UpdateToDoItemRequest = {
   locationIds?: number[];
   date?: string | null;
   recurring?: ToDoRecurring | null;
+  alerts?: ToDoItemAlert[] | null;
   createdBy?: number | null;
   actor?: string;
   mutationId?: string;

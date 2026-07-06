@@ -44,7 +44,7 @@ final class ToDoViewModel: ObservableObject {
             async let usersResponse = apiClient.fetchUsers()
             let (todoList, fetchedUsers) = try await (todoListResponse, usersResponse)
 
-            items = todoList.items
+            items = Self.sortedItems(todoList.items)
             categories = todoList.categories
             locations = todoList.locations
             users = fetchedUsers.users
@@ -59,6 +59,58 @@ final class ToDoViewModel: ObservableObject {
             hasLoaded = true
         }
     }
+
+    #if targetEnvironment(simulator)
+    func loadSimulatorPreviewData() {
+        items = Self.sortedItems(ToDoPreviewData.simulatorToDoItems)
+        categories = ToDoPreviewData.simulatorToDoCategories
+        locations = ToDoPreviewData.recentLocations
+        users = ToDoPreviewData.users
+        errorMessage = nil
+        hasLoaded = true
+        isLoading = false
+    }
+
+    func createSimulatorTask(from draft: ToDoDraft) {
+        let item = item(from: draft, id: nextSimulatorItemID(), locationIds: simulatorLocationIds(from: draft))
+        apply(item)
+        errorMessage = nil
+        hasLoaded = true
+    }
+
+    func updateSimulatorTask(_ task: ToDoTask, from draft: ToDoDraft) {
+        let item = item(from: draft, id: task.id, locationIds: simulatorLocationIds(from: draft))
+        apply(item)
+        errorMessage = nil
+    }
+
+    func toggleSimulatorCompletion(_ task: ToDoTask) {
+        guard let item = items.first(where: { $0.id == task.id }) else {
+            return
+        }
+
+        apply(
+            ToDoItem(
+                id: item.id,
+                name: item.name,
+                status: task.isCompleted ? .open : .completed,
+                locationIds: item.locationIds,
+                locationDisplayText: item.locationDisplayText,
+                date: item.date,
+                recurring: item.recurring,
+                alerts: item.alerts,
+                createdBy: item.createdBy,
+                createdDate: item.createdDate
+            )
+        )
+        errorMessage = nil
+    }
+
+    func deleteSimulatorTask(_ task: ToDoTask) {
+        items.removeAll { $0.id == task.id }
+        errorMessage = nil
+    }
+    #endif
 
     func createTask(from draft: ToDoDraft, apiClient: APIClient, actor: String?) async throws {
         let locationIds = try await resolveLocationIds(from: draft, apiClient: apiClient)
@@ -227,7 +279,75 @@ final class ToDoViewModel: ObservableObject {
         } else {
             items.insert(item, at: 0)
         }
+
+        items = Self.sortedItems(items)
     }
+
+    #if targetEnvironment(simulator)
+    private func nextSimulatorItemID() -> Int {
+        (items.map(\.id).max() ?? 100) + 1
+    }
+
+    private func simulatorLocationIds(from draft: ToDoDraft) -> [Int] {
+        if let locationIds = draft.locationIds {
+            return locationIds
+        }
+
+        let locationName = draft.trimmedLocation
+        guard !locationName.isEmpty else {
+            return []
+        }
+
+        if let existingLocation = locations.first(where: { Self.isSameLocation($0.displayTitle, locationName) }) {
+            return [existingLocation.id]
+        }
+
+        let nextLocationID = (locations.map(\.id).max() ?? 0) + 1
+        locations.insert(
+            ToDoLocation(
+                id: nextLocationID,
+                name: locationName,
+                address: nil,
+                mapkitTitle: locationName,
+                mapkitSubtitle: nil,
+                latitude: nil,
+                longitude: nil,
+                createdBy: draft.createdBy,
+                createdDate: Self.isoString(from: Date()) ?? "",
+                lastUsedDate: nil,
+                useCount: 1,
+                isActive: true,
+                favoritedBy: [draft.createdBy]
+            ),
+            at: 0
+        )
+
+        return [nextLocationID]
+    }
+
+    private func item(from draft: ToDoDraft, id: Int, locationIds: [Int]) -> ToDoItem {
+        let locationDisplayText = locationIds.isEmpty
+            ? "No location"
+            : locations
+                .filter { locationIds.contains($0.id) }
+                .map(\.displayTitle)
+                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+                .joined(separator: ", ")
+
+        return ToDoItem(
+            id: id,
+            name: draft.trimmedName,
+            status: ToDoItemStatus(rawValue: draft.status.rawValue) ?? .open,
+            locationIds: locationIds,
+            locationDisplayText: locationDisplayText.isEmpty ? "No location" : locationDisplayText,
+            date: Self.isoString(from: draft.date),
+            recurring: draft.recurring.flatMap { ToDoItemRecurring(rawValue: $0.rawValue) },
+            alerts: [],
+            createdBy: draft.createdBy,
+            createdDate: Self.isoString(from: draft.createdDate)
+        )
+    }
+    #endif
 
     private func task(from item: ToDoItem) -> ToDoTask {
         ToDoTask(
@@ -256,6 +376,47 @@ final class ToDoViewModel: ObservableObject {
         }
 
         return iso8601WithFractionalSeconds.date(from: value) ?? iso8601.date(from: value)
+    }
+
+    private static func sortedItems(_ items: [ToDoItem]) -> [ToDoItem] {
+        items.sorted(by: areItemsInDisplayOrder)
+    }
+
+    private static func areItemsInDisplayOrder(_ first: ToDoItem, _ second: ToDoItem) -> Bool {
+        let firstDueDate = date(from: first.date)
+        let secondDueDate = date(from: second.date)
+
+        switch (firstDueDate, secondDueDate) {
+        case (.some(let firstDueDate), .some(let secondDueDate)) where firstDueDate != secondDueDate:
+            return firstDueDate < secondDueDate
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        default:
+            break
+        }
+
+        let firstCreatedDate = date(from: first.createdDate)
+        let secondCreatedDate = date(from: second.createdDate)
+
+        switch (firstCreatedDate, secondCreatedDate) {
+        case (.some(let firstCreatedDate), .some(let secondCreatedDate)) where firstCreatedDate != secondCreatedDate:
+            return firstCreatedDate > secondCreatedDate
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        default:
+            break
+        }
+
+        let nameOrder = first.name.localizedCaseInsensitiveCompare(second.name)
+        if nameOrder != .orderedSame {
+            return nameOrder == .orderedAscending
+        }
+
+        return first.id < second.id
     }
 
     private static func isoString(from date: Date?) -> String? {

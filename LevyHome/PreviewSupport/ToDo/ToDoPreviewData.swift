@@ -194,4 +194,116 @@ enum ToDoPreviewData {
             ]
         )
     ]
+
+    static let simulatorCalendarEvents = [
+        ToDoCalendarEvent(
+            id: "simulator-family-calendar-school-dropoff",
+            completionID: "simulator-family-calendar-school-dropoff",
+            title: "School drop-off",
+            calendarTitle: "Family",
+            startDate: todayAt(hour: 8, minute: 15),
+            endDate: todayAt(hour: 8, minute: 45),
+            isAllDay: false,
+            location: "Elementary School",
+            notes: nil,
+            url: nil
+        ),
+        ToDoCalendarEvent(
+            id: "simulator-family-calendar-dinner",
+            completionID: "simulator-family-calendar-dinner",
+            title: "Dinner with the Levys",
+            calendarTitle: "Family",
+            startDate: todayAt(hour: 18),
+            endDate: todayAt(hour: 19, minute: 30),
+            isAllDay: false,
+            location: "Home",
+            notes: nil,
+            url: nil
+        )
+    ]
+
+    static let simulatorReminders = [
+        ToDoReminder(
+            id: "simulator-reminder-water-lawn",
+            title: "Water the lawn",
+            listTitle: "Reminders",
+            dueDate: todayAt(hour: 7),
+            hasDueTime: true,
+            notes: "Front and side yard.",
+            priority: 0
+        ),
+        ToDoReminder(
+            id: "simulator-reminder-long-title",
+            title: "Call the pediatrician to confirm the forms, appointment time, and anything else we need to bring",
+            listTitle: "Reminders",
+            dueDate: todayAt(hour: 18),
+            hasDueTime: true,
+            notes: "Long simulator title for row truncation checks.",
+            priority: 0
+        )
+    ]
+
+    static let simulatorToDoCategories = [
+        ToDoCategory(id: 1, name: "Family", updatedAt: "2026-07-06T12:00:00.000Z")
+    ]
+
+    static let simulatorToDoItems = [
+        ToDoItem(
+            id: 101,
+            name: "Order air filters",
+            status: .open,
+            locationIds: [1],
+            locationDisplayText: "Home",
+            date: isoString(from: todayAt(hour: 17)),
+            recurring: nil,
+            createdBy: 1,
+            createdDate: "2026-07-05T16:00:00.000Z"
+        ),
+        ToDoItem(
+            id: 102,
+            name: "Pick a paint sample for the playroom",
+            status: .open,
+            locationIds: [1],
+            locationDisplayText: "Home",
+            date: isoString(from: tomorrow),
+            recurring: nil,
+            alerts: [
+                .object([
+                    "recipient": .string("both"),
+                    "timing": .string("morningOf")
+                ])
+            ],
+            createdBy: 2,
+            createdDate: "2026-07-04T16:00:00.000Z"
+        ),
+        ToDoItem(
+            id: 103,
+            name: "Research birthday gift ideas",
+            status: .open,
+            locationIds: [],
+            locationDisplayText: "No location",
+            date: nil,
+            recurring: nil,
+            createdBy: 1,
+            createdDate: "2026-07-06T15:30:00.000Z"
+        )
+    ]
+
+    private static func todayAt(hour: Int, minute: Int = 0) -> Date {
+        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
+    }
+
+    private static func isoString(from date: Date?) -> String? {
+        guard let date else {
+            return nil
+        }
+
+        return iso8601WithFractionalSeconds.string(from: date)
+    }
+
+    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }

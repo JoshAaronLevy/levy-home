@@ -130,7 +130,9 @@ struct ToDoLocationRow: View {
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(AppColors.mutedText)
-                .lineLimit(2)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

@@ -25,6 +25,7 @@ const allowedCreateToDoItemBodyKeys = new Set([
   'locationIds',
   'date',
   'recurring',
+  'alerts',
   'createdBy',
   'actor',
   'mutationId',
@@ -70,6 +71,7 @@ export function validateCreateToDoItemBody(input: unknown): CreateToDoItemReques
   const locationIds = readOptionalToDoItemIdArray(input.locationIds, 'locationIds');
   const date = readOptionalNullableToDoDate(input.date);
   const recurring = readOptionalNullableToDoRecurring(input.recurring);
+  const alerts = readOptionalNullableToDoAlerts(input.alerts);
   const createdBy = readOptionalNullablePositiveInteger(input.createdBy, 'createdBy', invalidToDoItem);
   const actor = readOptionalToDoActor(input.actor);
   const mutationId = readOptionalToDoMutationId(input.mutationId);
@@ -80,6 +82,7 @@ export function validateCreateToDoItemBody(input: unknown): CreateToDoItemReques
     locationIds: locationIds ?? [],
     ...(date !== undefined ? { date } : {}),
     ...(recurring !== undefined ? { recurring } : {}),
+    ...(alerts !== undefined ? { alerts: alerts ?? [] } : {}),
     ...(createdBy !== undefined ? { createdBy } : {}),
     ...(actor ? { actor } : {}),
     ...(mutationId ? { mutationId } : {}),
@@ -113,6 +116,10 @@ export function validateUpdateToDoItemBody(input: unknown): UpdateToDoItemReques
 
   if (hasOwn(input, 'recurring')) {
     request.recurring = readOptionalNullableToDoRecurring(input.recurring) ?? null;
+  }
+
+  if (hasOwn(input, 'alerts')) {
+    request.alerts = readOptionalNullableToDoAlerts(input.alerts) ?? null;
   }
 
   if (hasOwn(input, 'createdBy')) {
@@ -350,6 +357,22 @@ function readOptionalNullableToDoDate(value: unknown): string | null | undefined
   return trimmed;
 }
 
+function readOptionalNullableToDoAlerts(value: unknown): unknown[] | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (!Array.isArray(value)) {
+    throw invalidToDoItem('alerts must be an array or null when provided.');
+  }
+
+  return value;
+}
+
 function readOptionalToDoActor(value: unknown): string | undefined {
   if (value === undefined) {
     return undefined;
@@ -383,6 +406,7 @@ function hasMutableToDoItemField(request: UpdateToDoItemRequest): boolean {
     request.locationIds !== undefined ||
     request.date !== undefined ||
     request.recurring !== undefined ||
+    request.alerts !== undefined ||
     request.createdBy !== undefined
   );
 }

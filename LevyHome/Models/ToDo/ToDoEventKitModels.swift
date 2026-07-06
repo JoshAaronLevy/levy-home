@@ -129,6 +129,28 @@ struct ToDoReminder: Identifiable {
     let url: URL?
     let priority: Int
 
+    init(
+        id: String,
+        calendarItemIdentifier: String? = nil,
+        title: String,
+        listTitle: String = "Reminders",
+        dueDate: Date?,
+        hasDueTime: Bool,
+        notes: String? = nil,
+        url: URL? = nil,
+        priority: Int = 0
+    ) {
+        self.id = id
+        self.calendarItemIdentifier = calendarItemIdentifier ?? id
+        self.title = Self.normalizedOptionalText(title) ?? "Untitled reminder"
+        self.listTitle = Self.normalizedOptionalText(listTitle) ?? "Reminders"
+        self.dueDate = dueDate
+        self.hasDueTime = hasDueTime
+        self.notes = Self.normalizedOptionalText(notes)
+        self.url = url
+        self.priority = priority
+    }
+
     init(reminder: EKReminder, calendar: Calendar = .current) {
         let identifier = reminder.calendarItemIdentifier
         let dueDateComponents = reminder.dueDateComponents

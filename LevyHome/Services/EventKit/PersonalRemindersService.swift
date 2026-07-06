@@ -56,16 +56,34 @@ final class PersonalRemindersService {
     }
 
     private func readIncompleteReminders() async throws -> PersonalRemindersLoadResult {
+        let now = Date()
+        let endOfToday = calendar.dateInterval(of: .day, for: now)?.end
         let predicate = eventStore.predicateForIncompleteReminders(
             withDueDateStarting: nil,
-            ending: nil,
+            ending: endOfToday,
             calendars: nil
         )
         let reminders = await fetchReminders(matching: predicate)
             .filter { !$0.isCompleted }
             .map { ToDoReminder(reminder: $0, calendar: calendar) }
+            .filter { Self.isDueTodayOrOverdue($0.dueDate, now: now, calendar: calendar) }
 
         return PersonalRemindersLoadResult(state: .synced, reminders: reminders)
+    }
+
+    static func isDueTodayOrOverdue(
+        _ dueDate: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard
+            let dueDate,
+            let today = calendar.dateInterval(of: .day, for: now)
+        else {
+            return false
+        }
+
+        return dueDate < today.end
     }
 
     private func fetchReminders(matching predicate: NSPredicate) async -> [EKReminder] {

@@ -12,23 +12,11 @@ struct ToDoCalendarPanel: View {
             HStack(spacing: AppSpacing.medium) {
                 ToDoIconBadge(systemImage: "calendar", tone: .accent)
 
-                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                    Text("Today")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-
-                    Text("Family calendar")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.mutedText)
-                }
+                Text("Family Calendar")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
 
                 Spacer()
-
-                ToDoStatusPill(
-                    text: state.statusText(eventCount: events.count),
-                    systemImage: state.statusSystemImage(eventCount: events.count),
-                    tone: state.statusTone
-                )
             }
             .padding(.horizontal, AppSpacing.large)
             .padding(.vertical, AppSpacing.medium)
@@ -184,27 +172,22 @@ private struct ToDoCalendarEventRow: View {
             .frame(width: 42)
 
             VStack(alignment: .leading, spacing: AppSpacing.small) {
-                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
-                    Text(event.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(event.isCompleted ? AppColors.mutedText : .primary)
-                        .strikethrough(event.isCompleted, color: AppColors.mutedText)
-                        .lineLimit(2)
-
-                    if event.isCompleted {
-                        ToDoInlineBadge(text: "Done", systemImage: "checkmark.circle.fill", tone: .success)
-                    }
-                }
+                Text(event.title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(event.isCompleted ? AppColors.mutedText : .primary)
+                    .strikethrough(event.isCompleted, color: AppColors.mutedText)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
 
                 ToDoLocationRow(text: event.locationDisplayText)
             }
-
-            Spacer(minLength: AppSpacing.small)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Image(systemName: "chevron.right")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppColors.mutedText)
                 .padding(.top, AppSpacing.xSmall)
+                .frame(width: 18)
         }
         .padding(AppSpacing.medium)
         .contentShape(Rectangle())

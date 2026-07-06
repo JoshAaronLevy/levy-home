@@ -12,23 +12,11 @@ struct ToDoRemindersPanel: View {
             HStack(spacing: AppSpacing.medium) {
                 ToDoIconBadge(systemImage: "checklist", tone: .accent)
 
-                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                    Text("Reminders")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-
-                    Text("iOS Reminders")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.mutedText)
-                }
+                Text("Your Reminders")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
 
                 Spacer()
-
-                ToDoStatusPill(
-                    text: state.statusText(reminderCount: reminders.count),
-                    systemImage: state.statusSystemImage(reminderCount: reminders.count),
-                    tone: state.statusTone
-                )
             }
             .padding(.horizontal, AppSpacing.large)
             .padding(.vertical, AppSpacing.medium)
@@ -174,51 +162,25 @@ private struct ToDoReminderRow: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppColors.mutedText)
             }
-            .frame(width: 48)
+            .frame(width: 42)
 
-            VStack(alignment: .leading, spacing: AppSpacing.small) {
-                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.small) {
-                    Text(reminder.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-
-                    if let priorityText = reminder.priorityBadgeText {
-                        ToDoInlineBadge(text: priorityText, systemImage: "exclamationmark", tone: .warning)
-                    }
-                }
-
-                ToDoReminderMetadataRow(text: reminder.metadataText)
-            }
-
-            Spacer(minLength: AppSpacing.small)
+            Text(reminder.title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Image(systemName: "chevron.right")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppColors.mutedText)
                 .padding(.top, AppSpacing.xSmall)
+                .frame(width: 18)
         }
         .padding(AppSpacing.medium)
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
-    }
-}
-
-private struct ToDoReminderMetadataRow: View {
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.xSmall) {
-            Image(systemName: "list.bullet")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppColors.mutedText)
-
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(AppColors.mutedText)
-                .lineLimit(2)
-        }
     }
 }
 

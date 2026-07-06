@@ -17,6 +17,7 @@ struct CreateToDoItemRequest: Encodable, Equatable {
     let locationIds: [Int]?
     let date: String?
     let recurring: ToDoItemRecurring?
+    let alerts: [JSONValue]?
     let createdBy: Int?
     let actor: String?
     let mutationId: String
@@ -27,6 +28,7 @@ struct CreateToDoItemRequest: Encodable, Equatable {
         locationIds: [Int]? = nil,
         date: String? = nil,
         recurring: ToDoItemRecurring? = nil,
+        alerts: [JSONValue]? = nil,
         createdBy: Int? = nil,
         actor: String? = nil,
         mutationId: String = UUID().uuidString
@@ -36,6 +38,7 @@ struct CreateToDoItemRequest: Encodable, Equatable {
         self.locationIds = locationIds
         self.date = date
         self.recurring = recurring
+        self.alerts = alerts
         self.createdBy = createdBy
         self.actor = actor
         self.mutationId = mutationId
@@ -48,6 +51,7 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
     let locationIds: [Int]?
     let date: ShoppingListNullableValue<String>?
     let recurring: ShoppingListNullableValue<ToDoItemRecurring>?
+    let alerts: ShoppingListNullableValue<[JSONValue]>?
     let createdBy: ShoppingListNullableValue<Int>?
     let actor: String?
     let mutationId: String
@@ -58,6 +62,7 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
         locationIds: [Int]? = nil,
         date: ShoppingListNullableValue<String>? = nil,
         recurring: ShoppingListNullableValue<ToDoItemRecurring>? = nil,
+        alerts: ShoppingListNullableValue<[JSONValue]>? = nil,
         createdBy: ShoppingListNullableValue<Int>? = nil,
         actor: String? = nil,
         mutationId: String = UUID().uuidString
@@ -67,6 +72,7 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
         self.locationIds = locationIds
         self.date = date
         self.recurring = recurring
+        self.alerts = alerts
         self.createdBy = createdBy
         self.actor = actor
         self.mutationId = mutationId

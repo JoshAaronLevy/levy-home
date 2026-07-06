@@ -67,6 +67,18 @@ final class ToDoPersonalRemindersViewModel: ObservableObject {
         }
     }
 
+    #if targetEnvironment(simulator)
+    func loadSimulatorPreviewData() {
+        state = .synced
+        reminders = ToDoPreviewData.simulatorReminders
+    }
+
+    func completeSimulatorReminder(_ reminder: ToDoReminder) {
+        reminders.removeAll { $0.id == reminder.id }
+        state = .synced
+    }
+    #endif
+
     func complete(_ reminder: ToDoReminder) async {
         guard !completingReminderIDs.contains(reminder.id) else {
             return

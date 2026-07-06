@@ -17,10 +17,6 @@ struct ToDoTaskSectionView: View {
                     .foregroundStyle(.primary)
 
                 Spacer()
-
-                Text("\(section.tasks.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppColors.mutedText)
             }
             .padding(.horizontal, AppSpacing.large)
             .padding(.vertical, AppSpacing.medium)
@@ -28,21 +24,25 @@ struct ToDoTaskSectionView: View {
             Divider()
                 .padding(.leading, AppSpacing.large)
 
-            ForEach(section.tasks) { task in
-                ToDoTaskRow(
-                    task: task,
-                    creator: task.createdBy.flatMap { usersById[$0] }
-                ) {
-                    onToggleCompletion(task)
-                } onEdit: {
-                    onEdit(task)
-                } onDelete: {
-                    onDelete(task)
-                }
+            if section.tasks.isEmpty {
+                ToDoTaskEmptyState()
+            } else {
+                ForEach(section.tasks) { task in
+                    ToDoTaskRow(
+                        task: task,
+                        creator: task.createdBy.flatMap { usersById[$0] }
+                    ) {
+                        onToggleCompletion(task)
+                    } onEdit: {
+                        onEdit(task)
+                    } onDelete: {
+                        onDelete(task)
+                    }
 
-                if task.id != section.tasks.last?.id {
-                    Divider()
-                        .padding(.leading, 62)
+                    if task.id != section.tasks.last?.id {
+                        Divider()
+                            .padding(.leading, 62)
+                    }
                 }
             }
         }
@@ -52,6 +52,21 @@ struct ToDoTaskSectionView: View {
             RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
+    }
+}
+
+private struct ToDoTaskEmptyState: View {
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            ToDoIconBadge(systemImage: "checkmark.circle", tone: .success)
+
+            Text("No To Do items")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Spacer()
+        }
+        .padding(AppSpacing.large)
     }
 }
 
@@ -85,30 +100,38 @@ private struct ToDoTaskRow: View {
                             .foregroundStyle(task.isCompleted ? AppColors.mutedText : .primary)
                             .strikethrough(task.isCompleted, color: AppColors.mutedText)
                             .lineLimit(2)
+                            .truncationMode(.tail)
 
                         if task.isLinkedToFamilyCalendar {
                             ToDoInlineBadge(text: "Family", systemImage: "calendar", tone: .accent)
                         }
                     }
 
+                    Text(task.dueListDisplayText)
+                        .font(.subheadline)
+                        .foregroundStyle(task.dateTone.foregroundColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
                     if let note = task.previewNote {
                         Text(note)
                             .font(.subheadline)
                             .foregroundStyle(AppColors.mutedText)
                             .lineLimit(2)
+                            .truncationMode(.tail)
                     }
-
-                    ToDoLocationRow(text: task.locationDisplayText)
                 }
-                .layoutPriority(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: AppSpacing.small)
-
-                VStack(alignment: .trailing, spacing: AppSpacing.small) {
-                    ToDoDueBadge(text: task.dateDisplayText, tone: task.dateTone)
+                VStack(spacing: AppSpacing.small) {
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+                        .frame(width: 18, height: 18)
 
                     ToDoAssigneeStack(initials: creator.map { [$0.initials] } ?? ["?"])
                 }
+                .frame(width: 30)
             }
             .padding(AppSpacing.medium)
             .background(AppColors.panelBackground)

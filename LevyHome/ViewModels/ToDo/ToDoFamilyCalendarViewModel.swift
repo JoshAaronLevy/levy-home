@@ -73,6 +73,15 @@ final class ToDoFamilyCalendarViewModel: ObservableObject {
         }
     }
 
+    #if targetEnvironment(simulator)
+    func loadSimulatorPreviewData() {
+        state = .synced
+        events = ToDoPreviewData.simulatorCalendarEvents.map { event in
+            event.withCompletion(completedEventIDs.contains(event.completionID))
+        }
+    }
+    #endif
+
     func toggleCompletion(for event: ToDoCalendarEvent) {
         if completedEventIDs.contains(event.completionID) {
             completedEventIDs.remove(event.completionID)

@@ -28,18 +28,27 @@ struct ToDoView: View {
         sections.flatMap(\.tasks)
     }
 
-    private var openTaskCount: Int {
-        tasks.filter { $0.status == .open }.count
-    }
-
-    private var completedTaskCount: Int {
-        tasks.filter { $0.status == .completed }.count
-    }
-
     private var dueTodayCount: Int {
         tasks.filter { task in
             task.status == .open && task.date.map(Calendar.current.isDateInToday) == true
         }.count
+    }
+
+    private var currentViewerInitials: [String] {
+        let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let user = users.first(where: { user in
+            user.firstName.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame ||
+                user.fullName.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame
+        }), let firstInitial = user.firstName.first {
+            return [String(firstInitial).uppercased()]
+        }
+
+        if let firstInitial = trimmedName.first {
+            return [String(firstInitial).uppercased()]
+        }
+
+        return ["?"]
     }
 
     var body: some View {
@@ -62,10 +71,10 @@ struct ToDoView: View {
                 }
 
                 ToDoSummaryCard(
-                    openTaskCount: openTaskCount,
-                    dueTodayCount: dueTodayCount,
-                    completedTaskCount: completedTaskCount,
-                    calendarEventCount: familyCalendarViewModel.eventCount
+                    viewerInitials: currentViewerInitials,
+                    calendarEventCount: familyCalendarViewModel.eventCount,
+                    reminderCount: personalRemindersViewModel.reminderCount,
+                    toDoItemCount: dueTodayCount
                 )
 
                 ToDoCalendarPanel(
@@ -86,7 +95,7 @@ struct ToDoView: View {
                     reminders: personalRemindersViewModel.displayReminders
                 ) { reminder in
                     Task {
-                        await personalRemindersViewModel.complete(reminder)
+                        await complete(reminder)
                     }
                 } onSelectReminder: { reminder in
                     selectedReminder = reminder
@@ -104,23 +113,17 @@ struct ToDoView: View {
                     }
                 }
 
-                ForEach(sections) { section in
-                    ToDoTaskSectionView(
-                        section: section,
-                        usersById: usersById
-                    ) { task in
-                        Task {
-                            await viewModel.toggleCompletion(
-                                task,
-                                apiClient: appEnvironment.apiClient,
-                                actor: currentActorName
-                            )
-                        }
-                    } onEdit: { task in
-                        editorMode = .edit(task)
-                    } onDelete: { task in
-                        pendingDeleteTask = task
+                ToDoTaskSectionView(
+                    section: toDoSection,
+                    usersById: usersById
+                ) { task in
+                    Task {
+                        await toggle(task)
                     }
+                } onEdit: { task in
+                    editorMode = .edit(task)
+                } onDelete: { task in
+                    pendingDeleteTask = task
                 }
             }
             .padding(.horizontal, AppSpacing.screen)
@@ -146,21 +149,7 @@ struct ToDoView: View {
                 recentLocations: viewModel.locations.isEmpty ? ToDoPreviewData.recentLocations : viewModel.locations,
                 currentUserId: viewModel.userId(for: currentResidentName)
             ) { draft in
-                switch mode {
-                case .add:
-                    try await viewModel.createTask(
-                        from: draft,
-                        apiClient: appEnvironment.apiClient,
-                        actor: currentActorName
-                    )
-                case .edit(let task):
-                    try await viewModel.updateTask(
-                        task,
-                        from: draft,
-                        apiClient: appEnvironment.apiClient,
-                        actor: currentActorName
-                    )
-                }
+                try await save(draft, mode: mode)
             }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -201,6 +190,16 @@ struct ToDoView: View {
         }
     }
 
+    private var toDoSection: ToDoTaskSection {
+        sections.first ?? ToDoTaskSection(
+            id: "todo-list",
+            title: "To Do",
+            systemImage: "checklist",
+            tone: .accent,
+            tasks: []
+        )
+    }
+
     private var currentActorName: String? {
         let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedName.isEmpty ? nil : trimmedName
@@ -208,22 +207,34 @@ struct ToDoView: View {
 
     private func load(force: Bool = false) async {
         await runToDoContentOperation {
+            #if targetEnvironment(simulator)
+            loadSimulatorPreviewData()
+            #else
             async let tasksLoad: Void = viewModel.load(apiClient: appEnvironment.apiClient, force: force)
             await loadEventKitContent(force: force)
 
             _ = await tasksLoad
+            #endif
         }
     }
 
     private func refreshCalendar() async {
         await runToDoContentOperation {
+            #if targetEnvironment(simulator)
+            familyCalendarViewModel.loadSimulatorPreviewData()
+            #else
             await familyCalendarViewModel.loadToday(force: true)
+            #endif
         }
     }
 
     private func refreshReminders() async {
         await runToDoContentOperation {
+            #if targetEnvironment(simulator)
+            personalRemindersViewModel.loadSimulatorPreviewData()
+            #else
             await personalRemindersViewModel.loadReminders(force: true)
+            #endif
         }
     }
 
@@ -234,8 +245,68 @@ struct ToDoView: View {
     }
 
     private func loadEventKitContent(force: Bool) async {
+        #if targetEnvironment(simulator)
+        familyCalendarViewModel.loadSimulatorPreviewData()
+        personalRemindersViewModel.loadSimulatorPreviewData()
+        #else
         await familyCalendarViewModel.loadToday(force: force)
         await personalRemindersViewModel.loadReminders(force: force)
+        #endif
+    }
+
+    #if targetEnvironment(simulator)
+    private func loadSimulatorPreviewData() {
+        viewModel.loadSimulatorPreviewData()
+        familyCalendarViewModel.loadSimulatorPreviewData()
+        personalRemindersViewModel.loadSimulatorPreviewData()
+    }
+    #endif
+
+    private func complete(_ reminder: ToDoReminder) async {
+        #if targetEnvironment(simulator)
+        personalRemindersViewModel.completeSimulatorReminder(reminder)
+        #else
+        await personalRemindersViewModel.complete(reminder)
+        #endif
+    }
+
+    private func save(_ draft: ToDoDraft, mode: ToDoEditorMode) async throws {
+        #if targetEnvironment(simulator)
+        switch mode {
+        case .add:
+            viewModel.createSimulatorTask(from: draft)
+        case .edit(let task):
+            viewModel.updateSimulatorTask(task, from: draft)
+        }
+        #else
+        switch mode {
+        case .add:
+            try await viewModel.createTask(
+                from: draft,
+                apiClient: appEnvironment.apiClient,
+                actor: currentActorName
+            )
+        case .edit(let task):
+            try await viewModel.updateTask(
+                task,
+                from: draft,
+                apiClient: appEnvironment.apiClient,
+                actor: currentActorName
+            )
+        }
+        #endif
+    }
+
+    private func toggle(_ task: ToDoTask) async {
+        #if targetEnvironment(simulator)
+        viewModel.toggleSimulatorCompletion(task)
+        #else
+        await viewModel.toggleCompletion(
+            task,
+            apiClient: appEnvironment.apiClient,
+            actor: currentActorName
+        )
+        #endif
     }
 
     private func runToDoContentOperation(
@@ -257,11 +328,15 @@ struct ToDoView: View {
             pendingDeleteTask = nil
         }
 
+        #if targetEnvironment(simulator)
+        viewModel.deleteSimulatorTask(task)
+        #else
         await viewModel.deleteTask(
             task,
             apiClient: appEnvironment.apiClient,
             actor: currentActorName
         )
+        #endif
     }
 }
 
@@ -294,64 +369,60 @@ private struct ToDoErrorBanner: View {
 }
 
 private struct ToDoSummaryCard: View {
-    let openTaskCount: Int
-    let dueTodayCount: Int
-    let completedTaskCount: Int
+    let viewerInitials: [String]
     let calendarEventCount: Int
+    let reminderCount: Int
+    let toDoItemCount: Int
+
+    private var totalTodayCount: Int {
+        calendarEventCount + reminderCount + toDoItemCount
+    }
+
+    private var headlineText: String {
+        switch totalTodayCount {
+        case 0:
+            return "No Events/Items Today"
+        case 1:
+            return "1 Event/Item Today"
+        default:
+            return "\(totalTodayCount) Events/Items Today"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.medium) {
             HStack(alignment: .center, spacing: AppSpacing.medium) {
-                ToDoAvatarStack(initials: ["J", "M"])
+                ToDoAvatarStack(initials: viewerInitials)
+                    .frame(minWidth: 30, alignment: .leading)
 
                 VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                    Text("\(openTaskCount) open")
+                    Text(headlineText)
                         .font(.headline)
                         .foregroundStyle(.primary)
-
-                    HStack(spacing: AppSpacing.xSmall) {
-                        Image(systemName: "calendar")
-                            .font(.caption.weight(.semibold))
-
-                        Text("Family Calendar")
-                            .font(.caption.weight(.semibold))
-
-                        Text("Synced 9:42 AM")
-                            .font(.caption)
-                            .foregroundStyle(AppColors.mutedText)
-                    }
-                    .foregroundStyle(AppColors.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
                 }
                 .layoutPriority(1)
 
                 Spacer(minLength: AppSpacing.small)
-
-                ToDoMetricPill(
-                    title: "\(dueTodayCount)",
-                    subtitle: "today",
-                    systemImage: "clock",
-                    tone: .warning
-                )
             }
-
-            ProgressView(
-                value: Double(completedTaskCount),
-                total: Double(max(completedTaskCount + openTaskCount, 1))
-            )
-                .tint(AppColors.success)
 
             HStack(spacing: AppSpacing.small) {
                 ToDoStatusPill(
-                    text: "\(completedTaskCount) done",
-                    systemImage: "checkmark.circle.fill",
-                    tone: .success
+                    text: Self.countText(calendarEventCount, singular: "Event", plural: "Events"),
+                    systemImage: "calendar",
+                    tone: .accent
                 )
 
                 ToDoStatusPill(
-                    text: "\(calendarEventCount) events today",
-                    systemImage: "calendar",
+                    text: Self.countText(reminderCount, singular: "Reminder", plural: "Reminders"),
+                    systemImage: "checklist",
+                    tone: .accent
+                )
+
+                ToDoStatusPill(
+                    text: Self.countText(toDoItemCount, singular: "Item", plural: "Items"),
+                    systemImage: "checkmark.circle",
                     tone: .accent
                 )
             }
@@ -365,33 +436,9 @@ private struct ToDoSummaryCard: View {
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
     }
-}
 
-private struct ToDoMetricPill: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let tone: ToDoTone
-
-    var body: some View {
-        HStack(spacing: AppSpacing.xSmall) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.bold))
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title)
-                    .font(.subheadline.weight(.bold))
-
-                Text(subtitle)
-                    .font(.caption2.weight(.semibold))
-            }
-        }
-        .lineLimit(1)
-        .padding(.horizontal, AppSpacing.small)
-        .frame(height: 38)
-        .foregroundStyle(tone.foregroundColor)
-        .background(tone.backgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+    private static func countText(_ count: Int, singular: String, plural: String) -> String {
+        count == 1 ? "1 \(singular)" : "\(count) \(plural)"
     }
 }
 

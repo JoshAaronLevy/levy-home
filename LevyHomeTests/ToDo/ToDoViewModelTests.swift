@@ -56,6 +56,26 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertEqual(Set(capturedRequests.requests.map { $0.url?.path }), ["/api/todo-list", "/api/users"])
     }
 
+    func testLoadSortsToDoItemsByDueDateThenCreatedDate() async {
+        ToDoMockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/todo-list"):
+                return Self.response(for: request, json: Self.unsortedToDoListJSON)
+            case ("GET", "/api/users"):
+                return Self.response(for: request, json: Self.usersJSON)
+            default:
+                return Self.response(for: request, statusCode: 404, json: #"{"error":"Unhandled"}"#)
+            }
+        }
+
+        let viewModel = ToDoViewModel()
+        await viewModel.load(apiClient: client)
+
+        XCTAssertEqual(viewModel.sections.first?.tasks.map(\.id), [4, 3, 2, 1])
+    }
+
     func testCancelledReloadKeepsExistingSnapshotWithoutError() async {
         ToDoMockURLProtocol.requestHandler = { request in
             self.capturedRequests.append(request)
@@ -129,6 +149,25 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isLoading)
         XCTAssertEqual(viewModel.items, [])
         XCTAssertEqual(viewModel.errorMessage, "To Do unavailable")
+    }
+
+    func testPersonalRemindersTodayFilterExcludesFutureRecurringInstances() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let monday = Self.date(calendar: calendar, year: 2026, month: 7, day: 6, hour: 12)
+        let overdueSunday = Self.date(calendar: calendar, year: 2026, month: 7, day: 5, hour: 7)
+        let todayMorning = Self.date(calendar: calendar, year: 2026, month: 7, day: 6, hour: 7)
+        let thursday = Self.date(calendar: calendar, year: 2026, month: 7, day: 9, hour: 7)
+        let nextSunday = Self.date(calendar: calendar, year: 2026, month: 7, day: 12, hour: 7, minute: 30)
+        let tomorrowStart = Self.date(calendar: calendar, year: 2026, month: 7, day: 7)
+
+        XCTAssertTrue(PersonalRemindersService.isDueTodayOrOverdue(overdueSunday, now: monday, calendar: calendar))
+        XCTAssertTrue(PersonalRemindersService.isDueTodayOrOverdue(todayMorning, now: monday, calendar: calendar))
+        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(thursday, now: monday, calendar: calendar))
+        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(nextSunday, now: monday, calendar: calendar))
+        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(tomorrowStart, now: monday, calendar: calendar))
+        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(nil, now: monday, calendar: calendar))
     }
 
     private static func response(
@@ -212,6 +251,81 @@ final class ToDoViewModelTests: XCTestCase {
           }
         }
         """
+    }
+
+    private static let unsortedToDoListJSON = """
+    {
+      "ok": true,
+      "generatedAt": "2026-07-05T18:00:00.000Z",
+      "items": [
+        {
+          "id": 2,
+          "name": "Newest undated",
+          "status": "open",
+          "locationIds": [],
+          "locationDisplayText": "No location",
+          "date": null,
+          "recurring": null,
+          "createdBy": 1,
+          "createdDate": "2026-07-06T18:00:00.000Z"
+        },
+        {
+          "id": 3,
+          "name": "Later dated",
+          "status": "open",
+          "locationIds": [],
+          "locationDisplayText": "No location",
+          "date": "2026-07-08T17:00:00.000Z",
+          "recurring": null,
+          "createdBy": 1,
+          "createdDate": "2026-07-01T17:00:00.000Z"
+        },
+        {
+          "id": 1,
+          "name": "Older undated",
+          "status": "open",
+          "locationIds": [],
+          "locationDisplayText": "No location",
+          "date": null,
+          "recurring": null,
+          "createdBy": 2,
+          "createdDate": "2026-07-05T18:00:00.000Z"
+        },
+        {
+          "id": 4,
+          "name": "Soonest dated",
+          "status": "completed",
+          "locationIds": [],
+          "locationDisplayText": "No location",
+          "date": "2026-07-06T17:00:00.000Z",
+          "recurring": null,
+          "createdBy": 2,
+          "createdDate": "2026-07-03T17:00:00.000Z"
+        }
+      ],
+      "categories": [],
+      "locations": []
+    }
+    """
+
+    private static func date(
+        calendar: Calendar,
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int = 0,
+        minute: Int = 0
+    ) -> Date {
+        calendar.date(
+            from: DateComponents(
+                timeZone: calendar.timeZone,
+                year: year,
+                month: month,
+                day: day,
+                hour: hour,
+                minute: minute
+            )
+        )!
     }
 
     private static let usersJSON = """

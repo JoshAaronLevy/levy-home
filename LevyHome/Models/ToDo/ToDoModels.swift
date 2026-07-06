@@ -43,20 +43,8 @@ struct ToDoTask: Identifiable {
         status == .completed
     }
 
-    var dateDisplayText: String {
-        if let date {
-            if Calendar.current.isDateInToday(date) {
-                return "Today"
-            }
-
-            if Calendar.current.isDateInTomorrow(date) {
-                return "Tomorrow"
-            }
-
-            return Self.shortDateFormatter.string(from: date)
-        }
-
-        return recurring?.displayTitle ?? "No date"
+    var dueListDisplayText: String {
+        "Due: \(Self.dueListDateText(for: date))"
     }
 
     var dateTone: ToDoTone {
@@ -75,7 +63,73 @@ struct ToDoTask: Identifiable {
         return .accent
     }
 
-    private static let shortDateFormatter: DateFormatter = {
+    private static func dueListDateText(for date: Date?) -> String {
+        guard let date else {
+            return "N/A"
+        }
+
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let dueDay = calendar.startOfDay(for: date)
+
+        if dueDay < startOfToday {
+            return "\(shortWeekdayText(for: dueDay)), \(monthDayFormatter.string(from: dueDay))"
+        }
+
+        if calendar.isDate(dueDay, inSameDayAs: startOfToday) {
+            return "Today"
+        }
+
+        if calendar.isDateInTomorrow(dueDay) {
+            return "Tomorrow"
+        }
+
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: startOfToday)?.start ?? startOfToday
+        let startOfWeekAfterNext = calendar.date(byAdding: .weekOfYear, value: 2, to: startOfWeek)
+            ?? calendar.date(byAdding: .day, value: 14, to: startOfWeek)
+            ?? startOfToday
+
+        if dueDay < startOfWeekAfterNext {
+            return "Next \(fullWeekdayFormatter.string(from: dueDay))"
+        }
+
+        return "\(shortWeekdayText(for: dueDay)), \(monthDayFormatter.string(from: dueDay))"
+    }
+
+    private static func shortWeekdayText(for date: Date) -> String {
+        switch fullWeekdayFormatter.string(from: date) {
+        case "Sunday":
+            return "Sun"
+        case "Monday":
+            return "Mon"
+        case "Tuesday":
+            return "Tues"
+        case "Wednesday":
+            return "Wed"
+        case "Thursday":
+            return "Thurs"
+        case "Friday":
+            return "Fri"
+        case "Saturday":
+            return "Sat"
+        default:
+            return shortWeekdayFormatter.string(from: date)
+        }
+    }
+
+    private static let fullWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
+
+    private static let shortWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    private static let monthDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter
