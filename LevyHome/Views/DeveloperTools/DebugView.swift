@@ -5,16 +5,19 @@ struct DebugView: View {
     @ObservedObject var notificationPreferencesViewModel: NotificationPreferencesViewModel
     @StateObject private var notificationTestViewModel: NotificationPipelineTestViewModel
     let apnsEnvironment: APNsEnvironment
+    let showsDebugControls: Bool
 
     init(
         pushRegistrationViewModel: PushRegistrationViewModel,
         notificationPreferencesViewModel: NotificationPreferencesViewModel,
         apnsEnvironment: APNsEnvironment,
+        showsDebugControls: Bool = true,
         sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse
     ) {
         self.pushRegistrationViewModel = pushRegistrationViewModel
         self.notificationPreferencesViewModel = notificationPreferencesViewModel
         self.apnsEnvironment = apnsEnvironment
+        self.showsDebugControls = showsDebugControls
         _notificationTestViewModel = StateObject(
             wrappedValue: NotificationPipelineTestViewModel(sendTest: sendNotificationPipelineTest)
         )
@@ -23,123 +26,8 @@ struct DebugView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
-                InfoPanel(
-                    title: "Native Push",
-                    subtitle: "APNs registration for this device.",
-                    systemImage: "antenna.radiowaves.left.and.right"
-                ) {
-                    VStack(alignment: .leading, spacing: AppSpacing.medium) {
-                        statusRow(
-                            title: "Permission",
-                            detail: pushRegistrationViewModel.permissionDetail,
-                            badgeLabel: pushRegistrationViewModel.permissionLabel,
-                            badgeImage: pushRegistrationViewModel.permissionSystemImage,
-                            badgeTone: pushRegistrationViewModel.permissionTone
-                        )
-
-                        statusRow(
-                            title: "APNs token",
-                            detail: pushRegistrationViewModel.registrationDetail,
-                            badgeLabel: pushRegistrationViewModel.registrationLabel,
-                            badgeImage: pushRegistrationViewModel.registrationSystemImage,
-                            badgeTone: pushRegistrationViewModel.registrationTone
-                        )
-
-                        statusRow(
-                            title: "API registration",
-                            detail: pushRegistrationViewModel.apiRegistrationDetail,
-                            badgeLabel: pushRegistrationViewModel.apiRegistrationLabel,
-                            badgeImage: pushRegistrationViewModel.apiRegistrationSystemImage,
-                            badgeTone: pushRegistrationViewModel.apiRegistrationTone
-                        )
-
-                        if let token = pushRegistrationViewModel.deviceToken {
-                            tokenView(token)
-                        }
-
-                        if let message = pushRegistrationViewModel.developerStatusMessage {
-                            ErrorBannerView(message: message, tone: messageTone)
-                        }
-
-                        PrimaryActionButton(
-                            title: "Register And Sync Device",
-                            systemImage: "bell.badge",
-                            isLoading: pushRegistrationViewModel.isRegistering
-                        ) {
-                            Task {
-                                await pushRegistrationViewModel.requestRegistration()
-                            }
-                        }
-                    }
-                }
-
-                InfoPanel(
-                    title: "Notification Pipeline",
-                    subtitle: "Home Assistant event ingestion through APNs.",
-                    systemImage: "bell.badge"
-                ) {
-                    VStack(alignment: .leading, spacing: AppSpacing.medium) {
-                        statusRow(
-                            title: "Pipeline test",
-                            detail: notificationTestViewModel.statusDetail,
-                            badgeLabel: notificationTestViewModel.statusLabel,
-                            badgeImage: notificationTestViewModel.statusSystemImage,
-                            badgeTone: notificationTestViewModel.statusTone
-                        )
-
-                        if let message = notificationTestViewModel.statusMessage {
-                            ErrorBannerView(
-                                message: message,
-                                tone: notificationTestViewModel.messageTone
-                            )
-                        }
-
-                        PrimaryActionButton(
-                            title: "Test Notification",
-                            systemImage: "bell.badge",
-                            isLoading: notificationTestViewModel.isSending
-                        ) {
-                            Task {
-                                await notificationTestViewModel.sendTestNotification()
-                            }
-                        }
-                    }
-                }
-
-                InfoPanel(
-                    title: "Preference Sync",
-                    subtitle: "API adapter for notification preferences.",
-                    systemImage: "slider.horizontal.3"
-                ) {
-                    VStack(alignment: .leading, spacing: AppSpacing.medium) {
-                        statusRow(
-                            title: "Notification preferences",
-                            detail: notificationPreferencesViewModel.syncDetail,
-                            badgeLabel: notificationPreferencesViewModel.syncLabel,
-                            badgeImage: notificationPreferencesViewModel.syncSystemImage,
-                            badgeTone: notificationPreferencesViewModel.syncTone
-                        )
-
-                        if let message = notificationPreferencesViewModel.developerSyncMessage {
-                            ErrorBannerView(
-                                message: message,
-                                tone: notificationPreferencesViewModel.syncTone == .warning ? .warning : .info
-                            )
-                        }
-
-                        PrimaryActionButton(
-                            title: "Sync Preferences",
-                            systemImage: "arrow.triangle.2.circlepath",
-                            isLoading: notificationPreferencesViewModel.isSyncing
-                        ) {
-                            Task {
-                                await notificationPreferencesViewModel.syncPreferences(
-                                    deviceToken: pushRegistrationViewModel.deviceToken,
-                                    environment: apnsEnvironment
-                                )
-                            }
-                        }
-                    }
+                if showsDebugControls {
+                    debugControlSections
                 }
 
                 InfoPanel(
@@ -176,7 +64,131 @@ struct DebugView: View {
         .background(AppColors.pageBackground)
         .navigationTitle("Developer")
         .task {
-            await pushRegistrationViewModel.refreshStatus()
+            if showsDebugControls {
+                await pushRegistrationViewModel.refreshStatus()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var debugControlSections: some View {
+        InfoPanel(
+            title: "Native Push",
+            subtitle: "APNs registration for this device.",
+            systemImage: "antenna.radiowaves.left.and.right"
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                statusRow(
+                    title: "Permission",
+                    detail: pushRegistrationViewModel.permissionDetail,
+                    badgeLabel: pushRegistrationViewModel.permissionLabel,
+                    badgeImage: pushRegistrationViewModel.permissionSystemImage,
+                    badgeTone: pushRegistrationViewModel.permissionTone
+                )
+
+                statusRow(
+                    title: "APNs token",
+                    detail: pushRegistrationViewModel.registrationDetail,
+                    badgeLabel: pushRegistrationViewModel.registrationLabel,
+                    badgeImage: pushRegistrationViewModel.registrationSystemImage,
+                    badgeTone: pushRegistrationViewModel.registrationTone
+                )
+
+                statusRow(
+                    title: "API registration",
+                    detail: pushRegistrationViewModel.apiRegistrationDetail,
+                    badgeLabel: pushRegistrationViewModel.apiRegistrationLabel,
+                    badgeImage: pushRegistrationViewModel.apiRegistrationSystemImage,
+                    badgeTone: pushRegistrationViewModel.apiRegistrationTone
+                )
+
+                if let token = pushRegistrationViewModel.deviceToken {
+                    tokenView(token)
+                }
+
+                if let message = pushRegistrationViewModel.developerStatusMessage {
+                    ErrorBannerView(message: message, tone: messageTone)
+                }
+
+                PrimaryActionButton(
+                    title: "Register And Sync Device",
+                    systemImage: "bell.badge",
+                    isLoading: pushRegistrationViewModel.isRegistering
+                ) {
+                    Task {
+                        await pushRegistrationViewModel.requestRegistration()
+                    }
+                }
+            }
+        }
+
+        InfoPanel(
+            title: "Notification Pipeline",
+            subtitle: "Home Assistant event ingestion through APNs.",
+            systemImage: "bell.badge"
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                statusRow(
+                    title: "Pipeline test",
+                    detail: notificationTestViewModel.statusDetail,
+                    badgeLabel: notificationTestViewModel.statusLabel,
+                    badgeImage: notificationTestViewModel.statusSystemImage,
+                    badgeTone: notificationTestViewModel.statusTone
+                )
+
+                if let message = notificationTestViewModel.statusMessage {
+                    ErrorBannerView(
+                        message: message,
+                        tone: notificationTestViewModel.messageTone
+                    )
+                }
+
+                PrimaryActionButton(
+                    title: "Test Notification",
+                    systemImage: "bell.badge",
+                    isLoading: notificationTestViewModel.isSending
+                ) {
+                    Task {
+                        await notificationTestViewModel.sendTestNotification()
+                    }
+                }
+            }
+        }
+
+        InfoPanel(
+            title: "Preference Sync",
+            subtitle: "API adapter for notification preferences.",
+            systemImage: "slider.horizontal.3"
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                statusRow(
+                    title: "Notification preferences",
+                    detail: notificationPreferencesViewModel.syncDetail,
+                    badgeLabel: notificationPreferencesViewModel.syncLabel,
+                    badgeImage: notificationPreferencesViewModel.syncSystemImage,
+                    badgeTone: notificationPreferencesViewModel.syncTone
+                )
+
+                if let message = notificationPreferencesViewModel.developerSyncMessage {
+                    ErrorBannerView(
+                        message: message,
+                        tone: notificationPreferencesViewModel.syncTone == .warning ? .warning : .info
+                    )
+                }
+
+                PrimaryActionButton(
+                    title: "Sync Preferences",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    isLoading: notificationPreferencesViewModel.isSyncing
+                ) {
+                    Task {
+                        await notificationPreferencesViewModel.syncPreferences(
+                            deviceToken: pushRegistrationViewModel.deviceToken,
+                            environment: apnsEnvironment
+                        )
+                    }
+                }
+            }
         }
     }
 

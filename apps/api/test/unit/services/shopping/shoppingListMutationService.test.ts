@@ -11,12 +11,15 @@ import type { ShoppingListStore } from '../../../../src/repositories/shoppingLis
 import type { ShoppingListRealtimeBroadcaster } from '../../../../src/shoppingListRealtime.js';
 import { createShoppingListMutationService } from '../../../../src/services/shopping/shoppingListMutationService.js';
 import type { ListMutationPushPayload } from '../../../../src/services/notifications/notificationService.js';
+import type { Logger } from '../../../../src/observability/logger.js';
 
 test('shopping mutation service creates items, broadcasts successful mutations, and sends actor push', async () => {
   const broadcasts: string[] = [];
+  const logs: RecordedLogEntry[] = [];
   const pushes: ListMutationPushPayload[] = [];
   const createdItem = shoppingItem({ id: 1, name: 'Whole milk' });
   const service = createShoppingListMutationService({
+    logger: recordingLogger(logs),
     notificationService: recordingNotificationService(pushes),
     shoppingListRealtime: recordingRealtimeBroadcaster(broadcasts),
     shoppingListStore: shoppingStore({
@@ -36,6 +39,19 @@ test('shopping mutation service creates items, broadcasts successful mutations, 
   assert.equal(response.mutationId, 'mutation-1');
   assert.equal(response.push?.attempted, true);
   assert.deepEqual(broadcasts, ['created:1:mutation-1']);
+  assert.deepEqual(logs.map((entry) => entry.message), [
+    'Shopping list create committed.',
+    'Shopping list create completed.',
+  ]);
+  assert.deepEqual(logs[0].details, {
+    mutationId: 'mutation-1',
+    actor: 'Josh',
+    itemId: 1,
+    itemName: 'Whole milk',
+    purchased: false,
+    categoryId: null,
+    version: undefined,
+  });
   assert.deepEqual(pushes, [
     {
       listType: 'shopping',
@@ -48,6 +64,7 @@ test('shopping mutation service creates items, broadcasts successful mutations, 
 
 test('shopping mutation service rejects duplicate item creates before writing', async () => {
   const service = createShoppingListMutationService({
+    logger: silentLogger,
     shoppingListStore: shoppingStore({
       async createItem() {
         throw new Error('createItem should not be called for duplicates.');
@@ -71,6 +88,7 @@ test('shopping mutation service updates items and broadcasts the updated item', 
   const broadcasts: string[] = [];
   const updatedItem = shoppingItem({ id: 3, name: 'Greek yogurt', purchased: true });
   const service = createShoppingListMutationService({
+    logger: silentLogger,
     shoppingListRealtime: recordingRealtimeBroadcaster(broadcasts),
     shoppingListStore: shoppingStore({
       async fetchItem() {
@@ -93,6 +111,7 @@ test('shopping mutation service updates items and broadcasts the updated item', 
 
 test('shopping mutation service returns not found for missing deletes', async () => {
   const service = createShoppingListMutationService({
+    logger: silentLogger,
     shoppingListStore: shoppingStore({
       async deleteItem() {
         return null;
@@ -134,6 +153,32 @@ function shoppingStore(overrides: Partial<ShoppingListStore>): ShoppingListStore
       return null;
     },
     ...overrides,
+  };
+}
+
+const silentLogger: Logger = {
+  debug() {},
+  error() {},
+  info() {},
+  warn() {},
+};
+
+type RecordedLogEntry = {
+  level: keyof Logger;
+  message: string;
+  details?: Record<string, unknown>;
+};
+
+function recordingLogger(entries: RecordedLogEntry[]): Logger {
+  const record = (level: keyof Logger) => (message: string, details?: Record<string, unknown>) => {
+    entries.push({ level, message, details });
+  };
+
+  return {
+    debug: record('debug'),
+    error: record('error'),
+    info: record('info'),
+    warn: record('warn'),
   };
 }
 

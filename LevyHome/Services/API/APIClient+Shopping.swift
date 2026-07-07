@@ -53,8 +53,12 @@ extension APIClient {
         )
     }
 
-    func deleteShoppingListItem(id itemId: Int, actor: String? = nil) async throws -> DeleteShoppingListItemResponse {
-        let request = DeleteShoppingListItemRequest(actor: actor)
+    func deleteShoppingListItem(
+        id itemId: Int,
+        actor: String? = nil,
+        mutationId: String = UUID().uuidString
+    ) async throws -> DeleteShoppingListItemResponse {
+        let request = DeleteShoppingListItemRequest(actor: actor, mutationId: mutationId)
 
         return try await send(
             path: "/api/shopping-list/items/\(itemId)",

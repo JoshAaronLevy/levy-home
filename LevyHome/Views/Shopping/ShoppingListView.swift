@@ -18,6 +18,7 @@ struct ShoppingListView: View {
                     viewerIdentity: viewerIdentity,
                     appLogStore: appEnvironment.appLogStore
                 ),
+                appLogStore: appEnvironment.appLogStore,
                 currentViewerId: viewerIdentity.viewerId,
                 currentActorName: viewerIdentity.displayName
             )
@@ -2302,84 +2303,83 @@ private struct ShoppingItemRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        SwipeRevealActionRow(
-            actionLabel: "Delete",
-            systemImage: "trash",
-            action: onDelete
-        ) {
-            HStack(alignment: .top, spacing: AppSpacing.medium) {
-                Button(action: onTogglePurchased) {
-                    Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.accent)
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(.plain)
-                .disabled(isMutating)
-                .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Button(action: onTogglePurchased) {
+                Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.accent)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+            .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
 
-                itemImage
+            itemImage
 
-                VStack(alignment: .leading, spacing: AppSpacing.small) {
-                    Text(displayItem.item.name)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
-                        .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
+            VStack(alignment: .leading, spacing: AppSpacing.small) {
+                Text(displayItem.item.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
+                    .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+                    .truncationMode(.tail)
+
+                if let detailText = displayItem.detailText {
+                    Text(detailText)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
                         .lineLimit(2)
-                        .minimumScaleFactor(0.82)
-                        .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                    if let detailText = displayItem.detailText {
-                        Text(detailText)
-                            .font(.subheadline)
-                            .foregroundStyle(AppColors.mutedText)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if !displayItem.storeListings.isEmpty {
-                        VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                            ForEach(displayItem.storeListings) { listing in
-                                ShoppingStoreListingSummaryRow(listing: listing)
-                            }
+                if !displayItem.storeListings.isEmpty {
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                        ForEach(displayItem.storeListings) { listing in
+                            ShoppingStoreListingSummaryRow(listing: listing)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                VStack(alignment: .trailing, spacing: AppSpacing.medium) {
-                    if isMutating {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        RowQuantityBadge(quantity: displayItem.item.quantity)
-
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(AppColors.mutedText)
-                    }
-                }
-                .frame(minWidth: 54, alignment: .trailing)
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(1)
             }
-            .padding(AppSpacing.medium)
-            .background(AppColors.panelBackground)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(displayItem.accessibilityLabel)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onEdit)
-            .contextMenu {
-                Button(action: onEdit) {
-                    Label("Edit", systemImage: "pencil")
-                }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete", systemImage: "trash")
+            VStack(alignment: .trailing, spacing: AppSpacing.medium) {
+                if isMutating {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    RowQuantityBadge(quantity: displayItem.item.quantity)
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
                 }
+            }
+            .frame(minWidth: 54, alignment: .trailing)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
+        }
+        .padding(AppSpacing.medium)
+        .background(AppColors.panelBackground)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(displayItem.accessibilityLabel)
+        .accessibilityAction(named: Text("Delete"), onDelete)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
             }
         }
-        .id("\(displayItem.item.id)-\(displayItem.item.purchased)")
+        .contextMenu {
+            Button(action: onEdit) {
+                Label("Edit", systemImage: "pencil")
+            }
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     @ViewBuilder

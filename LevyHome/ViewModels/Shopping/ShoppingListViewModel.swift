@@ -24,7 +24,7 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListLookup = (String) async throws -> ShoppingListItemLookupResponse
     typealias ShoppingListCreator = (CreateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
     typealias ShoppingListUpdater = (Int, UpdateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
-    typealias ShoppingListDeleter = (Int) async throws -> DeleteShoppingListItemResponse
+    typealias ShoppingListDeleter = (Int, String, String?) async throws -> DeleteShoppingListItemResponse
     typealias KrogerProductSearch = (String) async throws -> KrogerProductSearchResponse
 
     @Published private(set) var items: [ShoppingListItem] = []
@@ -46,6 +46,7 @@ final class ShoppingListViewModel: ObservableObject {
     private let deleteShoppingListItem: ShoppingListDeleter
     private let searchKrogerProducts: KrogerProductSearch?
     private let liveService: ShoppingListLiveServicing?
+    private let appLogStore: AppLogStore?
     private let currentViewerId: String?
     private let currentActorName: String?
     private var hasLoaded = false
@@ -161,11 +162,13 @@ final class ShoppingListViewModel: ObservableObject {
     convenience init(
         apiClient: APIClient,
         liveService: ShoppingListLiveServicing? = nil,
+        appLogStore: AppLogStore? = nil,
         currentViewerId: String? = nil,
         currentActorName: String? = nil
     ) {
         self.init(
             liveService: liveService,
+            appLogStore: appLogStore,
             currentViewerId: currentViewerId,
             currentActorName: currentActorName,
             loadShoppingList: {
@@ -183,20 +186,26 @@ final class ShoppingListViewModel: ObservableObject {
             updateShoppingListItem: { itemId, request in
                 try await apiClient.updateShoppingListItem(id: itemId, request)
             },
-            deleteShoppingListItem: { itemId in
-                try await apiClient.deleteShoppingListItem(id: itemId, actor: currentActorName)
+            deleteShoppingListItem: { itemId, mutationId, actor in
+                try await apiClient.deleteShoppingListItem(
+                    id: itemId,
+                    actor: actor,
+                    mutationId: mutationId
+                )
             }
         )
     }
 
     convenience init(
         liveService: ShoppingListLiveServicing? = nil,
+        appLogStore: AppLogStore? = nil,
         currentViewerId: String? = nil,
         currentActorName: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader
     ) {
         self.init(
             liveService: liveService,
+            appLogStore: appLogStore,
             currentViewerId: currentViewerId,
             currentActorName: currentActorName,
             loadShoppingList: loadShoppingList,
@@ -210,7 +219,7 @@ final class ShoppingListViewModel: ObservableObject {
             updateShoppingListItem: { _, _ in
                 throw APIError.transport("Shopping list updates are not configured.")
             },
-            deleteShoppingListItem: { _ in
+            deleteShoppingListItem: { _, _, _ in
                 throw APIError.transport("Shopping list deletion is not configured.")
             }
         )
@@ -218,6 +227,7 @@ final class ShoppingListViewModel: ObservableObject {
 
     init(
         liveService: ShoppingListLiveServicing? = nil,
+        appLogStore: AppLogStore? = nil,
         currentViewerId: String? = nil,
         currentActorName: String? = nil,
         loadShoppingList: @escaping ShoppingListLoader,
@@ -234,6 +244,7 @@ final class ShoppingListViewModel: ObservableObject {
         self.deleteShoppingListItem = deleteShoppingListItem
         self.searchKrogerProducts = searchKrogerProducts
         self.liveService = liveService
+        self.appLogStore = appLogStore
         self.currentViewerId = currentViewerId
 
         let trimmedActorName = currentActorName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -354,13 +365,41 @@ final class ShoppingListViewModel: ObservableObject {
             isCreatingItem = false
         }
 
+        let request = draft.createRequest(actor: currentActorName)
+        recordShoppingMutationLog(
+            level: .info,
+            title: "Adding shopping item",
+            detail: [
+                "name=\(Self.logValue(request.name))",
+                "mutationId=\(Self.shortIdentifier(request.mutationId))"
+            ].joined(separator: " ")
+        )
+
         do {
-            let response = try await createShoppingListItem(draft.createRequest(actor: currentActorName))
+            let response = try await createShoppingListItem(request)
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
             errorMessage = nil
+            recordShoppingMutationLog(
+                level: .success,
+                title: "Shopping item saved",
+                detail: [
+                    "itemId=\(response.item.id)",
+                    "name=\(Self.logValue(response.item.name))",
+                    "mutationId=\(Self.shortIdentifier(response.mutationId))"
+                ].joined(separator: " ")
+            )
         } catch {
             errorMessage = error.localizedDescription
+            recordShoppingMutationLog(
+                level: .error,
+                title: "Shopping item save failed",
+                detail: [
+                    "name=\(Self.logValue(request.name))",
+                    "mutationId=\(Self.shortIdentifier(request.mutationId))",
+                    error.localizedDescription
+                ].joined(separator: " ")
+            )
             throw error
         }
     }
@@ -415,13 +454,43 @@ final class ShoppingListViewModel: ObservableObject {
             mutatingItemIDs.remove(item.id)
         }
 
+        let request = DeleteShoppingListItemRequest(actor: currentActorName)
+        recordShoppingMutationLog(
+            level: .info,
+            title: "Deleting shopping item",
+            detail: [
+                "itemId=\(item.id)",
+                "name=\(Self.logValue(item.name))",
+                "mutationId=\(Self.shortIdentifier(request.mutationId))"
+            ].joined(separator: " ")
+        )
+
         do {
-            let response = try await deleteShoppingListItem(item.id)
+            let response = try await deleteShoppingListItem(item.id, request.mutationId, request.actor)
             items.removeAll { $0.id == response.itemId }
             generatedAt = response.generatedAt
             errorMessage = nil
+            recordShoppingMutationLog(
+                level: .success,
+                title: "Shopping item deleted",
+                detail: [
+                    "itemId=\(response.itemId)",
+                    "name=\(Self.logValue(response.item.name))",
+                    "mutationId=\(Self.shortIdentifier(response.mutationId))"
+                ].joined(separator: " ")
+            )
         } catch {
             errorMessage = error.localizedDescription
+            recordShoppingMutationLog(
+                level: .error,
+                title: "Shopping item delete failed",
+                detail: [
+                    "itemId=\(item.id)",
+                    "name=\(Self.logValue(item.name))",
+                    "mutationId=\(Self.shortIdentifier(request.mutationId))",
+                    error.localizedDescription
+                ].joined(separator: " ")
+            )
             throw error
         }
     }
@@ -517,15 +586,55 @@ final class ShoppingListViewModel: ObservableObject {
             mutatingItemIDs.remove(itemId)
         }
 
+        recordShoppingMutationLog(
+            level: .info,
+            title: "Updating shopping item",
+            detail: [
+                "itemId=\(itemId)",
+                "mutationId=\(Self.shortIdentifier(request.mutationId))"
+            ].joined(separator: " ")
+        )
+
         do {
             let response = try await updateShoppingListItem(itemId, request)
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
             errorMessage = nil
+            recordShoppingMutationLog(
+                level: .success,
+                title: "Shopping item updated",
+                detail: [
+                    "itemId=\(response.item.id)",
+                    "name=\(Self.logValue(response.item.name))",
+                    "mutationId=\(Self.shortIdentifier(response.mutationId))"
+                ].joined(separator: " ")
+            )
         } catch {
             errorMessage = error.localizedDescription
+            recordShoppingMutationLog(
+                level: .error,
+                title: "Shopping item update failed",
+                detail: [
+                    "itemId=\(itemId)",
+                    "mutationId=\(Self.shortIdentifier(request.mutationId))",
+                    error.localizedDescription
+                ].joined(separator: " ")
+            )
             throw error
         }
+    }
+
+    private func recordShoppingMutationLog(
+        level: AppLogLevel,
+        title: String,
+        detail: String
+    ) {
+        appLogStore?.record(
+            level: level,
+            category: "Shopping List",
+            title: title,
+            detail: detail
+        )
     }
 
     private static func deduplicatedViewers(
@@ -587,5 +696,15 @@ final class ShoppingListViewModel: ObservableObject {
         }
 
         return nil
+    }
+
+    private static func shortIdentifier(_ value: String) -> String {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(trimmedValue.prefix(12))
+    }
+
+    private static func logValue(_ value: String) -> String {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\"\(trimmedValue)\""
     }
 }

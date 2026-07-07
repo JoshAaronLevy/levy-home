@@ -68,9 +68,7 @@ private struct PreferencesContentView: View {
 
                 NotificationPreferencesView(viewModel: viewModel)
 
-                if isDeveloperToolsEnabled {
-                    developerLink
-                }
+                developerLink
             }
             .padding(.horizontal, AppSpacing.screen)
             .padding(.top, AppSpacing.large)
@@ -85,10 +83,11 @@ private struct PreferencesContentView: View {
                 pushRegistrationViewModel: pushRegistrationViewModel,
                 notificationPreferencesViewModel: viewModel,
                 apnsEnvironment: apnsEnvironment,
+                showsDebugControls: isDeveloperToolsEnabled,
                 sendNotificationPipelineTest: sendNotificationPipelineTest
             )
         } label: {
-            DeveloperPreferenceLinkLabel()
+            DeveloperPreferenceLinkLabel(showsDebugControls: isDeveloperToolsEnabled)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Developer")
@@ -102,6 +101,8 @@ private struct PreferencesContentView: View {
 }
 
 private struct DeveloperPreferenceLinkLabel: View {
+    let showsDebugControls: Bool
+
     var body: some View {
         HStack(spacing: AppSpacing.medium) {
             Image(systemName: "wrench.and.screwdriver")
@@ -114,7 +115,7 @@ private struct DeveloperPreferenceLinkLabel: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
 
-                Text("Device registration, preference sync, and logs.")
+                Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(AppColors.mutedText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -134,6 +135,12 @@ private struct DeveloperPreferenceLinkLabel: View {
             RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
+    }
+
+    private var subtitle: String {
+        showsDebugControls
+            ? "Device registration, preference sync, and logs."
+            : "Runtime logs and activity diagnostics."
     }
 }
 
