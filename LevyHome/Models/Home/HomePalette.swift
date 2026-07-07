@@ -63,6 +63,10 @@ enum HomePalette {
         light: UIColor(red: 1.0, green: 1.0, blue: 0.96, alpha: 0.82),
         dark: UIColor(red: 0.30, green: 0.32, blue: 0.30, alpha: 0.82)
     )
+    static let inactiveLightStatus = adaptive(
+        light: UIColor(red: 0.72, green: 0.73, blue: 0.70, alpha: 0.88),
+        dark: UIColor(red: 0.66, green: 0.68, blue: 0.68, alpha: 0.86)
+    )
     static let shadow = Color.black.opacity(0.10)
     static let blue = Color(red: 0.18, green: 0.43, blue: 0.80)
     static let green = Color(red: 0.34, green: 0.62, blue: 0.38)

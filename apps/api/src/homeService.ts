@@ -164,6 +164,10 @@ function summarizeLightState(groupStates: LightState[], fallback: LightState): L
     return 'partially_on';
   }
 
+  if (groupStates.some((state) => state === 'unavailable')) {
+    return 'unavailable';
+  }
+
   return fallback;
 }
 

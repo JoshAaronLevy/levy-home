@@ -5,6 +5,7 @@ struct LightSummary: Codable, Equatable {
         case off
         case on
         case partiallyOn
+        case unavailable
         case unknown
         case unrecognized(String)
 
@@ -16,6 +17,8 @@ struct LightSummary: Codable, Equatable {
                 return "on"
             case .partiallyOn:
                 return "partially_on"
+            case .unavailable:
+                return "unavailable"
             case .unknown:
                 return "unknown"
             case .unrecognized(let rawValue):
@@ -31,6 +34,8 @@ struct LightSummary: Codable, Equatable {
                 self = .on
             case "partially_on", "partiallyOn":
                 self = .partiallyOn
+            case "unavailable":
+                self = .unavailable
             case "unknown":
                 self = .unknown
             default:

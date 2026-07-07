@@ -18,6 +18,12 @@ struct HomeBlueprintView: View {
             let garageSize = min(max(width * 0.305, 112), 134)
             let centerSize = min(max(width * 0.185, 66), 80)
             let positions = BlueprintNodePositions(width: width, height: height)
+            let kitchenStatus = lightStatus(matching: ["kitchen"])
+            let upstairsStatus = lightStatus(matching: ["upstairs", "hallway"])
+            let studyStatus = lightStatus(matching: ["study"])
+            let playroomStatus = lightStatus(matching: ["playroom"])
+            let entryStatus = lightStatus(matching: ["foyer", "entry"])
+            let garageStatus = lightStatus(matching: ["garage"])
 
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -35,22 +41,29 @@ struct HomeBlueprintView: View {
                     .stroke(HomePalette.floorLine, lineWidth: 1)
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
-                ConnectorLines(
-                    center: center,
-                    points: [
-                        positions.kitchen,
-                        positions.upstairsHall,
-                        positions.study,
-                        positions.garage,
-                        positions.entry,
-                        positions.playroom
-                    ]
-                )
-                .stroke(
-                    HomePalette.connector,
-                    style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round)
-                )
-                .shadow(color: .white.opacity(0.9), radius: 2)
+                BlueprintConnectorLine(from: center, to: positions.kitchen)
+                    .stroke(kitchenStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
+                BlueprintConnectorLine(from: center, to: positions.upstairsHall)
+                    .stroke(upstairsStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
+                BlueprintConnectorLine(from: center, to: positions.study)
+                    .stroke(studyStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
+                BlueprintConnectorLine(from: center, to: positions.garage)
+                    .stroke(garageStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
+                BlueprintConnectorLine(from: center, to: positions.entry)
+                    .stroke(entryStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
+                BlueprintConnectorLine(from: center, to: positions.playroom)
+                    .stroke(playroomStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
 
                 CenterHomeNode(size: centerSize)
                     .position(center)
@@ -60,7 +73,8 @@ struct HomeBlueprintView: View {
                     subtitle: kitchenSubtitle,
                     systemImage: "lightbulb",
                     tone: .success,
-                    size: nodeSize
+                    size: nodeSize,
+                    lightStatus: kitchenStatus
                 )
                 .position(positions.kitchen)
 
@@ -69,7 +83,8 @@ struct HomeBlueprintView: View {
                     subtitle: "quiet",
                     systemImage: "stairs",
                     tone: .accent,
-                    size: nodeSize
+                    size: nodeSize,
+                    lightStatus: upstairsStatus
                 )
                 .position(positions.upstairsHall)
 
@@ -78,7 +93,8 @@ struct HomeBlueprintView: View {
                     subtitle: "idle",
                     systemImage: "lamp.desk",
                     tone: .success,
-                    size: nodeSize
+                    size: nodeSize,
+                    lightStatus: studyStatus
                 )
                 .position(positions.study)
 
@@ -87,7 +103,8 @@ struct HomeBlueprintView: View {
                     subtitle: "quiet",
                     systemImage: "teddybear",
                     tone: .accent,
-                    size: nodeSize
+                    size: nodeSize,
+                    lightStatus: playroomStatus
                 )
                 .position(positions.playroom)
 
@@ -96,7 +113,8 @@ struct HomeBlueprintView: View {
                     subtitle: "secure",
                     systemImage: "door.left.hand.closed",
                     tone: .success,
-                    size: nodeSize
+                    size: nodeSize,
+                    lightStatus: entryStatus
                 )
                 .position(positions.entry)
 
@@ -109,6 +127,7 @@ struct HomeBlueprintView: View {
                         systemImage: garageData.systemImage,
                         tone: garageData.tone,
                         size: garageSize,
+                        lightStatus: garageStatus,
                         isPriority: true,
                         showsWarningBadge: showsGarageWarning,
                         isPerforming: garageToggleAction?.id == performingActionID
@@ -138,6 +157,15 @@ struct HomeBlueprintView: View {
 
     private var garageSubtitle: String {
         garageData.status.lowercased()
+    }
+
+    private func lightStatus(matching terms: [String]) -> BlueprintLightStatus {
+        let groups = lightSummaryData.groups.filter { group in
+            let searchableText = "\(group.id) \(group.name)".lowercased()
+            return terms.contains { searchableText.contains($0.lowercased()) }
+        }
+
+        return BlueprintLightStatus(groups: groups)
     }
 
     private var garageAccessibilityLabel: String {
@@ -176,12 +204,75 @@ private struct BlueprintNodePositions {
     }
 }
 
+private enum BlueprintLightStatus {
+    case active
+    case inactive
+    case unavailable
+    case unknown
+
+    init(groups: [LightGroupSummary]) {
+        guard !groups.isEmpty else {
+            self = .inactive
+            return
+        }
+
+        if groups.contains(where: { $0.state.isUnavailable }) {
+            self = .unavailable
+            return
+        }
+
+        if groups.contains(where: { $0.state.isActive }) {
+            self = .active
+            return
+        }
+
+        if groups.allSatisfy({ $0.state == .off }) {
+            self = .inactive
+            return
+        }
+
+        self = .unknown
+    }
+
+    var color: Color {
+        switch self {
+        case .active:
+            return HomePalette.gold
+        case .inactive, .unknown:
+            return HomePalette.inactiveLightStatus
+        case .unavailable:
+            return HomePalette.coral
+        }
+    }
+}
+
+private extension LightSummary.State {
+    var isActive: Bool {
+        switch self {
+        case .on, .partiallyOn:
+            return true
+        case .off, .unavailable, .unknown, .unrecognized:
+            return false
+        }
+    }
+
+    var isUnavailable: Bool {
+        switch self {
+        case .unavailable:
+            return true
+        case .off, .on, .partiallyOn, .unknown, .unrecognized:
+            return false
+        }
+    }
+}
+
 private struct BlueprintNodeView: View {
     let title: String
     let subtitle: String
     let systemImage: String
     let tone: StatusBadgeTone
     let size: CGFloat
+    let lightStatus: BlueprintLightStatus
     var isPriority = false
     var showsWarningBadge = false
     var isPerforming = false
@@ -194,16 +285,11 @@ private struct BlueprintNodeView: View {
                     Circle()
                         .stroke(.white.opacity(0.88), lineWidth: 2)
                 }
+                .overlay {
+                    Circle()
+                        .stroke(lightStatus.color, lineWidth: isPriority ? 3 : 2.5)
+                }
                 .shadow(color: HomePalette.shadow, radius: isPriority ? 16 : 12, y: isPriority ? 9 : 7)
-
-            Circle()
-                .trim(from: 0.62, to: 0.94)
-                .stroke(
-                    tone.foregroundColor,
-                    style: StrokeStyle(lineWidth: isPriority ? 4 : 3, lineCap: .round)
-                )
-                .rotationEffect(.degrees(28))
-                .padding(isPriority ? 8 : 6)
 
             VStack(spacing: isPriority ? AppSpacing.small : AppSpacing.xSmall) {
                 if isPerforming {
@@ -250,6 +336,20 @@ private struct BlueprintNodeView: View {
         }
         .frame(width: size, height: size)
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct BlueprintConnectorLine: Shape {
+    static let strokeStyle = StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round)
+
+    let from: CGPoint
+    let to: CGPoint
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: from)
+        path.addLine(to: to)
+        return path
     }
 }
 
@@ -329,26 +429,6 @@ private struct FloorPlanLines: Shape {
                 ),
                 cornerSize: CGSize(width: 6, height: 6)
             )
-        }
-
-        return path
-    }
-}
-
-private struct ConnectorLines: Shape {
-    let center: CGPoint
-    let points: [CGPoint]
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-
-        for point in points {
-            path.move(to: center)
-            let control = CGPoint(
-                x: (center.x + point.x) / 2,
-                y: (center.y + point.y) / 2
-            )
-            path.addQuadCurve(to: point, control: control)
         }
 
         return path

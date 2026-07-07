@@ -102,6 +102,7 @@ final class HomeOverviewViewModel: ObservableObject {
                 LightGroupSummary(
                     id: group.id,
                     name: group.name,
+                    state: group.state,
                     count: group.displayCount
                 )
             }
@@ -284,6 +285,8 @@ private extension LightSummary {
             }
 
             return lightsOnCount == 1 ? "1 light on" : "\(lightsOnCount) lights on"
+        case .unavailable:
+            return "Light status unavailable"
         case .unknown, .unrecognized:
             return "Unknown"
         }
@@ -305,6 +308,8 @@ private extension LightSummary {
             }
 
             return "Some configured lights are still on."
+        case .unavailable:
+            return "One or more configured lights are unavailable. Pull to refresh or check Home Assistant."
         case .unknown, .unrecognized:
             return "Light status is unavailable. Pull to refresh or check the API connection."
         }
@@ -332,6 +337,8 @@ private extension LightGroupStatus {
             return "On"
         case .partiallyOn:
             return "Some on"
+        case .unavailable:
+            return "Unavailable"
         case .unknown, .unrecognized:
             return "Unknown"
         }

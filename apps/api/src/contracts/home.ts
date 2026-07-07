@@ -1,7 +1,7 @@
 import type { LevyHomeEvent } from './activity.js';
 
 export type GarageState = 'open' | 'closed' | 'opening' | 'closing' | 'unknown';
-export type LightState = 'off' | 'on' | 'partially_on' | 'unknown';
+export type LightState = 'off' | 'on' | 'partially_on' | 'unavailable' | 'unknown';
 export type PresenceState = 'home' | 'away' | 'unknown';
 
 export type GarageStatus = {

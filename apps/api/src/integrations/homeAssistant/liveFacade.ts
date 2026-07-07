@@ -247,6 +247,10 @@ function mapLightCollectionState(states: LightState[]): LightState {
     return 'partially_on';
   }
 
+  if (states.some((state) => state === 'unavailable')) {
+    return 'unavailable';
+  }
+
   return 'unknown';
 }
 
@@ -280,6 +284,7 @@ function mapLightState(state: string): LightState {
   case 'on':
     return 'on';
   case 'unavailable':
+    return 'unavailable';
   case 'unknown':
     return 'unknown';
   default:

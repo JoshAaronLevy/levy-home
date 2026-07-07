@@ -298,6 +298,8 @@ struct HomeContentView: View {
             return "0 on"
         case .on, .partiallyOn:
             return "On"
+        case .unavailable:
+            return "Unavailable"
         case .unknown, .unrecognized:
             return "Unknown"
         }

@@ -3,12 +3,27 @@ import SwiftUI
 struct LightGroupSummary: Identifiable {
     let id: String
     let name: String
+    let state: LightSummary.State
     let count: String
 
-    init(id: String = UUID().uuidString, name: String, count: String) {
+    init(id: String = UUID().uuidString, name: String, state: LightSummary.State = .unknown, count: String) {
         self.id = id
         self.name = name
+        self.state = state
         self.count = count
+    }
+
+    var tone: StatusBadgeTone {
+        switch state {
+        case .off:
+            return .neutral
+        case .on, .partiallyOn:
+            return .warning
+        case .unavailable:
+            return .critical
+        case .unknown, .unrecognized:
+            return .neutral
+        }
     }
 }
 
@@ -47,10 +62,10 @@ struct LightSummaryCard: View {
 
                             Spacer(minLength: AppSpacing.small)
 
-                            StatusBadgeView(label: group.count, tone: .warning)
+                            StatusBadgeView(label: group.count, tone: group.tone)
                         }
                         .padding(AppSpacing.small)
-                        .background(AppColors.warningSoft)
+                        .background(group.tone.backgroundColor)
                         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
                     }
                 }

@@ -128,6 +128,65 @@ test('live Home Assistant facade summarizes configured light groups without an a
   }
 });
 
+test('live Home Assistant facade preserves unavailable light state', async () => {
+  const states = new Map<string, unknown>([
+    [
+      '/api/states/light.study_lamp_1',
+      {
+        entity_id: 'light.study_lamp_1',
+        state: 'unavailable',
+      },
+    ],
+  ]);
+  const server = await startHomeAssistantServer(async (req, res) => {
+    const state = req.url ? states.get(req.url) : undefined;
+
+    if (!state) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(state));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade({
+      ...liveConfig(server.baseURL),
+      homeAssistant: {
+        ...liveConfig(server.baseURL).homeAssistant,
+        allLightsEntityId: undefined,
+        lightGroups: [],
+        lightEntities: [{ id: 'study_lamp_1', name: 'Study Lamp 1', entityId: 'light.study_lamp_1' }],
+      },
+    });
+
+    const summary = await facade.getLightSummaryInputs();
+
+    assert.deepEqual(summary, {
+      allLights: {
+        id: 'all_lights',
+        name: 'All lights',
+        state: 'unavailable',
+        lightsOnCount: 0,
+        totalLightCount: 1,
+      },
+      groups: [
+        {
+          id: 'study_lamp_1',
+          name: 'Study Lamp 1',
+          state: 'unavailable',
+          lightsOnCount: 0,
+          totalLightCount: 1,
+        },
+      ],
+    });
+  } finally {
+    await server.close();
+  }
+});
+
 test('live Home Assistant facade turns off configured light groups when no all-lights entity is configured', async () => {
   const serviceCalls: Array<{ path: string; body: unknown }> = [];
   const server = await startHomeAssistantServer(async (req, res) => {
