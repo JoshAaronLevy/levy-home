@@ -53,6 +53,8 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.users.map(\.firstName), ["Josh", "Mallory"])
         XCTAssertEqual(viewModel.sections.first?.tasks.first?.name, "Schedule dentist")
         XCTAssertEqual(viewModel.sections.first?.tasks.first?.locationIds, [2])
+        XCTAssertEqual(viewModel.sections.first?.tasks.first?.notes, "Bring insurance card.")
+        XCTAssertEqual(viewModel.sections.first?.tasks.first?.subtasks, [])
         XCTAssertEqual(Set(capturedRequests.requests.map { $0.url?.path }), ["/api/todo-list", "/api/users"])
     }
 
@@ -199,6 +201,8 @@ final class ToDoViewModelTests: XCTestCase {
               "locationDisplayText": "Denver Pediatrics",
               "date": "2026-07-06T17:00:00.000Z",
               "recurring": null,
+              "notes": "Bring insurance card.",
+              "subtasks": [],
               "createdBy": 1,
               "createdDate": "2026-07-05T17:00:00.000Z"
             }

@@ -90,26 +90,22 @@ final class ShoppingListViewModel: ObservableObject {
     }
 
     var activeViewerInitials: [String] {
-        var initials: [String] = []
-        var seenInitials: Set<String> = []
+        residentAvatarStates.map(\.initial)
+    }
 
-        if let currentViewerId {
-            Self.appendInitial(
-                from: Self.displayName(forViewerId: currentViewerId),
-                to: &initials,
-                seenInitials: &seenInitials
-            )
+    var residentAvatarStates: [ResidentAvatarState] {
+        var viewingResidentIds = Set(
+            activeViewers.compactMap { viewer in
+                Self.residentIdentity(for: viewer)?.id
+            }
+        )
+
+        if let currentViewerId,
+           let currentResident = Self.residentIdentity(forViewerId: currentViewerId) {
+            viewingResidentIds.insert(currentResident.id)
         }
 
-        for viewer in activeViewers {
-            Self.appendInitial(
-                from: Self.displayName(for: viewer),
-                to: &initials,
-                seenInitials: &seenInitials
-            )
-        }
-
-        return initials
+        return ResidentAvatarState.allResidents(viewingResidentIds: viewingResidentIds)
     }
 
     var liveStatusBadge: ShoppingLiveStatusBadge? {
@@ -554,47 +550,42 @@ final class ShoppingListViewModel: ObservableObject {
     }
 
     private static func displayName(for viewer: ShoppingListViewerPresence) -> String {
-        let normalizedViewerId = viewer.viewerId.lowercased()
-
-        if let resident = ResidentIdentity.allCases.first(where: { $0.shoppingListViewerId == normalizedViewerId }) {
-            return resident.rawValue
-        }
-
-        let trimmedDisplayName = viewer.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let resident = ResidentIdentity(rawValue: trimmedDisplayName) {
+        if let resident = residentIdentity(for: viewer) {
             return resident.rawValue
         }
 
         return "Someone"
     }
 
-    private static func displayName(forViewerId viewerId: String) -> String {
-        let normalizedViewerId = viewerId.lowercased()
+    private static func residentIdentity(for viewer: ShoppingListViewerPresence) -> ResidentIdentity? {
+        if let resident = residentIdentity(forViewerId: viewer.viewerId) {
+            return resident
+        }
 
-        if let resident = ResidentIdentity.allCases.first(where: { $0.shoppingListViewerId == normalizedViewerId }) {
+        let trimmedDisplayName = viewer.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let resident = ResidentIdentity(rawValue: trimmedDisplayName) {
+            return resident
+        }
+
+        return nil
+    }
+
+    private static func displayName(forViewerId viewerId: String) -> String {
+        if let resident = residentIdentity(forViewerId: viewerId) {
             return resident.rawValue
         }
 
         return "You"
     }
 
-    private static func appendInitial(
-        from displayName: String,
-        to initials: inout [String],
-        seenInitials: inout Set<String>
-    ) {
-        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let firstCharacter = trimmedName.first else {
-            return
+    private static func residentIdentity(forViewerId viewerId: String) -> ResidentIdentity? {
+        let normalizedViewerId = viewerId.lowercased()
+
+        if let resident = ResidentIdentity.allCases.first(where: { $0.shoppingListViewerId == normalizedViewerId }) {
+            return resident
         }
 
-        let initial = String(firstCharacter).uppercased()
-        guard !seenInitials.contains(initial) else {
-            return
-        }
-
-        seenInitials.insert(initial)
-        initials.append(initial)
+        return nil
     }
 }

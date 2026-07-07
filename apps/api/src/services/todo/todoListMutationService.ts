@@ -5,14 +5,13 @@ import type {
   CreateToDoItemRequest,
   DeleteToDoItemRequest,
   DeleteToDoItemResponse,
-  EventPushStatus,
   ToDoItem,
   ToDoListMutationResponse,
   UpdateToDoItemRequest,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import type { ToDoListStore } from '../../repositories/todoListRepository.js';
-import type { ListMutationPushAction, NotificationService } from '../notifications/notificationService.js';
+import type { ToDoListRealtimeSessionRecorder } from '../../todoListRealtime.js';
 
 export type ToDoListMutationService = {
   createItem: (request: CreateToDoItemRequest, mutationId: string) => Promise<ToDoListMutationResponse>;
@@ -29,17 +28,17 @@ export type ToDoListMutationService = {
 };
 
 export function createToDoListMutationService(options: {
-  notificationService?: Pick<NotificationService, 'sendListMutationPush'>;
+  toDoListRealtime?: ToDoListRealtimeSessionRecorder;
   toDoListStore: ToDoListStore;
 }): ToDoListMutationService {
-  const { notificationService, toDoListStore } = options;
+  const { toDoListRealtime, toDoListStore } = options;
 
   return {
     async createItem(request, mutationId) {
       const item = await toDoListStore.createItem(request);
       const response = toDoListMutationResponse(item, mutationId);
 
-      response.push = await sendToDoListMutationPush(notificationService, item, 'created', request.actor);
+      toDoListRealtime?.recordItemCreated(item, mutationId, request.actor);
 
       return response;
     },
@@ -51,13 +50,6 @@ export function createToDoListMutationService(options: {
       }
 
       const response = toDoListMutationResponse(item, mutationId);
-
-      response.push = await sendToDoListMutationPush(
-        notificationService,
-        item,
-        request.status === 'completed' ? 'completed' : 'updated',
-        request.actor,
-      );
 
       return response;
     },
@@ -75,8 +67,6 @@ export function createToDoListMutationService(options: {
         mutationId,
         generatedAt: new Date().toISOString(),
       };
-
-      response.push = await sendToDoListMutationPush(notificationService, item, 'deleted', request.actor);
 
       return response;
     },
@@ -106,32 +96,6 @@ function toDoListMutationResponse(item: ToDoItem, mutationId: string): ToDoListM
     mutationId,
     generatedAt: new Date().toISOString(),
   };
-}
-
-async function sendToDoListMutationPush(
-  notificationService: Pick<NotificationService, 'sendListMutationPush'> | undefined,
-  item: ToDoItem,
-  action: ListMutationPushAction,
-  actor?: string,
-): Promise<EventPushStatus | undefined> {
-  if (!notificationService) {
-    return undefined;
-  }
-
-  try {
-    return await notificationService.sendListMutationPush({
-      listType: 'todo',
-      action,
-      itemName: item.name,
-      actor,
-    });
-  } catch (error) {
-    return {
-      attempted: false,
-      skipped: true,
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  }
 }
 
 function toDoItemNotFoundError(): HTTPError {

@@ -16,6 +16,7 @@ import {
 } from './integrations/homeAssistant/activityListener.js';
 import { logger, type Logger, safeErrorMessage } from './observability/logger.js';
 import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
+import type { ToDoListRealtimeHub } from './todoListRealtime.js';
 
 export function startServer(config?: AppConfig, options: { logger?: Logger } = {}): void {
   const serverLogger = options.logger ?? logger;
@@ -26,6 +27,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   const activityStore = createRecentActivityStore(500);
   const shoppingListRealtime = createShoppingListRealtimeHub();
   const app = createApp({ config: resolvedConfig, activityStore, logger: serverLogger, shoppingListRealtime });
+  const toDoListRealtime = app.get('toDoListRealtime') as ToDoListRealtimeHub | undefined;
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -64,10 +66,15 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   server.on('close', () => {
     activityListener?.stop();
     shoppingListRealtime.close();
+    toDoListRealtime?.close();
   });
 
   server.on('upgrade', (request, socket, head) => {
     if (shoppingListRealtime.handleUpgrade(request, socket, head)) {
+      return;
+    }
+
+    if (toDoListRealtime?.handleUpgrade(request, socket, head)) {
       return;
     }
 
@@ -92,6 +99,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     forceExit.unref();
 
     shoppingListRealtime.close();
+    toDoListRealtime?.close();
 
     server.close((error) => {
       if (error) {

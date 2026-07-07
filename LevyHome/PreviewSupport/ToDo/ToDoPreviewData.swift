@@ -113,7 +113,8 @@ enum ToDoPreviewData {
                     status: .open,
                     locationDisplayText: "Cherry Creek Dental",
                     isLinkedToFamilyCalendar: false,
-                    previewNote: "Find a morning opening next week."
+                    notes: "Find a morning opening next week.",
+                    subtasks: []
                 ),
                 ToDoTask(
                     id: 2,
@@ -126,7 +127,8 @@ enum ToDoPreviewData {
                     status: .open,
                     locationDisplayText: "Denver Pediatrics",
                     isLinkedToFamilyCalendar: true,
-                    previewNote: "Bring insurance card and forms."
+                    notes: "Bring insurance card and forms.",
+                    subtasks: []
                 )
             ]
         ),
@@ -147,7 +149,8 @@ enum ToDoPreviewData {
                     status: .open,
                     locationDisplayText: "Home",
                     isLinkedToFamilyCalendar: false,
-                    previewNote: "Measure latch before hardware store run."
+                    notes: "Measure latch before hardware store run.",
+                    subtasks: []
                 )
             ]
         ),
@@ -168,7 +171,8 @@ enum ToDoPreviewData {
                     status: .open,
                     locationDisplayText: "Rec center",
                     isLinkedToFamilyCalendar: false,
-                    previewNote: "Check weekly availability."
+                    notes: "Check weekly availability.",
+                    subtasks: []
                 )
             ]
         ),
@@ -189,7 +193,8 @@ enum ToDoPreviewData {
                     status: .open,
                     locationDisplayText: "County office",
                     isLinkedToFamilyCalendar: false,
-                    previewNote: "Make appointment and print forms."
+                    notes: "Make appointment and print forms.",
+                    subtasks: []
                 )
             ]
         )
@@ -256,6 +261,7 @@ enum ToDoPreviewData {
             locationDisplayText: "Home",
             date: isoString(from: todayAt(hour: 17)),
             recurring: nil,
+            notes: "Replace both upstairs and main floor HVAC filters.",
             createdBy: 1,
             createdDate: "2026-07-05T16:00:00.000Z"
         ),
@@ -273,6 +279,7 @@ enum ToDoPreviewData {
                     "timing": .string("morningOf")
                 ])
             ],
+            subtasks: [],
             createdBy: 2,
             createdDate: "2026-07-04T16:00:00.000Z"
         ),
@@ -284,6 +291,7 @@ enum ToDoPreviewData {
             locationDisplayText: "No location",
             date: nil,
             recurring: nil,
+            notes: "Collect ideas before the weekend.",
             createdBy: 1,
             createdDate: "2026-07-06T15:30:00.000Z"
         )

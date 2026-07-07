@@ -25,7 +25,9 @@ const allowedCreateToDoItemBodyKeys = new Set([
   'locationIds',
   'date',
   'recurring',
+  'notes',
   'alerts',
+  'subtasks',
   'createdBy',
   'actor',
   'mutationId',
@@ -71,7 +73,9 @@ export function validateCreateToDoItemBody(input: unknown): CreateToDoItemReques
   const locationIds = readOptionalToDoItemIdArray(input.locationIds, 'locationIds');
   const date = readOptionalNullableToDoDate(input.date);
   const recurring = readOptionalNullableToDoRecurring(input.recurring);
+  const notes = readOptionalNullableToDoItemString(input.notes, 'notes');
   const alerts = readOptionalNullableToDoAlerts(input.alerts);
+  const subtasks = readOptionalNullableToDoJSONArray(input.subtasks, 'subtasks');
   const createdBy = readOptionalNullablePositiveInteger(input.createdBy, 'createdBy', invalidToDoItem);
   const actor = readOptionalToDoActor(input.actor);
   const mutationId = readOptionalToDoMutationId(input.mutationId);
@@ -82,7 +86,9 @@ export function validateCreateToDoItemBody(input: unknown): CreateToDoItemReques
     locationIds: locationIds ?? [],
     ...(date !== undefined ? { date } : {}),
     ...(recurring !== undefined ? { recurring } : {}),
+    ...(notes !== undefined ? { notes } : {}),
     ...(alerts !== undefined ? { alerts: alerts ?? [] } : {}),
+    ...(subtasks !== undefined ? { subtasks: subtasks ?? [] } : {}),
     ...(createdBy !== undefined ? { createdBy } : {}),
     ...(actor ? { actor } : {}),
     ...(mutationId ? { mutationId } : {}),
@@ -118,8 +124,16 @@ export function validateUpdateToDoItemBody(input: unknown): UpdateToDoItemReques
     request.recurring = readOptionalNullableToDoRecurring(input.recurring) ?? null;
   }
 
+  if (hasOwn(input, 'notes')) {
+    request.notes = readOptionalNullableToDoItemString(input.notes, 'notes') ?? null;
+  }
+
   if (hasOwn(input, 'alerts')) {
     request.alerts = readOptionalNullableToDoAlerts(input.alerts) ?? null;
+  }
+
+  if (hasOwn(input, 'subtasks')) {
+    request.subtasks = readOptionalNullableToDoJSONArray(input.subtasks, 'subtasks') ?? null;
   }
 
   if (hasOwn(input, 'createdBy')) {
@@ -358,6 +372,13 @@ function readOptionalNullableToDoDate(value: unknown): string | null | undefined
 }
 
 function readOptionalNullableToDoAlerts(value: unknown): unknown[] | null | undefined {
+  return readOptionalNullableToDoJSONArray(value, 'alerts');
+}
+
+function readOptionalNullableToDoJSONArray(
+  value: unknown,
+  fieldName: string,
+): unknown[] | null | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -367,10 +388,30 @@ function readOptionalNullableToDoAlerts(value: unknown): unknown[] | null | unde
   }
 
   if (!Array.isArray(value)) {
-    throw invalidToDoItem('alerts must be an array or null when provided.');
+    throw invalidToDoItem(`${fieldName} must be an array or null when provided.`);
   }
 
   return value;
+}
+
+function readOptionalNullableToDoItemString(
+  value: unknown,
+  fieldName: string,
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw invalidToDoItem(`${fieldName} must be a string or null when provided.`);
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function readOptionalToDoActor(value: unknown): string | undefined {
@@ -406,7 +447,9 @@ function hasMutableToDoItemField(request: UpdateToDoItemRequest): boolean {
     request.locationIds !== undefined ||
     request.date !== undefined ||
     request.recurring !== undefined ||
+    request.notes !== undefined ||
     request.alerts !== undefined ||
+    request.subtasks !== undefined ||
     request.createdBy !== undefined
   );
 }

@@ -17,7 +17,9 @@ struct CreateToDoItemRequest: Encodable, Equatable {
     let locationIds: [Int]?
     let date: String?
     let recurring: ToDoItemRecurring?
+    let notes: String?
     let alerts: [JSONValue]?
+    let subtasks: [JSONValue]?
     let createdBy: Int?
     let actor: String?
     let mutationId: String
@@ -28,7 +30,9 @@ struct CreateToDoItemRequest: Encodable, Equatable {
         locationIds: [Int]? = nil,
         date: String? = nil,
         recurring: ToDoItemRecurring? = nil,
+        notes: String? = nil,
         alerts: [JSONValue]? = nil,
+        subtasks: [JSONValue]? = nil,
         createdBy: Int? = nil,
         actor: String? = nil,
         mutationId: String = UUID().uuidString
@@ -38,7 +42,9 @@ struct CreateToDoItemRequest: Encodable, Equatable {
         self.locationIds = locationIds
         self.date = date
         self.recurring = recurring
+        self.notes = notes
         self.alerts = alerts
+        self.subtasks = subtasks
         self.createdBy = createdBy
         self.actor = actor
         self.mutationId = mutationId
@@ -51,7 +57,9 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
     let locationIds: [Int]?
     let date: ShoppingListNullableValue<String>?
     let recurring: ShoppingListNullableValue<ToDoItemRecurring>?
+    let notes: ShoppingListNullableValue<String>?
     let alerts: ShoppingListNullableValue<[JSONValue]>?
+    let subtasks: ShoppingListNullableValue<[JSONValue]>?
     let createdBy: ShoppingListNullableValue<Int>?
     let actor: String?
     let mutationId: String
@@ -62,7 +70,9 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
         locationIds: [Int]? = nil,
         date: ShoppingListNullableValue<String>? = nil,
         recurring: ShoppingListNullableValue<ToDoItemRecurring>? = nil,
+        notes: ShoppingListNullableValue<String>? = nil,
         alerts: ShoppingListNullableValue<[JSONValue]>? = nil,
+        subtasks: ShoppingListNullableValue<[JSONValue]>? = nil,
         createdBy: ShoppingListNullableValue<Int>? = nil,
         actor: String? = nil,
         mutationId: String = UUID().uuidString
@@ -72,7 +82,9 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
         self.locationIds = locationIds
         self.date = date
         self.recurring = recurring
+        self.notes = notes
         self.alerts = alerts
+        self.subtasks = subtasks
         self.createdBy = createdBy
         self.actor = actor
         self.mutationId = mutationId

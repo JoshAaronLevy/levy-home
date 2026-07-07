@@ -53,7 +53,9 @@ struct ToDoItem: Codable, Equatable, Identifiable {
     let locationDisplayText: String
     let date: String?
     let recurring: ToDoItemRecurring?
+    let notes: String?
     let alerts: [JSONValue]
+    let subtasks: [JSONValue]
     let createdBy: Int?
     let createdDate: String?
 
@@ -65,7 +67,9 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         case locationDisplayText
         case date
         case recurring
+        case notes
         case alerts
+        case subtasks
         case createdBy
         case createdDate
     }
@@ -78,7 +82,9 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         locationDisplayText: String,
         date: String? = nil,
         recurring: ToDoItemRecurring? = nil,
+        notes: String? = nil,
         alerts: [JSONValue] = [],
+        subtasks: [JSONValue] = [],
         createdBy: Int? = nil,
         createdDate: String? = nil
     ) {
@@ -89,7 +95,9 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         self.locationDisplayText = locationDisplayText
         self.date = date
         self.recurring = recurring
+        self.notes = notes
         self.alerts = alerts
+        self.subtasks = subtasks
         self.createdBy = createdBy
         self.createdDate = createdDate
     }
@@ -104,7 +112,9 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         locationDisplayText = try container.decode(String.self, forKey: .locationDisplayText)
         date = try container.decodeIfPresent(String.self, forKey: .date)
         recurring = try container.decodeIfPresent(ToDoItemRecurring.self, forKey: .recurring)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
         alerts = try container.decodeIfPresent([JSONValue].self, forKey: .alerts) ?? []
+        subtasks = try container.decodeIfPresent([JSONValue].self, forKey: .subtasks) ?? []
         createdBy = try container.decodeIfPresent(Int.self, forKey: .createdBy)
         createdDate = try container.decodeIfPresent(String.self, forKey: .createdDate)
     }

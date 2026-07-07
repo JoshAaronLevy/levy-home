@@ -127,6 +127,20 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.otherActiveViewers.map(\.viewerId), ["mallory"])
         XCTAssertEqual(viewModel.otherActiveViewerLabel, "Mallory viewing")
         XCTAssertEqual(viewModel.activeViewerInitials, ["J", "M"])
+        XCTAssertEqual(viewModel.residentAvatarStates.map(\.initial), ["J", "M"])
+        XCTAssertEqual(viewModel.residentAvatarStates.map(\.isViewing), [true, true])
+    }
+
+    func testResidentAvatarStatesAlwaysShowJoshAndMallory() {
+        let viewModel = ShoppingListViewModel(
+            currentViewerId: "josh",
+            loadShoppingList: {
+                Self.response(items: [])
+            }
+        )
+
+        XCTAssertEqual(viewModel.residentAvatarStates.map(\.initial), ["J", "M"])
+        XCTAssertEqual(viewModel.residentAvatarStates.map(\.isViewing), [true, false])
     }
 
     func testSnapshotRequiredRefreshesFromLiveSnapshot() async {

@@ -113,13 +113,6 @@ private struct ToDoTaskRow: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
 
-                    if let note = task.previewNote {
-                        Text(note)
-                            .font(.subheadline)
-                            .foregroundStyle(AppColors.mutedText)
-                            .lineLimit(2)
-                            .truncationMode(.tail)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

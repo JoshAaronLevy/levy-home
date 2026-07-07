@@ -41,6 +41,7 @@ import { createNotificationService } from './services/notifications/notification
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
 import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
 import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
+import { createToDoListRealtimeHub, type ToDoListRealtimeHub } from './todoListRealtime.js';
 
 export type CreateAppOptions = {
   config?: AppConfig;
@@ -51,6 +52,7 @@ export type CreateAppOptions = {
   notificationPreferenceStore?: NotificationPreferenceStore;
   shoppingListStore?: ShoppingListStore;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  toDoListRealtime?: ToDoListRealtimeHub;
   userStore?: UserStore;
   toDoLocationStore?: ToDoLocationStore;
   toDoListStore?: ToDoListStore;
@@ -97,10 +99,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
   const toDoListStore = options.toDoListStore ?? createPostgresToDoListStore();
+  const toDoListRealtime = options.toDoListRealtime ?? createToDoListRealtimeHub({ notificationService });
   const toDoListMutationService =
     options.toDoListMutationService ??
     createToDoListMutationService({
-      notificationService,
+      toDoListRealtime,
       toDoListStore,
     });
   const krogerProductDiagnosticRunner =
@@ -114,6 +117,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(cors());
   app.use(noStoreCacheControl);
   app.use(express.json({ limit: '1mb' }));
+  app.set('toDoListRealtime', toDoListRealtime);
 
   registerRoutes(app, {
     activityStore,

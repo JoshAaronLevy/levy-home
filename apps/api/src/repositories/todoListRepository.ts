@@ -34,7 +34,9 @@ type ToDoItemRow = Record<string, unknown> & {
   locationDisplayText: unknown;
   date: unknown;
   recurring: unknown;
+  notes: unknown;
   alerts: unknown;
+  subtasks: unknown;
   createdBy: unknown;
   createdDate: unknown;
   status: unknown;
@@ -88,7 +90,9 @@ export async function fetchToDoListData(database: DatabaseQuery): Promise<ToDoLi
         ) AS "locationDisplayText",
         item.date,
         item.recurring,
+        item.notes,
         COALESCE(item.alerts, '[]'::jsonb) AS alerts,
+        COALESCE(item.subtasks, '[]'::jsonb) AS subtasks,
         item.created_by AS "createdBy",
         item.created_date AS "createdDate",
         item.status
@@ -129,7 +133,9 @@ export async function fetchToDoItem(database: DatabaseQuery, id: number): Promis
       ) AS "locationDisplayText",
       item.date,
       item.recurring,
+      item.notes,
       COALESCE(item.alerts, '[]'::jsonb) AS alerts,
+      COALESCE(item.subtasks, '[]'::jsonb) AS subtasks,
       item.created_by AS "createdBy",
       item.created_date AS "createdDate",
       item.status
@@ -148,7 +154,9 @@ export async function createToDoItem(database: DatabaseQuery, request: CreateToD
       location_ids,
       date,
       recurring,
+      notes,
       alerts,
+      subtasks,
       created_by,
       created_date,
       status
@@ -158,7 +166,9 @@ export async function createToDoItem(database: DatabaseQuery, request: CreateToD
       ${jsonb(request.locationIds ?? [])}::jsonb,
       ${request.date ?? null},
       ${request.recurring ?? null},
+      ${request.notes ?? null},
       ${jsonb(request.alerts ?? [])}::jsonb,
+      ${jsonb(request.subtasks ?? [])}::jsonb,
       ${request.createdBy ?? null},
       now(),
       ${request.status ?? 'open'}
@@ -180,7 +190,9 @@ export async function createToDoItem(database: DatabaseQuery, request: CreateToD
       ) AS "locationDisplayText",
       date,
       recurring,
+      notes,
       COALESCE(alerts, '[]'::jsonb) AS alerts,
+      COALESCE(subtasks, '[]'::jsonb) AS subtasks,
       created_by AS "createdBy",
       created_date AS "createdDate",
       status
@@ -202,7 +214,9 @@ export async function updateToDoItem(
   const hasLocationIds = request.locationIds !== undefined;
   const hasDate = request.date !== undefined;
   const hasRecurring = request.recurring !== undefined;
+  const hasNotes = request.notes !== undefined;
   const hasAlerts = request.alerts !== undefined;
+  const hasSubtasks = request.subtasks !== undefined;
   const hasCreatedBy = request.createdBy !== undefined;
   const hasStatus = request.status !== undefined;
 
@@ -216,7 +230,12 @@ export async function updateToDoItem(
       END,
       date = CASE WHEN ${hasDate} THEN ${request.date ?? null} ELSE item.date END,
       recurring = CASE WHEN ${hasRecurring} THEN ${request.recurring ?? null} ELSE item.recurring END,
+      notes = CASE WHEN ${hasNotes} THEN ${request.notes ?? null} ELSE item.notes END,
       alerts = CASE WHEN ${hasAlerts} THEN ${jsonb(request.alerts ?? [])}::jsonb ELSE item.alerts END,
+      subtasks = CASE
+        WHEN ${hasSubtasks} THEN ${jsonb(request.subtasks ?? [])}::jsonb
+        ELSE item.subtasks
+      END,
       created_by = CASE WHEN ${hasCreatedBy} THEN ${request.createdBy ?? null} ELSE item.created_by END,
       status = CASE WHEN ${hasStatus} THEN ${request.status ?? null} ELSE item.status END
     WHERE item.id = ${id}
@@ -237,7 +256,9 @@ export async function updateToDoItem(
       ) AS "locationDisplayText",
       date,
       recurring,
+      notes,
       COALESCE(alerts, '[]'::jsonb) AS alerts,
+      COALESCE(subtasks, '[]'::jsonb) AS subtasks,
       created_by AS "createdBy",
       created_date AS "createdDate",
       status
@@ -267,7 +288,9 @@ export async function deleteToDoItem(database: DatabaseQuery, id: number): Promi
       ) AS "locationDisplayText",
       date,
       recurring,
+      notes,
       COALESCE(alerts, '[]'::jsonb) AS alerts,
+      COALESCE(subtasks, '[]'::jsonb) AS subtasks,
       created_by AS "createdBy",
       created_date AS "createdDate",
       status
@@ -292,7 +315,9 @@ async function fetchToDoCategories(database: DatabaseQuery): Promise<ToDoCategor
 function toDoItemFromRow(row: ToDoItemRow): ToDoItem {
   const date = optionalISOString(row.date);
   const recurring = optionalToDoRecurring(row.recurring);
-  const alerts = alertsArrayFromJSON(row.alerts);
+  const notes = optionalString(row.notes);
+  const alerts = jsonArrayFromJSON(row.alerts);
+  const subtasks = jsonArrayFromJSON(row.subtasks);
   const createdBy = optionalInteger(row.createdBy);
   const createdDate = optionalISOString(row.createdDate);
 
@@ -304,7 +329,9 @@ function toDoItemFromRow(row: ToDoItemRow): ToDoItem {
     locationDisplayText: optionalString(row.locationDisplayText) ?? 'No location',
     ...(date ? { date } : {}),
     ...(recurring ? { recurring } : {}),
+    ...(notes ? { notes } : {}),
     alerts,
+    subtasks,
     ...(createdBy !== undefined ? { createdBy } : {}),
     ...(createdDate ? { createdDate } : {}),
   };
@@ -337,7 +364,9 @@ function hasToDoItemUpdate(request: UpdateToDoItemRequest): boolean {
     request.locationIds !== undefined ||
     request.date !== undefined ||
     request.recurring !== undefined ||
+    request.notes !== undefined ||
     request.alerts !== undefined ||
+    request.subtasks !== undefined ||
     request.createdBy !== undefined
   );
 }
@@ -368,7 +397,7 @@ function integerArrayFromJSON(value: unknown): number[] {
     .filter((value): value is number => value !== undefined);
 }
 
-function alertsArrayFromJSON(value: unknown): unknown[] {
+function jsonArrayFromJSON(value: unknown): unknown[] {
   const parsedValue = parseJSONBValue(value);
   return Array.isArray(parsedValue) ? parsedValue : [];
 }

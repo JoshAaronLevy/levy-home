@@ -27,10 +27,7 @@ struct ShoppingListView: View {
 }
 
 private extension ShoppingListViewerIdentity {
-    static func forResidentPreference(
-        _ residentName: String,
-        userDefaults: UserDefaults = .standard
-    ) -> ShoppingListViewerIdentity {
+    static func forResidentPreference(_ residentName: String) -> ShoppingListViewerIdentity {
         let deviceName = currentDeviceName
 
         if let resident = ResidentIdentity(rawValue: residentName) {
@@ -50,23 +47,12 @@ private extension ShoppingListViewerIdentity {
             )
         }
 
+        let fallbackResident = ResidentIdentity.josh
         return ShoppingListViewerIdentity(
-            viewerId: stableViewerId(userDefaults: userDefaults),
-            displayName: deviceName ?? "This device",
+            viewerId: fallbackResident.shoppingListViewerId,
+            displayName: fallbackResident.rawValue,
             deviceName: deviceName
         )
-    }
-
-    private static func stableViewerId(userDefaults: UserDefaults) -> String {
-        let key = "shoppingList.viewerId"
-
-        if let existingId = userDefaults.string(forKey: key), !existingId.isEmpty {
-            return existingId
-        }
-
-        let newId = "ios-\(UUID().uuidString.lowercased())"
-        userDefaults.set(newId, forKey: key)
-        return newId
     }
 
     private static var currentDeviceName: String? {
@@ -598,7 +584,7 @@ private struct ShoppingListContentView: View {
 
     private var summaryPanel: some View {
         ShoppingListSummaryCard(
-            viewerInitials: viewModel.activeViewerInitials,
+            residentAvatars: viewModel.residentAvatarStates,
             remainingText: "\(neededItemCount) left of \(totalItemCount)",
             estimatedTotalText: estimatedRemainingTotalText,
             isFilterActive: appliedFilters.isActive,
@@ -608,7 +594,7 @@ private struct ShoppingListContentView: View {
                 isShowingFilterSheet = true
             }
         )
-        .animation(.easeInOut(duration: 0.16), value: viewModel.activeViewerInitials)
+        .animation(.easeInOut(duration: 0.16), value: viewModel.residentAvatarStates)
     }
 
     private var loadingView: some View {
@@ -1055,7 +1041,7 @@ fileprivate enum ShoppingStoreFilterOption: String, CaseIterable, Identifiable {
 }
 
 private struct ShoppingListSummaryCard: View {
-    let viewerInitials: [String]
+    let residentAvatars: [ResidentAvatarState]
     let remainingText: String
     let estimatedTotalText: String
     let isFilterActive: Bool
@@ -1064,8 +1050,8 @@ private struct ShoppingListSummaryCard: View {
 
     var body: some View {
         HStack(spacing: AppSpacing.medium) {
-            ShoppingViewerAvatarStack(initials: viewerInitials)
-                .frame(minWidth: 44, alignment: .leading)
+            ResidentAvatarStack(avatars: residentAvatars)
+                .frame(minWidth: 52, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(remainingText)
@@ -1116,45 +1102,6 @@ private struct ShoppingListSummaryCard: View {
             RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
-    }
-}
-
-private struct ShoppingViewerAvatarStack: View {
-    let initials: [String]
-
-    var body: some View {
-        HStack(spacing: -8) {
-            ForEach(Array(displayInitials.enumerated()), id: \.offset) { index, initial in
-                Text(initial)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(index == 0 ? Color.white : AppColors.accent)
-                    .frame(width: 30, height: 30)
-                    .background(index == 0 ? AppColors.accent : AppColors.accentSoft)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle()
-                            .stroke(AppColors.panelBackground, lineWidth: 2)
-                    }
-                    .zIndex(Double(displayInitials.count - index))
-            }
-        }
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private var displayInitials: [String] {
-        let normalizedInitials = initials
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
-            .filter { !$0.isEmpty }
-
-        return Array(normalizedInitials.prefix(3))
-    }
-
-    private var accessibilityLabel: String {
-        guard !displayInitials.isEmpty else {
-            return "No active viewers"
-        }
-
-        return "Active viewers \(displayInitials.joined(separator: ", "))"
     }
 }
 

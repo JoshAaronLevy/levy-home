@@ -22,7 +22,7 @@ struct RootTabView: View {
             .tag(RootTab.list)
 
             NavigationStack {
-                ToDoView()
+                ToDoView(isSelected: selectedTab == .todo)
             }
             .tabItem {
                 Label("To Do", systemImage: "checkmark.circle")

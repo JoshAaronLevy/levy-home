@@ -7,10 +7,20 @@ final class ToDoViewModel: ObservableObject {
     @Published private(set) var categories: [ToDoCategory] = []
     @Published private(set) var locations: [ToDoLocation] = []
     @Published private(set) var users: [LevyHomeUser] = []
+    @Published private(set) var activeViewers: [ToDoListViewerPresence] = []
     @Published private(set) var errorMessage: String?
     @Published private(set) var hasLoaded = false
     @Published private(set) var isLoading = false
     @Published private(set) var mutatingItemIDs: Set<Int> = []
+
+    private var liveService: ToDoListLiveServicing?
+    private var liveUpdatesTask: Task<Void, Never>?
+    private var currentViewerId: String?
+
+    deinit {
+        liveUpdatesTask?.cancel()
+        liveService?.disconnect()
+    }
 
     var sections: [ToDoTaskSection] {
         guard !items.isEmpty else {
@@ -60,6 +70,65 @@ final class ToDoViewModel: ObservableObject {
         }
     }
 
+    func residentAvatarStates(currentViewerId: String?) -> [ResidentAvatarState] {
+        var viewingResidentIds = Set(
+            activeViewers.compactMap { viewer in
+                Self.residentIdentity(for: viewer)?.id
+            }
+        )
+
+        if let currentViewerId,
+           let currentResident = Self.residentIdentity(forViewerId: currentViewerId) {
+            viewingResidentIds.insert(currentResident.id)
+        }
+
+        return ResidentAvatarState.allResidents(viewingResidentIds: viewingResidentIds)
+    }
+
+    func startLiveUpdatesIfNeeded(
+        liveService: ToDoListLiveServicing,
+        currentViewerId: String
+    ) {
+        if self.currentViewerId == currentViewerId, liveUpdatesTask != nil {
+            return
+        }
+
+        stopLiveUpdates()
+
+        self.liveService = liveService
+        self.currentViewerId = currentViewerId
+
+        liveUpdatesTask = Task { [weak self] in
+            for await message in liveService.messages() {
+                guard !Task.isCancelled else {
+                    break
+                }
+
+                self?.applyLiveMessage(message)
+            }
+        }
+    }
+
+    func stopLiveUpdates() {
+        liveUpdatesTask?.cancel()
+        liveUpdatesTask = nil
+        liveService?.disconnect()
+        liveService = nil
+        currentViewerId = nil
+        activeViewers = []
+    }
+
+    func applyLiveMessage(_ message: ToDoListLiveMessage) {
+        switch message {
+        case .hello:
+            return
+        case .presenceChanged(let viewers, _):
+            activeViewers = Self.deduplicatedViewers(viewers)
+        case .unknown:
+            return
+        }
+    }
+
     #if targetEnvironment(simulator)
     func loadSimulatorPreviewData() {
         items = Self.sortedItems(ToDoPreviewData.simulatorToDoItems)
@@ -98,7 +167,9 @@ final class ToDoViewModel: ObservableObject {
                 locationDisplayText: item.locationDisplayText,
                 date: item.date,
                 recurring: item.recurring,
+                notes: item.notes,
                 alerts: item.alerts,
+                subtasks: item.subtasks,
                 createdBy: item.createdBy,
                 createdDate: item.createdDate
             )
@@ -120,6 +191,7 @@ final class ToDoViewModel: ObservableObject {
             locationIds: locationIds,
             date: Self.isoString(from: draft.date),
             recurring: draft.recurring.flatMap { ToDoItemRecurring(rawValue: $0.rawValue) },
+            notes: draft.trimmedNotes.isEmpty ? nil : draft.trimmedNotes,
             createdBy: draft.createdBy,
             actor: actor
         )
@@ -149,6 +221,7 @@ final class ToDoViewModel: ObservableObject {
             recurring: draft.recurring
                 .flatMap { ToDoItemRecurring(rawValue: $0.rawValue) }
                 .map { .value($0) } ?? .null,
+            notes: draft.trimmedNotes.isEmpty ? .null : .value(draft.trimmedNotes),
             createdBy: .value(draft.createdBy),
             actor: actor
         )
@@ -214,6 +287,51 @@ final class ToDoViewModel: ObservableObject {
             user.firstName.localizedCaseInsensitiveCompare(normalizedResidentName) == .orderedSame ||
                 user.fullName.localizedCaseInsensitiveCompare(normalizedResidentName) == .orderedSame
         }?.id ?? users.first?.id
+    }
+
+    private static func deduplicatedViewers(
+        _ viewers: [ToDoListViewerPresence]
+    ) -> [ToDoListViewerPresence] {
+        var viewersById: [String: ToDoListViewerPresence] = [:]
+
+        for viewer in viewers {
+            let viewerId = viewer.viewerId.lowercased()
+
+            if let existingViewer = viewersById[viewerId],
+               existingViewer.lastSeenAt >= viewer.lastSeenAt {
+                continue
+            }
+
+            viewersById[viewerId] = viewer
+        }
+
+        return viewersById.values.sorted { first, second in
+            first.displayName.localizedCaseInsensitiveCompare(second.displayName) == .orderedAscending
+        }
+    }
+
+    private static func residentIdentity(for viewer: ToDoListViewerPresence) -> ResidentIdentity? {
+        if let resident = residentIdentity(forViewerId: viewer.viewerId) {
+            return resident
+        }
+
+        let trimmedDisplayName = viewer.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let resident = ResidentIdentity(rawValue: trimmedDisplayName) {
+            return resident
+        }
+
+        return nil
+    }
+
+    private static func residentIdentity(forViewerId viewerId: String) -> ResidentIdentity? {
+        let normalizedViewerId = viewerId.lowercased()
+
+        if let resident = ResidentIdentity.allCases.first(where: { $0.toDoListViewerId == normalizedViewerId }) {
+            return resident
+        }
+
+        return nil
     }
 
     private func resolveLocationIds(
@@ -342,7 +460,9 @@ final class ToDoViewModel: ObservableObject {
             locationDisplayText: locationDisplayText.isEmpty ? "No location" : locationDisplayText,
             date: Self.isoString(from: draft.date),
             recurring: draft.recurring.flatMap { ToDoItemRecurring(rawValue: $0.rawValue) },
+            notes: draft.trimmedNotes.isEmpty ? nil : draft.trimmedNotes,
             alerts: [],
+            subtasks: [],
             createdBy: draft.createdBy,
             createdDate: Self.isoString(from: draft.createdDate)
         )
@@ -361,7 +481,8 @@ final class ToDoViewModel: ObservableObject {
             status: ToDoStatus(rawValue: item.status.rawValue) ?? .open,
             locationDisplayText: item.locationDisplayText,
             isLinkedToFamilyCalendar: false,
-            previewNote: nil
+            notes: item.notes,
+            subtasks: item.subtasks
         )
     }
 

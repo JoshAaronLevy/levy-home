@@ -184,6 +184,53 @@ test('notification service sends list mutation pushes only to the other resident
   });
 });
 
+test('notification service sends To Do add session summaries only to the other resident', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+  await deviceRegistry.registerDevice({
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory',
+  });
+
+  const push = await notificationService.sendListSessionPush({
+    listType: 'todo',
+    action: 'created',
+    actor: 'Josh',
+    itemNames: ['Schedule dentist', 'Book summer camp'],
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].device.token, 'mallory-apns-token');
+  assert.equal(pushSender.requests[0].title, 'To-do list updated');
+  assert.equal(pushSender.requests[0].body, 'Josh added 2 to-do items: Schedule dentist and Book summer camp.');
+  assert.deepEqual(pushSender.requests[0].data, {
+    category: 'todo_list',
+    listType: 'todo',
+    action: 'created',
+    actor: 'Josh',
+    itemCount: '2',
+  });
+});
+
 test('notification service skips recipient-targeted partner presence pushes without a matching device', async () => {
   const deviceRegistry = createInMemoryDeviceRegistry();
   const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);

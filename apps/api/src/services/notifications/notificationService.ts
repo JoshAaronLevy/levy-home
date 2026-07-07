@@ -31,9 +31,19 @@ export type ListMutationPushPayload = {
   actor?: string;
 };
 
+export type ListSessionPushAction = 'created';
+
+export type ListSessionPushPayload = {
+  listType: 'todo';
+  action: ListSessionPushAction;
+  itemNames: string[];
+  actor?: string;
+};
+
 export type NotificationService = {
   sendEventPush: (payload: HomeAssistantEventPayload) => Promise<EventPushStatus>;
   sendListMutationPush: (payload: ListMutationPushPayload) => Promise<EventPushStatus>;
+  sendListSessionPush: (payload: ListSessionPushPayload) => Promise<EventPushStatus>;
   sendTestPush: (payload: TestPushPayload) => Promise<PushSendSummary>;
 };
 
@@ -127,6 +137,67 @@ export function createNotificationService(options: {
           action: payload.action,
           actor,
           itemName: payload.itemName,
+        },
+      });
+
+      return pushStatusFromSummary(summary, preferenceCategory);
+    },
+    async sendListSessionPush(payload) {
+      const actor = readNotificationActor(payload.actor);
+      const itemNames = normalizeListSessionItemNames(payload.itemNames);
+
+      if (!actor) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: 'No list session actor was provided for push delivery.',
+        };
+      }
+
+      if (itemNames.length === 0) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: 'No list session items were provided for push delivery.',
+        };
+      }
+
+      const devices = await options.deviceRegistry.listDevices();
+      const recipient = counterpartRecipientForActor(actor);
+      const targetDevices = recipient
+        ? filterDevicesForRecipient(devices, recipient)
+        : filterDevicesExcludingActor(devices, actor);
+
+      if (targetDevices.length === 0) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: recipient
+            ? `No registered APNs devices match recipient "${recipient}".`
+            : `No registered APNs devices match someone other than "${actor}".`,
+        };
+      }
+
+      const preferenceCategory = notificationCategoryForList(payload.listType);
+      const summary = await sendPushToRegisteredDevices({
+        devices: targetDevices,
+        notificationPreferenceStore: options.notificationPreferenceStore,
+        pushSender: options.pushSender,
+        payload: {
+          title: titleForListMutation(payload.listType),
+          body: bodyForListSession({
+            ...payload,
+            actor,
+            itemNames,
+          }),
+        },
+        preferenceCategory,
+        data: {
+          category: preferenceCategory,
+          listType: payload.listType,
+          action: payload.action,
+          actor,
+          itemCount: String(itemNames.length),
         },
       });
 
@@ -370,6 +441,41 @@ function bodyForListMutation(payload: ListMutationPushPayload & { actor: string 
     case 'updated':
       return `${payload.actor} updated ${itemName}.`;
   }
+}
+
+function bodyForListSession(payload: ListSessionPushPayload & { actor: string; itemNames: string[] }): string {
+  if (payload.itemNames.length === 1) {
+    return `${payload.actor} added ${payload.itemNames[0]}.`;
+  }
+
+  return `${payload.actor} added ${payload.itemNames.length} to-do items: ${formatListItemNames(payload.itemNames)}.`;
+}
+
+function normalizeListSessionItemNames(itemNames: unknown[]): string[] {
+  return itemNames
+    .map((itemName) => (typeof itemName === 'string' ? itemName.trim() : ''))
+    .filter((itemName) => itemName.length > 0);
+}
+
+function formatListItemNames(itemNames: string[]): string {
+  const displayNames = itemNames.slice(0, 3);
+  const remainingCount = itemNames.length - displayNames.length;
+
+  if (displayNames.length === 1) {
+    return remainingCount > 0 ? `${displayNames[0]} and ${remainingCount} more` : displayNames[0];
+  }
+
+  if (displayNames.length === 2) {
+    return remainingCount > 0
+      ? `${displayNames[0]}, ${displayNames[1]}, and ${remainingCount} more`
+      : `${displayNames[0]} and ${displayNames[1]}`;
+  }
+
+  const [first, second, third] = displayNames;
+
+  return remainingCount > 0
+    ? `${first}, ${second}, ${third}, and ${remainingCount} more`
+    : `${first}, ${second}, and ${third}`;
 }
 
 function normalizeRecipientText(value: unknown): string {

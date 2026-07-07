@@ -37,7 +37,8 @@ struct ToDoTask: Identifiable {
     let status: ToDoStatus
     let locationDisplayText: String
     let isLinkedToFamilyCalendar: Bool
-    let previewNote: String?
+    let notes: String?
+    let subtasks: [JSONValue]
 
     var isCompleted: Bool {
         status == .completed
@@ -169,6 +170,7 @@ struct ToDoDraft {
     var status: ToDoStatus = .open
     var dueDateID = "today"
     var location = ""
+    var notes = ""
     var saveLocation = true
 
     init(createdBy: Int = 1) {
@@ -185,6 +187,7 @@ struct ToDoDraft {
         status = task.status
         dueDateID = Self.dueDateID(for: task.date)
         location = task.locationDisplayText == "No location" ? "" : task.locationDisplayText
+        notes = task.notes ?? ""
         saveLocation = false
     }
 
@@ -194,6 +197,10 @@ struct ToDoDraft {
 
     var trimmedLocation: String {
         location.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedNotes: String {
+        notes.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var isValid: Bool {

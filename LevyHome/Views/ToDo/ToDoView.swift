@@ -1,8 +1,12 @@
 import EventKit
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ToDoView: View {
     @Environment(\.appEnvironment) private var appEnvironment
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     @StateObject private var viewModel = ToDoViewModel()
     @StateObject private var familyCalendarViewModel = ToDoFamilyCalendarViewModel()
@@ -11,6 +15,13 @@ struct ToDoView: View {
     @State private var pendingDeleteTask: ToDoTask?
     @State private var selectedCalendarEvent: ToDoCalendarEvent?
     @State private var selectedReminder: ToDoReminder?
+    @State private var hasAppeared = false
+
+    let isSelected: Bool
+
+    init(isSelected: Bool = true) {
+        self.isSelected = isSelected
+    }
 
     private var sections: [ToDoTaskSection] {
         viewModel.hasLoaded ? viewModel.sections : ToDoPreviewData.taskSections
@@ -34,44 +45,59 @@ struct ToDoView: View {
         }.count
     }
 
-    private var currentViewerInitials: [String] {
+    private var residentAvatars: [ResidentAvatarState] {
+        viewModel.residentAvatarStates(currentViewerId: currentToDoViewerIdentity.viewerId)
+    }
+
+    private var currentViewingResident: ResidentIdentity {
         let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if let user = users.first(where: { user in
-            user.firstName.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame ||
-                user.fullName.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame
-        }), let firstInitial = user.firstName.first {
-            return [String(firstInitial).uppercased()]
+        if let resident = ResidentIdentity(rawValue: trimmedName) {
+            return resident
         }
 
-        if let firstInitial = trimmedName.first {
-            return [String(firstInitial).uppercased()]
+        #if canImport(UIKit)
+        if let inferredResident = ResidentIdentity.inferred(from: UIDevice.current.name) {
+            return inferredResident
         }
+        #endif
 
-        return ["?"]
+        return .josh
+    }
+
+    private var currentToDoViewerIdentity: ToDoListViewerIdentity {
+        let resident = currentViewingResident
+
+        return ToDoListViewerIdentity(
+            viewerId: resident.toDoListViewerId,
+            displayName: resident.rawValue,
+            deviceName: currentDeviceName
+        )
+    }
+
+    private var currentDeviceName: String? {
+        #if canImport(UIKit)
+        let name = UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
+        #else
+        return nil
+        #endif
     }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
                 AppScreenHeader(title: "To Do") {
-                    AppHeaderControlGroup {
-                        AppHeaderGroupedButton(
-                            systemImage: "line.3.horizontal.decrease",
-                            accessibilityLabel: "Filter to dos"
-                        ) {}
-
-                        AppHeaderGroupedButton(
-                            systemImage: "plus",
-                            accessibilityLabel: "Add to do"
-                        ) {
-                            editorMode = .add
-                        }
+                    AppHeaderIconButton(
+                        systemImage: "plus",
+                        accessibilityLabel: "Add to do"
+                    ) {
+                        editorMode = .add
                     }
                 }
 
                 ToDoSummaryCard(
-                    viewerInitials: currentViewerInitials,
+                    residentAvatars: residentAvatars,
                     calendarEventCount: familyCalendarViewModel.eventCount,
                     reminderCount: personalRemindersViewModel.reminderCount,
                     toDoItemCount: dueTodayCount
@@ -133,6 +159,23 @@ struct ToDoView: View {
         .appScreenChrome()
         .task {
             await load()
+        }
+        .onAppear {
+            hasAppeared = true
+            updateToDoLivePresence()
+        }
+        .onDisappear {
+            hasAppeared = false
+            viewModel.stopLiveUpdates()
+        }
+        .onChange(of: isSelected) { _, _ in
+            updateToDoLivePresence()
+        }
+        .onChange(of: scenePhase) { _, _ in
+            updateToDoLivePresence()
+        }
+        .onChange(of: currentToDoViewerIdentity.viewerId) { _, _ in
+            updateToDoLivePresence()
         }
         .refreshable {
             await load(force: true)
@@ -201,8 +244,24 @@ struct ToDoView: View {
     }
 
     private var currentActorName: String? {
-        let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? nil : trimmedName
+        currentViewingResident.rawValue
+    }
+
+    private func updateToDoLivePresence() {
+        guard hasAppeared, isSelected, scenePhase == .active else {
+            viewModel.stopLiveUpdates()
+            return
+        }
+
+        let identity = currentToDoViewerIdentity
+        viewModel.startLiveUpdatesIfNeeded(
+            liveService: ToDoListLiveService(
+                baseURL: appEnvironment.config.apiBaseURL,
+                viewerIdentity: identity,
+                appLogStore: appEnvironment.appLogStore
+            ),
+            currentViewerId: identity.viewerId
+        )
     }
 
     private func load(force: Bool = false) async {
@@ -369,7 +428,7 @@ private struct ToDoErrorBanner: View {
 }
 
 private struct ToDoSummaryCard: View {
-    let viewerInitials: [String]
+    let residentAvatars: [ResidentAvatarState]
     let calendarEventCount: Int
     let reminderCount: Int
     let toDoItemCount: Int
@@ -392,8 +451,8 @@ private struct ToDoSummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.medium) {
             HStack(alignment: .center, spacing: AppSpacing.medium) {
-                ToDoAvatarStack(initials: viewerInitials)
-                    .frame(minWidth: 30, alignment: .leading)
+                ResidentAvatarStack(avatars: residentAvatars)
+                    .frame(minWidth: 52, alignment: .leading)
 
                 VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
                     Text(headlineText)
@@ -480,6 +539,7 @@ private struct ToDoEditorSheet: View {
                 VStack(alignment: .leading, spacing: AppSpacing.large) {
                     titleSection
                     detailsSection
+                    notesSection
                     locationSection
                     summarySection
 
@@ -590,6 +650,12 @@ private struct ToDoEditorSheet: View {
 
                 ToDoRecurringPicker(selectedRecurring: $draft.recurring)
             }
+        }
+    }
+
+    private var notesSection: some View {
+        ToDoFormPanel(title: "Notes", systemImage: "note.text") {
+            ToDoNotesEditor(text: $draft.notes)
         }
     }
 
@@ -822,6 +888,36 @@ private struct ToDoTextFieldRow: View {
             }
         }
         .padding(AppSpacing.medium)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct ToDoNotesEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty {
+                Text("Add notes")
+                    .font(.body)
+                    .foregroundStyle(AppColors.mutedText)
+                    .padding(.horizontal, AppSpacing.medium + 4)
+                    .padding(.vertical, AppSpacing.medium + 8)
+            }
+
+            TextEditor(text: $text)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .textInputAutocapitalization(.sentences)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 132)
+                .padding(AppSpacing.small)
+        }
         .background(AppColors.insetPanelBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
         .overlay {

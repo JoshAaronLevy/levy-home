@@ -76,7 +76,9 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
   const created = await routes.postJSON('/api/todo-list/items', {
     name: 'Book summer camp',
     locationIds: [],
+    notes: 'Bring the registration packet.',
     alerts: [{ recipient: 'both', timing: 'morningOf' }],
+    subtasks: [{ id: 'subtask-1', title: 'Print forms', assignedTo: [1] }],
     createdBy: 2,
     actor: 'Mallory',
   });
@@ -87,7 +89,9 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
     },
     body: JSON.stringify({
       status: 'completed',
+      notes: null,
       alerts: null,
+      subtasks: [],
       actor: 'Josh',
     }),
   });
@@ -100,7 +104,9 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
     name: 'Book summer camp',
     status: 'open',
     locationIds: [],
+    notes: 'Bring the registration packet.',
     alerts: [{ recipient: 'both', timing: 'morningOf' }],
+    subtasks: [{ id: 'subtask-1', title: 'Print forms', assignedTo: [1] }],
     createdBy: 2,
     actor: 'Mallory',
   });
@@ -109,7 +115,9 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
   assert.equal(patchResponse.ok, true);
   assert.deepEqual(capturedUpdate, {
     status: 'completed',
+    notes: null,
     alerts: null,
+    subtasks: [],
     actor: 'Josh',
   });
   assert.equal(updated.ok, true);
@@ -149,6 +157,7 @@ function todoItem(overrides: Partial<ToDoItem> = {}): ToDoItem {
     locationIds: [],
     locationDisplayText: 'No location',
     alerts: [],
+    subtasks: [],
     createdDate: '2026-07-03T12:00:00.000Z',
     ...overrides,
   };

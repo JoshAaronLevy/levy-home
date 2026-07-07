@@ -1,24 +1,61 @@
 import SwiftUI
 
-struct ToDoAvatarStack: View {
-    let initials: [String]
+struct ResidentAvatarState: Equatable, Identifiable {
+    let resident: ResidentIdentity
+    let isViewing: Bool
+
+    var id: String {
+        resident.id
+    }
+
+    var initial: String {
+        resident.rawValue.first.map { String($0).uppercased() } ?? "?"
+    }
+
+    static func allResidents(viewingResidentIds: Set<String>) -> [ResidentAvatarState] {
+        let normalizedViewingIds = Set(viewingResidentIds.map { $0.lowercased() })
+
+        return ResidentIdentity.allCases.map { resident in
+            ResidentAvatarState(
+                resident: resident,
+                isViewing: normalizedViewingIds.contains(resident.id.lowercased())
+            )
+        }
+    }
+}
+
+struct ResidentAvatarStack: View {
+    let avatars: [ResidentAvatarState]
 
     var body: some View {
         HStack(spacing: -8) {
-            ForEach(Array(initials.enumerated()), id: \.offset) { index, initial in
-                Text(initial)
+            ForEach(Array(displayAvatars.enumerated()), id: \.element.id) { index, avatar in
+                Text(avatar.initial)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(index == 0 ? Color.white : AppColors.accent)
+                    .foregroundStyle(avatar.isViewing ? Color.white : AppColors.accent)
                     .frame(width: 30, height: 30)
-                    .background(index == 0 ? AppColors.accent : AppColors.accentSoft)
+                    .background(avatar.isViewing ? AppColors.accent : AppColors.accentSoft)
                     .clipShape(Circle())
                     .overlay {
                         Circle()
                             .stroke(AppColors.panelBackground, lineWidth: 2)
                     }
-                    .zIndex(Double(initials.count - index))
+                    .zIndex(Double(displayAvatars.count - index))
             }
         }
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var displayAvatars: [ResidentAvatarState] {
+        avatars.isEmpty ? ResidentAvatarState.allResidents(viewingResidentIds: []) : avatars
+    }
+
+    private var accessibilityLabel: String {
+        displayAvatars
+            .map { avatar in
+                "\(avatar.resident.rawValue) \(avatar.isViewing ? "viewing" : "not viewing")"
+            }
+            .joined(separator: ", ")
     }
 }
 
