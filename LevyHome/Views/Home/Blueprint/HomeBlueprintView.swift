@@ -23,7 +23,7 @@ struct HomeBlueprintView: View {
             let studyStatus = lightStatus(matching: ["study"])
             let playroomStatus = lightStatus(matching: ["playroom"])
             let entryStatus = lightStatus(matching: ["foyer", "entry"])
-            let garageStatus = lightStatus(matching: ["garage"])
+            let garageStatus = BlueprintLightStatus(garageStatus: garageData.status)
 
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -232,6 +232,15 @@ private enum BlueprintLightStatus {
         }
 
         self = .unknown
+    }
+
+    init(garageStatus: String) {
+        switch garageStatus.lowercased() {
+        case "open", "opening", "closing":
+            self = .active
+        default:
+            self = .inactive
+        }
     }
 
     var color: Color {
