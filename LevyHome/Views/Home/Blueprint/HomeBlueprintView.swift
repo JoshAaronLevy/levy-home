@@ -74,7 +74,6 @@ struct HomeBlueprintView: View {
                 } label: {
                     BlueprintNodeView(
                         title: "Kitchen",
-                        subtitle: kitchenSubtitle,
                         systemImage: "lightbulb",
                         tone: .success,
                         size: nodeSize,
@@ -91,7 +90,6 @@ struct HomeBlueprintView: View {
                 } label: {
                     BlueprintNodeView(
                         title: "Upstairs",
-                        subtitle: "quiet",
                         systemImage: "stairs",
                         tone: .accent,
                         size: nodeSize,
@@ -108,7 +106,6 @@ struct HomeBlueprintView: View {
                 } label: {
                     BlueprintNodeView(
                         title: "Study",
-                        subtitle: "idle",
                         systemImage: "lamp.desk",
                         tone: .success,
                         size: nodeSize,
@@ -125,7 +122,6 @@ struct HomeBlueprintView: View {
                 } label: {
                     BlueprintNodeView(
                         title: "Playroom",
-                        subtitle: "quiet",
                         systemImage: "teddybear",
                         tone: .accent,
                         size: nodeSize,
@@ -141,8 +137,7 @@ struct HomeBlueprintView: View {
                     onLightingAreaTapped(.entry)
                 } label: {
                     BlueprintNodeView(
-                        title: "Entry",
-                        subtitle: "secure",
+                        title: "Foyer",
                         systemImage: "door.left.hand.closed",
                         tone: .success,
                         size: nodeSize,
@@ -150,8 +145,8 @@ struct HomeBlueprintView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Entry Lights")
-                .accessibilityHint("Shows Entry lighting controls.")
+                .accessibilityLabel("Foyer Lights")
+                .accessibilityHint("Shows Foyer lighting controls.")
                 .position(positions.entry)
 
                 Button {
@@ -159,7 +154,6 @@ struct HomeBlueprintView: View {
                 } label: {
                     BlueprintNodeView(
                         title: "Garage",
-                        subtitle: garageSubtitle,
                         systemImage: garageData.systemImage,
                         tone: garageData.tone,
                         size: garageSize,
@@ -177,22 +171,6 @@ struct HomeBlueprintView: View {
         }
         .frame(height: 350)
         .padding(.bottom, AppSpacing.large)
-    }
-
-    private var kitchenSubtitle: String {
-        if let group = lightSummaryData.groups.first(where: { BlueprintLightingArea.kitchen.matches(id: $0.id, name: $0.name) }) {
-            return group.count
-        }
-
-        if lightSummaryData.state.localizedCaseInsensitiveContains("light") {
-            return lightSummaryData.state.replacingOccurrences(of: " on", with: "")
-        }
-
-        return "quiet"
-    }
-
-    private var garageSubtitle: String {
-        garageData.status.lowercased()
     }
 
     private func lightStatus(for area: BlueprintLightingArea) -> BlueprintLightStatus {
@@ -235,7 +213,7 @@ enum BlueprintLightingArea: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .entry:
-            return "Entry"
+            return "Foyer"
         case .kitchen:
             return "Kitchen"
         case .playroom:
@@ -363,7 +341,6 @@ private extension LightSummary.State {
 
 private struct BlueprintNodeView: View {
     let title: String
-    let subtitle: String
     let systemImage: String
     let tone: StatusBadgeTone
     let size: CGFloat
@@ -386,7 +363,7 @@ private struct BlueprintNodeView: View {
                 }
                 .shadow(color: HomePalette.shadow, radius: isPriority ? 16 : 12, y: isPriority ? 9 : 7)
 
-            VStack(spacing: isPriority ? AppSpacing.small : AppSpacing.xSmall) {
+            VStack(spacing: isPriority ? AppSpacing.medium : AppSpacing.small) {
                 if isPerforming {
                     ProgressView()
                         .tint(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
@@ -398,22 +375,15 @@ private struct BlueprintNodeView: View {
                         .frame(height: isPriority ? 34 : 28)
                 }
 
-                VStack(spacing: 1) {
-                    Text(title)
-                        .font(.system(size: isPriority ? 20 : 16, weight: .semibold))
-                        .foregroundStyle(HomePalette.ink)
-                        .lineLimit(title == "Upstairs" ? 2 : 1)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.76)
-
-                    Text(subtitle)
-                        .font(.system(size: isPriority ? 14 : 12, weight: .medium))
-                        .foregroundStyle(tone.foregroundColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
+                Text(title)
+                    .font(.system(size: isPriority ? 20 : 16, weight: .semibold))
+                    .foregroundStyle(HomePalette.ink)
+                    .lineLimit(title == "Upstairs" ? 2 : 1)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.76)
             }
             .padding(.horizontal, AppSpacing.small)
+            .frame(width: size * 0.82, height: size * 0.72)
 
             if showsWarningBadge {
                 Image(systemName: "exclamationmark.triangle.fill")
