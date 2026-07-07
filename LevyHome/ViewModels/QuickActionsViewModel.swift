@@ -104,6 +104,82 @@ final class QuickActionsViewModel: ObservableObject {
         return await perform(action)
     }
 
+    func performLightGroups(_ groupIds: [String], turnOn: Bool, title: String) async -> HomeOverview? {
+        var seenGroupIds = Set<String>()
+        let requestedGroupIds = groupIds.filter { groupId in
+            guard !groupId.isEmpty, !seenGroupIds.contains(groupId) else {
+                return false
+            }
+
+            seenGroupIds.insert(groupId)
+            return true
+        }
+
+        guard !requestedGroupIds.isEmpty else {
+            let reason = "\(title) does not have any configured light targets."
+            message = QuickActionMessage(text: reason, tone: .warning)
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "\(title) unavailable",
+                detail: reason
+            )
+            return nil
+        }
+
+        guard !isBusy else {
+            appLogStore?.record(
+                level: .warning,
+                category: "Action",
+                title: "\(title) ignored",
+                detail: "Quick actions are busy. Loading: \(isLoading), performing: \(isPerforming)."
+            )
+            return nil
+        }
+
+        let actionName = turnOn ? "All On" : "All Off"
+        appLogStore?.record(
+            level: .info,
+            category: "Action",
+            title: "\(title) \(actionName) requested",
+            detail: "Targets: \(requestedGroupIds.joined(separator: ", "))"
+        )
+
+        isPerforming = true
+        performingActionID = "\(turnOn ? "turn_on_light_group" : "turn_off_light_group").\(requestedGroupIds.joined(separator: "."))"
+        message = nil
+
+        defer {
+            isPerforming = false
+            performingActionID = nil
+        }
+
+        do {
+            var refreshedOverview: HomeOverview?
+
+            for groupId in requestedGroupIds {
+                let request: QuickActionRequest = turnOn ? .turnOnLightGroup(groupId: groupId) : .turnOffLightGroup(groupId: groupId)
+                let result = try await service.perform(request)
+
+                switch result.status {
+                case .success:
+                    refreshedOverview = result.refreshedHomeOverview ?? refreshedOverview
+                case .failure:
+                    message = QuickActionMessage(text: result.message, tone: .error)
+                    return nil
+                case .unknown:
+                    message = QuickActionMessage(text: result.message, tone: .warning)
+                    return nil
+                }
+            }
+
+            return refreshedOverview
+        } catch {
+            message = QuickActionMessage(text: error.localizedDescription, tone: .error)
+            return nil
+        }
+    }
+
     func confirmPendingAction() async -> HomeOverview? {
         guard let action = pendingConfirmationAction else {
             appLogStore?.record(
@@ -298,6 +374,32 @@ final class QuickActionsViewModel: ObservableObject {
                         requiresConfirmation: action.requiresConfirmation
                     )
                 ]
+            case .turnOnLightGroup:
+                if catalog.lightGroups.isEmpty {
+                    return [
+                        QuickActionDisplayData(
+                            id: action.id.rawValue,
+                            request: .turnOnLightGroup(groupId: ""),
+                            title: action.title,
+                            subtitle: "No curated light groups are configured.",
+                            systemImage: "lightswitch.on",
+                            isEnabled: false,
+                            requiresConfirmation: action.requiresConfirmation
+                        )
+                    ]
+                }
+
+                return catalog.lightGroups.map { group in
+                    QuickActionDisplayData(
+                        id: "\(action.id.rawValue).\(group.id)",
+                        request: .turnOnLightGroup(groupId: group.id),
+                        title: "Turn On \(group.name)",
+                        subtitle: "Turn on this curated light group.",
+                        systemImage: "lightswitch.on",
+                        isEnabled: action.isEnabled,
+                        requiresConfirmation: action.requiresConfirmation
+                    )
+                }
             case .turnOffLightGroup:
                 if catalog.lightGroups.isEmpty {
                     return [

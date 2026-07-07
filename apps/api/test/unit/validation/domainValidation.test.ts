@@ -165,11 +165,11 @@ test('notification validators parse preference updates, queries, and test pushes
 test('quick action validator accepts curated actions and rejects arbitrary Home Assistant payloads', () => {
   assert.deepEqual(
     validateQuickActionBody({
-      actionId: 'turn_off_light_group',
+      actionId: 'turn_on_light_group',
       groupId: ' upstairs ',
     }),
     {
-      actionId: 'turn_off_light_group',
+      actionId: 'turn_on_light_group',
       groupId: 'upstairs',
     },
   );

@@ -30,7 +30,7 @@ test('GET /api/home/actions returns curated action IDs and light groups', async 
 
   assert.deepEqual(
     response.actions.map((action: { id: string }) => action.id),
-    ['open_garage', 'close_garage', 'turn_off_all_lights', 'turn_off_light_group'],
+    ['open_garage', 'close_garage', 'turn_off_all_lights', 'turn_on_light_group', 'turn_off_light_group'],
   );
   assert.equal(
     response.actions.find((action: { id: string }) => action.id === 'open_garage')?.requiresConfirmation,
@@ -58,11 +58,18 @@ test('POST /api/home/actions performs only curated actions', async () => {
 });
 
 test('POST /api/home/actions performs curated light group actions', async () => {
+  const turnOnResponse = await routes.postJSON('/api/home/actions', {
+    actionId: 'turn_on_light_group',
+    groupId: 'upstairs_hallway',
+  });
   const response = await routes.postJSON('/api/home/actions', {
     actionId: 'turn_off_light_group',
     groupId: 'upstairs_hallway',
   });
 
+  assert.equal(turnOnResponse.ok, true);
+  assert.equal(turnOnResponse.result.actionId, 'turn_on_light_group');
+  assert.equal(turnOnResponse.result.status, 'success');
   assert.equal(response.ok, true);
   assert.equal(response.result.actionId, 'turn_off_light_group');
   assert.equal(response.result.status, 'success');
@@ -89,9 +96,11 @@ test('explicit curated action endpoints work', async () => {
   const closeGarage = await routes.postJSON('/api/home/actions/close-garage');
   const lightsOff = await routes.postJSON('/api/home/actions/lights-off');
   const lightGroup = await routes.postJSON('/api/home/actions/light-groups/playroom_lamp/off');
+  const lightGroupOn = await routes.postJSON('/api/home/actions/light-groups/playroom_lamp/on');
 
   assert.equal(openGarage.result.actionId, 'open_garage');
   assert.equal(closeGarage.result.actionId, 'close_garage');
   assert.equal(lightsOff.result.actionId, 'turn_off_all_lights');
   assert.equal(lightGroup.result.actionId, 'turn_off_light_group');
+  assert.equal(lightGroupOn.result.actionId, 'turn_on_light_group');
 });

@@ -6,6 +6,7 @@ const quickActionIds = new Set<QuickActionId>([
   'open_garage',
   'close_garage',
   'turn_off_all_lights',
+  'turn_on_light_group',
   'turn_off_light_group',
 ]);
 const allowedQuickActionBodyKeys = new Set(['actionId', 'groupId']);

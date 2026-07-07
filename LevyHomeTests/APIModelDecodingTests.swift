@@ -392,6 +392,7 @@ final class APIModelDecodingTests: XCTestCase {
         let openGarage = try encodeJSON(QuickActionRequest.openGarage)
         let closeGarage = try encodeJSON(QuickActionRequest.closeGarage)
         let turnOffAllLights = try encodeJSON(QuickActionRequest.turnOffAllLights)
+        let turnOnLightGroup = try encodeJSON(QuickActionRequest.turnOnLightGroup(groupId: "upstairs_hallway"))
         let turnOffLightGroup = try encodeJSON(QuickActionRequest.turnOffLightGroup(groupId: "upstairs_hallway"))
 
         XCTAssertEqual(openGarage["actionId"] as? String, "open_garage")
@@ -400,6 +401,8 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertNil(closeGarage["groupId"])
         XCTAssertEqual(turnOffAllLights["actionId"] as? String, "turn_off_all_lights")
         XCTAssertNil(turnOffAllLights["groupId"])
+        XCTAssertEqual(turnOnLightGroup["actionId"] as? String, "turn_on_light_group")
+        XCTAssertEqual(turnOnLightGroup["groupId"] as? String, "upstairs_hallway")
         XCTAssertEqual(turnOffLightGroup["actionId"] as? String, "turn_off_light_group")
         XCTAssertEqual(turnOffLightGroup["groupId"] as? String, "upstairs_hallway")
     }

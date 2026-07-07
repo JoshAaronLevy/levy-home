@@ -8,6 +8,7 @@ struct HomeContentView: View {
     @State private var searchText = ""
     @State private var isShowingConfirmationDialog = false
     @State private var isWeatherExpanded = false
+    @State private var selectedLightingArea: BlueprintLightingArea?
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     init(
@@ -59,7 +60,9 @@ struct HomeContentView: View {
                     garageToggleAction: garageToggleAction,
                     showsGarageWarning: showsGarageAwayWarning,
                     performingActionID: quickActionsViewModel.performingActionID
-                ) {
+                ) { area in
+                    selectedLightingArea = area
+                } onGarageTapped: {
                     Task {
                         await selectGarageToggle()
                     }
@@ -128,6 +131,22 @@ struct HomeContentView: View {
             }
         } message: { action in
             Text("\(action.subtitle) This will send a command through the Levy Home API.")
+        }
+        .sheet(item: $selectedLightingArea) { area in
+            LightingAreaDialog(
+                data: lightingDialogData(for: area),
+                isBusy: quickActionsViewModel.isBusy
+            ) {
+                Task {
+                    await performLightingAction(for: area, turnOn: true)
+                }
+            } onAllOff: {
+                Task {
+                    await performLightingAction(for: area, turnOn: false)
+                }
+            }
+            .presentationDetents([.height(236)])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -242,6 +261,50 @@ struct HomeContentView: View {
         quickActionsViewModel.actions.first { $0.request.actionId == .turnOffAllLights }
     }
 
+    private func lightingDialogData(for area: BlueprintLightingArea) -> LightingAreaDialogData {
+        let groups = homeViewModel.overview?.lightSummary.groups.filter {
+            area.matches(id: $0.id, name: $0.name)
+        } ?? []
+        let counts = groups.reduce(into: (on: 0, off: 0)) { result, group in
+            let groupCounts = lightCounts(for: group)
+            result.on += groupCounts.on
+            result.off += groupCounts.off
+        }
+
+        return LightingAreaDialogData(
+            area: area,
+            lightGroupIds: groups.map(\.id),
+            lightsOnCount: counts.on,
+            lightsOffCount: counts.off
+        )
+    }
+
+    private func lightCounts(for group: LightGroupStatus) -> (on: Int, off: Int) {
+        switch group.state {
+        case .unavailable, .unknown, .unrecognized:
+            return (0, 0)
+        case .on, .off, .partiallyOn:
+            break
+        }
+
+        if let lightsOnCount = group.lightsOnCount,
+           let totalLightCount = group.totalLightCount {
+            let onCount = max(lightsOnCount, 0)
+            return (onCount, max(totalLightCount - onCount, 0))
+        }
+
+        switch group.state {
+        case .on:
+            return (1, 0)
+        case .off:
+            return (0, 1)
+        case .partiallyOn:
+            return (1, 1)
+        case .unavailable, .unknown, .unrecognized:
+            return (0, 0)
+        }
+    }
+
     private var automationShortcuts: [AutomationShortcut] {
         [
             AutomationShortcut(
@@ -342,6 +405,19 @@ struct HomeContentView: View {
         }
     }
 
+    private func performLightingAction(for area: BlueprintLightingArea, turnOn: Bool) async {
+        let data = lightingDialogData(for: area)
+
+        if let refreshedOverview = await quickActionsViewModel.performLightGroups(
+            data.lightGroupIds,
+            turnOn: turnOn,
+            title: data.title
+        ) {
+            homeViewModel.apply(overview: refreshedOverview)
+            selectedLightingArea = nil
+        }
+    }
+
     private func watchGarageCompletionIfNeeded(for action: QuickActionDisplayData) async {
         guard let watchPolicy = GarageCompletionWatchPolicy(request: action.request) else {
             return
@@ -396,5 +472,113 @@ struct HomeContentView: View {
         case .unknown, .unrecognized:
             return "Garage status is unknown, so the app is waiting for a stable open or closed state."
         }
+    }
+}
+
+private struct LightingAreaDialogData: Equatable {
+    let area: BlueprintLightingArea
+    let lightGroupIds: [String]
+    let lightsOnCount: Int
+    let lightsOffCount: Int
+
+    var title: String {
+        area.dialogTitle
+    }
+
+    var statusText: String {
+        "\(lightsOnCount) On | \(lightsOffCount) Off"
+    }
+
+    var canTurnOn: Bool {
+        lightsOffCount > 0 && !lightGroupIds.isEmpty
+    }
+
+    var canTurnOff: Bool {
+        lightsOnCount > 0 && !lightGroupIds.isEmpty
+    }
+}
+
+private struct LightingAreaDialog: View {
+    let data: LightingAreaDialogData
+    let isBusy: Bool
+    let onAllOn: () -> Void
+    let onAllOff: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppSpacing.large) {
+            VStack(spacing: AppSpacing.small) {
+                Text(data.title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(HomePalette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Text(data.statusText)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(HomePalette.secondaryInk)
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: AppSpacing.medium) {
+                LightingDialogActionButton(
+                    title: "All On",
+                    systemImage: "lightbulb.fill",
+                    tint: HomePalette.gold,
+                    isBusy: isBusy,
+                    isDisabled: !data.canTurnOn,
+                    action: onAllOn
+                )
+
+                LightingDialogActionButton(
+                    title: "All Off",
+                    systemImage: "lightbulb.slash",
+                    tint: HomePalette.iconInk,
+                    isBusy: isBusy,
+                    isDisabled: !data.canTurnOff,
+                    action: onAllOff
+                )
+            }
+        }
+        .padding(.horizontal, AppSpacing.xLarge)
+        .padding(.top, AppSpacing.large)
+        .padding(.bottom, AppSpacing.xLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(HomePalette.surface.ignoresSafeArea())
+    }
+}
+
+private struct LightingDialogActionButton: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let isBusy: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AppSpacing.small) {
+                if isBusy {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.headline)
+                }
+
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .foregroundStyle(.white)
+            .background(isBusy || isDisabled ? AppColors.disabledControl : tint)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isBusy || isDisabled)
+        .accessibilityLabel(title)
     }
 }

@@ -6,6 +6,7 @@ struct HomeBlueprintView: View {
     let garageToggleAction: QuickActionDisplayData?
     let showsGarageWarning: Bool
     let performingActionID: String?
+    let onLightingAreaTapped: (BlueprintLightingArea) -> Void
     let onGarageTapped: () -> Void
 
     var body: some View {
@@ -18,11 +19,11 @@ struct HomeBlueprintView: View {
             let garageSize = min(max(width * 0.305, 112), 134)
             let centerSize = min(max(width * 0.185, 66), 80)
             let positions = BlueprintNodePositions(width: width, height: height)
-            let kitchenStatus = lightStatus(matching: ["kitchen"])
-            let upstairsStatus = lightStatus(matching: ["upstairs", "hallway"])
-            let studyStatus = lightStatus(matching: ["study"])
-            let playroomStatus = lightStatus(matching: ["playroom"])
-            let entryStatus = lightStatus(matching: ["foyer", "entry"])
+            let kitchenStatus = lightStatus(for: .kitchen)
+            let upstairsStatus = lightStatus(for: .upstairs)
+            let studyStatus = lightStatus(for: .study)
+            let playroomStatus = lightStatus(for: .playroom)
+            let entryStatus = lightStatus(for: .entry)
             let garageStatus = BlueprintLightStatus(garageStatus: garageData.status)
 
             ZStack {
@@ -68,54 +69,89 @@ struct HomeBlueprintView: View {
                 CenterHomeNode(size: centerSize)
                     .position(center)
 
-                BlueprintNodeView(
-                    title: "Kitchen",
-                    subtitle: kitchenSubtitle,
-                    systemImage: "lightbulb",
-                    tone: .success,
-                    size: nodeSize,
-                    lightStatus: kitchenStatus
-                )
+                Button {
+                    onLightingAreaTapped(.kitchen)
+                } label: {
+                    BlueprintNodeView(
+                        title: "Kitchen",
+                        subtitle: kitchenSubtitle,
+                        systemImage: "lightbulb",
+                        tone: .success,
+                        size: nodeSize,
+                        lightStatus: kitchenStatus
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Kitchen Lights")
+                .accessibilityHint("Shows Kitchen lighting controls.")
                 .position(positions.kitchen)
 
-                BlueprintNodeView(
-                    title: "Upstairs",
-                    subtitle: "quiet",
-                    systemImage: "stairs",
-                    tone: .accent,
-                    size: nodeSize,
-                    lightStatus: upstairsStatus
-                )
+                Button {
+                    onLightingAreaTapped(.upstairs)
+                } label: {
+                    BlueprintNodeView(
+                        title: "Upstairs",
+                        subtitle: "quiet",
+                        systemImage: "stairs",
+                        tone: .accent,
+                        size: nodeSize,
+                        lightStatus: upstairsStatus
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Upstairs Lights")
+                .accessibilityHint("Shows Upstairs lighting controls.")
                 .position(positions.upstairsHall)
 
-                BlueprintNodeView(
-                    title: "Study",
-                    subtitle: "idle",
-                    systemImage: "lamp.desk",
-                    tone: .success,
-                    size: nodeSize,
-                    lightStatus: studyStatus
-                )
+                Button {
+                    onLightingAreaTapped(.study)
+                } label: {
+                    BlueprintNodeView(
+                        title: "Study",
+                        subtitle: "idle",
+                        systemImage: "lamp.desk",
+                        tone: .success,
+                        size: nodeSize,
+                        lightStatus: studyStatus
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Study Lights")
+                .accessibilityHint("Shows Study lighting controls.")
                 .position(positions.study)
 
-                BlueprintNodeView(
-                    title: "Playroom",
-                    subtitle: "quiet",
-                    systemImage: "teddybear",
-                    tone: .accent,
-                    size: nodeSize,
-                    lightStatus: playroomStatus
-                )
+                Button {
+                    onLightingAreaTapped(.playroom)
+                } label: {
+                    BlueprintNodeView(
+                        title: "Playroom",
+                        subtitle: "quiet",
+                        systemImage: "teddybear",
+                        tone: .accent,
+                        size: nodeSize,
+                        lightStatus: playroomStatus
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Playroom Lights")
+                .accessibilityHint("Shows Playroom lighting controls.")
                 .position(positions.playroom)
 
-                BlueprintNodeView(
-                    title: "Entry",
-                    subtitle: "secure",
-                    systemImage: "door.left.hand.closed",
-                    tone: .success,
-                    size: nodeSize,
-                    lightStatus: entryStatus
-                )
+                Button {
+                    onLightingAreaTapped(.entry)
+                } label: {
+                    BlueprintNodeView(
+                        title: "Entry",
+                        subtitle: "secure",
+                        systemImage: "door.left.hand.closed",
+                        tone: .success,
+                        size: nodeSize,
+                        lightStatus: entryStatus
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Entry Lights")
+                .accessibilityHint("Shows Entry lighting controls.")
                 .position(positions.entry)
 
                 Button {
@@ -144,7 +180,7 @@ struct HomeBlueprintView: View {
     }
 
     private var kitchenSubtitle: String {
-        if let group = lightSummaryData.groups.first(where: { $0.name.localizedCaseInsensitiveContains("kitchen") }) {
+        if let group = lightSummaryData.groups.first(where: { BlueprintLightingArea.kitchen.matches(id: $0.id, name: $0.name) }) {
             return group.count
         }
 
@@ -159,10 +195,9 @@ struct HomeBlueprintView: View {
         garageData.status.lowercased()
     }
 
-    private func lightStatus(matching terms: [String]) -> BlueprintLightStatus {
+    private func lightStatus(for area: BlueprintLightingArea) -> BlueprintLightStatus {
         let groups = lightSummaryData.groups.filter { group in
-            let searchableText = "\(group.id) \(group.name)".lowercased()
-            return terms.contains { searchableText.contains($0.lowercased()) }
+            area.matches(id: group.id, name: group.name)
         }
 
         return BlueprintLightStatus(groups: groups)
@@ -183,6 +218,57 @@ struct HomeBlueprintView: View {
         }
 
         return "Double tap to \(garageToggleAction.title.lowercased())."
+    }
+}
+
+enum BlueprintLightingArea: String, CaseIterable, Identifiable {
+    case entry
+    case kitchen
+    case playroom
+    case upstairs
+    case study
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .entry:
+            return "Entry"
+        case .kitchen:
+            return "Kitchen"
+        case .playroom:
+            return "Playroom"
+        case .upstairs:
+            return "Upstairs"
+        case .study:
+            return "Study"
+        }
+    }
+
+    var dialogTitle: String {
+        "\(title) Lights"
+    }
+
+    private var matchingTerms: [String] {
+        switch self {
+        case .entry:
+            return ["foyer", "entry"]
+        case .kitchen:
+            return ["kitchen"]
+        case .playroom:
+            return ["playroom"]
+        case .upstairs:
+            return ["upstairs", "hallway"]
+        case .study:
+            return ["study"]
+        }
+    }
+
+    func matches(id: String, name: String) -> Bool {
+        let searchableText = "\(id) \(name)".lowercased()
+        return matchingTerms.contains { searchableText.contains($0.lowercased()) }
     }
 }
 

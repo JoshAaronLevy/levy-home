@@ -93,6 +93,19 @@ export function createHomeRoutes(deps: HomeRouteDependencies): Router {
     }),
   );
 
+  router.post(
+    '/api/home/actions/light-groups/:groupId/on',
+    asyncHandler(async (req, res) => {
+      const groupId = typeof req.params.groupId === 'string' ? req.params.groupId : undefined;
+      const result = await deps.homeService.performAction('turn_on_light_group', groupId);
+
+      res.json({
+        ok: true,
+        result,
+      });
+    }),
+  );
+
   return router;
 }
 

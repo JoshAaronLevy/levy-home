@@ -2,6 +2,7 @@ enum QuickActionRequest: Encodable, Equatable {
     case openGarage
     case closeGarage
     case turnOffAllLights
+    case turnOnLightGroup(groupId: String)
     case turnOffLightGroup(groupId: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -17,6 +18,8 @@ enum QuickActionRequest: Encodable, Equatable {
             return .closeGarage
         case .turnOffAllLights:
             return .turnOffAllLights
+        case .turnOnLightGroup:
+            return .turnOnLightGroup
         case .turnOffLightGroup:
             return .turnOffLightGroup
         }
@@ -26,8 +29,11 @@ enum QuickActionRequest: Encodable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(actionId, forKey: .actionId)
 
-        if case .turnOffLightGroup(let groupId) = self {
+        switch self {
+        case .turnOnLightGroup(let groupId), .turnOffLightGroup(let groupId):
             try container.encode(groupId, forKey: .groupId)
+        case .openGarage, .closeGarage, .turnOffAllLights:
+            break
         }
     }
 }

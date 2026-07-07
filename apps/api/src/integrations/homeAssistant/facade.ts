@@ -19,6 +19,7 @@ export type HomeAssistantFacade = {
   openGarage(): Promise<void>;
   closeGarage(): Promise<void>;
   turnOffAllLights(): Promise<void>;
+  turnOnLightGroup(groupId: string): Promise<void>;
   turnOffLightGroup(groupId: string): Promise<void>;
 };
 

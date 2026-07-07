@@ -72,6 +72,14 @@ export class HomeService {
         targetName: 'All lights',
       },
       {
+        id: 'turn_on_light_group',
+        title: 'Turn On Light Group',
+        subtitle: 'Turn on one configured light group.',
+        isEnabled: lightTargets.length > 0,
+        requiresConfirmation: false,
+        targetName: lightGroupTarget,
+      },
+      {
         id: 'turn_off_light_group',
         title: 'Turn Off Light Group',
         subtitle: 'Turn off one configured light group.',
@@ -93,6 +101,13 @@ export class HomeService {
     case 'turn_off_all_lights':
       await this.homeAssistant.turnOffAllLights();
       return this.result(actionId, 'All configured lights were turned off.');
+    case 'turn_on_light_group':
+      if (!groupId) {
+        throw new HTTPError(400, 'groupId is required for turn_on_light_group.', 'group_id_required');
+      }
+
+      await this.homeAssistant.turnOnLightGroup(groupId);
+      return this.result(actionId, 'The selected light group was turned on.');
     case 'turn_off_light_group':
       if (!groupId) {
         throw new HTTPError(400, 'groupId is required for turn_off_light_group.', 'group_id_required');

@@ -231,6 +231,92 @@ test('live Home Assistant facade turns off configured light groups when no all-l
   }
 });
 
+test('live Home Assistant facade turns on configured light targets', async () => {
+  const serviceCalls: Array<{ path: string; body: unknown }> = [];
+  const server = await startHomeAssistantServer(async (req, res) => {
+    if (req.url !== '/api/services/light/turn_on') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    serviceCalls.push({
+      path: req.url,
+      body: await readJSONBody(req),
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify([]));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade({
+      ...liveConfig(server.baseURL),
+      homeAssistant: {
+        ...liveConfig(server.baseURL).homeAssistant,
+        allLightsEntityId: undefined,
+        lightEntities: [
+          { id: 'kitchen_cans', name: 'Kitchen Cans', entityId: 'light.kitchen_cans' },
+        ],
+      },
+    });
+
+    await facade.turnOnLightGroup('kitchen_cans');
+
+    assert.deepEqual(serviceCalls, [
+      {
+        path: '/api/services/light/turn_on',
+        body: { entity_id: 'light.kitchen_cans' },
+      },
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test('live Home Assistant facade turns off configured light targets', async () => {
+  const serviceCalls: Array<{ path: string; body: unknown }> = [];
+  const server = await startHomeAssistantServer(async (req, res) => {
+    if (req.url !== '/api/services/light/turn_off') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    serviceCalls.push({
+      path: req.url,
+      body: await readJSONBody(req),
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify([]));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade({
+      ...liveConfig(server.baseURL),
+      homeAssistant: {
+        ...liveConfig(server.baseURL).homeAssistant,
+        allLightsEntityId: undefined,
+        lightEntities: [
+          { id: 'kitchen_cans', name: 'Kitchen Cans', entityId: 'light.kitchen_cans' },
+        ],
+      },
+    });
+
+    await facade.turnOffLightGroup('kitchen_cans');
+
+    assert.deepEqual(serviceCalls, [
+      {
+        path: '/api/services/light/turn_off',
+        body: { entity_id: 'light.kitchen_cans' },
+      },
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
 test('live Home Assistant facade returns per-person device tracker presence', async () => {
   const states = new Map<string, unknown>([
     [

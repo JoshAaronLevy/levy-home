@@ -65,6 +65,8 @@ private extension QuickActionRequest {
             return "Close Garage"
         case .turnOffAllLights:
             return "Turn Off All Lights"
+        case .turnOnLightGroup:
+            return "Turn On Light Group"
         case .turnOffLightGroup:
             return "Turn Off Light Group"
         }

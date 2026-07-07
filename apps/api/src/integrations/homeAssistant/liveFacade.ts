@@ -120,22 +120,15 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
   }
 
   async turnOffLightGroup(groupId: string): Promise<void> {
-    const entity = this.config.homeAssistant.lightEntities.find((candidate) => candidate.id === groupId);
-
-    if (entity) {
-      await this.callService('light', 'turn_off', {
-        entity_id: entity.entityId,
-      });
-      return;
-    }
-
-    const group = this.config.homeAssistant.lightGroups.find((candidate) => candidate.id === groupId);
-
-    if (!group) {
-      throw new HTTPError(404, `Unknown light group: ${groupId}`, 'unknown_light_group');
-    }
-
+    const group = this.configuredLightTarget(groupId);
     await this.callService('light', 'turn_off', {
+      entity_id: group.entityId,
+    });
+  }
+
+  async turnOnLightGroup(groupId: string): Promise<void> {
+    const group = this.configuredLightTarget(groupId);
+    await this.callService('light', 'turn_on', {
       entity_id: group.entityId,
     });
   }
@@ -204,6 +197,22 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
 
   private async fetchEntityState(entityId: string): Promise<HomeAssistantStateResponse> {
     return this.restClient.request<HomeAssistantStateResponse>(`/api/states/${encodeURIComponent(entityId)}`);
+  }
+
+  private configuredLightTarget(groupId: string): CuratedLightEntity | CuratedLightGroup {
+    const entity = this.config.homeAssistant.lightEntities.find((candidate) => candidate.id === groupId);
+
+    if (entity) {
+      return entity;
+    }
+
+    const group = this.config.homeAssistant.lightGroups.find((candidate) => candidate.id === groupId);
+
+    if (!group) {
+      throw new HTTPError(404, `Unknown light group: ${groupId}`, 'unknown_light_group');
+    }
+
+    return group;
   }
 
   private async callService(domain: 'cover' | 'light', service: string, body: { entity_id: string | string[] }): Promise<void> {

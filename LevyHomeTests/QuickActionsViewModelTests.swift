@@ -17,6 +17,8 @@ final class QuickActionsViewModelTests: XCTestCase {
                 "open_garage",
                 "close_garage",
                 "turn_off_all_lights",
+                "turn_on_light_group.upstairs_hallway",
+                "turn_on_light_group.playroom_lamp",
                 "turn_off_light_group.upstairs_hallway",
                 "turn_off_light_group.playroom_lamp"
             ]
@@ -24,7 +26,8 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.actions[0].request, .openGarage)
         XCTAssertEqual(viewModel.actions[1].request, .closeGarage)
         XCTAssertEqual(viewModel.actions[2].request, .turnOffAllLights)
-        XCTAssertEqual(viewModel.actions[3].request, .turnOffLightGroup(groupId: "upstairs_hallway"))
+        XCTAssertEqual(viewModel.actions[3].request, .turnOnLightGroup(groupId: "upstairs_hallway"))
+        XCTAssertEqual(viewModel.actions[5].request, .turnOffLightGroup(groupId: "upstairs_hallway"))
         XCTAssertFalse(viewModel.actions[0].requiresConfirmation)
         XCTAssertTrue(viewModel.actions[1].requiresConfirmation)
         XCTAssertEqual(viewModel.subtitle, "Curated Home Assistant actions")
@@ -136,6 +139,37 @@ final class QuickActionsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isPerforming)
     }
 
+    func testPerformLightGroupsRunsEachUniqueTargetAndReturnsLatestOverview() async {
+        let refreshedOverview = Self.overview()
+        let service = MockQuickActionService()
+        service.performHandler = { request in
+            QuickActionResult(
+                actionId: request.actionId,
+                status: .success,
+                message: "Action completed.",
+                refreshedHomeOverview: request == .turnOnLightGroup(groupId: "kitchen_nook") ? refreshedOverview : nil
+            )
+        }
+        let viewModel = QuickActionsViewModel(service: service)
+
+        let overview = await viewModel.performLightGroups(
+            ["kitchen_cans", "kitchen_nook", "kitchen_cans"],
+            turnOn: true,
+            title: "Kitchen Lights"
+        )
+
+        XCTAssertEqual(
+            service.performedRequests,
+            [
+                .turnOnLightGroup(groupId: "kitchen_cans"),
+                .turnOnLightGroup(groupId: "kitchen_nook")
+            ]
+        )
+        XCTAssertEqual(overview, refreshedOverview)
+        XCTAssertNil(viewModel.message)
+        XCTAssertFalse(viewModel.isPerforming)
+    }
+
     func testCancelledRefreshKeepsExistingActionsWithoutMessage() async {
         let service = MockQuickActionService()
         service.catalog = Self.catalog()
@@ -237,6 +271,14 @@ final class QuickActionsViewModelTests: XCTestCase {
                     isEnabled: true,
                     requiresConfirmation: false,
                     targetName: "All lights"
+                ),
+                QuickAction(
+                    id: .turnOnLightGroup,
+                    title: "Turn On Light Group",
+                    subtitle: "Turn on one configured light group.",
+                    isEnabled: true,
+                    requiresConfirmation: false,
+                    targetName: "Curated light groups"
                 ),
                 QuickAction(
                     id: .turnOffLightGroup,

@@ -44,7 +44,12 @@ export type HomeOverview = {
   isPartial: boolean;
 };
 
-export type QuickActionId = 'open_garage' | 'close_garage' | 'turn_off_all_lights' | 'turn_off_light_group';
+export type QuickActionId =
+  | 'open_garage'
+  | 'close_garage'
+  | 'turn_off_all_lights'
+  | 'turn_on_light_group'
+  | 'turn_off_light_group';
 
 export type QuickAction = {
   id: QuickActionId;

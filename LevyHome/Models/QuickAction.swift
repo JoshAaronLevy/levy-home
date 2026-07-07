@@ -4,6 +4,7 @@ enum QuickActionID: Codable, Equatable, Hashable {
     case openGarage
     case closeGarage
     case turnOffAllLights
+    case turnOnLightGroup
     case turnOffLightGroup
     case unknown(String)
 
@@ -15,6 +16,8 @@ enum QuickActionID: Codable, Equatable, Hashable {
             return "close_garage"
         case .turnOffAllLights:
             return "turn_off_all_lights"
+        case .turnOnLightGroup:
+            return "turn_on_light_group"
         case .turnOffLightGroup:
             return "turn_off_light_group"
         case .unknown(let rawValue):
@@ -30,6 +33,8 @@ enum QuickActionID: Codable, Equatable, Hashable {
             self = .closeGarage
         case "turn_off_all_lights":
             self = .turnOffAllLights
+        case "turn_on_light_group":
+            self = .turnOnLightGroup
         case "turn_off_light_group":
             self = .turnOffLightGroup
         default:

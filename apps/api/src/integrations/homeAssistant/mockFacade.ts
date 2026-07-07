@@ -22,7 +22,7 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
   private readonly groupStates = new Map<string, LightState>();
 
   constructor(private readonly config: AppConfig) {
-    for (const group of config.homeAssistant.lightGroups) {
+    for (const group of this.configuredLightTargets()) {
       this.groupStates.set(group.id, 'off');
     }
   }
@@ -37,7 +37,7 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
   }
 
   async getLightSummaryInputs(): Promise<{ allLights: LightGroupStatus; groups: LightGroupStatus[] }> {
-    const groups = this.config.homeAssistant.lightGroups.map((group) => {
+    const groups = this.configuredLightTargets().map((group) => {
       const state = this.groupStates.get(group.id) ?? 'unknown';
       return {
         id: group.id,
@@ -106,16 +106,34 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
   async turnOffAllLights(): Promise<void> {
     this.allLightsState = 'off';
 
-    for (const group of this.config.homeAssistant.lightGroups) {
+    for (const group of this.configuredLightTargets()) {
       this.groupStates.set(group.id, 'off');
     }
   }
 
+  async turnOnLightGroup(groupId: string): Promise<void> {
+    if (!this.hasLightTarget(groupId)) {
+      throw new HTTPError(404, `Unknown light group: ${groupId}`, 'unknown_light_group');
+    }
+
+    this.groupStates.set(groupId, 'on');
+  }
+
   async turnOffLightGroup(groupId: string): Promise<void> {
-    if (!this.config.homeAssistant.lightGroups.some((group) => group.id === groupId)) {
+    if (!this.hasLightTarget(groupId)) {
       throw new HTTPError(404, `Unknown light group: ${groupId}`, 'unknown_light_group');
     }
 
     this.groupStates.set(groupId, 'off');
+  }
+
+  private configuredLightTargets(): Array<{ id: string; name: string }> {
+    return this.config.homeAssistant.lightEntities.length > 0
+      ? this.config.homeAssistant.lightEntities
+      : this.config.homeAssistant.lightGroups;
+  }
+
+  private hasLightTarget(groupId: string): boolean {
+    return this.configuredLightTargets().some((group) => group.id === groupId);
   }
 }
