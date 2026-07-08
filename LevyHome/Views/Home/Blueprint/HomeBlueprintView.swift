@@ -14,7 +14,7 @@ struct HomeBlueprintView: View {
             let width = geometry.size.width
             let height = geometry.size.height
             let cornerRadius: CGFloat = 26
-            let center = CGPoint(x: width * 0.50, y: height * 0.54)
+            let center = CGPoint(x: width * 0.50, y: height * 0.48)
             let nodeSize = min(max(width * 0.225, 78), 92)
             let garageSize = min(max(width * 0.305, 112), 134)
             let centerSize = min(max(width * 0.185, 66), 80)
@@ -73,11 +73,11 @@ struct HomeBlueprintView: View {
                     onLightingAreaTapped(.kitchen)
                 } label: {
                     BlueprintNodeView(
-                        title: "Kitchen",
-                        systemImage: "lightbulb",
+                        systemImage: "stove",
                         tone: .success,
                         size: nodeSize,
-                        lightStatus: kitchenStatus
+                        lightStatus: kitchenStatus,
+                        iconScale: 1.12
                     )
                 }
                 .buttonStyle(.plain)
@@ -89,8 +89,7 @@ struct HomeBlueprintView: View {
                     onLightingAreaTapped(.upstairs)
                 } label: {
                     BlueprintNodeView(
-                        title: "Upstairs",
-                        systemImage: "stairs",
+                        systemImage: "light.recessed.3.inverse",
                         tone: .accent,
                         size: nodeSize,
                         lightStatus: upstairsStatus
@@ -105,7 +104,6 @@ struct HomeBlueprintView: View {
                     onLightingAreaTapped(.study)
                 } label: {
                     BlueprintNodeView(
-                        title: "Study",
                         systemImage: "lamp.desk",
                         tone: .success,
                         size: nodeSize,
@@ -121,7 +119,6 @@ struct HomeBlueprintView: View {
                     onLightingAreaTapped(.playroom)
                 } label: {
                     BlueprintNodeView(
-                        title: "Playroom",
                         systemImage: "teddybear",
                         tone: .accent,
                         size: nodeSize,
@@ -137,11 +134,11 @@ struct HomeBlueprintView: View {
                     onLightingAreaTapped(.entry)
                 } label: {
                     BlueprintNodeView(
-                        title: "Foyer",
                         systemImage: "door.left.hand.closed",
                         tone: .success,
                         size: nodeSize,
-                        lightStatus: entryStatus
+                        lightStatus: entryStatus,
+                        iconScale: 1.12
                     )
                 }
                 .buttonStyle(.plain)
@@ -153,7 +150,6 @@ struct HomeBlueprintView: View {
                     onGarageTapped()
                 } label: {
                     BlueprintNodeView(
-                        title: "Garage",
                         systemImage: garageData.systemImage,
                         tone: garageData.tone,
                         size: garageSize,
@@ -259,12 +255,12 @@ private struct BlueprintNodePositions {
     let playroom: CGPoint
 
     init(width: CGFloat, height: CGFloat) {
-        kitchen = CGPoint(x: width * 0.48, y: height * 0.31)
-        upstairsHall = CGPoint(x: width * 0.72, y: height * 0.32)
-        study = CGPoint(x: width * 0.82, y: height * 0.56)
-        garage = CGPoint(x: width * 0.77, y: height * 0.84)
-        entry = CGPoint(x: width * 0.29, y: height * 0.76)
-        playroom = CGPoint(x: width * 0.19, y: height * 0.52)
+        kitchen = CGPoint(x: width * 0.48, y: height * 0.25)
+        upstairsHall = CGPoint(x: width * 0.72, y: height * 0.26)
+        study = CGPoint(x: width * 0.82, y: height * 0.50)
+        garage = CGPoint(x: width * 0.70, y: height * 0.78)
+        entry = CGPoint(x: width * 0.35, y: height * 0.75)
+        playroom = CGPoint(x: width * 0.19, y: height * 0.54)
     }
 }
 
@@ -340,7 +336,6 @@ private extension LightSummary.State {
 }
 
 private struct BlueprintNodeView: View {
-    let title: String
     let systemImage: String
     let tone: StatusBadgeTone
     let size: CGFloat
@@ -348,6 +343,7 @@ private struct BlueprintNodeView: View {
     var isPriority = false
     var showsWarningBadge = false
     var isPerforming = false
+    var iconScale: CGFloat = 1
 
     var body: some View {
         ZStack {
@@ -363,26 +359,18 @@ private struct BlueprintNodeView: View {
                 }
                 .shadow(color: HomePalette.shadow, radius: isPriority ? 16 : 12, y: isPriority ? 9 : 7)
 
-            VStack(spacing: isPriority ? AppSpacing.medium : AppSpacing.xSmall) {
+            Group {
                 if isPerforming {
                     ProgressView()
                         .tint(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
-                        .frame(height: isPriority ? 34 : 28)
+                        .scaleEffect(isPriority ? 1.35 : 1.15)
                 } else {
                     Image(systemName: systemImage)
-                        .font(.system(size: isPriority ? 32 : 22, weight: .medium))
+                        .font(.system(size: baseIconSize * iconScale, weight: .medium))
                         .foregroundStyle(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
-                        .frame(height: isPriority ? 34 : 28)
                 }
-
-                Text(title)
-                    .font(.system(size: isPriority ? 20 : 16, weight: .semibold))
-                    .foregroundStyle(HomePalette.ink)
-                    .lineLimit(title == "Upstairs" ? 2 : 1)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.76)
             }
-            .frame(width: size * (isPriority ? 0.82 : 0.96), height: size * 0.72)
+            .frame(width: size * 0.72, height: size * 0.72, alignment: .center)
 
             if showsWarningBadge {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -400,6 +388,10 @@ private struct BlueprintNodeView: View {
         }
         .frame(width: size, height: size)
         .accessibilityElement(children: .combine)
+    }
+
+    private var baseIconSize: CGFloat {
+        isPriority ? size * 0.38 : size * 0.36
     }
 }
 
