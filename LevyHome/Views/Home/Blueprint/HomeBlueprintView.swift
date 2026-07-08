@@ -363,7 +363,7 @@ private struct BlueprintNodeView: View {
                 }
                 .shadow(color: HomePalette.shadow, radius: isPriority ? 16 : 12, y: isPriority ? 9 : 7)
 
-            VStack(spacing: isPriority ? AppSpacing.medium : AppSpacing.small) {
+            VStack(spacing: isPriority ? AppSpacing.medium : AppSpacing.xSmall) {
                 if isPerforming {
                     ProgressView()
                         .tint(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
@@ -382,8 +382,7 @@ private struct BlueprintNodeView: View {
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.76)
             }
-            .padding(.horizontal, AppSpacing.small)
-            .frame(width: size * 0.82, height: size * 0.72)
+            .frame(width: size * (isPriority ? 0.82 : 0.96), height: size * 0.72)
 
             if showsWarningBadge {
                 Image(systemName: "exclamationmark.triangle.fill")
