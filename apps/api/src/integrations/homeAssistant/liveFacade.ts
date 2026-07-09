@@ -172,13 +172,14 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
 
   private async fetchSingleLightState(entity: CuratedLightEntity): Promise<LightGroupStatus> {
     const state = await this.fetchEntityState(entity.entityId);
+    const totalLightCount = childLightCount(state.attributes?.entity_id);
 
     return {
       id: entity.id,
       name: entity.name,
       state: mapLightState(state.state),
-      lightsOnCount: state.state === 'on' ? 1 : 0,
-      totalLightCount: 1,
+      lightsOnCount: state.state === 'on' ? totalLightCount : 0,
+      totalLightCount,
     };
   }
 
@@ -227,8 +228,8 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
 }
 
 function summarizeLightEntities(groups: LightGroupStatus[]): LightGroupStatus {
-  const lightsOnCount = groups.filter((group) => group.state === 'on').length;
-  const totalLightCount = groups.length;
+  const lightsOnCount = groups.reduce((sum, group) => sum + (group.lightsOnCount ?? (group.state === 'on' ? 1 : 0)), 0);
+  const totalLightCount = groups.reduce((sum, group) => sum + (group.totalLightCount ?? 1), 0);
 
   return {
     id: 'all_lights',
@@ -237,6 +238,15 @@ function summarizeLightEntities(groups: LightGroupStatus[]): LightGroupStatus {
     lightsOnCount,
     totalLightCount,
   };
+}
+
+function childLightCount(entityIds: unknown): number {
+  if (!Array.isArray(entityIds)) {
+    return 1;
+  }
+
+  const childCount = entityIds.filter((entityId): entityId is string => typeof entityId === 'string').length;
+  return childCount > 0 ? childCount : 1;
 }
 
 function mapLightCollectionState(states: LightState[]): LightState {

@@ -103,8 +103,8 @@ test('live Home Assistant facade summarizes configured light groups without an a
         id: 'all_lights',
         name: 'All lights',
         state: 'partially_on',
-        lightsOnCount: 1,
-        totalLightCount: 2,
+        lightsOnCount: 2,
+        totalLightCount: 3,
       },
       groups: [
         {
@@ -177,6 +177,88 @@ test('live Home Assistant facade preserves unavailable light state', async () =>
           id: 'study_lamp_1',
           name: 'Study Lamp 1',
           state: 'unavailable',
+          lightsOnCount: 0,
+          totalLightCount: 1,
+        },
+      ],
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test('live Home Assistant facade counts grouped light entities configured as light targets', async () => {
+  const states = new Map<string, unknown>([
+    [
+      '/api/states/light.playroom',
+      {
+        entity_id: 'light.playroom',
+        state: 'on',
+        attributes: {
+          entity_id: ['light.playroom_1', 'light.playroom_2', 'light.playroom_3', 'light.playroom_4'],
+        },
+      },
+    ],
+    [
+      '/api/states/light.garage_entry',
+      {
+        entity_id: 'light.garage_entry',
+        state: 'off',
+        attributes: {
+          entity_id: ['light.garage_entry_light'],
+        },
+      },
+    ],
+  ]);
+  const server = await startHomeAssistantServer(async (req, res) => {
+    const state = req.url ? states.get(req.url) : undefined;
+
+    if (!state) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(state));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade({
+      ...liveConfig(server.baseURL),
+      homeAssistant: {
+        ...liveConfig(server.baseURL).homeAssistant,
+        allLightsEntityId: undefined,
+        lightGroups: [],
+        lightEntities: [
+          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom' },
+          { id: 'garage_entry', name: 'Garage Entry', entityId: 'light.garage_entry' },
+        ],
+      },
+    });
+
+    const summary = await facade.getLightSummaryInputs();
+
+    assert.deepEqual(summary, {
+      allLights: {
+        id: 'all_lights',
+        name: 'All lights',
+        state: 'partially_on',
+        lightsOnCount: 4,
+        totalLightCount: 5,
+      },
+      groups: [
+        {
+          id: 'playroom',
+          name: 'Playroom',
+          state: 'on',
+          lightsOnCount: 4,
+          totalLightCount: 4,
+        },
+        {
+          id: 'garage_entry',
+          name: 'Garage Entry',
+          state: 'off',
           lightsOnCount: 0,
           totalLightCount: 1,
         },

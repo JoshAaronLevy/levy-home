@@ -54,7 +54,7 @@ HOME_ASSISTANT_TOKEN=YOUR_LONG_LIVED_TOKEN
 HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID=cover.main_garage_door
 HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID=
 HOME_ASSISTANT_LIGHT_GROUPS=
-HOME_ASSISTANT_LIGHT_ENTITIES=light.foyer_lights: Foyer, light.kitchen_cans: Kitchen Cans, light.kitchen_nook: Kitchen Nook, light.upstairs_hallway: Upstairs Hallway, light.study_lamp_1: Study Lamp 1, light.study_lamp_2: Study Lamp 2, light.study_lamp_3: Study Lamp 3, light.playroom_lamp: Playroom
+HOME_ASSISTANT_LIGHT_ENTITIES=light.foyer_lights: Foyer, light.garage_entry: Garage Entry, light.kitchen_cans: Kitchen Cans, light.kitchen_nook: Kitchen Nook, light.upstairs_hallway: Upstairs Hallway, light.study_lamp_1: Study Lamp 1, light.study_lamp_2: Study Lamp 2, light.study_lamp_3: Study Lamp 3, light.playroom: Playroom
 ```
 
 Start the API:
