@@ -21,11 +21,11 @@ Secrets and raw Home Assistant payloads are not included here.
 
 Honest progress score: **92% app-ready right now**.
 
-The Home Assistant side is in very good shape. The remaining gap is mostly app config, not HA organization: the local backend `.env` still points at two old light IDs and one non-existent all-lights target. After the `.env` change below, I would call this about **96% ready** for the current lighting UI.
+The Home Assistant side is in very good shape. The local backend `.env` now points Playroom at `light.playroom`, the grouped four-downlight target, and leaves the non-existent all-lights target blank.
 
 ### Direct Clarifications
 
-- `light.living_room_playroom_lamp` is **not showing up as a current HA light**. It is still configured in `apps/api/.env`.
+- Old lamp-style Playroom entity IDs are disconnected and should not be used by the app.
 - `light.study_study_lamp_3` is **not showing up as a current HA light**. It is still configured in `apps/api/.env`.
 - `light.all_lights` is **not showing up as a current HA light/group**. It was configured in `apps/api/.env`, and the backend code used to default to it when the env value was missing.
 - `Laundry Room` is fixed in HA.
@@ -39,14 +39,14 @@ Update the non-secret light config in `apps/api/.env` to this:
 ```sh
 HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID=
 HOME_ASSISTANT_LIGHT_GROUPS=
-HOME_ASSISTANT_LIGHT_ENTITIES=light.foyer_lights: Foyer, light.kitchen_cans: Kitchen Cans, light.kitchen_nook: Kitchen Nook, light.upstairs_hallway: Upstairs Hallway, light.study_lamp_1: Study Lamp 1, light.study_lamp_2: Study Lamp 2, light.study_lamp_3: Study Lamp 3, light.playroom_lamp: Playroom
+HOME_ASSISTANT_LIGHT_ENTITIES=light.foyer_lights: Foyer, light.garage_entry: Garage Entry, light.kitchen_cans: Kitchen Cans, light.kitchen_nook: Kitchen Nook, light.upstairs_hallway: Upstairs Hallway, light.study_lamp_1: Study Lamp 1, light.study_lamp_2: Study Lamp 2, light.study_lamp_3: Study Lamp 3, light.playroom: Playroom
 ```
 
 Why this exact change:
 
 - Blank `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` because HA does not have `light.all_lights`.
 - Blank `HOME_ASSISTANT_LIGHT_GROUPS` because the current app setup is using exact light entities instead of grouped HA targets.
-- Use `light.playroom_lamp` because that is the current Playroom light entity in HA.
+- Use `light.playroom` because Playroom is now the grouped four-downlight target in HA.
 - Use `light.study_lamp_1`, `light.study_lamp_2`, and `light.study_lamp_3` because the Study is a three-lamp room in HA and in your Night Night automation.
 
 If you want the app to show **one Study target** instead of three Study lamp targets, the cleaner HA-side improvement would be to create a Study light group/helper such as `light.study_lights`, then use that single entity in `HOME_ASSISTANT_LIGHT_ENTITIES`.
@@ -91,7 +91,7 @@ Configured `HOME_ASSISTANT_LIGHT_ENTITIES` before the recommended edit:
 | Kitchen Nook | `light.kitchen_nook` | yes | Kitchen | on | Keep. |
 | Upstairs Hallway | `light.upstairs_hallway` | yes | Upstairs Hallway | off | Keep. |
 | Study | `light.study_study_lamp_3` | no | n/a | n/a | Replace with current Study light entities or a Study group. |
-| Playroom | `light.living_room_playroom_lamp` | no | n/a | n/a | Replace with `light.playroom_lamp`. |
+| Playroom | old lamp-style Playroom entity IDs | no | n/a | n/a | Replace with `light.playroom`. |
 
 ## Area And Light Audit
 
@@ -114,13 +114,13 @@ Foyer is app-ready.
 
 ### Playroom
 
-Playroom is clean for the current lamp.
+Playroom is clean for the current four-downlight target.
 
 | Entity ID | HA name | Device | State | Notes |
 | --- | --- | --- | --- | --- |
-| `light.playroom_lamp` | Playroom Lamp | Playroom Lamp | on | Current app target for Playroom. |
+| `light.playroom` | Playroom | Playroom downlights | on | Current app target for Playroom; represents the four downlights. |
 
-After the wafer downlights are installed, assign all four wafers to `Playroom`. If the app should treat them as one room target, create a HA group/helper like `light.playroom_lights` and swap the `.env` target later.
+The old lamp entity has been disconnected. Keep the app pointed at `light.playroom`.
 
 ### Kitchen
 
@@ -226,7 +226,7 @@ These are the only `light.*` entities with no HA area in the fresh export:
 | Blueprint node | Target recommendation |
 | --- | --- |
 | Entry/Foyer | `light.foyer_lights` |
-| Playroom | `light.playroom_lamp` now; future `light.playroom_lights` after wafer install |
+| Playroom | `light.playroom` |
 | Kitchen | `light.kitchen_cans` and `light.kitchen_nook`, or `light.kitchen` if you want one Kitchen target |
 | Upstairs/Upstairs Hallway | `light.upstairs_hallway` |
 | Study | all three `light.study_lamp_*` entities now, or future `light.study_lights` group |
@@ -236,5 +236,5 @@ These are the only `light.*` entities with no HA area in the fresh export:
 1. Update `apps/api/.env` with the non-secret light config shown above.
 2. Restart the API after the `.env` edit.
 3. Remove/disable the stale unassigned Hue lights if they really are old apartment devices.
-4. After Playroom wafers are installed, assign them to `Playroom` and decide whether to create `light.playroom_lights`.
-5. Consider HA groups/helpers for one-target rooms: `light.study_lights`, maybe `light.playroom_lights`.
+4. Keep Playroom pointed at `light.playroom`.
+5. Consider HA groups/helpers for one-target rooms such as `light.study_lights`.

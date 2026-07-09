@@ -138,13 +138,13 @@ test('readConfig rejects APNs private key values without .p8 markers', () => {
 test('readConfig parses curated Home Assistant light entities', () => {
   const config = readConfig({
     HOME_ASSISTANT_LIGHT_ENTITIES:
-      'light.foyer_lights: Foyer, light.upstairs_hallway: Upstairs Hallway, light.playroom_lamp: Playroom',
+      'light.foyer_lights: Foyer, light.upstairs_hallway: Upstairs Hallway, light.playroom: Playroom',
   });
 
   assert.deepEqual(config.homeAssistant.lightEntities, [
     { id: 'foyer_lights', name: 'Foyer', entityId: 'light.foyer_lights' },
     { id: 'upstairs_hallway', name: 'Upstairs Hallway', entityId: 'light.upstairs_hallway' },
-    { id: 'playroom_lamp', name: 'Playroom', entityId: 'light.playroom_lamp' },
+    { id: 'playroom', name: 'Playroom', entityId: 'light.playroom' },
   ]);
 });
 

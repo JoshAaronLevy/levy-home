@@ -26,6 +26,36 @@ struct GarageCompletionWatchPolicy: Equatable {
     }
 }
 
+struct LightingCompletionWatchPolicy: Equatable {
+    let expectedState: LightSummary.State
+    let maximumAttempts: Int
+    let pollIntervalNanoseconds: UInt64
+
+    init(turnOn: Bool) {
+        expectedState = turnOn ? .on : .off
+        maximumAttempts = 8
+        pollIntervalNanoseconds = 750_000_000
+    }
+
+    func isSatisfied(in overview: HomeOverview?, groupIds: [String]) -> Bool {
+        guard let overview else {
+            return false
+        }
+
+        let targetIds = Set(groupIds.filter { !$0.isEmpty })
+
+        guard !targetIds.isEmpty else {
+            return false
+        }
+
+        let groupsById = Dictionary(uniqueKeysWithValues: overview.lightSummary.groups.map { ($0.id, $0) })
+
+        return targetIds.allSatisfy { groupId in
+            groupsById[groupId]?.state == expectedState
+        }
+    }
+}
+
 extension GarageStatus.State {
     var displayText: String {
         switch self {

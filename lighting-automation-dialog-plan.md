@@ -104,7 +104,7 @@ Recommended app-facing targets from the current lights-by-area audit:
 | --- | --- | --- |
 | `Entry` | Foyer / Entry | `light.foyer_lights` |
 | `Kitchen` | Kitchen | `light.kitchen_cans`, `light.kitchen_nook`, or one HA group such as `light.kitchen` |
-| `Playroom` | Playroom | `light.playroom_lamp` now; future `light.playroom_lights` if more fixtures are added |
+| `Playroom` | Playroom | `light.playroom` |
 | `Upstairs` | Upstairs Hallway | `light.upstairs_hallway` |
 | `Study` | Study | `light.study_lamp_1`, `light.study_lamp_2`, `light.study_lamp_3`, or a cleaner `light.study_lights` group |
 

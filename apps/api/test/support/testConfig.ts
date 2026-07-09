@@ -34,7 +34,7 @@ export const testConfig: AppConfig = {
     allLightsEntityId: 'light.test_all_lights',
     lightGroups: [
       { id: 'upstairs_hallway', name: 'Upstairs Hallway', entityId: 'light.upstairs_hallway' },
-      { id: 'playroom_lamp', name: 'Playroom', entityId: 'light.playroom_lamp' },
+      { id: 'playroom', name: 'Playroom', entityId: 'light.playroom' },
     ],
     lightEntities: [],
     mockTotalLightCount: 12,

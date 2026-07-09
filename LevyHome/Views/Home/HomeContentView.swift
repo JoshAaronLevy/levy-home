@@ -414,8 +414,37 @@ struct HomeContentView: View {
             title: data.title
         ) {
             homeViewModel.apply(overview: refreshedOverview)
+            await watchLightingCompletionIfNeeded(
+                groupIds: data.lightGroupIds,
+                turnOn: turnOn,
+                title: data.title
+            )
             selectedLightingArea = nil
         }
+    }
+
+    private func watchLightingCompletionIfNeeded(groupIds: [String], turnOn: Bool, title: String) async {
+        let watchPolicy = LightingCompletionWatchPolicy(turnOn: turnOn)
+
+        if watchPolicy.isSatisfied(in: homeViewModel.overview, groupIds: groupIds) {
+            return
+        }
+
+        for _ in 1...watchPolicy.maximumAttempts {
+            try? await Task.sleep(nanoseconds: watchPolicy.pollIntervalNanoseconds)
+            await homeViewModel.refresh()
+
+            if watchPolicy.isSatisfied(in: homeViewModel.overview, groupIds: groupIds) {
+                return
+            }
+        }
+
+        let expectedState = turnOn ? "on" : "off"
+        quickActionsViewModel.reportActionIssue(
+            title: title,
+            reason: "\(title) command succeeded, but Home Assistant has not reported the lights \(expectedState) yet. Pull to refresh or check Home Assistant.",
+            tone: .warning
+        )
     }
 
     private func watchGarageCompletionIfNeeded(for action: QuickActionDisplayData) async {

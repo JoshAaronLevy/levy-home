@@ -42,7 +42,7 @@ test('GET /api/home/actions returns curated action IDs and light groups', async 
   );
   assert.deepEqual(response.lightGroups, [
     { id: 'upstairs_hallway', name: 'Upstairs Hallway' },
-    { id: 'playroom_lamp', name: 'Playroom' },
+    { id: 'playroom', name: 'Playroom' },
   ]);
 });
 
@@ -95,8 +95,8 @@ test('explicit curated action endpoints work', async () => {
   const openGarage = await routes.postJSON('/api/home/actions/open-garage');
   const closeGarage = await routes.postJSON('/api/home/actions/close-garage');
   const lightsOff = await routes.postJSON('/api/home/actions/lights-off');
-  const lightGroup = await routes.postJSON('/api/home/actions/light-groups/playroom_lamp/off');
-  const lightGroupOn = await routes.postJSON('/api/home/actions/light-groups/playroom_lamp/on');
+  const lightGroup = await routes.postJSON('/api/home/actions/light-groups/playroom/off');
+  const lightGroupOn = await routes.postJSON('/api/home/actions/light-groups/playroom/on');
 
   assert.equal(openGarage.result.actionId, 'open_garage');
   assert.equal(closeGarage.result.actionId, 'close_garage');

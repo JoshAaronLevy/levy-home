@@ -18,9 +18,9 @@ final class QuickActionsViewModelTests: XCTestCase {
                 "close_garage",
                 "turn_off_all_lights",
                 "turn_on_light_group.upstairs_hallway",
-                "turn_on_light_group.playroom_lamp",
+                "turn_on_light_group.playroom",
                 "turn_off_light_group.upstairs_hallway",
-                "turn_off_light_group.playroom_lamp"
+                "turn_off_light_group.playroom"
             ]
         )
         XCTAssertEqual(viewModel.actions[0].request, .openGarage)
@@ -291,7 +291,7 @@ final class QuickActionsViewModelTests: XCTestCase {
             ],
             lightGroups: [
                 LightActionGroup(id: "upstairs_hallway", name: "Upstairs Hallway"),
-                LightActionGroup(id: "playroom_lamp", name: "Playroom")
+                LightActionGroup(id: "playroom", name: "Playroom")
             ]
         )
     }

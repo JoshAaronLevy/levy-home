@@ -57,11 +57,13 @@ test('live Home Assistant facade summarizes configured light groups without an a
       },
     ],
     [
-      '/api/states/light.playroom_lamp',
+      '/api/states/light.playroom',
       {
-        entity_id: 'light.playroom_lamp',
+        entity_id: 'light.playroom',
         state: 'off',
-        attributes: { entity_id: ['light.playroom_lamp'] },
+        attributes: {
+          entity_id: ['light.playroom_1', 'light.playroom_2', 'light.playroom_3', 'light.playroom_4'],
+        },
       },
     ],
   ]);
@@ -87,7 +89,7 @@ test('live Home Assistant facade summarizes configured light groups without an a
         allLightsEntityId: undefined,
         lightGroups: [
           { id: 'foyer', name: 'Foyer', entityId: 'light.foyer_lights' },
-          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom_lamp' },
+          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom' },
         ],
       },
     });
@@ -96,7 +98,7 @@ test('live Home Assistant facade summarizes configured light groups without an a
 
     assert.deepEqual(requestedPaths.sort(), [
       '/api/states/light.foyer_lights',
-      '/api/states/light.playroom_lamp',
+      '/api/states/light.playroom',
     ]);
     assert.deepEqual(summary, {
       allLights: {
@@ -104,7 +106,7 @@ test('live Home Assistant facade summarizes configured light groups without an a
         name: 'All lights',
         state: 'partially_on',
         lightsOnCount: 2,
-        totalLightCount: 3,
+        totalLightCount: 6,
       },
       groups: [
         {
@@ -119,7 +121,7 @@ test('live Home Assistant facade summarizes configured light groups without an a
           name: 'Playroom',
           state: 'off',
           lightsOnCount: 0,
-          totalLightCount: 1,
+          totalLightCount: 4,
         },
       ],
     });
@@ -295,7 +297,7 @@ test('live Home Assistant facade turns off configured light groups when no all-l
         allLightsEntityId: undefined,
         lightGroups: [
           { id: 'foyer', name: 'Foyer', entityId: 'light.foyer_lights' },
-          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom_lamp' },
+          { id: 'playroom', name: 'Playroom', entityId: 'light.playroom' },
         ],
       },
     });
@@ -305,7 +307,7 @@ test('live Home Assistant facade turns off configured light groups when no all-l
     assert.deepEqual(serviceCalls, [
       {
         path: '/api/services/light/turn_off',
-        body: { entity_id: ['light.foyer_lights', 'light.playroom_lamp'] },
+        body: { entity_id: ['light.foyer_lights', 'light.playroom'] },
       },
     ]);
   } finally {
