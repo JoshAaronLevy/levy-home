@@ -110,6 +110,12 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
             detail: "Notify when your partner leaves or arrives home."
         ),
         NotificationPreference(
+            category: .weatherAlerts,
+            isEnabled: true,
+            title: "Weather alerts",
+            detail: "Notify before rain, storms, snow, or other precipitation is expected."
+        ),
+        NotificationPreference(
             category: .lightingAutomation,
             isEnabled: true,
             title: "Lighting automations",

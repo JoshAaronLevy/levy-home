@@ -33,6 +33,16 @@ export type TrackedPhoneEntityPattern = {
 export type AppConfig = {
   port: number;
   haWebhookSecret?: string;
+  weatherAlerts: {
+    isEnabled: boolean;
+    latitude: number;
+    longitude: number;
+    timeZone: string;
+    forecastBaseURL: string;
+    pollIntervalMinutes: number;
+    leadTimeMinutes: number;
+    eventSeparationMinutes: number;
+  };
   kroger: {
     clientId?: string;
     clientSecret?: string;
@@ -79,6 +89,16 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readNumber(env.PORT, 4000),
     haWebhookSecret: readOptionalString(env.LEVY_HOME_HA_WEBHOOK_SECRET),
+    weatherAlerts: {
+      isEnabled: readBoolean(env.WEATHER_ALERTS_ENABLED, false, 'WEATHER_ALERTS_ENABLED'),
+      latitude: readNumber(env.WEATHER_ALERTS_LATITUDE, 39.5388289),
+      longitude: readNumber(env.WEATHER_ALERTS_LONGITUDE, -105.0305231),
+      timeZone: readOptionalString(env.WEATHER_ALERTS_TIME_ZONE) ?? 'America/Denver',
+      forecastBaseURL: readOptionalString(env.WEATHER_ALERTS_FORECAST_BASE_URL) ?? 'https://api.open-meteo.com/v1/forecast',
+      pollIntervalMinutes: clampNumber(readNumber(env.WEATHER_ALERTS_POLL_INTERVAL_MINUTES, 30), 5, 180),
+      leadTimeMinutes: clampNumber(readNumber(env.WEATHER_ALERTS_LEAD_TIME_MINUTES, 60), 15, 360),
+      eventSeparationMinutes: clampNumber(readNumber(env.WEATHER_ALERTS_EVENT_SEPARATION_MINUTES, 180), 30, 720),
+    },
     kroger: {
       clientId: readOptionalString(env.KROGER_CLIENT_ID),
       clientSecret: readOptionalString(env.KROGER_CLIENT_SECRET),

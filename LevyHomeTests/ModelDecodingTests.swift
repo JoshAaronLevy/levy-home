@@ -292,6 +292,12 @@ final class ModelDecodingTests: XCTestCase {
                 "detail": "Notify when your partner leaves or arrives home."
               },
               {
+                "category": "weather_alerts",
+                "isEnabled": true,
+                "title": "Weather alerts",
+                "detail": "Notify before precipitation."
+              },
+              {
                 "category": "lighting_automation",
                 "isEnabled": true,
                 "title": "Lighting automations",
@@ -310,6 +316,7 @@ final class ModelDecodingTests: XCTestCase {
                 .garageAfterHours,
                 .garageStillOpenAt10PM,
                 .partnerPresence,
+                .weatherAlerts,
                 .lightingAutomation
             ]
         )

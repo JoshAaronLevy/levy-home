@@ -302,3 +302,101 @@ test('notification service sends lighting automation pushes through lighting pre
   assert.equal(pushSender.requests[0].body, 'Study: Let there be light!');
   assert.deepEqual(pushSender.requests[0].data, { category: 'lighting_automation' });
 });
+
+test('notification service sends weather alerts to all registered devices through weather preference', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+  await deviceRegistry.registerDevice({
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory',
+  });
+
+  const push = await notificationService.sendWeatherAlertPush({
+    title: 'Weather alert',
+    body: 'High chance of thunderstorms in one hour, around 4 PM until 7 PM.',
+    kind: 'thunderstorms',
+    startsAt: '2026-07-01T22:00:00.000Z',
+    endsAt: '2026-07-02T01:00:00.000Z',
+    chance: 0.74,
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 2);
+  assert.equal(pushSender.requests.length, 2);
+  assert.deepEqual(pushSender.requests.map((request) => request.device.token), [
+    'josh-apns-token',
+    'mallory-apns-token',
+  ]);
+  assert.deepEqual(pushSender.requests[0].data, {
+    category: 'weather_alerts',
+    weatherKind: 'thunderstorms',
+    startsAt: '2026-07-01T22:00:00.000Z',
+    endsAt: '2026-07-02T01:00:00.000Z',
+    chance: '0.74',
+  });
+});
+
+test('notification service honors per-device weather alert preferences', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh',
+  });
+  await deviceRegistry.registerDevice({
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory',
+  });
+  await notificationPreferenceStore.updatePreferences({
+    locator: {
+      token: 'mallory-apns-token',
+      provider: 'apns',
+      environment: 'sandbox',
+    },
+    preferences: [{ category: 'weather_alerts', isEnabled: false }],
+  });
+
+  const push = await notificationService.sendWeatherAlertPush({
+    title: 'Weather alert',
+    body: 'Slight chance of light rain in one hour, around 9 AM until 11 AM.',
+    kind: 'light rain',
+    startsAt: '2026-07-01T15:00:00.000Z',
+    endsAt: '2026-07-01T17:00:00.000Z',
+    chance: 0.25,
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].device.token, 'josh-apns-token');
+});

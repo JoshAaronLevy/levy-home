@@ -209,6 +209,16 @@ test('lookupAndWriteKrogerProductResponse writes a diagnostic failure when crede
 function testConfig(options: { outputFilePath: string }): AppConfig {
   return {
     port: 0,
+    weatherAlerts: {
+      isEnabled: false,
+      latitude: 39.5388289,
+      longitude: -105.0305231,
+      timeZone: 'America/Denver',
+      forecastBaseURL: 'https://api.open-meteo.test/v1/forecast',
+      pollIntervalMinutes: 30,
+      leadTimeMinutes: 60,
+      eventSeparationMinutes: 180,
+    },
     kroger: {
       clientId: 'test-client-id',
       clientSecret: 'test-client-secret',

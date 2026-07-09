@@ -64,6 +64,7 @@ export type NotificationPreferenceCategory =
   | 'garage_after_hours'
   | 'garage_still_open_at_10pm'
   | 'partner_presence'
+  | 'weather_alerts'
   | 'lighting_automation'
   | 'shopping_list'
   | 'todo_list';
@@ -129,6 +130,12 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     isEnabled: true,
     title: 'Partner presence',
     detail: 'Notify when your partner leaves or arrives home.',
+  },
+  {
+    category: 'weather_alerts',
+    isEnabled: true,
+    title: 'Weather alerts',
+    detail: 'Notify before rain, storms, snow, or other precipitation is expected.',
   },
   {
     category: 'lighting_automation',

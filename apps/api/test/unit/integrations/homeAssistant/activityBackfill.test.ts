@@ -10,6 +10,16 @@ import type { HomeAssistantStateChangedEvent } from '../../../../src/integration
 
 const baseConfig: AppConfig = {
   port: 0,
+  weatherAlerts: {
+    isEnabled: false,
+    latitude: 39.5388289,
+    longitude: -105.0305231,
+    timeZone: 'America/Denver',
+    forecastBaseURL: 'https://api.open-meteo.test/v1/forecast',
+    pollIntervalMinutes: 30,
+    leadTimeMinutes: 60,
+    eventSeparationMinutes: 180,
+  },
   kroger: {
     apiBaseURL: 'https://api.kroger.test/v1',
     productResponseFilePath: '/tmp/kroger-product-response.json',

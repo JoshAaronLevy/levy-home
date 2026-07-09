@@ -16,6 +16,7 @@ import {
 } from './integrations/homeAssistant/activityListener.js';
 import { logger, type Logger, safeErrorMessage } from './observability/logger.js';
 import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
+import type { WeatherAlertService } from './services/weather/weatherAlertService.js';
 import type { ToDoListRealtimeHub } from './todoListRealtime.js';
 
 export function startServer(config?: AppConfig, options: { logger?: Logger } = {}): void {
@@ -28,6 +29,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   const shoppingListRealtime = createShoppingListRealtimeHub();
   const app = createApp({ config: resolvedConfig, activityStore, logger: serverLogger, shoppingListRealtime });
   const toDoListRealtime = app.get('toDoListRealtime') as ToDoListRealtimeHub | undefined;
+  const weatherAlertService = app.get('weatherAlertService') as WeatherAlertService | undefined;
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -49,6 +51,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   const server = app.listen(resolvedConfig.port, () => {
     serverLogger.info('Levy Home API listening.', { port: resolvedConfig.port });
     activityListener?.start();
+    weatherAlertService?.start();
     void backfillHomeAssistantActivity(resolvedConfig, {
       logger: serverLogger,
       onStateChanged: storeHomeAssistantPhoneActivity,
@@ -65,6 +68,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
 
   server.on('close', () => {
     activityListener?.stop();
+    weatherAlertService?.stop();
     shoppingListRealtime.close();
     toDoListRealtime?.close();
   });
@@ -99,6 +103,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     forceExit.unref();
 
     shoppingListRealtime.close();
+    weatherAlertService?.stop();
     toDoListRealtime?.close();
 
     server.close((error) => {

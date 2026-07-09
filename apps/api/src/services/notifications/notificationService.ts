@@ -40,10 +40,20 @@ export type ListSessionPushPayload = {
   actor?: string;
 };
 
+export type WeatherAlertPushPayload = {
+  title: string;
+  body: string;
+  kind: string;
+  startsAt: string;
+  endsAt?: string;
+  chance: number;
+};
+
 export type NotificationService = {
   sendEventPush: (payload: HomeAssistantEventPayload) => Promise<EventPushStatus>;
   sendListMutationPush: (payload: ListMutationPushPayload) => Promise<EventPushStatus>;
   sendListSessionPush: (payload: ListSessionPushPayload) => Promise<EventPushStatus>;
+  sendWeatherAlertPush: (payload: WeatherAlertPushPayload) => Promise<EventPushStatus>;
   sendTestPush: (payload: TestPushPayload) => Promise<PushSendSummary>;
 };
 
@@ -198,6 +208,29 @@ export function createNotificationService(options: {
           action: payload.action,
           actor,
           itemCount: String(itemNames.length),
+        },
+      });
+
+      return pushStatusFromSummary(summary, preferenceCategory);
+    },
+    async sendWeatherAlertPush(payload) {
+      const devices = await options.deviceRegistry.listDevices();
+      const preferenceCategory: NotificationPreferenceCategory = 'weather_alerts';
+      const summary = await sendPushToRegisteredDevices({
+        devices,
+        notificationPreferenceStore: options.notificationPreferenceStore,
+        pushSender: options.pushSender,
+        payload: {
+          title: payload.title,
+          body: payload.body,
+        },
+        preferenceCategory,
+        data: {
+          category: preferenceCategory,
+          weatherKind: payload.kind,
+          startsAt: payload.startsAt,
+          ...(payload.endsAt ? { endsAt: payload.endsAt } : {}),
+          chance: String(payload.chance),
         },
       });
 

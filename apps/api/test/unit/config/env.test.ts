@@ -53,6 +53,28 @@ test('readConfig parses Kroger API diagnostic configuration', () => {
   assert.equal(config.kroger.shoppingStoreName, 'King Soopers');
 });
 
+test('readConfig parses weather alert configuration', () => {
+  const config = readConfig({
+    WEATHER_ALERTS_ENABLED: 'true',
+    WEATHER_ALERTS_LATITUDE: '39.5',
+    WEATHER_ALERTS_LONGITUDE: '-105.1',
+    WEATHER_ALERTS_TIME_ZONE: 'America/Denver',
+    WEATHER_ALERTS_FORECAST_BASE_URL: 'https://api.open-meteo.test/v1/forecast',
+    WEATHER_ALERTS_POLL_INTERVAL_MINUTES: '15',
+    WEATHER_ALERTS_LEAD_TIME_MINUTES: '60',
+    WEATHER_ALERTS_EVENT_SEPARATION_MINUTES: '180',
+  });
+
+  assert.equal(config.weatherAlerts.isEnabled, true);
+  assert.equal(config.weatherAlerts.latitude, 39.5);
+  assert.equal(config.weatherAlerts.longitude, -105.1);
+  assert.equal(config.weatherAlerts.timeZone, 'America/Denver');
+  assert.equal(config.weatherAlerts.forecastBaseURL, 'https://api.open-meteo.test/v1/forecast');
+  assert.equal(config.weatherAlerts.pollIntervalMinutes, 15);
+  assert.equal(config.weatherAlerts.leadTimeMinutes, 60);
+  assert.equal(config.weatherAlerts.eventSeparationMinutes, 180);
+});
+
 test('readConfig parses quoted APNs private key env values with escaped newlines', () => {
   const config = readConfig({
     APNS_PRIVATE_KEY: `"${testApnsPrivateKey.replace(/\n/g, '\\n')}"`,

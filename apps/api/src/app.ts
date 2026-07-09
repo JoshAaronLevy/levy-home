@@ -40,6 +40,10 @@ import {
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
 import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
+import {
+  createWeatherAlertService,
+  type WeatherAlertService,
+} from './services/weather/weatherAlertService.js';
 import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
 import { createToDoListRealtimeHub, type ToDoListRealtimeHub } from './todoListRealtime.js';
 
@@ -57,6 +61,7 @@ export type CreateAppOptions = {
   toDoLocationStore?: ToDoLocationStore;
   toDoListStore?: ToDoListStore;
   toDoListMutationService?: ToDoListMutationService;
+  weatherAlertService?: WeatherAlertService;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
   notificationPersistenceMode?: NotificationPersistenceMode;
@@ -88,6 +93,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     notificationPreferenceStore,
     pushSender,
   });
+  const weatherAlertService = options.weatherAlertService ?? createWeatherAlertService({
+    config: config.weatherAlerts,
+    notificationService,
+    logger: appLogger,
+  });
   const activityEventService = createActivityEventService({ notificationService });
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime;
@@ -118,6 +128,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(noStoreCacheControl);
   app.use(express.json({ limit: '1mb' }));
   app.set('toDoListRealtime', toDoListRealtime);
+  app.set('weatherAlertService', weatherAlertService);
 
   registerRoutes(app, {
     activityStore,
