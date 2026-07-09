@@ -116,6 +116,22 @@ private struct HomeWeatherSummaryCard_Previews: PreviewProvider {
                             HomeWeatherChartPoint(id: 4, position: 0.62, temperature: 84),
                             HomeWeatherChartPoint(id: 5, position: 0.82, temperature: 76)
                         ],
+                        markers: [
+                            HomeWeatherChartMarker(
+                                id: "preview-rain-start",
+                                position: 0.28,
+                                systemImage: "cloud.drizzle.fill",
+                                accessibilityLabel: "Light rain starts around 10 AM",
+                                isPrecipitationStart: true
+                            ),
+                            HomeWeatherChartMarker(
+                                id: "preview-rain-end",
+                                position: 0.42,
+                                systemImage: "cloud.sun.fill",
+                                accessibilityLabel: "Precipitation ends around 1 PM",
+                                isPrecipitationStart: false
+                            )
+                        ],
                         xAxisLabels: HomeWeatherChartData.standardXAxisLabels,
                         yAxisValues: [89, 82, 75, 68, 61],
                         minimumTemperature: 61,

@@ -78,6 +78,22 @@ private struct HomeWeatherChartPlot: View {
                         .position(point(for: chartPoint, size: proxy.size))
                 }
 
+                ForEach(data.markers) { marker in
+                    Image(systemName: marker.systemImage)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(primaryMarkerColor(for: marker), secondaryMarkerColor(for: marker))
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 24, height: 24)
+                        .background(HomePalette.surface, in: Circle())
+                        .overlay {
+                            Circle()
+                                .stroke(HomePalette.hairline, lineWidth: 1)
+                        }
+                        .shadow(color: HomePalette.shadow.opacity(0.35), radius: 4, y: 2)
+                        .position(markerPoint(for: marker, size: proxy.size))
+                        .accessibilityLabel(marker.accessibilityLabel)
+                }
+
                 if data.points.isEmpty {
                     Text("Forecast unavailable")
                         .font(.system(size: 13, weight: .medium))
@@ -103,6 +119,21 @@ private struct HomeWeatherChartPlot: View {
             x: chartPoint.position * size.width,
             y: min(max(normalizedY, 0), 1) * size.height
         )
+    }
+
+    private func markerPoint(for marker: HomeWeatherChartMarker, size: CGSize) -> CGPoint {
+        CGPoint(
+            x: min(max(marker.position * size.width, 13), size.width - 13),
+            y: 13
+        )
+    }
+
+    private func primaryMarkerColor(for marker: HomeWeatherChartMarker) -> Color {
+        marker.isPrecipitationStart ? HomePalette.blue : HomePalette.gold
+    }
+
+    private func secondaryMarkerColor(for marker: HomeWeatherChartMarker) -> Color {
+        marker.isPrecipitationStart ? Color(red: 0.72, green: 0.82, blue: 0.92) : HomePalette.secondaryInk
     }
 }
 

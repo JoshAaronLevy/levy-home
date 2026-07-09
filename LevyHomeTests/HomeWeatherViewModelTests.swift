@@ -521,6 +521,60 @@ final class HomeWeatherViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.expandedData.chart.points.map { Int($0.temperature.rounded()) }, [65, 72, 86, 92, 88, 79])
     }
 
+    func testExpandedChartAddsClusteredPrecipitationMarkers() async {
+        let now = Self.date("2026-07-01T08:00:00Z")
+        let viewModel = HomeWeatherViewModel(now: { now }, calendar: Self.utcCalendar) {
+            Self.snapshot(
+                current: 72,
+                hourlyForecast: [
+                    Self.hourly("2026-07-01T06:00:00Z", temperature: 65),
+                    Self.hourly("2026-07-01T09:00:00Z", temperature: 70, condition: "Rain", chance: 0.45, precipitation: "rain"),
+                    Self.hourly("2026-07-01T10:00:00Z", temperature: 71, condition: "Rain", chance: 0.38, precipitation: "rain"),
+                    Self.hourly("2026-07-01T11:00:00Z", temperature: 73, condition: "Clear"),
+                    Self.hourly("2026-07-01T14:00:00Z", temperature: 82, condition: "Thunderstorm", chance: 0.75, precipitation: "thunderstorm"),
+                    Self.hourly("2026-07-01T15:00:00Z", temperature: 80, condition: "Thunderstorm", chance: 0.68, precipitation: "thunderstorm"),
+                    Self.hourly("2026-07-01T16:00:00Z", temperature: 78, condition: "Thunderstorm", chance: 0.52, precipitation: "thunderstorm"),
+                    Self.hourly("2026-07-01T18:00:00Z", temperature: 76, condition: "Clear"),
+                    Self.hourly("2026-07-01T20:00:00Z", temperature: 71)
+                ]
+            )
+        }
+
+        await viewModel.loadIfNeeded()
+
+        let markers = viewModel.expandedData.chart.markers
+        XCTAssertEqual(markers.map(\.systemImage), [
+            "cloud.drizzle.fill",
+            "sun.max.fill",
+            "cloud.bolt.rain.fill",
+            "sun.max.fill"
+        ])
+        XCTAssertEqual(markers.map { $0.isPrecipitationStart }, [true, false, true, false])
+        XCTAssertEqual(markers.map { String(format: "%.4f", $0.position) }, ["0.1875", "0.3125", "0.5000", "0.7500"])
+    }
+
+    func testExpandedChartUsesNighttimeEndingMarkerAfterSunset() async {
+        let now = Self.date("2026-01-05T18:00:00Z")
+        let viewModel = HomeWeatherViewModel(now: { now }, calendar: Self.utcCalendar) {
+            Self.snapshot(
+                current: 34,
+                hourlyForecast: [
+                    Self.hourly("2026-01-05T18:00:00Z", temperature: 34),
+                    Self.hourly("2026-01-05T20:00:00Z", temperature: 31, condition: "Snow", chance: 0.62, precipitation: "snow"),
+                    Self.hourly("2026-01-05T21:00:00Z", temperature: 29, condition: "Clear"),
+                    Self.hourly("2026-01-05T22:00:00Z", temperature: 27, condition: "Clear")
+                ]
+            )
+        }
+
+        await viewModel.loadIfNeeded()
+
+        XCTAssertEqual(viewModel.expandedData.chart.markers.map(\.systemImage), [
+            "cloud.snow.fill",
+            "moon.stars.fill"
+        ])
+    }
+
     private static func snapshot(
         current: Double,
         high: Double? = 82,

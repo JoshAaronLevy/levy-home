@@ -46,6 +46,7 @@ struct HomeWeatherExpandedData: Equatable {
 
 struct HomeWeatherChartData: Equatable {
     let points: [HomeWeatherChartPoint]
+    let markers: [HomeWeatherChartMarker]
     let xAxisLabels: [HomeWeatherAxisLabel]
     let yAxisValues: [Int]
     let minimumTemperature: Double
@@ -53,6 +54,7 @@ struct HomeWeatherChartData: Equatable {
 
     static let placeholder = HomeWeatherChartData(
         points: [],
+        markers: [],
         xAxisLabels: Self.standardXAxisLabels,
         yAxisValues: [85, 75, 65, 55],
         minimumTemperature: 55,
@@ -71,6 +73,14 @@ struct HomeWeatherChartPoint: Equatable, Identifiable {
     let id: TimeInterval
     let position: Double
     let temperature: Double
+}
+
+struct HomeWeatherChartMarker: Equatable, Identifiable {
+    let id: String
+    let position: Double
+    let systemImage: String
+    let accessibilityLabel: String
+    let isPrecipitationStart: Bool
 }
 
 struct HomeWeatherAxisLabel: Equatable, Identifiable {
@@ -98,6 +108,12 @@ struct HomeWeatherTomorrowSummaryData: Equatable {
 final class HomeWeatherViewModel: ObservableObject {
     typealias SnapshotLoader = () async throws -> HomeWeatherSnapshot
 
+    private struct PrecipitationChartEvent {
+        let start: HomeWeatherForecastPoint
+        let end: HomeWeatherForecastPoint?
+        let kind: String
+    }
+
     @Published private(set) var snapshot: HomeWeatherSnapshot?
     @Published private(set) var errorMessage: String?
     @Published private(set) var isLoading = false
@@ -108,6 +124,8 @@ final class HomeWeatherViewModel: ObservableObject {
     private let calendar: Calendar
     private let dateFormatter: DateFormatter
     private var hasLoaded = false
+
+    private static let precipitationEventSeparation: TimeInterval = 3 * 60 * 60
 
     var displayData: HomeWeatherSummaryData {
         let dateText = dateFormatter.string(from: now())
@@ -251,6 +269,7 @@ final class HomeWeatherViewModel: ObservableObject {
                     temperature: point.temperature.converted(to: .fahrenheit).value
                 )
             },
+            markers: chartMarkers(for: points),
             xAxisLabels: HomeWeatherChartData.standardXAxisLabels,
             yAxisValues: yAxisValues(minimum: minimumTemperature, maximum: maximumTemperature),
             minimumTemperature: minimumTemperature,
@@ -281,7 +300,7 @@ final class HomeWeatherViewModel: ObservableObject {
 
     private func precipitationSummary(for points: [HomeWeatherForecastPoint]) -> String {
         let wetPoints = points.filter { point in
-            point.precipitationChance >= 0.2 || precipitationKind(for: point) != nil
+            isPrecipitationExpected(at: point)
         }
 
         guard !wetPoints.isEmpty else {
@@ -294,6 +313,86 @@ final class HomeWeatherViewModel: ObservableObject {
         let timeText = precipitationTimeText(for: wetPoints)
 
         return "\(eventText) \(timeText)."
+    }
+
+    private func chartMarkers(for points: [HomeWeatherForecastPoint]) -> [HomeWeatherChartMarker] {
+        precipitationChartEvents(in: points).flatMap { event in
+            var markers = [
+                HomeWeatherChartMarker(
+                    id: "\(event.start.date.timeIntervalSinceReferenceDate)-start",
+                    position: daytimePosition(for: event.start.date),
+                    systemImage: precipitationSymbolName(for: event.kind),
+                    accessibilityLabel: "\(event.kind.capitalized) starts around \(timeText(for: event.start.date))",
+                    isPrecipitationStart: true
+                )
+            ]
+
+            if let end = event.end, end.date > event.start.date {
+                markers.append(
+                    HomeWeatherChartMarker(
+                        id: "\(end.date.timeIntervalSinceReferenceDate)-end",
+                        position: daytimePosition(for: end.date),
+                        systemImage: endingConditionSymbolName(for: end),
+                        accessibilityLabel: "Precipitation ends around \(timeText(for: end.date))",
+                        isPrecipitationStart: false
+                    )
+                )
+            }
+
+            return markers
+        }
+    }
+
+    private func precipitationChartEvents(in points: [HomeWeatherForecastPoint]) -> [PrecipitationChartEvent] {
+        var events: [PrecipitationChartEvent] = []
+        var start: HomeWeatherForecastPoint?
+        var end: HomeWeatherForecastPoint?
+        var kind: String?
+
+        for point in points.sorted(by: { $0.date < $1.date }) {
+            let pointKind = precipitationKind(for: point)
+
+            if isPrecipitationExpected(at: point) {
+                if let currentStart = start,
+                   let currentEnd = end,
+                   point.date.timeIntervalSince(currentEnd.date) >= Self.precipitationEventSeparation {
+                    events.append(
+                        PrecipitationChartEvent(
+                            start: currentStart,
+                            end: currentEnd,
+                            kind: kind ?? "precipitation"
+                        )
+                    )
+                    start = point
+                    kind = pointKind ?? "precipitation"
+                } else if start == nil {
+                    start = point
+                    kind = pointKind ?? "precipitation"
+                } else if kind == "precipitation", let pointKind {
+                    kind = pointKind
+                }
+
+                end = nil
+            } else if start != nil, end == nil {
+                end = point
+            }
+        }
+
+        if let start {
+            events.append(
+                PrecipitationChartEvent(
+                    start: start,
+                    end: end,
+                    kind: kind ?? "precipitation"
+                )
+            )
+        }
+
+        return events
+    }
+
+    private func isPrecipitationExpected(at point: HomeWeatherForecastPoint) -> Bool {
+        point.precipitationChance >= 0.2 || precipitationKind(for: point) != nil
     }
 
     private func precipitationKind(for point: HomeWeatherForecastPoint) -> String? {
@@ -316,6 +415,67 @@ final class HomeWeatherViewModel: ObservableObject {
         }
 
         return point.precipitationChance >= 0.35 ? "precipitation" : nil
+    }
+
+    private func precipitationSymbolName(for kind: String) -> String {
+        switch kind {
+        case "thunderstorms":
+            return "cloud.bolt.rain.fill"
+        case "snow":
+            return "cloud.snow.fill"
+        case "showers":
+            return "cloud.heavyrain.fill"
+        case "light rain":
+            return "cloud.drizzle.fill"
+        default:
+            return "cloud.rain.fill"
+        }
+    }
+
+    private func endingConditionSymbolName(for point: HomeWeatherForecastPoint) -> String {
+        let description = point.conditionDescription.lowercased()
+        let isDaylight = isLikelyDaylight(at: point.date)
+
+        if description.contains("fog") {
+            return "cloud.fog.fill"
+        }
+
+        if description.contains("haze") || description.contains("smoke") {
+            return "sun.haze.fill"
+        }
+
+        if description.contains("partly") && description.contains("cloud") {
+            return isDaylight ? "cloud.sun.fill" : "cloud.moon.fill"
+        }
+
+        if description.contains("cloud") || description.contains("overcast") {
+            return "cloud.fill"
+        }
+
+        return isDaylight ? "sun.max.fill" : "moon.stars.fill"
+    }
+
+    private func isLikelyDaylight(at date: Date) -> Bool {
+        let month = calendar.component(.month, from: date)
+        let hour = calendar.component(.hour, from: date)
+
+        switch month {
+        case 5...8:
+            return hour >= 6 && hour < 21
+        case 3, 4, 9, 10:
+            return hour >= 7 && hour < 20
+        default:
+            return hour >= 8 && hour < 18
+        }
+    }
+
+    private func timeText(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "h a"
+        return formatter.string(from: date)
     }
 
     private func precipitationEventText(kind: String, maximumChance: Double) -> String {
