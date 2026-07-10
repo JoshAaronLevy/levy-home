@@ -1,6 +1,6 @@
 # Home Assistant Lights By Area
 
-Fresh snapshot from Home Assistant: `2026-07-06T05:59:54.135Z`
+Fresh snapshot from Home Assistant: `2026-07-10T01:30:32.609Z`
 
 This report is based on a live Home Assistant export using:
 
@@ -9,11 +9,11 @@ This report is based on a live Home Assistant export using:
 
 The export found:
 
-- `400` total entities
-- `397` entity-registry entries
-- `78` devices
-- `12` areas
-- `38` `light.*` entities
+- `421` total entities
+- `418` entity-registry entries
+- `85` devices
+- `13` areas
+- `44` `light.*` entities
 
 Secrets and raw Home Assistant payloads are not included here.
 
@@ -151,7 +151,7 @@ Upstairs Hallway is app-ready.
 | `light.upstairs_hallway` | Upstairs Hallway Lights | Upstairs Hallway Lights | off | Recommended app target for Upstairs Hallway. |
 | `light.upstairs_hall_guest` | Upstairs Hallway Guest Light | Upstairs Hallway Guest Light | off | Individual light. |
 | `light.upstairs_hall_master` | Upstairs Hallway Master Light | Upstairs Hallway Master Light | off | Individual light. |
-| `light.upstairs_hallway_study_light` | Upstairs Hallway Study Light | Upstairs Hallway Study Light | off | Now assigned to Upstairs Hallway. |
+| `light.upstairs_hall_study` | Upstairs Hallway Study Light | Upstairs Hallway Study Light | on | Now assigned to Upstairs Hallway. |
 
 ### Study
 
