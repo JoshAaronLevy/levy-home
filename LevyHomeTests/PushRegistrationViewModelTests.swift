@@ -101,10 +101,12 @@ final class PushRegistrationViewModelTests: XCTestCase {
             PushAPISyncState(
                 deviceToken: "abc123",
                 environment: .sandbox,
+                deviceId: "device-1",
                 registeredDeviceCount: 2,
                 syncedAt: now
             )
         )
+        XCTAssertEqual(viewModel.registeredDeviceID, "device-1")
     }
 
     func testPrepareDeliveryRequestsPermissionAndSyncsDeviceWhenNotDetermined() async {
@@ -235,6 +237,7 @@ final class PushRegistrationViewModelTests: XCTestCase {
             apiSyncState: PushAPISyncState(
                 deviceToken: "abc123",
                 environment: .sandbox,
+                deviceId: "device-1",
                 registeredDeviceCount: 2,
                 syncedAt: Date(timeIntervalSince1970: 1_783_000_000)
             )
@@ -259,6 +262,7 @@ final class PushRegistrationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.apiRegistrationLabel, "Synced")
         XCTAssertEqual(viewModel.apiRegistrationTone, .success)
         XCTAssertEqual(viewModel.deviceToken, "abc123")
+        XCTAssertEqual(viewModel.registeredDeviceID, "device-1")
     }
 
     func testRefreshSyncsExistingDeviceTokenWithUpdatedDeviceName() async {

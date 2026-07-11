@@ -19,6 +19,7 @@ final class PushRegistrationViewModel: ObservableObject {
 
     @Published private(set) var developerStatusMessage: String?
     @Published private(set) var deviceToken: String?
+    @Published private(set) var registeredDeviceID: String?
     @Published private(set) var isRegistering = false
 
     private let service: NotificationServicing
@@ -233,10 +234,12 @@ final class PushRegistrationViewModel: ObservableObject {
                 PushAPISyncState(
                     deviceToken: token,
                     environment: apnsEnvironment,
+                    deviceId: response.device?.id,
                     registeredDeviceCount: response.registeredDeviceCount,
                     syncedAt: now()
                 )
             )
+            registeredDeviceID = response.device?.id
             developerStatusMessage = "API device registration succeeded. Registered devices: \(response.registeredDeviceCount)."
         } catch {
             apiRegistrationLabel = "Failed"
@@ -258,6 +261,7 @@ final class PushRegistrationViewModel: ObservableObject {
         }
 
         applyAPISyncSynced()
+        registeredDeviceID = syncState.deviceId
     }
 
     private func applyAPISyncSynced() {

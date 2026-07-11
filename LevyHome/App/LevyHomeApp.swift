@@ -38,9 +38,15 @@ struct LevyHomeApp: App {
                 .environmentObject(themePreferenceViewModel)
                 .environmentObject(shoppingLiveActivityCoordinator)
                 .preferredColorScheme(themePreferenceViewModel.preferredColorScheme)
-                .task(id: notificationRegistrationDeviceName ?? "") {
+                .task(id: "\(notificationRegistrationDeviceName ?? ""):\(pushRegistrationViewModel.registeredDeviceID ?? "")") {
                     pushRegistrationViewModel.updateDeviceName(notificationRegistrationDeviceName)
                     await pushRegistrationViewModel.prepareDeliveryIfNeeded()
+                    shoppingLiveActivityCoordinator.configureRemotePushRegistration(
+                        service: appEnvironment.apiClient,
+                        pushDeviceId: pushRegistrationViewModel.registeredDeviceID,
+                        resident: notificationRegistrationDeviceName,
+                        environment: appEnvironment.config.apiAPNsEnvironment
+                    )
                 }
         }
     }

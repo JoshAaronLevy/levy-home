@@ -56,8 +56,23 @@ struct PushRegistrationSnapshot: Equatable {
 struct PushAPISyncState: Codable, Equatable {
     let deviceToken: String
     let environment: APNsEnvironment
+    let deviceId: String?
     let registeredDeviceCount: Int
     let syncedAt: Date
+
+    init(
+        deviceToken: String,
+        environment: APNsEnvironment,
+        deviceId: String? = nil,
+        registeredDeviceCount: Int,
+        syncedAt: Date
+    ) {
+        self.deviceToken = deviceToken
+        self.environment = environment
+        self.deviceId = deviceId
+        self.registeredDeviceCount = registeredDeviceCount
+        self.syncedAt = syncedAt
+    }
 
     func matches(deviceToken: String, environment: APNsEnvironment) -> Bool {
         self.deviceToken == deviceToken && self.environment == environment

@@ -12,7 +12,9 @@ import type { NotificationPreferenceStore } from '../services/notifications/noti
 import type { NotificationService } from '../services/notifications/notificationService.js';
 import type { ShoppingListMutationService } from '../services/shopping/shoppingListMutationService.js';
 import type { ShoppingTripService } from '../services/shopping/shoppingTripService.js';
+import type { ShoppingLiveActivityDeliveryService } from '../services/shopping/shoppingLiveActivityDeliveryService.js';
 import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
+import type { ShoppingTripStore } from '../repositories/shoppingTripRepository.js';
 import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
 import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
@@ -25,6 +27,7 @@ import { createHomeRoutes } from './homeRoutes.js';
 import { createNotificationPreferenceRoutes } from './notificationPreferenceRoutes.js';
 import { createShoppingListRoutes } from './shoppingListRoutes.js';
 import { createShoppingTripRoutes } from './shoppingTripRoutes.js';
+import { createShoppingLiveActivityRoutes } from './shoppingLiveActivityRoutes.js';
 import { createToDoLocationRoutes } from './todoLocationRoutes.js';
 import { createToDoListRoutes } from './todoListRoutes.js';
 import { createUserRoutes } from './userRoutes.js';
@@ -44,6 +47,8 @@ export type AppRouteDependencies = {
   shoppingListMutationService: ShoppingListMutationService;
   shoppingListStore: ShoppingListStore;
   shoppingTripService?: ShoppingTripService;
+  shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
+  shoppingTripStore?: ShoppingTripStore;
   toDoLocationStore: ToDoLocationStore;
   toDoListMutationService: ToDoListMutationService;
   toDoListStore: ToDoListStore;
@@ -61,5 +66,6 @@ export function registerRoutes(app: Express, deps: AppRouteDependencies): void {
   app.use(createToDoListRoutes(deps));
   app.use(createShoppingListRoutes(deps));
   app.use(createShoppingTripRoutes(deps));
+  app.use(createShoppingLiveActivityRoutes(deps));
   app.use(createActivityRoutes(deps));
 }

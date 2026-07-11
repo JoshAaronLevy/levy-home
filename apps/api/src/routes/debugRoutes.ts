@@ -10,6 +10,8 @@ import { requireHaWebhookSecret } from '../http/middleware/requireHaWebhookSecre
 import type { RecentActivityStore } from '../activityStore.js';
 import type { ActivityEventService } from '../services/activity/activityEventService.js';
 import type { NotificationService } from '../services/notifications/notificationService.js';
+import type { ShoppingTripStore } from '../repositories/shoppingTripRepository.js';
+import type { ShoppingLiveActivityDeliveryService } from '../services/shopping/shoppingLiveActivityDeliveryService.js';
 import { testPushMessage } from '../services/notifications/notificationService.js';
 import { validateTestPushBody } from '../validation/notificationValidation.js';
 
@@ -20,6 +22,8 @@ export type DebugRouteDependencies = {
   homeAssistant: HomeAssistantFacade;
   krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
   notificationService: NotificationService;
+  shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
+  shoppingTripStore?: Pick<ShoppingTripStore, 'fetchActiveTrip' | 'fetchTrip'>;
 };
 
 export function createDebugRoutes(deps: DebugRouteDependencies): Router {
@@ -98,7 +102,80 @@ export function createDebugRoutes(deps: DebugRouteDependencies): Router {
     res.json(response);
   }));
 
+  for (const event of ['start', 'update', 'end'] as const) {
+    router.post(`/api/debug/shopping-live-activity/${event}`, asyncHandler(async (req, res) => {
+      const trip = await debugTripForEvent(deps, event, req.body);
+      const excludeResident = readOptionalDebugResident(req.body?.excludeResident);
+      const deliveries = await requireShoppingDeliveryService(deps).enqueueEvent({
+        event,
+        trip,
+        ...(excludeResident ? { excludeResident } : {}),
+      });
+
+      res.json({
+        ok: true,
+        trip,
+        queuedDeliveryCount: deliveries.length,
+        deliveryIds: deliveries.map((delivery) => delivery.id),
+        generatedAt: new Date().toISOString(),
+      });
+    }));
+  }
+
   return router;
+}
+
+async function debugTripForEvent(
+  deps: DebugRouteDependencies,
+  event: 'start' | 'update' | 'end',
+  body: unknown,
+) {
+  const store = deps.shoppingTripStore;
+
+  if (!store) {
+    throw new HTTPError(503, 'Shopping trip persistence is not configured.', 'shopping_trip_not_configured');
+  }
+
+  const tripId = typeof body === 'object' && body !== null && typeof (body as { tripId?: unknown }).tripId === 'string'
+    ? (body as { tripId: string }).tripId.trim()
+    : undefined;
+  const trip = tripId ? await store.fetchTrip(tripId) : await store.fetchActiveTrip();
+
+  if (!trip) {
+    throw new HTTPError(404, 'No matching shopping trip was found for the developer delivery.', 'shopping_trip_not_found');
+  }
+
+  if (event === 'end' && trip.status !== 'completed') {
+    throw new HTTPError(409, 'End delivery requires a completed shopping trip.', 'shopping_trip_not_completed');
+  }
+
+  if (event !== 'end' && trip.status !== 'active') {
+    throw new HTTPError(409, 'Start and update deliveries require an active shopping trip.', 'shopping_trip_not_active');
+  }
+
+  return trip;
+}
+
+function requireShoppingDeliveryService(
+  deps: DebugRouteDependencies,
+): ShoppingLiveActivityDeliveryService {
+  if (!deps.shoppingLiveActivityDeliveryService) {
+    throw new HTTPError(503, 'Shopping Live Activity delivery is not configured.', 'shopping_live_activity_not_configured');
+  }
+
+  return deps.shoppingLiveActivityDeliveryService;
+}
+
+function readOptionalDebugResident(value: unknown): 'Josh' | 'Mallory' | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (value === 'Josh' || value === 'Mallory') {
+    return value;
+  }
+
+  throw new HTTPError(400, 'excludeResident must be Josh or Mallory.', 'invalid_shopping_live_activity_debug_request');
 }
 
 function notificationPipelineTestPayload(): HomeAssistantEventPayload {

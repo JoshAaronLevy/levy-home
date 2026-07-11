@@ -5,7 +5,12 @@ import {
   createRecentActivityStore,
   type RecentActivityStore,
 } from './activityStore.js';
-import { createAPNsPushSender, type PushSender } from './integrations/apple/apnsPushSender.js';
+import {
+  createAPNsPushSender,
+  createAPNsShoppingLiveActivityPushSender,
+  type PushSender,
+  type ShoppingLiveActivityPushSender,
+} from './integrations/apple/apnsPushSender.js';
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
 import type { KrogerProductSearchResponse } from './contracts.js';
@@ -21,6 +26,10 @@ import { registerRoutes } from './routes/index.js';
 import type { NotificationPersistenceMode } from './routes/healthRoutes.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './repositories/shoppingListRepository.js';
 import { createPostgresShoppingTripStore, type ShoppingTripStore } from './repositories/shoppingTripRepository.js';
+import {
+  createPostgresShoppingLiveActivityStore,
+  type ShoppingLiveActivityStore,
+} from './repositories/shoppingLiveActivityRepository.js';
 import {
   createPostgresToDoLocationStore,
   type ToDoLocationStore,
@@ -41,6 +50,10 @@ import {
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
 import { createShoppingTripService, type ShoppingTripService } from './services/shopping/shoppingTripService.js';
+import {
+  createShoppingLiveActivityDeliveryService,
+  type ShoppingLiveActivityDeliveryService,
+} from './services/shopping/shoppingLiveActivityDeliveryService.js';
 import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
 import {
   createWeatherAlertService,
@@ -58,6 +71,9 @@ export type CreateAppOptions = {
   notificationPreferenceStore?: NotificationPreferenceStore;
   shoppingListStore?: ShoppingListStore;
   shoppingTripStore?: ShoppingTripStore;
+  shoppingLiveActivityStore?: ShoppingLiveActivityStore;
+  shoppingLiveActivityPushSender?: ShoppingLiveActivityPushSender;
+  shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   toDoListRealtime?: ToDoListRealtimeHub;
   userStore?: UserStore;
@@ -110,6 +126,18 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const shoppingTripService: ShoppingTripService | undefined = shoppingTripStore
     ? createShoppingTripService({ shoppingListRealtime, shoppingTripStore })
     : undefined;
+  const shoppingLiveActivityStore = options.shoppingLiveActivityStore ?? (
+    isDatabaseConfigured() ? createPostgresShoppingLiveActivityStore() : undefined
+  );
+  const shoppingLiveActivityDeliveryService: ShoppingLiveActivityDeliveryService | undefined =
+    options.shoppingLiveActivityDeliveryService ?? (shoppingLiveActivityStore && shoppingTripStore
+      ? createShoppingLiveActivityDeliveryService({
+        logger: appLogger,
+        pushSender: options.shoppingLiveActivityPushSender ?? createAPNsShoppingLiveActivityPushSender(config),
+        shoppingLiveActivityStore,
+        shoppingTripStore,
+      })
+      : undefined);
   const shoppingListMutationService = createShoppingListMutationService({
     notificationService,
     shoppingListRealtime,
@@ -139,6 +167,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(express.json({ limit: '1mb' }));
   app.set('toDoListRealtime', toDoListRealtime);
   app.set('weatherAlertService', weatherAlertService);
+  app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);
 
   registerRoutes(app, {
     activityStore,
@@ -152,9 +181,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     notificationPersistenceMode,
     notificationPreferenceStore,
     notificationService,
+    shoppingLiveActivityDeliveryService,
     shoppingListMutationService,
     shoppingListStore,
     shoppingTripService,
+    shoppingTripStore,
     toDoLocationStore,
     toDoListMutationService,
     toDoListStore,

@@ -112,3 +112,12 @@ struct EndShoppingTripRequest: Encodable, Equatable {
         self.summaryRecipient = summaryRecipient
     }
 }
+
+struct ShoppingLiveActivityRegistrationRequest: Encodable, Equatable {
+    let pushDeviceId: String
+    let resident: String
+    let environment: APNsEnvironment
+    let tokenType: String
+    let token: String
+    let tripId: String?
+}

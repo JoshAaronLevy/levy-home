@@ -379,6 +379,32 @@ struct ShoppingTripMutationResponse: Codable, Equatable {
     let generatedAt: String?
 }
 
+struct ShoppingLiveActivityRegistration: Codable, Equatable, Identifiable {
+    let id: String
+    let pushDeviceId: String
+    let resident: String
+    let environment: APNsEnvironment
+    let tokenType: String
+    let tripId: String?
+    let isActive: Bool
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct ShoppingLiveActivityRegistrationResponse: Codable, Equatable {
+    let ok: Bool
+    let registration: ShoppingLiveActivityRegistration
+    let generatedAt: String?
+}
+
+struct ShoppingLiveActivityDebugDeliveryResponse: Codable, Equatable {
+    let ok: Bool
+    let trip: ShoppingTrip
+    let queuedDeliveryCount: Int
+    let deliveryIds: [String]
+    let generatedAt: String?
+}
+
 struct ShoppingStore: Codable, Equatable, Hashable, Identifiable {
     let id: Int
     let name: String

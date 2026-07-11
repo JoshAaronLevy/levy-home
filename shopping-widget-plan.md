@@ -794,6 +794,17 @@ Apple references:
 - A late update token catches up to the latest trip version.
 - Broadcast channels and frequent-update mode are still unnecessary.
 
+### Implementation Status — 2026-07-11
+
+- Added **apps/api/migrations/2026-07-11-002-shopping-live-activity-delivery.sql** and a PostgreSQL-backed registration/delivery repository. It retains raw ActivityKit tokens only server-side, invalidates the superseded active token for the same device/scope, and persists per-trip APNs delivery intent, attempts, response IDs, errors, and due-retry state.
+- Added **POST /api/shopping-list/live-activities/registrations** with strict schema validation for the APNs device, resident, environment, token kind, token shape, and trip scope. Registration responses and delivery/debug responses deliberately omit raw ActivityKit tokens.
+- Refactored the APNs sender around a common authenticated HTTP/2 request path and added the typed Live Activity sender. It sends to the sandbox or production host with the documented Live Activity topic suffix, push type, priority, expiration, and start/update/end payload shapes. The start payload includes attributes, a visible alert, and **input-push-token: 1**; updates use priority 5 and end requests include the final state and dismissal date.
+- Added a restart-safe **shoppingLiveActivityDeliveryService**. It claims durable work, records APNs IDs, retries retryable update/end failures with bounded backoff, invalidates permanent-token failures, and processes an update token registration as an immediate catch-up delivery. An ambiguous remote **start** is intentionally never retried: a later per-activity update token is the positive reconciliation signal, preventing a second start from creating a duplicate Activity.
+- The app now persists the ordinary registered **device.id**, starts observing static push-to-start tokens, Activity updates, and per-activity update-token rotations after that ID is available, and uploads those tokens without logging their values. The temporary local sample still uses an ActivityKit update token, while the real Shopping **New** action remains unchanged for Stage 5.
+- Added Developer-only remote Start, Update, and End controls under **Preferences -> Developer**. They queue delivery for the counterpart resident’s eligible device and require the current durable trip (with a completed trip for End); they do not alter the customer-facing Shopping flow.
+- Added repository, route, delivery-safety, APNs-payload, API-client, and persisted-device-ID tests. API typecheck, production build, and all **137** API tests pass; the full iOS simulator suite also passes.
+- This migration has **not** been applied to the configured/deployed database, and no real APNs request or physical two-phone acceptance run was performed. Stage 4’s physical checks—both directions, foreground/background/locked/terminated, update-token catch-up, and token rotation—remain required before its exit criteria can be declared met.
+
 ## Stage 5: Wire The Real Start And Recovery Experience
 
 ### Goal

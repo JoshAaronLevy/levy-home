@@ -18,6 +18,7 @@ import { logger, type Logger, safeErrorMessage } from './observability/logger.js
 import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
 import type { WeatherAlertService } from './services/weather/weatherAlertService.js';
 import type { ToDoListRealtimeHub } from './todoListRealtime.js';
+import type { ShoppingLiveActivityDeliveryService } from './services/shopping/shoppingLiveActivityDeliveryService.js';
 
 export function startServer(config?: AppConfig, options: { logger?: Logger } = {}): void {
   const serverLogger = options.logger ?? logger;
@@ -30,6 +31,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   const app = createApp({ config: resolvedConfig, activityStore, logger: serverLogger, shoppingListRealtime });
   const toDoListRealtime = app.get('toDoListRealtime') as ToDoListRealtimeHub | undefined;
   const weatherAlertService = app.get('weatherAlertService') as WeatherAlertService | undefined;
+  const shoppingLiveActivityDeliveryService = app.get('shoppingLiveActivityDeliveryService') as ShoppingLiveActivityDeliveryService | undefined;
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -52,6 +54,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     serverLogger.info('Levy Home API listening.', { port: resolvedConfig.port });
     activityListener?.start();
     weatherAlertService?.start();
+    shoppingLiveActivityDeliveryService?.start();
     void backfillHomeAssistantActivity(resolvedConfig, {
       logger: serverLogger,
       onStateChanged: storeHomeAssistantPhoneActivity,
@@ -69,6 +72,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   server.on('close', () => {
     activityListener?.stop();
     weatherAlertService?.stop();
+    shoppingLiveActivityDeliveryService?.stop();
     shoppingListRealtime.close();
     toDoListRealtime?.close();
   });
@@ -104,6 +108,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
 
     shoppingListRealtime.close();
     weatherAlertService?.stop();
+    shoppingLiveActivityDeliveryService?.stop();
     toDoListRealtime?.close();
 
     server.close((error) => {

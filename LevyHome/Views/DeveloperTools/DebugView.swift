@@ -5,6 +5,7 @@ struct DebugView: View {
     @ObservedObject var pushRegistrationViewModel: PushRegistrationViewModel
     @ObservedObject var notificationPreferencesViewModel: NotificationPreferencesViewModel
     @StateObject private var notificationTestViewModel: NotificationPipelineTestViewModel
+    @StateObject private var shoppingDeliveryTestViewModel: ShoppingLiveActivityDeliveryTestViewModel
     let apnsEnvironment: APNsEnvironment
     let showsDebugControls: Bool
 
@@ -13,7 +14,8 @@ struct DebugView: View {
         notificationPreferencesViewModel: NotificationPreferencesViewModel,
         apnsEnvironment: APNsEnvironment,
         showsDebugControls: Bool = true,
-        sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse
+        sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse,
+        sendShoppingLiveActivityDelivery: @escaping (ShoppingLiveActivityDebugEvent) async throws -> ShoppingLiveActivityDebugDeliveryResponse
     ) {
         self.pushRegistrationViewModel = pushRegistrationViewModel
         self.notificationPreferencesViewModel = notificationPreferencesViewModel
@@ -21,6 +23,9 @@ struct DebugView: View {
         self.showsDebugControls = showsDebugControls
         _notificationTestViewModel = StateObject(
             wrappedValue: NotificationPipelineTestViewModel(sendTest: sendNotificationPipelineTest)
+        )
+        _shoppingDeliveryTestViewModel = StateObject(
+            wrappedValue: ShoppingLiveActivityDeliveryTestViewModel(send: sendShoppingLiveActivityDelivery)
         )
     }
 
@@ -189,6 +194,55 @@ struct DebugView: View {
                     Task {
                         await pushRegistrationViewModel.requestRegistration()
                     }
+                }
+            }
+        }
+
+        InfoPanel(
+            title: "Remote Shopping Activity",
+            subtitle: "Stage 4 APNs proof for the currently active durable trip.",
+            systemImage: "iphone.and.arrow.forward"
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                statusRow(
+                    title: "Delivery",
+                    detail: shoppingDeliveryTestViewModel.statusDetail,
+                    badgeLabel: shoppingDeliveryTestViewModel.statusLabel,
+                    badgeImage: shoppingDeliveryTestViewModel.statusSystemImage,
+                    badgeTone: shoppingDeliveryTestViewModel.statusTone
+                )
+
+                if let message = shoppingDeliveryTestViewModel.statusMessage {
+                    ErrorBannerView(message: message, tone: shoppingDeliveryTestViewModel.messageTone)
+                }
+
+                Text("These controls queue a remote push for the other resident's registered device. An active Shopping trip is required; End requires that trip to be completed first.")
+                    .font(.footnote)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                PrimaryActionButton(
+                    title: "Remote Start",
+                    systemImage: "play.fill",
+                    isLoading: shoppingDeliveryTestViewModel.isSending
+                ) {
+                    Task { await shoppingDeliveryTestViewModel.send(.start) }
+                }
+
+                PrimaryActionButton(
+                    title: "Remote Update",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    isLoading: shoppingDeliveryTestViewModel.isSending
+                ) {
+                    Task { await shoppingDeliveryTestViewModel.send(.update) }
+                }
+
+                PrimaryActionButton(
+                    title: "Remote End",
+                    systemImage: "stop.fill",
+                    isLoading: shoppingDeliveryTestViewModel.isSending
+                ) {
+                    Task { await shoppingDeliveryTestViewModel.send(.end) }
                 }
             }
         }
@@ -392,6 +446,53 @@ struct DebugView: View {
     }
 }
 
+enum ShoppingLiveActivityDebugEvent: String {
+    case start
+    case update
+    case end
+}
+
+@MainActor
+private final class ShoppingLiveActivityDeliveryTestViewModel: ObservableObject {
+    @Published private(set) var isSending = false
+    @Published private(set) var statusLabel = "Not sent"
+    @Published private(set) var statusDetail = "No remote Shopping Activity delivery has been requested."
+    @Published private(set) var statusSystemImage = "paperplane"
+    @Published private(set) var statusTone: StatusBadgeTone = .neutral
+    @Published private(set) var statusMessage: String?
+
+    private let sendDelivery: (ShoppingLiveActivityDebugEvent) async throws -> ShoppingLiveActivityDebugDeliveryResponse
+
+    init(send: @escaping (ShoppingLiveActivityDebugEvent) async throws -> ShoppingLiveActivityDebugDeliveryResponse) {
+        sendDelivery = send
+    }
+
+    var messageTone: BannerTone {
+        statusTone == .warning || statusTone == .critical ? .warning : .info
+    }
+
+    func send(_ event: ShoppingLiveActivityDebugEvent) async {
+        guard !isSending else { return }
+        isSending = true
+        defer { isSending = false }
+
+        do {
+            let response = try await sendDelivery(event)
+            statusLabel = response.queuedDeliveryCount > 0 ? "Queued" : "No devices"
+            statusDetail = "\(response.queuedDeliveryCount) delivery row\(response.queuedDeliveryCount == 1 ? "" : "s") queued for trip \(response.trip.id.prefix(8))."
+            statusSystemImage = response.queuedDeliveryCount > 0 ? "checkmark.circle" : "iphone.slash"
+            statusTone = response.queuedDeliveryCount > 0 ? .success : .warning
+            statusMessage = nil
+        } catch {
+            statusLabel = "Failed"
+            statusDetail = "The API did not queue this remote Live Activity delivery."
+            statusSystemImage = "exclamationmark.triangle"
+            statusTone = .warning
+            statusMessage = error.localizedDescription
+        }
+    }
+}
+
 #Preview {
     NavigationStack {
         DebugView(
@@ -406,6 +507,9 @@ struct DebugView: View {
             apnsEnvironment: .sandbox,
             sendNotificationPipelineTest: {
                 TestNotificationPipelineResponse.previewSuccess
+            },
+            sendShoppingLiveActivityDelivery: { _ in
+                throw URLError(.unsupportedURL)
             }
         )
     }

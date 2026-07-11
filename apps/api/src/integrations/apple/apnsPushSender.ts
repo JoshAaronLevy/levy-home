@@ -2,10 +2,37 @@ import crypto from 'node:crypto';
 import http2 from 'node:http2';
 
 import type { AppConfig } from '../../config.js';
-import type { APNsEnvironment, APNsSendRequest, APNsSendResult } from '../../contracts.js';
+import type {
+  APNsEnvironment,
+  APNsSendRequest,
+  APNsSendResult,
+  ShoppingLiveActivityPayload,
+} from '../../contracts.js';
 
 export interface PushSender {
   send(request: APNsSendRequest): Promise<APNsSendResult>;
+}
+
+export type ShoppingLiveActivityPushRequest = {
+  registrationId: string;
+  token: string;
+  environment: APNsEnvironment;
+  payload: ShoppingLiveActivityPayload;
+  priority: 5 | 10;
+  expiration: number;
+};
+
+export type ShoppingLiveActivityPushResult = {
+  registrationId: string;
+  success: boolean;
+  statusCode?: number;
+  apnsId?: string;
+  reason?: string;
+  isInvalidToken: boolean;
+};
+
+export interface ShoppingLiveActivityPushSender {
+  send(request: ShoppingLiveActivityPushRequest): Promise<ShoppingLiveActivityPushResult>;
 }
 
 export class APNsConfigurationError extends Error {
@@ -29,6 +56,10 @@ export function createAPNsPushSender(config: AppConfig): PushSender {
   return new APNsPushSender(config);
 }
 
+export function createAPNsShoppingLiveActivityPushSender(config: AppConfig): ShoppingLiveActivityPushSender {
+  return new APNsShoppingLiveActivityPushSender(config);
+}
+
 class APNsPushSender implements PushSender {
   constructor(private readonly config: AppConfig) {}
 
@@ -38,8 +69,78 @@ class APNsPushSender implements PushSender {
     const endpoint = endpointForEnvironment(environment);
     const jwt = createProviderToken(credentials);
 
-    return sendAPNsRequest(endpoint, credentials.bundleId, jwt, request);
+    const result = await sendAPNsPayload(endpoint, jwt, {
+      token: request.device.token,
+      topic: credentials.bundleId,
+      pushType: 'alert',
+      priority: 10,
+      payload: JSON.stringify({
+        aps: {
+          alert: {
+            title: request.title,
+            body: request.body,
+          },
+          sound: 'default',
+        },
+        ...(request.data ? { levyHome: request.data } : {}),
+      }),
+    });
+
+    return {
+      provider: 'apns',
+      deviceId: request.device.id,
+      ...result,
+    };
   }
+}
+
+class APNsShoppingLiveActivityPushSender implements ShoppingLiveActivityPushSender {
+  constructor(private readonly config: AppConfig) {}
+
+  async send(request: ShoppingLiveActivityPushRequest): Promise<ShoppingLiveActivityPushResult> {
+    const credentials = readCredentials(this.config);
+    const apnsRequest = buildShoppingLiveActivityAPNsRequest(credentials.bundleId, request);
+    const result = await sendAPNsPayload(
+      apnsRequest.endpoint,
+      createProviderToken(credentials),
+      {
+        token: request.token,
+        topic: apnsRequest.topic,
+        pushType: 'liveactivity',
+        priority: request.priority,
+        expiration: request.expiration,
+        payload: apnsRequest.payload,
+      },
+    );
+
+    return {
+      registrationId: request.registrationId,
+      ...result,
+    };
+  }
+}
+
+export function buildShoppingLiveActivityAPNsRequest(
+  bundleId: string,
+  request: ShoppingLiveActivityPushRequest,
+): {
+  endpoint: string;
+  path: string;
+  topic: string;
+  pushType: 'liveactivity';
+  priority: 5 | 10;
+  expiration: number;
+  payload: string;
+} {
+  return {
+    endpoint: endpointForEnvironment(request.environment),
+    path: `/3/device/${request.token}`,
+    topic: `${bundleId}.push-type.liveactivity`,
+    pushType: 'liveactivity',
+    priority: request.priority,
+    expiration: request.expiration,
+    payload: JSON.stringify(request.payload),
+  };
 }
 
 function readCredentials(config: AppConfig): APNsCredentials {
@@ -101,31 +202,32 @@ function createProviderToken(credentials: APNsCredentials): string {
   return `${signingInput}.${base64URL(signature)}`;
 }
 
-function sendAPNsRequest(
+type APNsPayloadRequest = {
+  token: string;
+  topic: string;
+  pushType: 'alert' | 'liveactivity';
+  priority: 5 | 10;
+  expiration?: number;
+  payload: string;
+};
+
+type APNsPayloadResult = Omit<APNsSendResult, 'provider' | 'deviceId'>;
+
+function sendAPNsPayload(
   endpoint: string,
-  topic: string,
   providerToken: string,
-  request: APNsSendRequest,
-): Promise<APNsSendResult> {
+  request: APNsPayloadRequest,
+): Promise<APNsPayloadResult> {
   return new Promise((resolve, reject) => {
     const client = http2.connect(endpoint);
-    const payload = JSON.stringify({
-      aps: {
-        alert: {
-          title: request.title,
-          body: request.body,
-        },
-        sound: 'default',
-      },
-      ...(request.data ? { levyHome: request.data } : {}),
-    });
     const stream = client.request({
       ':method': 'POST',
-      ':path': `/3/device/${request.device.token}`,
+      ':path': `/3/device/${request.token}`,
       authorization: `bearer ${providerToken}`,
-      'apns-topic': topic,
-      'apns-push-type': 'alert',
-      'apns-priority': '10',
+      'apns-topic': request.topic,
+      'apns-push-type': request.pushType,
+      'apns-priority': String(request.priority),
+      ...(request.expiration !== undefined ? { 'apns-expiration': String(request.expiration) } : {}),
       'content-type': 'application/json',
     });
     const chunks: Buffer[] = [];
@@ -133,7 +235,7 @@ function sendAPNsRequest(
     let apnsId: string | undefined;
     let settled = false;
 
-    const settle = (result: APNsSendResult): void => {
+    const settle = (result: APNsPayloadResult): void => {
       if (settled) {
         return;
       }
@@ -157,8 +259,6 @@ function sendAPNsRequest(
       const success = statusCode === 200;
 
       settle({
-        provider: 'apns',
-        deviceId: request.device.id,
         success,
         ...(statusCode ? { statusCode } : {}),
         ...(apnsId ? { apnsId } : {}),
@@ -184,7 +284,7 @@ function sendAPNsRequest(
       reject(error);
     });
 
-    stream.end(payload);
+    stream.end(request.payload);
   });
 }
 

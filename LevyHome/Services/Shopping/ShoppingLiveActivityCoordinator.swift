@@ -57,7 +57,7 @@ final class ActivityKitShoppingLiveActivityClient: ShoppingLiveActivityClient {
         let activity = try Activity<ShoppingTripActivityAttributes>.request(
             attributes: attributes,
             content: content,
-            pushType: nil,
+            pushType: .token,
             style: .standard
         )
         return ActivityKitShoppingLiveActivitySession(activity: activity)
@@ -153,6 +153,11 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
     private var activeActivity: (any ShoppingLiveActivitySession)?
     private var nextSampleUpdateIndex = 0
     private var sampleStateVersion: Int
+    private var liveActivityRegistrationService: ShoppingLiveActivityRegistrationServicing?
+    private var liveActivityRegistrationContext: LiveActivityRegistrationContext?
+    private var pushToStartTokenTask: Task<Void, Never>?
+    private var activityUpdatesTask: Task<Void, Never>?
+    private var activityTokenTasks: [String: Task<Void, Never>] = [:]
 
     init(
         activityClient: (any ShoppingLiveActivityClient)? = nil,
@@ -176,6 +181,30 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
 
     var hasActiveActivity: Bool {
         activeActivityID != nil
+    }
+
+    func configureRemotePushRegistration(
+        service: ShoppingLiveActivityRegistrationServicing,
+        pushDeviceId: String?,
+        resident: String?,
+        environment: APNsEnvironment
+    ) {
+        liveActivityRegistrationService = service
+
+        guard
+            let pushDeviceId,
+            let resident = Self.recognizedResidentName(resident)
+        else {
+            liveActivityRegistrationContext = nil
+            return
+        }
+
+        liveActivityRegistrationContext = LiveActivityRegistrationContext(
+            pushDeviceId: pushDeviceId,
+            resident: resident,
+            environment: environment
+        )
+        startRemotePushTokenObservationIfNeeded()
     }
 
     func refreshState() {
@@ -352,6 +381,83 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
         return true
     }
 
+    private func startRemotePushTokenObservationIfNeeded() {
+        guard liveActivityRegistrationContext != nil else {
+            return
+        }
+
+        if pushToStartTokenTask == nil {
+            pushToStartTokenTask = Task { [weak self] in
+                for await token in Activity<ShoppingTripActivityAttributes>.pushToStartTokenUpdates {
+                    await self?.registerActivityKitToken(
+                        token,
+                        tokenType: "push_to_start",
+                        tripID: nil
+                    )
+                }
+            }
+        }
+
+        if activityUpdatesTask == nil {
+            activityUpdatesTask = Task { [weak self] in
+                for await activity in Activity<ShoppingTripActivityAttributes>.activityUpdates {
+                    self?.observeUpdateTokens(for: activity)
+                }
+            }
+        }
+
+        for activity in Activity<ShoppingTripActivityAttributes>.activities {
+            observeUpdateTokens(for: activity)
+        }
+    }
+
+    private func observeUpdateTokens(for activity: Activity<ShoppingTripActivityAttributes>) {
+        guard activityTokenTasks[activity.id] == nil else {
+            return
+        }
+
+        activityTokenTasks[activity.id] = Task { [weak self] in
+            for await token in activity.pushTokenUpdates {
+                await self?.registerActivityKitToken(
+                    token,
+                    tokenType: "activity_update",
+                    tripID: activity.attributes.tripID
+                )
+            }
+        }
+    }
+
+    private func registerActivityKitToken(
+        _ token: Data,
+        tokenType: String,
+        tripID: String?
+    ) async {
+        guard
+            let service = liveActivityRegistrationService,
+            let context = liveActivityRegistrationContext
+        else {
+            return
+        }
+
+        let tokenHex = token.map { String(format: "%02x", $0) }.joined()
+
+        do {
+            _ = try await service.registerShoppingLiveActivity(
+                ShoppingLiveActivityRegistrationRequest(
+                    pushDeviceId: context.pushDeviceId,
+                    resident: context.resident,
+                    environment: context.environment,
+                    tokenType: tokenType,
+                    token: tokenHex,
+                    tripId: tripID
+                )
+            )
+        } catch {
+            // ActivityKit rotates tokens asynchronously. Retaining the prior server token is safer than
+            // disturbing an active local activity when the current upload cannot reach the API.
+        }
+    }
+
     private func currentActivity() -> (any ShoppingLiveActivitySession)? {
         if let activeActivity, Self.isDisplayActive(activeActivity) {
             sampleStateVersion = max(sampleStateVersion, activeActivity.stateVersion)
@@ -408,6 +514,15 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
     private static func nonemptyName(_ name: String) -> String {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedName.isEmpty ? "Levy Home" : trimmedName
+    }
+
+    private static func recognizedResidentName(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed == "Josh" || trimmed == "Mallory") ? trimmed : nil
     }
 
     private static func epochSeconds(from date: Date) -> Int {
@@ -519,4 +634,10 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
 
     private static let activitiesDisabledMessage =
         "Live Activities are turned off for Levy Home. Enable Live Activities in iOS Settings, then try again."
+}
+
+private struct LiveActivityRegistrationContext {
+    let pushDeviceId: String
+    let resident: String
+    let environment: APNsEnvironment
 }

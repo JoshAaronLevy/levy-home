@@ -17,4 +17,5 @@ export {
   validateShoppingTripMutationId,
   validateStartShoppingTripBody,
 } from './shoppingTripValidation.js';
+export { validateShoppingLiveActivityRegistrationBody } from './shoppingLiveActivityValidation.js';
 export { validateCreateToDoLocationBody } from './todoValidation.js';

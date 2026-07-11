@@ -1,8 +1,28 @@
 import Foundation
 
+protocol ShoppingLiveActivityRegistrationServicing {
+    func registerShoppingLiveActivity(
+        _ request: ShoppingLiveActivityRegistrationRequest
+    ) async throws -> ShoppingLiveActivityRegistrationResponse
+}
+
+extension APIClient: ShoppingLiveActivityRegistrationServicing {}
+
 extension APIClient {
     func fetchShoppingList() async throws -> ShoppingListResponse {
         try await send(path: "/api/shopping-list")
+    }
+
+    func sendShoppingLiveActivityDebugDelivery(
+        event: ShoppingLiveActivityDebugEvent,
+        excludeResident: String?
+    ) async throws -> ShoppingLiveActivityDebugDeliveryResponse {
+        let body = excludeResident.map { ["excludeResident": $0] } ?? [:]
+        return try await send(
+            path: "/api/debug/shopping-live-activity/\(event.rawValue)",
+            method: .post,
+            body: body
+        )
     }
 
     func fetchActiveShoppingTrip() async throws -> ShoppingActiveTripResponse {
@@ -24,6 +44,16 @@ extension APIClient {
             method: .post,
             body: request,
             additionalHeaders: Self.mutationHeaders(for: request.mutationId)
+        )
+    }
+
+    func registerShoppingLiveActivity(
+        _ request: ShoppingLiveActivityRegistrationRequest
+    ) async throws -> ShoppingLiveActivityRegistrationResponse {
+        try await send(
+            path: "/api/shopping-list/live-activities/registrations",
+            method: .post,
+            body: request
         )
     }
 

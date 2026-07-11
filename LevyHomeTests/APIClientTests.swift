@@ -113,6 +113,50 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(capturedRequests[2].jsonBody["summaryRecipient"] as? String, "Josh")
     }
 
+    func testShoppingLiveActivityRegistrationBuildsExpectedRequest() async throws {
+        MockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+            return Self.response(
+                for: request,
+                json: #"""
+                {
+                  "ok": true,
+                  "registration": {
+                    "id": "activity-registration-1",
+                    "pushDeviceId": "device-1",
+                    "resident": "Josh",
+                    "environment": "sandbox",
+                    "tokenType": "push_to_start",
+                    "tripId": null,
+                    "isActive": true,
+                    "createdAt": "2026-07-11T18:00:00.000Z",
+                    "updatedAt": "2026-07-11T18:00:00.000Z"
+                  },
+                  "generatedAt": "2026-07-11T18:00:00.000Z"
+                }
+                """#
+            )
+        }
+
+        let response = try await client.registerShoppingLiveActivity(
+            ShoppingLiveActivityRegistrationRequest(
+                pushDeviceId: "device-1",
+                resident: "Josh",
+                environment: .sandbox,
+                tokenType: "push_to_start",
+                token: "ab12",
+                tripId: nil
+            )
+        )
+
+        XCTAssertEqual(response.registration.id, "activity-registration-1")
+        XCTAssertEqual(capturedRequests.first?.httpMethod, "POST")
+        XCTAssertEqual(capturedRequests.first?.url?.path, "/api-base/api/shopping-list/live-activities/registrations")
+        XCTAssertEqual(capturedRequests.first?.jsonBody["pushDeviceId"] as? String, "device-1")
+        XCTAssertEqual(capturedRequests.first?.jsonBody["tokenType"] as? String, "push_to_start")
+        XCTAssertEqual(capturedRequests.first?.jsonBody["token"] as? String, "ab12")
+    }
+
     func testSupportsExpandedEndpointSurface() async throws {
         MockURLProtocol.requestHandler = { request in
             self.capturedRequests.append(request)

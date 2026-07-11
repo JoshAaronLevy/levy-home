@@ -3,6 +3,7 @@ import SwiftUI
 struct PreferencesView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @EnvironmentObject private var themePreferenceViewModel: ThemePreferenceViewModel
+    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     var body: some View {
         PreferencesContentView(
@@ -20,6 +21,12 @@ struct PreferencesView: View {
             isDeveloperToolsEnabled: appEnvironment.config.isDeveloperToolsEnabled,
             sendNotificationPipelineTest: {
                 try await appEnvironment.apiClient.sendNotificationPipelineTest()
+            },
+            sendShoppingLiveActivityDelivery: { event in
+                try await appEnvironment.apiClient.sendShoppingLiveActivityDebugDelivery(
+                    event: event,
+                    excludeResident: currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
             }
         )
     }
@@ -33,6 +40,7 @@ private struct PreferencesContentView: View {
     private let apnsEnvironment: APNsEnvironment
     private let isDeveloperToolsEnabled: Bool
     private let sendNotificationPipelineTest: () async throws -> TestNotificationPipelineResponse
+    private let sendShoppingLiveActivityDelivery: (ShoppingLiveActivityDebugEvent) async throws -> ShoppingLiveActivityDebugDeliveryResponse
 
     init(
         viewModel: NotificationPreferencesViewModel,
@@ -40,7 +48,8 @@ private struct PreferencesContentView: View {
         themePreferenceViewModel: ThemePreferenceViewModel,
         apnsEnvironment: APNsEnvironment = .sandbox,
         isDeveloperToolsEnabled: Bool = false,
-        sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse
+        sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse,
+        sendShoppingLiveActivityDelivery: @escaping (ShoppingLiveActivityDebugEvent) async throws -> ShoppingLiveActivityDebugDeliveryResponse
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         _pushRegistrationViewModel = StateObject(wrappedValue: pushRegistrationViewModel)
@@ -48,6 +57,7 @@ private struct PreferencesContentView: View {
         self.apnsEnvironment = apnsEnvironment
         self.isDeveloperToolsEnabled = isDeveloperToolsEnabled
         self.sendNotificationPipelineTest = sendNotificationPipelineTest
+        self.sendShoppingLiveActivityDelivery = sendShoppingLiveActivityDelivery
     }
 
     var body: some View {
@@ -84,7 +94,8 @@ private struct PreferencesContentView: View {
                 notificationPreferencesViewModel: viewModel,
                 apnsEnvironment: apnsEnvironment,
                 showsDebugControls: isDeveloperToolsEnabled,
-                sendNotificationPipelineTest: sendNotificationPipelineTest
+                sendNotificationPipelineTest: sendNotificationPipelineTest,
+                sendShoppingLiveActivityDelivery: sendShoppingLiveActivityDelivery
             )
         } label: {
             DeveloperPreferenceLinkLabel(showsDebugControls: isDeveloperToolsEnabled)
@@ -265,6 +276,9 @@ private struct ResidentPreferenceView: View {
             isDeveloperToolsEnabled: true,
             sendNotificationPipelineTest: {
                 TestNotificationPipelineResponse.previewSuccess
+            },
+            sendShoppingLiveActivityDelivery: { _ in
+                throw URLError(.unsupportedURL)
             }
         )
     }
