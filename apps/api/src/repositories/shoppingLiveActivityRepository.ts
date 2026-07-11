@@ -59,6 +59,13 @@ export type ShoppingLiveActivityStore = {
   reconcileAmbiguousStartDeliveries: (options: { tripId: string; pushDeviceId: string }) => Promise<void>;
   supersedePendingUpdates: (tripId: string, newerStateVersion: number) => Promise<void>;
   recoverStaleClaims: () => Promise<void>;
+  getDiagnostics: () => Promise<ShoppingLiveActivityDiagnostics>;
+};
+
+export type ShoppingLiveActivityDiagnostics = {
+  activePushToStartRegistrationCount: number;
+  activeUpdateRegistrationCount: number;
+  latestDelivery: Pick<ShoppingLiveActivityDelivery, 'id' | 'tripId' | 'eventType' | 'stateVersion' | 'status' | 'attemptCount' | 'apnsId' | 'lastErrorReason' | 'createdAt' | 'sentAt'> | null;
 };
 
 type RegistrationRow = Record<string, unknown> & {
@@ -240,8 +247,10 @@ export function createPostgresShoppingLiveActivityStore(options: {
             -- A timeout after a remote start is deliberately not retried here.
             -- APNs can have accepted the request after the connection was lost,
             -- and another start for the same token could create a duplicate Activity.
-            WHERE status = 'pending'
+            WHERE (
+              status = 'pending'
               OR (status = 'ambiguous' AND event_type <> 'start')
+            )
               AND next_attempt_at <= now()
             ORDER BY created_at ASC
             LIMIT ${Math.max(1, Math.min(limit, 50))}
@@ -295,16 +304,32 @@ export function createPostgresShoppingLiveActivityStore(options: {
       });
     },
     async markDeliverySent(deliveryId, apnsId) {
-      await query()`
-        UPDATE shopping_live_activity_deliveries
-        SET
-          status = 'sent',
-          apns_id = ${apnsId ?? null},
-          sent_at = now(),
-          last_error_reason = NULL,
-          updated_at = now()
-        WHERE id = ${deliveryId}
-      `;
+      await transaction()(async (database) => {
+        await database`
+          UPDATE shopping_live_activity_deliveries delivery
+          SET
+            status = 'sent',
+            apns_id = ${apnsId ?? null},
+            sent_at = now(),
+            last_error_reason = NULL,
+            updated_at = now()
+          WHERE delivery.id = ${deliveryId}
+        `;
+        await database`
+          UPDATE shopping_live_activity_registrations registration
+          SET
+            last_accepted_state_version = delivery.state_version,
+            last_accepted_at = now(),
+            updated_at = now()
+          FROM shopping_live_activity_deliveries delivery
+          WHERE delivery.id = ${deliveryId}
+            AND registration.id = delivery.registration_id
+            AND (
+              registration.last_accepted_state_version IS NULL
+              OR delivery.state_version >= registration.last_accepted_state_version
+            )
+        `;
+      });
     },
     async markDeliveryRetryableFailure(deliveryId, reason, nextAttemptAt) {
       await markDeliveryRetry(query(), deliveryId, 'pending', reason, nextAttemptAt);
@@ -366,6 +391,39 @@ export function createPostgresShoppingLiveActivityStore(options: {
         WHERE status = 'sending'
           AND updated_at < now() - interval '60 seconds'
       `;
+    },
+    async getDiagnostics() {
+      const [countRows, latestRows] = await Promise.all([
+        query()<{ pushToStartCount: unknown; updateCount: unknown }>`
+          SELECT
+            COUNT(*) FILTER (WHERE token_type = 'push_to_start' AND is_active)::integer AS "pushToStartCount",
+            COUNT(*) FILTER (WHERE token_type = 'activity_update' AND is_active)::integer AS "updateCount"
+          FROM shopping_live_activity_registrations
+        `,
+        query()<DeliveryRow>`
+          SELECT
+            id,
+            trip_id AS "tripId",
+            registration_id AS "registrationId",
+            event_type AS "eventType",
+            state_version AS "stateVersion",
+            status,
+            attempt_count AS "attemptCount",
+            payload,
+            apns_id AS "apnsId",
+            last_error_reason AS "lastErrorReason",
+            created_at AS "createdAt",
+            sent_at AS "sentAt"
+          FROM shopping_live_activity_deliveries
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+      ]);
+      return {
+        activePushToStartRegistrationCount: requiredInteger(countRows[0]?.pushToStartCount, 'shopping_live_activity_registrations.push_to_start_count'),
+        activeUpdateRegistrationCount: requiredInteger(countRows[0]?.updateCount, 'shopping_live_activity_registrations.update_count'),
+        latestDelivery: latestRows[0] ? deliveryFromRow(latestRows[0]) : null,
+      };
     },
   };
 }

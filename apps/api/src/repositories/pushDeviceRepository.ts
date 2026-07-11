@@ -13,6 +13,7 @@ export type PushDeviceRepository = {
   findDeviceByLookupKey: (lookupKey: string) => Promise<RegisteredDevice | undefined>;
   listDevices: () => Promise<RegisteredDevice[]>;
   saveDevice: (device: StoredPushDevice) => Promise<RegisteredDevice>;
+  invalidateDevice: (deviceId: string) => Promise<void>;
 };
 
 type PushDeviceRow = Record<string, unknown> & {
@@ -58,6 +59,12 @@ export function createInMemoryPushDeviceRepository(): PushDeviceRepository {
 
       return registeredDevice;
     },
+    async invalidateDevice(deviceId) {
+      devicesById.delete(deviceId);
+      for (const [lookupKey, storedId] of deviceIdsByLookupKey) {
+        if (storedId === deviceId) deviceIdsByLookupKey.delete(lookupKey);
+      }
+    },
   };
 }
 
@@ -69,6 +76,7 @@ export function createPostgresPushDeviceRepository(database?: DatabaseQuery): Pu
       const [row] = await query()<DeviceCountRow>`
         SELECT COUNT(*)::int AS count
         FROM push_devices
+        WHERE is_active
       `;
 
       return row && typeof row.count === 'number' ? row.count : Number(row?.count ?? 0);
@@ -87,6 +95,7 @@ export function createPostgresPushDeviceRepository(database?: DatabaseQuery): Pu
           last_seen_at AS "lastSeenAt"
         FROM push_devices
         WHERE id = ${deviceId}
+          AND is_active
         LIMIT 1
       `;
 
@@ -106,6 +115,7 @@ export function createPostgresPushDeviceRepository(database?: DatabaseQuery): Pu
           last_seen_at AS "lastSeenAt"
         FROM push_devices
         WHERE lookup_key = ${lookupKey}
+          AND is_active
         LIMIT 1
       `;
 
@@ -124,6 +134,7 @@ export function createPostgresPushDeviceRepository(database?: DatabaseQuery): Pu
           registered_at AS "registeredAt",
           last_seen_at AS "lastSeenAt"
         FROM push_devices
+        WHERE is_active
         ORDER BY registered_at ASC, id ASC
       `;
 
@@ -167,6 +178,8 @@ export function createPostgresPushDeviceRepository(database?: DatabaseQuery): Pu
           environment = EXCLUDED.environment,
           app_version = EXCLUDED.app_version,
           device_name = EXCLUDED.device_name,
+          is_active = true,
+          invalidated_at = NULL,
           last_seen_at = EXCLUDED.last_seen_at
         RETURNING
           id,
@@ -185,6 +198,13 @@ export function createPostgresPushDeviceRepository(database?: DatabaseQuery): Pu
       }
 
       return pushDeviceFromRow(row);
+    },
+    async invalidateDevice(deviceId) {
+      await query()`
+        UPDATE push_devices
+        SET is_active = false, invalidated_at = now()
+        WHERE id = ${deviceId} AND is_active
+      `;
     },
   };
 }

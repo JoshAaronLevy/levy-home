@@ -18,7 +18,7 @@ export function createShoppingTripSummaryDeliveryService(options: {
   logger?: Logger;
   now?: () => Date;
   pushSender: PushSender;
-  deviceRegistry: Pick<DeviceRegistry, 'getDevice'>;
+  deviceRegistry: Pick<DeviceRegistry, 'getDevice'> & Partial<Pick<DeviceRegistry, 'invalidateDevice'>>;
   notificationPreferenceStore: Pick<NotificationPreferenceStore, 'isNotificationEnabled'>;
   shoppingTripSummaryStore: ShoppingTripSummaryStore;
 }): ShoppingTripSummaryDeliveryService {
@@ -77,6 +77,7 @@ export function createShoppingTripSummaryDeliveryService(options: {
 
         const reason = result.reason ?? `APNs status ${result.statusCode ?? 'unknown'}`;
         if (result.isInvalidToken || permanentAPNsReasons.has(reason)) {
+          await options.deviceRegistry.invalidateDevice?.(device.id);
           await options.shoppingTripSummaryStore.markPermanentFailure(delivery.id, reason);
         } else if (delivery.attemptCount >= 5) {
           await options.shoppingTripSummaryStore.markPermanentFailure(delivery.id, `retry limit reached: ${reason}`);

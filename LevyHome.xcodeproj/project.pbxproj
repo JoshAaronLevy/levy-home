@@ -15,6 +15,7 @@
 		A10000000000000000000007 /* BuildConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* BuildConfiguration.swift */; };
 		A10000000000000000000008 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* RootTabView.swift */; };
 		A10000000000000000000009 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* HomeView.swift */; };
+		D40000000000000000000001 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000002 /* AppNavigation.swift */; };
 		A1000000000000000000000A /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* ActivityView.swift */; };
 		A1000000000000000000000B /* NotificationHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* NotificationHubView.swift */; };
 		A1000000000000000000000C /* NotificationPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* NotificationPreferencesView.swift */; };
@@ -197,6 +198,7 @@
 		3ED0FA092FE73778007B46DD /* LevyHomeRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LevyHomeRelease.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000004 /* LevyHome.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LevyHome.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000010 /* LevyHomeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevyHomeApp.swift; sourceTree = "<group>"; };
+		D40000000000000000000002 /* AppNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigation.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000013 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -419,6 +421,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000010 /* LevyHomeApp.swift */,
+				D40000000000000000000002 /* AppNavigation.swift */,
 				A10000000000000000000014 /* AppConfig.swift */,
 				A10000000000000000000015 /* AppEnvironment.swift */,
 				C10000000000000000000011 /* AppDelegate.swift */,
@@ -994,6 +997,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* LevyHomeApp.swift in Sources */,
+				D40000000000000000000001 /* AppNavigation.swift in Sources */,
 				A10000000000000000000005 /* AppConfig.swift in Sources */,
 				A10000000000000000000006 /* AppEnvironment.swift in Sources */,
 				A10000000000000000000007 /* BuildConfiguration.swift in Sources */,

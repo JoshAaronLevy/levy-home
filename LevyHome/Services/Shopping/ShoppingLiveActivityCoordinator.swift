@@ -126,6 +126,19 @@ struct ShoppingLiveActivityOperationResult: Equatable, Sendable {
     let kind: ShoppingLiveActivityOperationKind
     let message: String
     let activityID: String?
+    let shouldStartReplacement: Bool
+
+    init(
+        kind: ShoppingLiveActivityOperationKind,
+        message: String,
+        activityID: String? = nil,
+        shouldStartReplacement: Bool = false
+    ) {
+        self.kind = kind
+        self.message = message
+        self.activityID = activityID
+        self.shouldStartReplacement = shouldStartReplacement
+    }
 
     var succeeded: Bool {
         switch kind {
@@ -141,9 +154,12 @@ struct ShoppingLiveActivityOperationResult: Equatable, Sendable {
 final class ShoppingLiveActivityCoordinator: ObservableObject {
     static let sampleTripID = "stage-1-local-shopping-sample"
     static let completedActivityVisibilityDuration: TimeInterval = 15 * 60
+    static let automaticRecoveryWindow: TimeInterval = 8 * 60 * 60
 
     @Published private(set) var activitiesAreEnabled: Bool
     @Published private(set) var activeActivityID: String?
+    @Published private(set) var localActivityCount: Int
+    @Published private(set) var hasRegisteredPushToStartToken = false
     @Published private(set) var isRunningOperation = false
     @Published private(set) var statusMessage: String
     @Published private(set) var lastResult: ShoppingLiveActivityOperationResult?
@@ -173,6 +189,7 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
         }
         activeActivity = recoveredActivity
         activeActivityID = recoveredActivity?.id
+        localActivityCount = resolvedActivityClient.activities.count
         sampleStateVersion = recoveredActivity?.stateVersion ?? 0
         statusMessage = recoveredActivity == nil
             ? "No sample shopping Live Activity is running."
@@ -211,6 +228,7 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
         activitiesAreEnabled = activityClient.activitiesAreEnabled
         activeActivity = currentSampleActivity()
         activeActivityID = activeActivity?.id
+        localActivityCount = activityClient.activities.count
         sampleStateVersion = activeActivity?.stateVersion ?? 0
 
         if !activitiesAreEnabled {
@@ -432,9 +450,26 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
 
         let matchingActivities = activeTripActivities(for: trip.id)
         guard let existing = matchingActivities.first else {
+            if activityClient.activities.contains(where: { activity in
+                activity.tripID == trip.id && activity.activityState == .dismissed
+            }) {
+                return publish(
+                    kind: .unavailable,
+                    message: "This iPhone's shopping Live Activity was dismissed, so Levy Home will not restart it automatically. Start a new shopping trip if you need it again."
+                )
+            }
+
+            if let startedAt = Self.date(from: trip.startedAt), now().timeIntervalSince(startedAt) >= Self.automaticRecoveryWindow {
+                return publish(
+                    kind: .unavailable,
+                    message: "This shopping trip has been active for over 8 hours, so Levy Home will not restart its Live Activity automatically. End the trip when shopping is finished, or start a new trip."
+                )
+            }
+
             return publish(
                 kind: .unavailable,
-                message: "This iPhone has no local shopping Live Activity to recover."
+                message: "This iPhone has no local shopping Live Activity to recover.",
+                shouldStartReplacement: true
             )
         }
 
@@ -465,7 +500,34 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
                 dismissalDate: now().addingTimeInterval(Self.completedActivityVisibilityDuration)
             )
         }
+        localActivityCount = activityClient.activities.count
         return publish(kind: .ended, message: "Ended this iPhone's shopping Live Activity.")
+    }
+
+    func retireOrphanedTripActivities(keepingTripID tripID: String?) async {
+        let orphanedActivities = activityClient.activities.filter { activity in
+            Self.isDisplayActive(activity)
+                && activity.tripID != Self.sampleTripID
+                && activity.tripID != tripID
+        }
+        guard !orphanedActivities.isEmpty else { return }
+
+        let finalState = ShoppingTripActivityState(
+            status: "completed",
+            pickedUpCount: 0,
+            remainingCount: 0,
+            totalItemCount: 0,
+            estimatedTotalCents: 0,
+            pricedPickedItemCount: 0,
+            unpricedPickedItemCount: 0,
+            currencyCode: "USD",
+            stateVersion: 1,
+            updatedAtEpochSeconds: Self.epochSeconds(from: now())
+        )
+        for activity in orphanedActivities {
+            await activity.end(with: finalState, dismissalDate: now())
+        }
+        localActivityCount = activityClient.activities.count
     }
 
     @discardableResult
@@ -571,6 +633,9 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
                     tripId: tripID
                 )
             )
+            if tokenType == "push_to_start" {
+                hasRegisteredPushToStartToken = true
+            }
         } catch {
             // ActivityKit rotates tokens asynchronously. Retaining the prior server token is safer than
             // disturbing an active local activity when the current upload cannot reach the API.
@@ -639,12 +704,14 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
     private func publish(
         kind: ShoppingLiveActivityOperationKind,
         message: String,
-        activityID: String? = nil
+        activityID: String? = nil,
+        shouldStartReplacement: Bool = false
     ) -> ShoppingLiveActivityOperationResult {
         let result = ShoppingLiveActivityOperationResult(
             kind: kind,
             message: message,
-            activityID: activityID
+            activityID: activityID,
+            shouldStartReplacement: shouldStartReplacement
         )
         statusMessage = message
         lastResult = result

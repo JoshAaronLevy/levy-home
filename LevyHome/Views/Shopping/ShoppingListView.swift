@@ -716,7 +716,11 @@ private struct ShoppingListContentView: View {
     }
 
     private func recoverActiveTripDisplay() async {
-        guard let trip = viewModel.activeTrip else { return }
+        guard let trip = viewModel.activeTrip else {
+            await shoppingLiveActivityCoordinator.retireOrphanedTripActivities(keepingTripID: nil)
+            return
+        }
+        await shoppingLiveActivityCoordinator.retireOrphanedTripActivities(keepingTripID: trip.id)
         guard let disposition = await viewModel.claimActiveTripDisplay(
             pushDeviceId: pushRegistrationViewModel.registeredDeviceID
         ) else { return }
@@ -727,7 +731,7 @@ private struct ShoppingListContentView: View {
         }
 
         let recovered = await shoppingLiveActivityCoordinator.recoverTripActivity(for: trip)
-        if recovered.kind == .unavailable {
+        if recovered.shouldStartReplacement {
             let started = await shoppingLiveActivityCoordinator.startTripActivity(for: trip)
             tripDisplayMessage = started.message
         } else {

@@ -69,6 +69,7 @@ function failingCountDeviceRegistry(): DeviceRegistry {
     async listDevices() {
       return [];
     },
+    async invalidateDevice() {},
     async registerDevice() {
       throw new Error('not implemented');
     },

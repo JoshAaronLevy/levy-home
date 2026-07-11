@@ -20,6 +20,7 @@ export type DeviceRegistry = {
   count: () => Promise<number>;
   getDevice: (deviceId: string) => Promise<RegisteredDevice | undefined>;
   listDevices: () => Promise<RegisteredDevice[]>;
+  invalidateDevice: (deviceId: string) => Promise<void>;
   registerDevice: (registration: RegisterDeviceRequest) => Promise<DeviceRegistrationResult>;
 };
 
@@ -33,6 +34,9 @@ export function createDeviceRegistry(repository: PushDeviceRepository): DeviceRe
     },
     listDevices() {
       return repository.listDevices();
+    },
+    invalidateDevice(deviceId) {
+      return repository.invalidateDevice(deviceId);
     },
     async registerDevice(registration) {
       const lookupKey = createDeviceLookupKey(registration);

@@ -166,6 +166,73 @@ final class ShoppingLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(endResult.kind, .failed)
         XCTAssertTrue(endResult.message.contains("Start one before ending"))
     }
+
+    func testRecoveryDoesNotRestartAnOldTripAutomatically() async {
+        let coordinator = ShoppingLiveActivityCoordinator(
+            activityClient: FakeShoppingLiveActivityClient(),
+            now: { self.now }
+        )
+
+        let result = await coordinator.recoverTripActivity(for: trip(startedAt: "2025-07-10T08:00:00Z"))
+
+        XCTAssertEqual(result.kind, .unavailable)
+        XCTAssertFalse(result.shouldStartReplacement)
+        XCTAssertTrue(result.message.contains("over 8 hours"))
+    }
+
+    func testRecoveryDoesNotRestartADismissedTripActivity() async {
+        let trip = trip()
+        let dismissed = FakeShoppingLiveActivitySession(
+            id: "dismissed-trip",
+            tripID: trip.id,
+            activityState: .dismissed,
+            stateVersion: 1
+        )
+        let coordinator = ShoppingLiveActivityCoordinator(
+            activityClient: FakeShoppingLiveActivityClient(activities: [dismissed]),
+            now: { self.now }
+        )
+
+        let result = await coordinator.recoverTripActivity(for: trip)
+
+        XCTAssertEqual(result.kind, .unavailable)
+        XCTAssertFalse(result.shouldStartReplacement)
+        XCTAssertTrue(result.message.contains("dismissed"))
+    }
+
+    func testRetireOrphanedActivitiesKeepsTheCurrentTrip() async {
+        let current = FakeShoppingLiveActivitySession(id: "current", tripID: "current-trip", activityState: .active, stateVersion: 2)
+        let orphan = FakeShoppingLiveActivitySession(id: "orphan", tripID: "old-trip", activityState: .active, stateVersion: 2)
+        let coordinator = ShoppingLiveActivityCoordinator(
+            activityClient: FakeShoppingLiveActivityClient(activities: [current, orphan]),
+            now: { self.now }
+        )
+
+        await coordinator.retireOrphanedTripActivities(keepingTripID: "current-trip")
+
+        XCTAssertNil(current.endedState)
+        XCTAssertEqual(orphan.endedState?.status, "completed")
+    }
+
+    private func trip(startedAt: String = "2026-07-11T17:00:00Z") -> ShoppingTrip {
+        ShoppingTrip(
+            id: "trip-id",
+            status: "active",
+            startedBy: "Josh",
+            startedAt: startedAt,
+            endedBy: nil,
+            endedAt: nil,
+            pickedUpCount: 1,
+            remainingCount: 2,
+            totalItemCount: 3,
+            estimatedTotalCents: 0,
+            pricedPickedItemCount: 0,
+            unpricedPickedItemCount: 1,
+            currencyCode: "USD",
+            version: 1,
+            activityUpdatedAtEpochSeconds: nil
+        )
+    }
 }
 
 @MainActor

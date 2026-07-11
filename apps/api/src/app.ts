@@ -224,6 +224,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     notificationPreferenceStore,
     notificationService,
     shoppingLiveActivityDeliveryService,
+    shoppingLiveActivityStore,
     shoppingListMutationService,
     shoppingListStore,
     shoppingTripService,

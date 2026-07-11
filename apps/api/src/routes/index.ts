@@ -15,6 +15,7 @@ import type { ShoppingTripService } from '../services/shopping/shoppingTripServi
 import type { ShoppingLiveActivityDeliveryService } from '../services/shopping/shoppingLiveActivityDeliveryService.js';
 import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
 import type { ShoppingTripStore } from '../repositories/shoppingTripRepository.js';
+import type { ShoppingLiveActivityStore } from '../repositories/shoppingLiveActivityRepository.js';
 import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
 import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
@@ -48,6 +49,7 @@ export type AppRouteDependencies = {
   shoppingListStore: ShoppingListStore;
   shoppingTripService?: ShoppingTripService;
   shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
+  shoppingLiveActivityStore?: ShoppingLiveActivityStore;
   shoppingTripStore?: ShoppingTripStore;
   toDoLocationStore: ToDoLocationStore;
   toDoListMutationService: ToDoListMutationService;

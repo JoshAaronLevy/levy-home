@@ -113,4 +113,22 @@ test('ActivityKit registrations rotate safely and durable deliveries claim once'
 
   await store.markDeliverySent(claimed.id, 'apns-id-1');
   assert.deepEqual(await store.claimDueDeliveries(10), []);
+
+  const diagnostics = await store.getDiagnostics();
+  assert.equal(diagnostics.activePushToStartRegistrationCount, 1);
+  assert.equal(diagnostics.activeUpdateRegistrationCount, 1);
+  assert.equal(diagnostics.latestDelivery?.id, claimed.id);
+  assert.equal(diagnostics.latestDelivery?.stateVersion, trip.version);
+  assert.equal(diagnostics.latestDelivery?.status, 'sent');
+  assert.equal('payload' in (diagnostics.latestDelivery ?? {}), false);
+
+  const [acceptedRegistration] = await disposable.database<{ lastAcceptedStateVersion: unknown; lastAcceptedAt: unknown }>`
+    SELECT
+      last_accepted_state_version AS "lastAcceptedStateVersion",
+      last_accepted_at AS "lastAcceptedAt"
+    FROM shopping_live_activity_registrations
+    WHERE id = ${updateRegistration.id}
+  `;
+  assert.equal(acceptedRegistration?.lastAcceptedStateVersion, trip.version);
+  assert.ok(acceptedRegistration?.lastAcceptedAt);
 });

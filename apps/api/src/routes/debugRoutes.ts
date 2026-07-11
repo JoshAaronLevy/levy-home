@@ -12,6 +12,7 @@ import type { ActivityEventService } from '../services/activity/activityEventSer
 import type { NotificationService } from '../services/notifications/notificationService.js';
 import type { ShoppingTripStore } from '../repositories/shoppingTripRepository.js';
 import type { ShoppingLiveActivityDeliveryService } from '../services/shopping/shoppingLiveActivityDeliveryService.js';
+import type { ShoppingLiveActivityStore } from '../repositories/shoppingLiveActivityRepository.js';
 import { testPushMessage } from '../services/notifications/notificationService.js';
 import { validateTestPushBody } from '../validation/notificationValidation.js';
 
@@ -23,6 +24,7 @@ export type DebugRouteDependencies = {
   krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
   notificationService: NotificationService;
   shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
+  shoppingLiveActivityStore?: Pick<ShoppingLiveActivityStore, 'getDiagnostics'>;
   shoppingTripStore?: Pick<ShoppingTripStore, 'fetchActiveTrip' | 'fetchTrip'>;
 };
 
@@ -100,6 +102,23 @@ export function createDebugRoutes(deps: DebugRouteDependencies): Router {
     const response = await deps.krogerProductDiagnosticRunner(term);
 
     res.json(response);
+  }));
+
+  router.get('/api/debug/shopping-live-activity/diagnostics', asyncHandler(async (_req, res) => {
+    const trip = await deps.shoppingTripStore?.fetchActiveTrip() ?? null;
+    const diagnostics = deps.shoppingLiveActivityStore
+      ? await deps.shoppingLiveActivityStore.getDiagnostics()
+      : null;
+    res.json({
+      ok: true,
+      activeTrip: trip,
+      ...(diagnostics ?? {
+        activePushToStartRegistrationCount: 0,
+        activeUpdateRegistrationCount: 0,
+        latestDelivery: null,
+      }),
+      generatedAt: new Date().toISOString(),
+    });
   }));
 
   for (const event of ['start', 'update', 'end'] as const) {

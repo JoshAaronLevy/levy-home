@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 import type {
   ShoppingLiveActivityDelivery,
   ShoppingLiveActivityDeliveryEvent,
@@ -246,7 +248,7 @@ export function buildShoppingLiveActivityPayload(
 }
 
 function deliveryAuditDetails(
-  delivery: { id: string; tripId: string; registrationId: string; eventType: string; attemptCount: number },
+  delivery: { id: string; tripId: string; registrationId: string; eventType: string; stateVersion: number; attemptCount: number; registration?: { token: string; environment: string; resident: string } },
   reason?: string,
 ): Record<string, unknown> {
   return {
@@ -254,7 +256,19 @@ function deliveryAuditDetails(
     tripId: delivery.tripId,
     registrationId: delivery.registrationId,
     event: delivery.eventType,
+    stateVersion: delivery.stateVersion,
     attemptCount: delivery.attemptCount,
+    ...(delivery.registration
+      ? {
+        registrationFingerprint: crypto
+          .createHash('sha256')
+          .update(delivery.registration.token)
+          .digest('hex')
+          .slice(0, 12),
+        apnsEnvironment: delivery.registration.environment,
+        resident: delivery.registration.resident,
+      }
+      : {}),
     ...(reason ? { reason } : {}),
   };
 }

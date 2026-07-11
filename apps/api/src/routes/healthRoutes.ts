@@ -5,6 +5,7 @@ import type { AppConfig } from '../config.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { safeErrorMessage } from '../observability/logger.js';
 import type { DeviceRegistry } from '../services/notifications/deviceRegistry.js';
+import type { ShoppingLiveActivityStore } from '../repositories/shoppingLiveActivityRepository.js';
 
 export type NotificationPersistenceMode = 'memory' | 'postgres';
 
@@ -13,6 +14,7 @@ export type HealthRouteDependencies = {
   config: AppConfig;
   deviceRegistry: Pick<DeviceRegistry, 'count'>;
   notificationPersistenceMode: NotificationPersistenceMode;
+  shoppingLiveActivityStore?: Pick<ShoppingLiveActivityStore, 'getDiagnostics'>;
 };
 
 export function createHealthRoutes(deps: HealthRouteDependencies): Router {
@@ -55,6 +57,7 @@ async function readinessStatus(deps: HealthRouteDependencies) {
   const notificationPersistence = await notificationPersistenceReadiness(deps);
   const homeAssistant = homeAssistantReadiness(deps.config);
   const apns = apnsReadiness(deps.config);
+  const shoppingLiveActivities = await shoppingLiveActivityReadiness(deps);
   const checks = {
     process: { ok: true },
     activity: {
@@ -65,6 +68,7 @@ async function readinessStatus(deps: HealthRouteDependencies) {
     notificationPersistence,
     homeAssistant,
     apns,
+    shoppingLiveActivities,
   };
   const ok = Object.values(checks).every((check) => check.ok);
 
@@ -73,6 +77,30 @@ async function readinessStatus(deps: HealthRouteDependencies) {
     service: 'levy-home-api',
     checks,
   };
+}
+
+async function shoppingLiveActivityReadiness(deps: HealthRouteDependencies) {
+  if (!deps.shoppingLiveActivityStore) {
+    return { ok: true, mode: 'not_configured' };
+  }
+
+  try {
+    const diagnostics = await deps.shoppingLiveActivityStore.getDiagnostics();
+    return {
+      ok: true,
+      mode: 'postgres',
+      migrationState: 'available',
+      activePushToStartRegistrationCount: diagnostics.activePushToStartRegistrationCount,
+      activeUpdateRegistrationCount: diagnostics.activeUpdateRegistrationCount,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      mode: 'postgres',
+      code: 'shopping_live_activity_persistence_unavailable',
+      error: safeErrorMessage(error),
+    };
+  }
 }
 
 async function notificationPersistenceReadiness(deps: HealthRouteDependencies) {

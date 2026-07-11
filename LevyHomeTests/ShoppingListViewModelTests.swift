@@ -209,12 +209,14 @@ final class ShoppingListViewModelTests: XCTestCase {
     func testStartTripExplainsMissingNeededItemsAndMissingDeviceRegistration() async {
         let emptyViewModel = Self.tripViewModel(items: [])
         await emptyViewModel.loadIfNeeded()
-        XCTAssertNil(await emptyViewModel.startTrip(originatingPushDeviceId: "device-josh"))
+        let emptyResponse = await emptyViewModel.startTrip(originatingPushDeviceId: "device-josh")
+        XCTAssertNil(emptyResponse)
         XCTAssertEqual(emptyViewModel.errorMessage, "Add at least one needed item before starting a shopping trip.")
 
         let missingDeviceViewModel = Self.tripViewModel(items: [Self.item(id: 15, name: "Cereal")])
         await missingDeviceViewModel.loadIfNeeded()
-        XCTAssertNil(await missingDeviceViewModel.startTrip(originatingPushDeviceId: nil))
+        let missingDeviceResponse = await missingDeviceViewModel.startTrip(originatingPushDeviceId: nil)
+        XCTAssertNil(missingDeviceResponse)
         XCTAssertEqual(
             missingDeviceViewModel.errorMessage,
             "This iPhone is still registering for notifications. Try starting the trip again in a moment."
@@ -228,7 +230,8 @@ final class ShoppingListViewModelTests: XCTestCase {
         )
         await viewModel.loadIfNeeded()
 
-        XCTAssertNil(await viewModel.startTrip(originatingPushDeviceId: "device-josh"))
+        let response = await viewModel.startTrip(originatingPushDeviceId: "device-josh")
+        XCTAssertNil(response)
         XCTAssertEqual(viewModel.items.map(\.id), [15])
         XCTAssertEqual(viewModel.errorMessage, "Trips unavailable.")
         XCTAssertFalse(viewModel.isStartingTrip)
@@ -283,7 +286,8 @@ final class ShoppingListViewModelTests: XCTestCase {
             pricedPickedItemCount: 0,
             unpricedPickedItemCount: 0,
             currencyCode: "USD",
-            version: 1
+            version: 1,
+            activityUpdatedAtEpochSeconds: nil
         )
     }
 

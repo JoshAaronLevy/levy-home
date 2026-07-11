@@ -3,6 +3,7 @@ import SwiftUI
 struct DebugView: View {
     @ObservedObject var pushRegistrationViewModel: PushRegistrationViewModel
     @ObservedObject var notificationPreferencesViewModel: NotificationPreferencesViewModel
+    @EnvironmentObject private var shoppingLiveActivityCoordinator: ShoppingLiveActivityCoordinator
     @StateObject private var notificationTestViewModel: NotificationPipelineTestViewModel
     @StateObject private var shoppingDeliveryTestViewModel: ShoppingLiveActivityDeliveryTestViewModel
     let apnsEnvironment: APNsEnvironment
@@ -71,12 +72,47 @@ struct DebugView: View {
         .task {
             if showsDebugControls {
                 await pushRegistrationViewModel.refreshStatus()
+                shoppingLiveActivityCoordinator.refreshState()
             }
         }
     }
 
     @ViewBuilder
     private var debugControlSections: some View {
+        InfoPanel(
+            title: "Shopping Live Activity",
+            subtitle: "Local ActivityKit diagnostics for this iPhone.",
+            systemImage: "livephoto"
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                statusRow(
+                    title: "Authorization",
+                    detail: shoppingLiveActivityCoordinator.activitiesAreEnabled
+                        ? "Live Activities are enabled in iOS Settings."
+                        : "Enable Live Activities for Levy Home in iOS Settings.",
+                    badgeLabel: shoppingLiveActivityCoordinator.activitiesAreEnabled ? "Enabled" : "Disabled",
+                    badgeImage: shoppingLiveActivityCoordinator.activitiesAreEnabled ? "checkmark.circle.fill" : "xmark.circle.fill",
+                    badgeTone: shoppingLiveActivityCoordinator.activitiesAreEnabled ? .success : .critical
+                )
+                statusRow(
+                    title: "Push-to-start token",
+                    detail: shoppingLiveActivityCoordinator.hasRegisteredPushToStartToken
+                        ? "A token was registered during this app session."
+                        : "No token has been registered during this app session.",
+                    badgeLabel: shoppingLiveActivityCoordinator.hasRegisteredPushToStartToken ? "Registered" : "Not registered",
+                    badgeImage: "antenna.radiowaves.left.and.right",
+                    badgeTone: shoppingLiveActivityCoordinator.hasRegisteredPushToStartToken ? .success : .neutral
+                )
+                statusRow(
+                    title: "Local activities",
+                    detail: "\(shoppingLiveActivityCoordinator.localActivityCount) currently known to ActivityKit.",
+                    badgeLabel: String(shoppingLiveActivityCoordinator.localActivityCount),
+                    badgeImage: "rectangle.on.rectangle",
+                    badgeTone: .neutral
+                )
+            }
+        }
+
         InfoPanel(
             title: "Native Push",
             subtitle: "APNs registration for this device.",

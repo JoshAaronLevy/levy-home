@@ -20,6 +20,7 @@ export type PushSendOptions = {
   payload: TestPushPayload;
   preferenceCategory?: NotificationPreferenceCategory;
   data?: Record<string, string>;
+  onInvalidToken?: (deviceId: string) => Promise<void>;
 };
 
 export type ListMutationPushAction = 'created' | 'updated' | 'deleted' | 'completed';
@@ -58,7 +59,7 @@ export type NotificationService = {
 };
 
 export function createNotificationService(options: {
-  deviceRegistry: Pick<DeviceRegistry, 'listDevices'>;
+  deviceRegistry: Pick<DeviceRegistry, 'listDevices'> & Partial<Pick<DeviceRegistry, 'invalidateDevice'>>;
   notificationPreferenceStore: Pick<NotificationPreferenceStore, 'isNotificationEnabled'>;
   pushSender: PushSender;
 }): NotificationService {
@@ -245,6 +246,7 @@ export function createNotificationService(options: {
         pushSender: options.pushSender,
         payload,
         preferenceCategory: undefined,
+        onInvalidToken: options.deviceRegistry.invalidateDevice,
       });
     },
   };
@@ -290,6 +292,12 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
   }
 
   const invalidTokenCount = results.filter((result) => result.isInvalidToken).length;
+
+  if (options.onInvalidToken) {
+    await Promise.all(results
+      .filter((result) => result.isInvalidToken)
+      .map((result) => options.onInvalidToken!(result.deviceId)));
+  }
 
   return {
     provider: 'apns',
