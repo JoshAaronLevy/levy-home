@@ -2152,6 +2152,7 @@ private struct ShoppingProductSearchSheet: View {
     @State private var isSearching = false
     @State private var errorMessage: String?
     @State private var hasSearched = false
+    @State private var productForDetails: KrogerProduct?
 
     init(
         initialSearchTerm: String,
@@ -2194,10 +2195,16 @@ private struct ShoppingProductSearchSheet: View {
                     } else {
                         LazyVStack(spacing: AppSpacing.small) {
                             ForEach(products, id: \.stableSearchId) { product in
-                                ShoppingProductResultRow(product: product) {
-                                    onSelect(product)
-                                    dismiss()
-                                }
+                                ShoppingProductResultRow(
+                                    product: product,
+                                    onShowDetails: {
+                                        productForDetails = product
+                                    },
+                                    onSelect: {
+                                        onSelect(product)
+                                        dismiss()
+                                    }
+                                )
                             }
                         }
                     }
@@ -2216,6 +2223,20 @@ private struct ShoppingProductSearchSheet: View {
             }
             .task {
                 await searchIfReady()
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { productForDetails != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            productForDetails = nil
+                        }
+                    }
+                )
+            ) {
+                if let productForDetails {
+                    ShoppingProductDetailSheet(product: productForDetails)
+                }
             }
         }
     }
@@ -2307,80 +2328,212 @@ private struct ShoppingProductSearchSheet: View {
 
 private struct ShoppingProductResultRow: View {
     let product: KrogerProduct
+    let onShowDetails: () -> Void
     let onSelect: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
-            HStack(alignment: .top, spacing: AppSpacing.medium) {
-                productImage
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Button(action: onShowDetails) {
+                HStack(alignment: .top, spacing: AppSpacing.medium) {
+                    KrogerProductImage(imageURL: product.image, size: 56)
 
-                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                    Text(product.name ?? product.description ?? "Kroger product")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                        Text(product.displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
 
-                    if let brand = product.brand {
-                        Text(brand)
-                            .font(.caption)
-                            .foregroundStyle(AppColors.mutedText)
-                            .lineLimit(1)
-                    }
-
-                    HStack(spacing: AppSpacing.xSmall) {
-                        if let aisleDisplay = product.primaryListing?.aisle?.display {
-                            StatusBadgeView(label: aisleDisplay, systemImage: "mappin.circle", tone: .accent)
+                        if let brand = product.trimmedBrand {
+                            Text(brand)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.mutedText)
+                                .lineLimit(1)
                         }
 
-                        if let priceText = product.primaryListing?.price?.displayText {
-                            StatusBadgeView(label: priceText, systemImage: "tag", tone: .success)
+                        HStack(spacing: AppSpacing.xSmall) {
+                            if let aisleDisplay = product.primaryListing?.aisle?.display {
+                                StatusBadgeView(label: aisleDisplay, systemImage: "mappin.circle", tone: .accent)
+                            }
+
+                            if let priceText = product.primaryListing?.price?.displayText {
+                                StatusBadgeView(label: priceText, systemImage: "tag", tone: .success)
+                            }
                         }
                     }
+
+                    Spacer(minLength: AppSpacing.small)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("View details for \(product.displayName)")
 
-                Spacer(minLength: AppSpacing.small)
-
+            Button(action: onSelect) {
                 Image(systemName: "plus.circle.fill")
                     .font(.title3)
                     .foregroundStyle(AppColors.accent)
             }
-            .padding(AppSpacing.medium)
-            .background(AppColors.panelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
-                    .stroke(AppColors.panelBorder, lineWidth: 1)
-            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add \(product.displayName)")
         }
-        .buttonStyle(.plain)
+        .padding(AppSpacing.medium)
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
     }
+}
 
-    @ViewBuilder
-    private var productImage: some View {
-        if let image = product.image, let url = URL(string: image) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                default:
-                    Image(systemName: "shippingbox")
-                        .font(.title3)
-                        .foregroundStyle(AppColors.mutedText)
+private struct ShoppingProductDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let product: KrogerProduct
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.large) {
+                    KrogerProductImage(imageURL: product.image, size: 220)
+                        .frame(maxWidth: .infinity)
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                        Text(product.displayName)
+                            .font(.title2.weight(.bold))
+
+                        if let brand = product.trimmedBrand {
+                            Text(brand)
+                                .font(.body)
+                                .foregroundStyle(AppColors.mutedText)
+                        }
+                    }
+
+                    if let description = product.detailDescription {
+                        Text(description)
+                            .font(.body)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+
+                    if !productDetails.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(Array(productDetails.enumerated()), id: \.offset) { index, detail in
+                                ShoppingProductDetailRow(
+                                    title: detail.title,
+                                    value: detail.value,
+                                    systemImage: detail.systemImage
+                                )
+
+                                if index < productDetails.count - 1 {
+                                    Divider()
+                                }
+                            }
+                        }
+                        .background(AppColors.panelBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                                .stroke(AppColors.panelBorder, lineWidth: 1)
+                        }
+                    }
+                }
+                .padding(AppSpacing.screen)
+            }
+            .background(AppColors.pageBackground)
+            .navigationTitle("Product Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
                 }
             }
-            .frame(width: 56, height: 56)
-            .background(AppColors.insetPanelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
-        } else {
-            Image(systemName: "shippingbox")
-                .font(.title3)
-                .foregroundStyle(AppColors.mutedText)
-                .frame(width: 56, height: 56)
-                .background(AppColors.insetPanelBackground)
-                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
         }
+    }
+
+    private var productDetails: [(title: String, value: String, systemImage: String)] {
+        var details: [(title: String, value: String, systemImage: String)] = []
+
+        if let price = product.primaryListing?.price?.displayText {
+            details.append(("Price", price, "tag"))
+        }
+
+        if let store = product.primaryListing?.storeName {
+            details.append(("Store", store, "building.2"))
+        }
+
+        if let aisle = product.primaryListing?.aisle?.display {
+            details.append(("Aisle", aisle, "mappin.circle"))
+        }
+
+        if let availability = product.primaryListing?.availability?.status?.productDetailDisplayValue {
+            details.append(("Availability", availability, "checkmark.circle"))
+        }
+
+        if let upc = product.upc?.trimmingCharacters(in: .whitespacesAndNewlines), !upc.isEmpty {
+            details.append(("UPC", upc, "barcode"))
+        }
+
+        return details
+    }
+}
+
+private struct ShoppingProductDetailRow: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.medium) {
+            Image(systemName: systemImage)
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 20)
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+
+            Spacer()
+
+            Text(value)
+                .font(.subheadline)
+                .foregroundStyle(AppColors.mutedText)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(AppSpacing.medium)
+    }
+}
+
+private struct KrogerProductImage: View {
+    let imageURL: String?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let imageURL, let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "shippingbox")
+            .font(.title)
+            .foregroundStyle(AppColors.mutedText)
     }
 }
 
@@ -2705,6 +2858,26 @@ private extension ShoppingListDisplayItem {
 }
 
 private extension KrogerProduct {
+    var displayName: String {
+        let name = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description = description?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return name?.nilIfEmpty ?? description?.nilIfEmpty ?? "Kroger product"
+    }
+
+    var trimmedBrand: String? {
+        brand?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    var detailDescription: String? {
+        guard let description = description?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+              description.localizedCaseInsensitiveCompare(displayName) != .orderedSame else {
+            return nil
+        }
+
+        return description
+    }
+
     var stableSearchId: String {
         productId ?? upc ?? productPageURI ?? name ?? description ?? "unknown-product"
     }
@@ -2862,6 +3035,19 @@ private extension KrogerProductAisleLocation {
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+
+    var productDetailDisplayValue: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        return trimmed
+            .replacingOccurrences(of: "_", with: " ")
+            .lowercased()
+            .capitalized
     }
 }
 
