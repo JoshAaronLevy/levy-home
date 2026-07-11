@@ -372,6 +372,102 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
         )
     }
 
+    @discardableResult
+    func startTripActivity(for trip: ShoppingTrip) async -> ShoppingLiveActivityOperationResult {
+        guard beginOperation() else {
+            return publishBusyResult()
+        }
+        defer { isRunningOperation = false }
+
+        activitiesAreEnabled = activityClient.activitiesAreEnabled
+        let matchingActivities = activeTripActivities(for: trip.id)
+
+        if let existing = matchingActivities.first {
+            await retireDuplicateTripActivities(
+                Array(matchingActivities.dropFirst()),
+                using: trip
+            )
+            return publish(
+                kind: .recovered,
+                message: "Recovered this iPhone's shopping Live Activity.",
+                activityID: existing.id
+            )
+        }
+
+        guard activitiesAreEnabled else {
+            return publish(
+                kind: .unavailable,
+                message: "The shopping trip started, but Live Activities are turned off for Levy Home on this iPhone."
+            )
+        }
+
+        do {
+            let activity = try activityClient.requestActivity(
+                attributes: ShoppingTripActivityAttributes(
+                    tripID: trip.id,
+                    startedByName: trip.startedBy,
+                    startedAtEpochSeconds: Self.epochSeconds(from: Self.date(from: trip.startedAt) ?? now())
+                ),
+                initialState: Self.activityState(from: trip, updatedAt: now())
+            )
+            return publish(
+                kind: .started,
+                message: "Started this iPhone's shopping Live Activity.",
+                activityID: activity.id
+            )
+        } catch {
+            return publish(
+                kind: .failed,
+                message: "The shopping trip started, but this iPhone could not show its Live Activity: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    @discardableResult
+    func recoverTripActivity(for trip: ShoppingTrip) async -> ShoppingLiveActivityOperationResult {
+        guard beginOperation() else {
+            return publishBusyResult()
+        }
+        defer { isRunningOperation = false }
+
+        let matchingActivities = activeTripActivities(for: trip.id)
+        guard let existing = matchingActivities.first else {
+            return publish(
+                kind: .unavailable,
+                message: "This iPhone has no local shopping Live Activity to recover."
+            )
+        }
+
+        await retireDuplicateTripActivities(Array(matchingActivities.dropFirst()), using: trip)
+        return publish(
+            kind: .recovered,
+            message: "Recovered this iPhone's shopping Live Activity.",
+            activityID: existing.id
+        )
+    }
+
+    @discardableResult
+    func endTripActivity(for trip: ShoppingTrip) async -> ShoppingLiveActivityOperationResult {
+        guard beginOperation() else {
+            return publishBusyResult()
+        }
+        defer { isRunningOperation = false }
+
+        let activities = activeTripActivities(for: trip.id)
+        guard !activities.isEmpty else {
+            return publish(kind: .recovered, message: "No local shopping Live Activity needed ending.")
+        }
+
+        let finalState = Self.activityState(from: trip, updatedAt: now())
+        for activity in activities {
+            await activity.end(
+                with: finalState,
+                dismissalDate: now().addingTimeInterval(Self.completedActivityVisibilityDuration)
+            )
+        }
+        return publish(kind: .ended, message: "Ended this iPhone's shopping Live Activity.")
+    }
+
     private func beginOperation() -> Bool {
         guard !isRunningOperation else {
             return false
@@ -471,6 +567,27 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
         return recoveredActivity
     }
 
+    private func activeTripActivities(for tripID: String) -> [any ShoppingLiveActivitySession] {
+        activityClient.activities.filter { activity in
+            activity.tripID == tripID && Self.isDisplayActive(activity)
+        }
+    }
+
+    private func retireDuplicateTripActivities(
+        _ activities: [any ShoppingLiveActivitySession],
+        using trip: ShoppingTrip
+    ) async {
+        guard !activities.isEmpty else { return }
+
+        // A delayed remote start can race a foreground recovery. Keep the
+        // first local display and retire any duplicates without touching the
+        // shared backend trip.
+        let finalState = Self.activityState(from: trip, updatedAt: now())
+        for activity in activities {
+            await activity.end(with: finalState, dismissalDate: now())
+        }
+    }
+
     private func currentSampleActivity() -> (any ShoppingLiveActivitySession)? {
         activityClient.activities.first { activity in
             activity.tripID == Self.sampleTripID && Self.isDisplayActive(activity)
@@ -527,6 +644,25 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
 
     private static func epochSeconds(from date: Date) -> Int {
         Int(date.timeIntervalSince1970)
+    }
+
+    private static func date(from value: String) -> Date? {
+        ISO8601DateFormatter().date(from: value)
+    }
+
+    private static func activityState(from trip: ShoppingTrip, updatedAt: Date) -> ShoppingTripActivityState {
+        ShoppingTripActivityState(
+            status: trip.status,
+            pickedUpCount: trip.pickedUpCount,
+            remainingCount: trip.remainingCount,
+            totalItemCount: trip.totalItemCount,
+            estimatedTotalCents: trip.estimatedTotalCents,
+            pricedPickedItemCount: trip.pricedPickedItemCount,
+            unpricedPickedItemCount: trip.unpricedPickedItemCount,
+            currencyCode: trip.currencyCode,
+            stateVersion: trip.version,
+            updatedAtEpochSeconds: epochSeconds(from: updatedAt)
+        )
     }
 
     private static func sampleInitialState(

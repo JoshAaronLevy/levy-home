@@ -67,6 +67,7 @@ export async function createDisposableShoppingDatabase(): Promise<DisposableShop
   for (const migrationName of [
     '2026-07-11-001-shopping-trips.sql',
     '2026-07-11-002-shopping-live-activity-delivery.sql',
+    '2026-07-11-003-shopping-trip-display-dispositions.sql',
   ]) {
     const migrationURL = new URL(`../../migrations/${migrationName}`, import.meta.url);
     await pglite.exec(await readFile(migrationURL, 'utf8'));

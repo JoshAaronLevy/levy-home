@@ -6,6 +6,11 @@ import UIKit
 struct ShoppingListView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    let isSelected: Bool
+
+    init(isSelected: Bool = true) {
+        self.isSelected = isSelected
+    }
 
     var body: some View {
         let viewerIdentity = ShoppingListViewerIdentity.forResidentPreference(currentResidentName)
@@ -21,7 +26,8 @@ struct ShoppingListView: View {
                 appLogStore: appEnvironment.appLogStore,
                 currentViewerId: viewerIdentity.viewerId,
                 currentActorName: viewerIdentity.displayName
-            )
+            ),
+            isSelected: isSelected
         )
         .id(viewerIdentity.viewerId)
     }
@@ -443,6 +449,9 @@ fileprivate func normalizedShoppingItemName(_ value: String) -> String {
 }
 
 private struct ShoppingListContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var pushRegistrationViewModel: PushRegistrationViewModel
+    @EnvironmentObject private var shoppingLiveActivityCoordinator: ShoppingLiveActivityCoordinator
     @StateObject private var viewModel: ShoppingListViewModel
     @State private var searchText = ""
     @State private var selectedCategoryId: Int?
@@ -451,9 +460,12 @@ private struct ShoppingListContentView: View {
     @State private var isShowingFilterSheet = false
     @State private var editorMode: ShoppingItemEditorMode?
     @State private var pendingDeleteItem: ShoppingListItem?
+    @State private var tripDisplayMessage: String?
+    let isSelected: Bool
 
-    init(viewModel: ShoppingListViewModel) {
+    init(viewModel: ShoppingListViewModel, isSelected: Bool = true) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.isSelected = isSelected
     }
 
     var body: some View {
@@ -481,6 +493,19 @@ private struct ShoppingListContentView: View {
         .appScreenChrome()
         .task {
             await viewModel.loadIfNeeded()
+            await recoverActiveTripDisplay()
+        }
+        .onChange(of: isSelected) { _, selected in
+            guard selected else { return }
+            Task { await refreshForSelectedVisit() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, isSelected else { return }
+            Task { await refreshForSelectedVisit() }
+        }
+        .onChange(of: viewModel.activeTrip?.id) { _, _ in
+            guard isSelected else { return }
+            Task { await recoverActiveTripDisplay() }
         }
         .refreshable {
             await viewModel.refresh()
@@ -552,6 +577,14 @@ private struct ShoppingListContentView: View {
             }
         }
 
+        if let tripDisplayMessage {
+            InfoPanel(
+                title: "Shopping Trip Display",
+                subtitle: tripDisplayMessage,
+                systemImage: "lock.rectangle"
+            ) {}
+        }
+
         ShoppingListSearchField(searchText: $searchText)
 
         ShoppingCategoryFilterBar(
@@ -586,16 +619,92 @@ private struct ShoppingListContentView: View {
     private var summaryPanel: some View {
         ShoppingListSummaryCard(
             residentAvatars: viewModel.residentAvatarStates,
-            remainingText: "\(neededItemCount) left of \(totalItemCount)",
-            estimatedTotalText: estimatedRemainingTotalText,
+            activeTrip: viewModel.activeTrip,
+            remainingText: activeTripRemainingText,
+            estimatedTotalText: activeTripEstimatedTotalText,
             isFilterActive: appliedFilters.isActive,
-            onStartShop: {},
+            isTripActionInFlight: viewModel.isStartingTrip || viewModel.isEndingTrip,
+            onStartShop: {
+                Task { await startTrip() }
+            },
+            onEndShop: {
+                Task { await endTrip() }
+            },
             onFilter: {
                 draftFilters = appliedFilters
                 isShowingFilterSheet = true
             }
         )
         .animation(.easeInOut(duration: 0.16), value: viewModel.residentAvatarStates)
+    }
+
+    private var activeTripRemainingText: String {
+        if let trip = viewModel.activeTrip {
+            return "\(trip.pickedUpCount) picked up • \(trip.remainingCount) left"
+        }
+
+        return "\(neededItemCount) left of \(totalItemCount)"
+    }
+
+    private var activeTripEstimatedTotalText: String {
+        guard let trip = viewModel.activeTrip else {
+            return estimatedRemainingTotalText
+        }
+
+        let amount = Decimal(trip.estimatedTotalCents) / 100
+        let estimate = amount.formatted(.currency(code: trip.currencyCode))
+        return "Picked-up est. \(estimate) • Started by \(trip.startedBy)"
+    }
+
+    private func startTrip() async {
+        guard let response = await viewModel.startTrip(
+            originatingPushDeviceId: pushRegistrationViewModel.registeredDeviceID
+        ) else {
+            return
+        }
+
+        guard response.displayDisposition?.startsLocally == true else {
+            tripDisplayMessage = "The shared trip is active. This iPhone is waiting for its already-persisted remote Live Activity start."
+            return
+        }
+
+        let result = await shoppingLiveActivityCoordinator.startTripActivity(for: response.trip)
+        tripDisplayMessage = result.message
+
+        if response.displayDisposition?.remoteStartCount == 0 {
+            tripDisplayMessage = "\(result.message) No counterpart Live Activity could be queued because no current ActivityKit start token is registered."
+        }
+    }
+
+    private func endTrip() async {
+        guard let response = await viewModel.endTrip() else { return }
+        let result = await shoppingLiveActivityCoordinator.endTripActivity(for: response.trip)
+        tripDisplayMessage = result.message
+    }
+
+    private func refreshForSelectedVisit() async {
+        await viewModel.refresh()
+        await recoverActiveTripDisplay()
+    }
+
+    private func recoverActiveTripDisplay() async {
+        guard let trip = viewModel.activeTrip else { return }
+        guard let disposition = await viewModel.claimActiveTripDisplay(
+            pushDeviceId: pushRegistrationViewModel.registeredDeviceID
+        ) else { return }
+
+        guard disposition.startsLocally else {
+            tripDisplayMessage = "The shared trip is active. This iPhone is waiting for its remote Live Activity start."
+            return
+        }
+
+        let recovered = await shoppingLiveActivityCoordinator.recoverTripActivity(for: trip)
+        if recovered.kind == .unavailable {
+            let started = await shoppingLiveActivityCoordinator.startTripActivity(for: trip)
+            tripDisplayMessage = started.message
+        } else {
+            tripDisplayMessage = recovered.message
+        }
     }
 
     private var loadingView: some View {
@@ -1043,10 +1152,13 @@ fileprivate enum ShoppingStoreFilterOption: String, CaseIterable, Identifiable {
 
 private struct ShoppingListSummaryCard: View {
     let residentAvatars: [ResidentAvatarState]
+    let activeTrip: ShoppingTrip?
     let remainingText: String
     let estimatedTotalText: String
     let isFilterActive: Bool
+    let isTripActionInFlight: Bool
     let onStartShop: () -> Void
+    let onEndShop: () -> Void
     let onFilter: () -> Void
 
     var body: some View {
@@ -1071,8 +1183,8 @@ private struct ShoppingListSummaryCard: View {
 
             Spacer(minLength: AppSpacing.small)
 
-            Button(action: onStartShop) {
-                Label("New", systemImage: "cart.fill")
+            Button(action: activeTrip == nil ? onStartShop : onEndShop) {
+                Label(activeTrip == nil ? "New" : "End Shop", systemImage: activeTrip == nil ? "cart.fill" : "checkmark.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                     .padding(.horizontal, AppSpacing.medium)
@@ -1082,7 +1194,9 @@ private struct ShoppingListSummaryCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Start new shopping run")
+            .disabled(isTripActionInFlight)
+            .opacity(isTripActionInFlight ? 0.65 : 1)
+            .accessibilityLabel(activeTrip == nil ? "Start new shopping run" : "End shopping run")
 
             Button(action: onFilter) {
                 Image(systemName: "line.3.horizontal.decrease")
@@ -2822,6 +2936,8 @@ private extension ShoppingCategory {
             })
         )
     }
+    .environmentObject(ShoppingLiveActivityCoordinator())
+    .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
 }
 
 #Preview("Empty") {
@@ -2832,4 +2948,6 @@ private extension ShoppingCategory {
             })
         )
     }
+    .environmentObject(ShoppingLiveActivityCoordinator())
+    .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
 }

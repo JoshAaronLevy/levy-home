@@ -123,9 +123,6 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const shoppingTripStore = options.shoppingTripStore ?? (
     isDatabaseConfigured() ? createPostgresShoppingTripStore() : undefined
   );
-  const shoppingTripService: ShoppingTripService | undefined = shoppingTripStore
-    ? createShoppingTripService({ shoppingListRealtime, shoppingTripStore })
-    : undefined;
   const shoppingLiveActivityStore = options.shoppingLiveActivityStore ?? (
     isDatabaseConfigured() ? createPostgresShoppingLiveActivityStore() : undefined
   );
@@ -138,6 +135,13 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         shoppingTripStore,
       })
       : undefined);
+  const shoppingTripService: ShoppingTripService | undefined = shoppingTripStore
+    ? createShoppingTripService({
+      shoppingListRealtime,
+      shoppingLiveActivityDeliveryService,
+      shoppingTripStore,
+    })
+    : undefined;
   const shoppingListMutationService = createShoppingListMutationService({
     notificationService,
     shoppingListRealtime,

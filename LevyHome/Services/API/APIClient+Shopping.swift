@@ -38,6 +38,17 @@ extension APIClient {
         )
     }
 
+    func claimShoppingTripDisplay(
+        tripId: String,
+        request: ClaimShoppingTripDisplayRequest
+    ) async throws -> ClaimShoppingTripDisplayResponse {
+        try await send(
+            path: "/api/shopping-list/trip/\(tripId)/display/claim",
+            method: .post,
+            body: request
+        )
+    }
+
     func endShoppingTrip(_ request: EndShoppingTripRequest) async throws -> ShoppingTripMutationResponse {
         try await send(
             path: "/api/shopping-list/trip/end",

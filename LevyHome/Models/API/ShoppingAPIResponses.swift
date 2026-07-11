@@ -376,6 +376,25 @@ struct ShoppingTripMutationResponse: Codable, Equatable {
     let trip: ShoppingTrip
     let activeTrip: ShoppingTrip?
     let mutationId: String
+    let displayDisposition: ShoppingTripDisplayDisposition?
+    let generatedAt: String?
+}
+
+struct ShoppingTripDisplayDisposition: Codable, Equatable {
+    let tripId: String
+    let pushDeviceId: String
+    let resident: String
+    let kind: String
+    let remoteStartCount: Int
+
+    var startsLocally: Bool {
+        kind == "start_locally"
+    }
+}
+
+struct ClaimShoppingTripDisplayResponse: Codable, Equatable {
+    let ok: Bool
+    let displayDisposition: ShoppingTripDisplayDisposition
     let generatedAt: String?
 }
 

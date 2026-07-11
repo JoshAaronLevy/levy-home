@@ -4,6 +4,16 @@ export type ShoppingTripStatus = 'active' | 'completed';
 
 export type ShoppingTripItemState = 'remaining' | 'picked_up' | 'removed';
 
+export type ShoppingTripDisplayDispositionKind = 'start_locally' | 'remote_start_pending';
+
+export type ShoppingTripDisplayDisposition = {
+  tripId: string;
+  pushDeviceId: string;
+  resident: ShoppingTripResident;
+  kind: ShoppingTripDisplayDispositionKind;
+  remoteStartCount: number;
+};
+
 export type ShoppingTripSnapshot = {
   id: string;
   status: ShoppingTripStatus;
@@ -40,7 +50,14 @@ export type ShoppingTripItemSnapshot = {
 export type StartShoppingTripPersistenceRequest = {
   startedBy: ShoppingTripResident;
   mutationId: string;
+  originatingPushDeviceId?: string;
   currencyCode?: string;
+};
+
+export type ClaimShoppingTripDisplayRequest = {
+  tripId: string;
+  resident: ShoppingTripResident;
+  pushDeviceId: string;
 };
 
 export type CompleteShoppingTripPersistenceRequest = {
@@ -67,5 +84,6 @@ export type ShoppingTripMutationResponse = {
   trip: ShoppingTripSnapshot;
   activeTrip: ShoppingTripSnapshot | null;
   mutationId: string;
+  displayDisposition?: ShoppingTripDisplayDisposition;
   generatedAt: string;
 };

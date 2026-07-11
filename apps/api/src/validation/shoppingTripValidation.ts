@@ -1,4 +1,5 @@
 import type {
+  ClaimShoppingTripDisplayRequest,
   CompleteShoppingTripPersistenceRequest,
   ShoppingTripResident,
   StartShoppingTripPersistenceRequest,
@@ -6,8 +7,9 @@ import type {
 import { HTTPError } from '../http/errors.js';
 import { hasOwn, isPlainRecord } from './shared.js';
 
-const startTripKeys = new Set(['actor', 'mutationId']);
+const startTripKeys = new Set(['actor', 'mutationId', 'originatingPushDeviceId']);
 const endTripKeys = new Set(['tripId', 'actor', 'mutationId', 'summaryRecipient']);
+const claimDisplayKeys = new Set(['actor', 'pushDeviceId']);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type StartShoppingTripRequest = Omit<StartShoppingTripPersistenceRequest, 'mutationId'> & {
@@ -23,7 +25,23 @@ export function validateStartShoppingTripBody(input: unknown): StartShoppingTrip
 
   return {
     startedBy: readResident(record.actor, 'actor'),
+    ...(hasOwn(record, 'originatingPushDeviceId')
+      ? { originatingPushDeviceId: readNonemptyString(record.originatingPushDeviceId, 'originatingPushDeviceId') }
+      : {}),
     ...(hasOwn(record, 'mutationId') ? { mutationId: validateShoppingTripMutationId(record.mutationId) } : {}),
+  };
+}
+
+export function validateClaimShoppingTripDisplayBody(
+  tripId: string,
+  input: unknown,
+): ClaimShoppingTripDisplayRequest {
+  const record = requireTripRecord(input, claimDisplayKeys);
+
+  return {
+    tripId: readShoppingTripId(tripId),
+    resident: readResident(record.actor, 'actor'),
+    pushDeviceId: readNonemptyString(record.pushDeviceId, 'pushDeviceId'),
   };
 }
 
@@ -69,6 +87,14 @@ function readShoppingTripId(value: unknown): string {
   }
 
   return value.trim().toLowerCase();
+}
+
+function readNonemptyString(value: unknown, fieldName: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw invalidShoppingTrip(`${fieldName} is required.`);
+  }
+
+  return value.trim();
 }
 
 function readResident(value: unknown, fieldName: string): ShoppingTripResident {

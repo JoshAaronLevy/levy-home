@@ -26,16 +26,22 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingListUpdater = (Int, UpdateShoppingListItemRequest) async throws -> ShoppingListMutationResponse
     typealias ShoppingListDeleter = (Int, String, String?) async throws -> DeleteShoppingListItemResponse
     typealias KrogerProductSearch = (String) async throws -> KrogerProductSearchResponse
+    typealias ShoppingTripStarter = (StartShoppingTripRequest) async throws -> ShoppingTripMutationResponse
+    typealias ShoppingTripEnder = (EndShoppingTripRequest) async throws -> ShoppingTripMutationResponse
+    typealias ShoppingTripDisplayClaimer = (String, ClaimShoppingTripDisplayRequest) async throws -> ClaimShoppingTripDisplayResponse
 
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
     @Published private(set) var categories: [ShoppingCategory] = []
     @Published private(set) var activeViewers: [ShoppingListViewerPresence] = []
     @Published private(set) var generatedAt: String?
+    @Published private(set) var activeTrip: ShoppingTrip?
     @Published private(set) var errorMessage: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
     @Published private(set) var isCreatingItem = false
+    @Published private(set) var isStartingTrip = false
+    @Published private(set) var isEndingTrip = false
     @Published private(set) var mutatingItemIDs: Set<Int> = []
     @Published private(set) var liveConnectionState: ShoppingListLiveConnectionState = .idle
 
@@ -44,6 +50,9 @@ final class ShoppingListViewModel: ObservableObject {
     private let createShoppingListItem: ShoppingListCreator
     private let updateShoppingListItem: ShoppingListUpdater
     private let deleteShoppingListItem: ShoppingListDeleter
+    private let startShoppingTrip: ShoppingTripStarter
+    private let endShoppingTrip: ShoppingTripEnder
+    private let claimShoppingTripDisplay: ShoppingTripDisplayClaimer
     private let searchKrogerProducts: KrogerProductSearch?
     private let liveService: ShoppingListLiveServicing?
     private let appLogStore: AppLogStore?
@@ -192,6 +201,15 @@ final class ShoppingListViewModel: ObservableObject {
                     actor: actor,
                     mutationId: mutationId
                 )
+            },
+            startShoppingTrip: { request in
+                try await apiClient.startShoppingTrip(request)
+            },
+            endShoppingTrip: { request in
+                try await apiClient.endShoppingTrip(request)
+            },
+            claimShoppingTripDisplay: { tripId, request in
+                try await apiClient.claimShoppingTripDisplay(tripId: tripId, request: request)
             }
         )
     }
@@ -221,6 +239,15 @@ final class ShoppingListViewModel: ObservableObject {
             },
             deleteShoppingListItem: { _, _, _ in
                 throw APIError.transport("Shopping list deletion is not configured.")
+            },
+            startShoppingTrip: { _ in
+                throw APIError.transport("Shopping trip start is not configured.")
+            },
+            endShoppingTrip: { _ in
+                throw APIError.transport("Shopping trip end is not configured.")
+            },
+            claimShoppingTripDisplay: { _, _ in
+                throw APIError.transport("Shopping trip display recovery is not configured.")
             }
         )
     }
@@ -235,13 +262,25 @@ final class ShoppingListViewModel: ObservableObject {
         searchKrogerProducts: KrogerProductSearch? = nil,
         createShoppingListItem: @escaping ShoppingListCreator,
         updateShoppingListItem: @escaping ShoppingListUpdater,
-        deleteShoppingListItem: @escaping ShoppingListDeleter
+        deleteShoppingListItem: @escaping ShoppingListDeleter,
+        startShoppingTrip: @escaping ShoppingTripStarter = { _ in
+            throw APIError.transport("Shopping trip start is not configured.")
+        },
+        endShoppingTrip: @escaping ShoppingTripEnder = { _ in
+            throw APIError.transport("Shopping trip end is not configured.")
+        },
+        claimShoppingTripDisplay: @escaping ShoppingTripDisplayClaimer = { _, _ in
+            throw APIError.transport("Shopping trip display recovery is not configured.")
+        }
     ) {
         self.loadShoppingList = loadShoppingList
         self.lookupShoppingListItem = lookupShoppingListItem
         self.createShoppingListItem = createShoppingListItem
         self.updateShoppingListItem = updateShoppingListItem
         self.deleteShoppingListItem = deleteShoppingListItem
+        self.startShoppingTrip = startShoppingTrip
+        self.endShoppingTrip = endShoppingTrip
+        self.claimShoppingTripDisplay = claimShoppingTripDisplay
         self.searchKrogerProducts = searchKrogerProducts
         self.liveService = liveService
         self.appLogStore = appLogStore
@@ -284,6 +323,73 @@ final class ShoppingListViewModel: ObservableObject {
         }
 
         return try await searchKrogerProducts(name).products
+    }
+
+    @discardableResult
+    func startTrip(originatingPushDeviceId: String?) async -> ShoppingTripMutationResponse? {
+        guard !isStartingTrip else { return nil }
+        guard items.contains(where: { !$0.purchased }) else {
+            errorMessage = "Add at least one needed item before starting a shopping trip."
+            return nil
+        }
+        guard let actor = currentActorName else {
+            errorMessage = "Choose Josh or Mallory before starting a shopping trip."
+            return nil
+        }
+        guard let originatingPushDeviceId, !originatingPushDeviceId.isEmpty else {
+            errorMessage = "This iPhone is still registering for notifications. Try starting the trip again in a moment."
+            return nil
+        }
+
+        isStartingTrip = true
+        defer { isStartingTrip = false }
+
+        do {
+            let response = try await startShoppingTrip(
+                StartShoppingTripRequest(actor: actor, originatingPushDeviceId: originatingPushDeviceId)
+            )
+            activeTrip = response.activeTrip ?? response.trip
+            errorMessage = nil
+            return response
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    @discardableResult
+    func endTrip() async -> ShoppingTripMutationResponse? {
+        guard !isEndingTrip, let activeTrip, let actor = currentActorName else { return nil }
+        isEndingTrip = true
+        defer { isEndingTrip = false }
+
+        do {
+            let response = try await endShoppingTrip(
+                EndShoppingTripRequest(tripId: activeTrip.id, actor: actor)
+            )
+            self.activeTrip = response.activeTrip
+            errorMessage = nil
+            return response
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func claimActiveTripDisplay(pushDeviceId: String?) async -> ShoppingTripDisplayDisposition? {
+        guard let activeTrip, let actor = currentActorName, let pushDeviceId, !pushDeviceId.isEmpty else {
+            return nil
+        }
+
+        do {
+            return try await claimShoppingTripDisplay(
+                activeTrip.id,
+                ClaimShoppingTripDisplayRequest(actor: actor, pushDeviceId: pushDeviceId)
+            ).displayDisposition
+        } catch {
+            // The shared trip remains usable even when a display claim cannot be recovered.
+            return nil
+        }
     }
 
     func startLiveUpdatesIfNeeded() {
@@ -341,8 +447,10 @@ final class ShoppingListViewModel: ObservableObject {
             self.stores = stores
         case .categoriesChanged(let categories, _, _):
             self.categories = categories
-        case .tripStarted, .tripUpdated, .tripEnded:
-            return
+        case .tripStarted(let trip, _, _), .tripUpdated(let trip, _, _):
+            activeTrip = trip
+        case .tripEnded:
+            activeTrip = nil
         case .unknown:
             return
         }
@@ -554,6 +662,7 @@ final class ShoppingListViewModel: ObservableObject {
         stores = response.stores
         categories = response.categories
         generatedAt = response.generatedAt
+        activeTrip = response.activeTrip
         hasLoaded = true
     }
 

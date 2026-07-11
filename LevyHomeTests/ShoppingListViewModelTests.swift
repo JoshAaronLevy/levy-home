@@ -172,6 +172,68 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.activeViewers, [])
     }
 
+    func testStartTripUsesRegisteredOriginDeviceAndPublishesCanonicalActiveTrip() async {
+        var receivedRequest: StartShoppingTripRequest?
+        let trip = Self.trip()
+        let viewModel = Self.tripViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { request in
+                receivedRequest = request
+                return ShoppingTripMutationResponse(
+                    ok: true,
+                    trip: trip,
+                    activeTrip: trip,
+                    mutationId: request.mutationId,
+                    displayDisposition: ShoppingTripDisplayDisposition(
+                        tripId: trip.id,
+                        pushDeviceId: "device-josh",
+                        resident: "Josh",
+                        kind: "start_locally",
+                        remoteStartCount: 1
+                    ),
+                    generatedAt: nil
+                )
+            }
+        )
+        await viewModel.loadIfNeeded()
+
+        let response = await viewModel.startTrip(originatingPushDeviceId: "device-josh")
+
+        XCTAssertEqual(receivedRequest?.actor, "Josh")
+        XCTAssertEqual(receivedRequest?.originatingPushDeviceId, "device-josh")
+        XCTAssertEqual(response?.displayDisposition?.kind, "start_locally")
+        XCTAssertEqual(viewModel.activeTrip?.id, trip.id)
+        XCTAssertFalse(viewModel.isStartingTrip)
+    }
+
+    func testStartTripExplainsMissingNeededItemsAndMissingDeviceRegistration() async {
+        let emptyViewModel = Self.tripViewModel(items: [])
+        await emptyViewModel.loadIfNeeded()
+        XCTAssertNil(await emptyViewModel.startTrip(originatingPushDeviceId: "device-josh"))
+        XCTAssertEqual(emptyViewModel.errorMessage, "Add at least one needed item before starting a shopping trip.")
+
+        let missingDeviceViewModel = Self.tripViewModel(items: [Self.item(id: 15, name: "Cereal")])
+        await missingDeviceViewModel.loadIfNeeded()
+        XCTAssertNil(await missingDeviceViewModel.startTrip(originatingPushDeviceId: nil))
+        XCTAssertEqual(
+            missingDeviceViewModel.errorMessage,
+            "This iPhone is still registering for notifications. Try starting the trip again in a moment."
+        )
+    }
+
+    func testStartTripKeepsListUsableWhenTheAPIFails() async {
+        let viewModel = Self.tripViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { _ in throw APIError.server(statusCode: 503, message: "Trips unavailable.") }
+        )
+        await viewModel.loadIfNeeded()
+
+        XCTAssertNil(await viewModel.startTrip(originatingPushDeviceId: "device-josh"))
+        XCTAssertEqual(viewModel.items.map(\.id), [15])
+        XCTAssertEqual(viewModel.errorMessage, "Trips unavailable.")
+        XCTAssertFalse(viewModel.isStartingTrip)
+    }
+
     private static func response(items: [ShoppingListItem]) -> ShoppingListResponse {
         ShoppingListResponse(
             ok: true,
@@ -179,6 +241,49 @@ final class ShoppingListViewModelTests: XCTestCase {
             stores: [],
             categories: [],
             generatedAt: "2026-07-01T17:30:00Z"
+        )
+    }
+
+    private static func tripViewModel(
+        items: [ShoppingListItem],
+        start: @escaping ShoppingListViewModel.ShoppingTripStarter = { request in
+            ShoppingTripMutationResponse(
+                ok: true,
+                trip: trip(),
+                activeTrip: trip(),
+                mutationId: request.mutationId,
+                displayDisposition: nil,
+                generatedAt: nil
+            )
+        }
+    ) -> ShoppingListViewModel {
+        ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: { response(items: items) },
+            lookupShoppingListItem: { name in ShoppingListItemLookupResponse(ok: true, query: name, match: nil) },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in throw APIError.transport("Unused") },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") },
+            startShoppingTrip: start
+        )
+    }
+
+    private static func trip() -> ShoppingTrip {
+        ShoppingTrip(
+            id: "fca7f84a-8527-4a58-90b5-a78e4cde5b16",
+            status: "active",
+            startedBy: "Josh",
+            startedAt: "2026-07-11T18:00:00.000Z",
+            endedBy: nil,
+            endedAt: nil,
+            pickedUpCount: 0,
+            remainingCount: 1,
+            totalItemCount: 1,
+            estimatedTotalCents: 0,
+            pricedPickedItemCount: 0,
+            unpricedPickedItemCount: 0,
+            currencyCode: "USD",
+            version: 1
         )
     }
 

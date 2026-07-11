@@ -36,6 +36,7 @@ struct LevyHomeApp: App {
             RootTabView()
                 .environment(\.appEnvironment, appEnvironment)
                 .environmentObject(themePreferenceViewModel)
+                .environmentObject(pushRegistrationViewModel)
                 .environmentObject(shoppingLiveActivityCoordinator)
                 .preferredColorScheme(themePreferenceViewModel.preferredColorScheme)
                 .task(id: "\(notificationRegistrationDeviceName ?? ""):\(pushRegistrationViewModel.registeredDeviceID ?? "")") {

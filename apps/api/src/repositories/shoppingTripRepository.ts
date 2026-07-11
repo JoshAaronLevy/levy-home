@@ -1,10 +1,13 @@
 import type {
   CompleteShoppingTripPersistenceRequest,
+  ClaimShoppingTripDisplayRequest,
   ShoppingItemEstimate,
   ShoppingItemStoreListing,
   ShoppingListItem,
   ShoppingTripItemSnapshot,
   ShoppingTripItemState,
+  ShoppingTripDisplayDisposition,
+  ShoppingTripDisplayDispositionKind,
   ShoppingTripResident,
   ShoppingTripSnapshot,
   ShoppingTripStatus,
@@ -32,9 +35,18 @@ export type ShoppingTripStore = {
   fetchTripByEndMutationId: (mutationId: string) => Promise<ShoppingTripSnapshot | null>;
   fetchTripItems: (tripId: string) => Promise<ShoppingTripItemSnapshot[]>;
   startTrip: (request: StartShoppingTripPersistenceRequest) => Promise<ShoppingTripSnapshot>;
+  startTripWithDisplay: (request: StartShoppingTripPersistenceRequest & {
+    originatingPushDeviceId: string;
+  }) => Promise<ShoppingTripStartWithDisplayResult>;
+  claimDisplay: (request: ClaimShoppingTripDisplayRequest) => Promise<ShoppingTripDisplayDisposition | null>;
   completeTrip: (
     request: CompleteShoppingTripPersistenceRequest,
   ) => Promise<ShoppingTripSnapshot | null>;
+};
+
+export type ShoppingTripStartWithDisplayResult = {
+  trip: ShoppingTripSnapshot;
+  displayDisposition: ShoppingTripDisplayDisposition;
 };
 
 type ShoppingTripAggregateRow = Record<string, unknown> & {
@@ -74,6 +86,14 @@ type ShoppingTripItemRow = Record<string, unknown> & {
   updatedAt: unknown;
 };
 
+type ShoppingTripDisplayDispositionRow = Record<string, unknown> & {
+  tripId: unknown;
+  pushDeviceId: unknown;
+  resident: unknown;
+  kind: unknown;
+  remoteStartCount: unknown;
+};
+
 export class ShoppingTripHasNoNeededItemsError extends Error {
   constructor() {
     super('A shopping trip requires at least one needed item.');
@@ -110,6 +130,44 @@ export function createPostgresShoppingTripStore(options: {
     },
     async startTrip(request) {
       return transaction()((database) => createShoppingTrip(database, request));
+    },
+    async startTripWithDisplay(request) {
+      return transaction()(async (database) => {
+        const trip = await createShoppingTrip(database, request);
+        const displayDisposition = await reserveInitialTripDisplays(database, trip.id, request);
+        return { trip, displayDisposition };
+      });
+    },
+    async claimDisplay(request) {
+      return transaction()(async (database) => {
+        const trip = await fetchShoppingTrip(database, request.tripId);
+
+        if (!trip || trip.status !== 'active') {
+          return null;
+        }
+
+        const existing = await fetchTripDisplayDisposition(database, request.tripId, request.pushDeviceId);
+
+        if (existing) {
+          return existing;
+        }
+
+        await database`
+          INSERT INTO shopping_trip_display_dispositions (
+            trip_id,
+            push_device_id,
+            resident,
+            kind
+          )
+          VALUES (${request.tripId}, ${request.pushDeviceId}, ${request.resident}, 'start_locally')
+          ON CONFLICT (trip_id, push_device_id) DO NOTHING
+        `;
+
+        return requireDisplayDisposition(
+          await fetchTripDisplayDisposition(database, request.tripId, request.pushDeviceId),
+          'claim shopping trip display',
+        );
+      });
     },
     async completeTrip(request) {
       return transaction()((database) => completeShoppingTrip(database, request));
@@ -150,6 +208,89 @@ export async function createShoppingTrip(
     await fetchShoppingTrip(database, tripId),
     'create',
   );
+}
+
+async function reserveInitialTripDisplays(
+  database: DatabaseQuery,
+  tripId: string,
+  request: StartShoppingTripPersistenceRequest & { originatingPushDeviceId: string },
+): Promise<ShoppingTripDisplayDisposition> {
+  await database`
+    INSERT INTO shopping_trip_display_dispositions (
+      trip_id,
+      push_device_id,
+      resident,
+      kind
+    )
+    VALUES (${tripId}, ${request.originatingPushDeviceId}, ${request.startedBy}, 'start_locally')
+  `;
+
+  // Capture the counterpart's current static start-token registration inside
+  // the trip transaction. This makes the local/remote ownership decision
+  // durable before any APNs work begins after commit.
+  await database`
+    INSERT INTO shopping_trip_display_dispositions (
+      trip_id,
+      push_device_id,
+      resident,
+      kind,
+      activity_registration_id
+    )
+    SELECT
+      ${tripId},
+      registration.push_device_id,
+      registration.resident,
+      'remote_start_pending',
+      registration.id
+    FROM shopping_live_activity_registrations registration
+    WHERE registration.token_type = 'push_to_start'
+      AND registration.is_active
+      AND registration.push_device_id <> ${request.originatingPushDeviceId}
+      AND registration.resident <> ${request.startedBy}
+    ON CONFLICT (trip_id, push_device_id) DO NOTHING
+  `;
+
+  return requireDisplayDisposition(
+    await fetchTripDisplayDisposition(database, tripId, request.originatingPushDeviceId),
+    'reserve shopping trip display',
+  );
+}
+
+async function fetchTripDisplayDisposition(
+  database: DatabaseQuery,
+  tripId: string,
+  pushDeviceId: string,
+): Promise<ShoppingTripDisplayDisposition | null> {
+  const [row] = await database<ShoppingTripDisplayDispositionRow>`
+    SELECT
+      disposition.trip_id AS "tripId",
+      disposition.push_device_id AS "pushDeviceId",
+      disposition.resident,
+      disposition.kind,
+      (
+        SELECT COUNT(*)::integer
+        FROM shopping_trip_display_dispositions counterpart
+        WHERE counterpart.trip_id = disposition.trip_id
+          AND counterpart.kind = 'remote_start_pending'
+      ) AS "remoteStartCount"
+    FROM shopping_trip_display_dispositions disposition
+    WHERE disposition.trip_id = ${tripId}
+      AND disposition.push_device_id = ${pushDeviceId}
+    LIMIT 1
+  `;
+
+  return row ? shoppingTripDisplayDispositionFromRow(row) : null;
+}
+
+function requireDisplayDisposition(
+  disposition: ShoppingTripDisplayDisposition | null,
+  operation: string,
+): ShoppingTripDisplayDisposition {
+  if (!disposition) {
+    throw new Error(`Expected a display disposition after ${operation}.`);
+  }
+
+  return disposition;
 }
 
 export async function completeShoppingTrip(
@@ -440,6 +581,18 @@ function shoppingTripFromRow(row: ShoppingTripAggregateRow): ShoppingTripSnapsho
   };
 }
 
+function shoppingTripDisplayDispositionFromRow(
+  row: ShoppingTripDisplayDispositionRow,
+): ShoppingTripDisplayDisposition {
+  return {
+    tripId: requiredString(row.tripId, 'shopping_trip_display_dispositions.trip_id'),
+    pushDeviceId: requiredString(row.pushDeviceId, 'shopping_trip_display_dispositions.push_device_id'),
+    resident: requiredResident(row.resident, 'shopping_trip_display_dispositions.resident'),
+    kind: requiredDisplayDispositionKind(row.kind),
+    remoteStartCount: requiredInteger(row.remoteStartCount, 'shopping_trip_display_dispositions.remote_start_count'),
+  };
+}
+
 function shoppingTripItemFromRow(row: ShoppingTripItemRow): ShoppingTripItemSnapshot {
   return {
     id: requiredString(row.id, 'shopping_trip_items.id'),
@@ -515,6 +668,14 @@ function requiredResident(value: unknown, fieldName: string): ShoppingTripReside
   }
 
   throw new Error(`Expected ${fieldName} to be Josh or Mallory.`);
+}
+
+function requiredDisplayDispositionKind(value: unknown): ShoppingTripDisplayDispositionKind {
+  if (value === 'start_locally' || value === 'remote_start_pending') {
+    return value;
+  }
+
+  throw new Error('Expected shopping trip display disposition kind to be valid.');
 }
 
 function optionalResident(value: unknown, fieldName: string): ShoppingTripResident | null {

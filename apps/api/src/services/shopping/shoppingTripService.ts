@@ -1,5 +1,7 @@
 import type {
   CompleteShoppingTripPersistenceRequest,
+  ClaimShoppingTripDisplayRequest,
+  ShoppingTripDisplayDisposition,
   ShoppingTripMutationResponse,
   ShoppingTripSnapshot,
   StartShoppingTripPersistenceRequest,
@@ -10,18 +12,34 @@ import {
   type ShoppingTripStore,
 } from '../../repositories/shoppingTripRepository.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
+import type { ShoppingLiveActivityDeliveryService } from './shoppingLiveActivityDeliveryService.js';
 
 export type ShoppingTripService = {
   getActiveTrip: () => Promise<ShoppingTripSnapshot | null>;
   startTrip: (request: StartShoppingTripPersistenceRequest) => Promise<ShoppingTripMutationResponse>;
+  claimTripDisplay: (request: ClaimShoppingTripDisplayRequest) => Promise<ShoppingTripDisplayDisposition | null>;
   endTrip: (request: CompleteShoppingTripPersistenceRequest) => Promise<ShoppingTripMutationResponse>;
 };
 
 export function createShoppingTripService(options: {
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  shoppingLiveActivityDeliveryService?: Pick<ShoppingLiveActivityDeliveryService, 'enqueueEvent'>;
   shoppingTripStore: ShoppingTripStore;
 }): ShoppingTripService {
-  const { shoppingListRealtime, shoppingTripStore } = options;
+  const { shoppingListRealtime, shoppingLiveActivityDeliveryService, shoppingTripStore } = options;
+  const displayForStartRequest = async (
+    trip: ShoppingTripSnapshot,
+    request: StartShoppingTripPersistenceRequest,
+  ): Promise<ShoppingTripDisplayDisposition | undefined> => {
+    if (!request.originatingPushDeviceId) {
+      return undefined;
+    }
+    return (await shoppingTripStore.claimDisplay({
+      tripId: trip.id,
+      resident: request.startedBy,
+      pushDeviceId: request.originatingPushDeviceId,
+    })) ?? undefined;
+  };
 
   return {
     async getActiveTrip() {
@@ -31,19 +49,42 @@ export function createShoppingTripService(options: {
       const replay = await shoppingTripStore.fetchTripByStartMutationId(request.mutationId);
 
       if (replay) {
-        return tripMutationResponse(replay, request.mutationId, replay.status === 'active' ? replay : null);
+        return tripMutationResponse(
+          replay,
+          request.mutationId,
+          replay.status === 'active' ? replay : null,
+          await displayForStartRequest(replay, request),
+        );
       }
 
       const activeTrip = await shoppingTripStore.fetchActiveTrip();
 
       if (activeTrip) {
-        return tripMutationResponse(activeTrip, request.mutationId, activeTrip);
+        return tripMutationResponse(
+          activeTrip,
+          request.mutationId,
+          activeTrip,
+          await displayForStartRequest(activeTrip, request),
+        );
       }
 
       try {
-        const trip = await shoppingTripStore.startTrip(request);
+        const startResult = request.originatingPushDeviceId
+          ? await shoppingTripStore.startTripWithDisplay({
+            ...request,
+            originatingPushDeviceId: request.originatingPushDeviceId,
+          })
+          : { trip: await shoppingTripStore.startTrip(request), displayDisposition: undefined };
+        const trip = startResult.trip;
         shoppingListRealtime?.broadcastTripStarted(trip, request.mutationId);
-        return tripMutationResponse(trip, request.mutationId, trip);
+        if (startResult.displayDisposition?.remoteStartCount) {
+          await shoppingLiveActivityDeliveryService?.enqueueEvent({
+            event: 'start',
+            trip,
+            excludeResident: request.startedBy,
+          });
+        }
+        return tripMutationResponse(trip, request.mutationId, trip, startResult.displayDisposition);
       } catch (error) {
         if (error instanceof ShoppingTripHasNoNeededItemsError) {
           throw new HTTPError(409, error.message, 'shopping_trip_has_no_needed_items');
@@ -57,18 +98,27 @@ export function createShoppingTripService(options: {
               sameMutationTrip,
               request.mutationId,
               sameMutationTrip.status === 'active' ? sameMutationTrip : null,
+              await displayForStartRequest(sameMutationTrip, request),
             );
           }
 
           const concurrentlyStartedTrip = await shoppingTripStore.fetchActiveTrip();
 
           if (concurrentlyStartedTrip) {
-            return tripMutationResponse(concurrentlyStartedTrip, request.mutationId, concurrentlyStartedTrip);
+            return tripMutationResponse(
+              concurrentlyStartedTrip,
+              request.mutationId,
+              concurrentlyStartedTrip,
+              await displayForStartRequest(concurrentlyStartedTrip, request),
+            );
           }
         }
 
         throw error;
       }
+    },
+    async claimTripDisplay(request) {
+      return shoppingTripStore.claimDisplay(request);
     },
     async endTrip(request) {
       const replay = await shoppingTripStore.fetchTripByEndMutationId(request.mutationId);
@@ -115,12 +165,14 @@ function tripMutationResponse(
   trip: ShoppingTripSnapshot,
   mutationId: string,
   activeTrip: ShoppingTripSnapshot | null,
+  displayDisposition?: ShoppingTripDisplayDisposition,
 ): ShoppingTripMutationResponse {
   return {
     ok: true,
     trip,
     activeTrip,
     mutationId,
+    ...(displayDisposition ? { displayDisposition } : {}),
     generatedAt: new Date().toISOString(),
   };
 }

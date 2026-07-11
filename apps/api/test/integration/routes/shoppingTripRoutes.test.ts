@@ -6,7 +6,10 @@ import { createApp } from '../../../src/app.js';
 import type { DatabaseQuery } from '../../../src/db/client.js';
 import { createPostgresShoppingListStore } from '../../../src/repositories/shoppingListRepository.js';
 import { createPostgresShoppingTripStore } from '../../../src/repositories/shoppingTripRepository.js';
+import { createPostgresPushDeviceRepository } from '../../../src/repositories/pushDeviceRepository.js';
+import { createDeviceRegistry } from '../../../src/services/notifications/deviceRegistry.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../../src/shoppingListRealtime.js';
+import type { ShoppingLiveActivityDeliveryService } from '../../../src/services/shopping/shoppingLiveActivityDeliveryService.js';
 import { createRouteTestHarness } from '../../support/routeTestHarness.js';
 import {
   createDisposableShoppingDatabase,
@@ -97,6 +100,54 @@ test('start rejects an empty needed list with the documented domain error', asyn
   });
 });
 
+test('start reserves one local display and a counterpart remote-start disposition', async () => {
+  await seedShoppingItem(disposable.database, 'Pasta');
+  await seedAPNsDevice(disposable.database, 'device-josh', 'josh');
+  await seedAPNsDevice(disposable.database, 'device-mallory', 'mallory');
+  await disposable.database`
+    INSERT INTO shopping_live_activity_registrations (
+      push_device_id, resident, environment, token_type, trip_id, token, token_hash
+    )
+    VALUES ('device-mallory', 'Mallory', 'sandbox', 'push_to_start', NULL, ${'a'.repeat(64)}, 'mallory-start-hash')
+  `;
+  const queuedEvents: Array<{ event: string; excludeResident?: string }> = [];
+  await routes.restart(createShoppingTripApp({
+    deliveryService: {
+      start() {},
+      stop() {},
+      async register() { throw new Error('not used by this test'); },
+      async enqueueEvent(options) {
+        queuedEvents.push({ event: options.event, excludeResident: options.excludeResident });
+        return [];
+      },
+      async processPending() {},
+    },
+  }));
+
+  const started = await routes.postJSON('/api/shopping-list/trip/start', {
+    actor: 'Josh',
+    mutationId: randomUUID(),
+    originatingPushDeviceId: 'device-josh',
+  });
+  const concurrent = await routes.postJSON('/api/shopping-list/trip/start', {
+    actor: 'Mallory',
+    mutationId: randomUUID(),
+    originatingPushDeviceId: 'device-mallory',
+  });
+
+  assert.equal(started.displayDisposition.kind, 'start_locally');
+  assert.equal(started.displayDisposition.remoteStartCount, 1);
+  assert.equal(concurrent.trip.id, started.trip.id);
+  assert.equal(concurrent.displayDisposition.kind, 'remote_start_pending');
+  assert.deepEqual(queuedEvents, [{ event: 'start', excludeResident: 'Josh' }]);
+
+  const claim = await routes.postJSON(`/api/shopping-list/trip/${started.trip.id}/display/claim`, {
+    actor: 'Mallory',
+    pushDeviceId: 'device-mallory',
+  });
+  assert.equal(claim.displayDisposition.kind, 'remote_start_pending');
+});
+
 test('end is durable and idempotent, and a wrong trip id is rejected', async () => {
   await seedShoppingItem(disposable.database, 'Eggs');
   const started = await routes.postJSON('/api/shopping-list/trip/start', {
@@ -142,7 +193,9 @@ test('end is durable and idempotent, and a wrong trip id is rejected', async () 
   });
 });
 
-function createShoppingTripApp() {
+function createShoppingTripApp(options: {
+  deliveryService?: ShoppingLiveActivityDeliveryService;
+} = {}) {
   const shoppingTripStore = createPostgresShoppingTripStore({
     database: disposable.database,
     transactionRunner: disposable.transactionRunner,
@@ -153,7 +206,18 @@ function createShoppingTripApp() {
     shoppingListStore: createPostgresShoppingListStore(disposable.database),
     shoppingListRealtime: recordingRealtimeBroadcaster(broadcasts),
     shoppingTripStore,
+    ...(options.deliveryService ? { shoppingLiveActivityDeliveryService: options.deliveryService } : {}),
+    deviceRegistry: createDeviceRegistry(createPostgresPushDeviceRepository(disposable.database)),
   });
+}
+
+async function seedAPNsDevice(database: DatabaseQuery, id: string, suffix: string): Promise<void> {
+  await database`
+    INSERT INTO push_devices (
+      id, lookup_key, token_hash, token, platform, provider, environment, registered_at, last_seen_at
+    )
+    VALUES (${id}, ${`apns:sandbox:${suffix}`}, ${`${suffix}-ordinary-hash`}, ${`${suffix}-ordinary-token`}, 'ios', 'apns', 'sandbox', now(), now())
+  `;
 }
 
 async function seedShoppingItem(database: DatabaseQuery, name: string): Promise<void> {

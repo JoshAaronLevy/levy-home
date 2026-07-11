@@ -855,6 +855,17 @@ Make **New** create a durable trip and start the correct local and remote Live A
 - One shared trip starts from either resident's phone.
 - Starting and display delivery have honest, separate success states.
 
+### Implementation Status — 2026-07-11
+
+- Added **apps/api/migrations/2026-07-11-003-shopping-trip-display-dispositions.sql**. The start transaction now records **start_locally** for the originating APNs device and a **remote_start_pending** row for every counterpart device with an active static ActivityKit start token before the canonical trip response is returned.
+- **POST /api/shopping-list/trip/start** accepts the originating push-device ID and returns its durable display disposition. A concurrent/replayed start claims that same device’s existing disposition instead of creating a second trip or local Activity. **POST /api/shopping-list/trip/:tripId/display/claim** provides the bounded relaunch/foreground recovery path for an active trip whose local display is missing.
+- After a new trip commits, the backend queues only counterpart Live Activity start work through the existing durable dispatcher. The trip remains successful when no counterpart start token is available; the response carries a zero remote-start count rather than claiming that the remote display started.
+- The Shopping UI now starts a trip from **New**, guards empty lists and a not-yet-registered originating device with clear in-app messages, and presents the canonical active-trip state. While active, the summary changes to **End Shop**, shows picked-up/remaining counts, picked-up estimate, and the resident who started it.
+- The app uses the shared, app-scoped Activity coordinator to start or recover a local Activity only after a **start_locally** disposition. A **remote_start_pending** result waits for the already-persisted remote start, preventing the counterpart from creating a competing local Activity. Revisit, foreground, Live WebSocket trip messages, and relaunch recovery all claim/reconcile the current display without creating another backend trip; duplicate local displays for a trip are retired.
+- Added the **levyhome://shopping** URL scheme and routable Shopping tab handling for Live Activity taps. The temporary local sample controls have been removed from Developer tools; the remote delivery diagnostics remain for APNs proof.
+- Added API route and Swift view-model coverage for local/remote disposition, dispatch handoff, missing needed items, missing device registration, and API failure. API typecheck/build and all **138** API tests pass; the full iOS simulator suite passes.
+- The new migration is not applied to the configured/deployed database and physical two-phone/APNs acceptance remains outstanding. Stage 6 must still make item mutations drive the durable trip counts and ActivityKit updates; the Stage 5 display state intentionally does not derive checkoffs from the current client list.
+
 ## Stage 6: Drive Counts And Estimate From Real Shopping Mutations
 
 ### Goal

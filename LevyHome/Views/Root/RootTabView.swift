@@ -14,7 +14,7 @@ struct RootTabView: View {
             .tag(RootTab.home)
 
             NavigationStack {
-                ShoppingListView()
+                ShoppingListView(isSelected: selectedTab == .list)
             }
             .tabItem {
                 Label("List", systemImage: "cart")
@@ -37,10 +37,17 @@ struct RootTabView: View {
             }
             .tag(RootTab.preferences)
         }
+        .onOpenURL { url in
+            guard url.scheme?.lowercased() == "levyhome" else { return }
+
+            if url.host?.lowercased() == "shopping" {
+                selectedTab = .list
+            }
+        }
     }
 }
 
-private enum RootTab: Hashable {
+enum RootTab: Hashable {
     case home
     case list
     case todo
@@ -58,4 +65,5 @@ private enum RootTab: Hashable {
             )
         )
         .environmentObject(ShoppingLiveActivityCoordinator())
+        .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
 }
