@@ -1,0 +1,300 @@
+alias: Dance Party
+description: ""
+triggers:
+  - device_id: ee72ba40cc36a54ae191ef712850239c
+    domain: lutron_caseta
+    type: press
+    subtype: stop
+    trigger: device
+    id: start_dance_party
+  - device_id: ee72ba40cc36a54ae191ef712850239c
+    domain: lutron_caseta
+    type: press
+    subtype: "off"
+    trigger: device
+    id: stop_dance_party
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: stop_dance_party
+        sequence:
+          - action: light.turn_off
+            metadata: {}
+            target:
+              entity_id:
+                - light.playroom_1
+                - light.playroom_2
+                - light.playroom_3
+                - light.playroom_4
+                - light.foyer_entry_1
+                - light.foyer_entry_2
+                - light.foyer_entry_3
+                - light.foyer_stairway_1
+                - light.foyer_stairway_2
+                - light.foyer_stairway_3
+                - light.garage_entry_light
+                - light.kitchen_sink
+                - light.kitchen_main_1
+                - light.kitchen_main_2
+                - light.kitchen_main_3
+                - light.kitchen_main_4
+                - light.kitchen_nook_1
+                - light.kitchen_nook_2
+                - light.kitchen_nook_3
+            data:
+              transition: 0.3
+      - conditions:
+          - condition: trigger
+            id: start_dance_party
+        sequence:
+          - action: light.turn_on
+            metadata: {}
+            target:
+              entity_id:
+                - light.playroom_1
+                - light.playroom_2
+                - light.playroom_3
+                - light.playroom_4
+                - light.foyer_entry_1
+                - light.foyer_entry_2
+                - light.foyer_entry_3
+                - light.foyer_stairway_1
+                - light.foyer_stairway_2
+                - light.foyer_stairway_3
+                - light.garage_entry_light
+                - light.kitchen_sink
+                - light.kitchen_main_1
+                - light.kitchen_main_2
+                - light.kitchen_main_3
+                - light.kitchen_main_4
+                - light.kitchen_nook_1
+                - light.kitchen_nook_2
+                - light.kitchen_nook_3
+            data:
+              brightness_pct: 100
+              transition: 0.1
+          - repeat:
+              count: 540
+              sequence:
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.playroom_1
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(75, 101) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.playroom_2
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(75, 101) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.playroom_3
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(75, 101) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.playroom_4
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(75, 101) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.foyer_entry_1
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.foyer_entry_2
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.foyer_entry_3
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.foyer_stairway_1
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.foyer_stairway_2
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.foyer_stairway_3
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.garage_entry_light
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_sink
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_main_1
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_main_2
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_main_3
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_main_4
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_nook_1
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_nook_2
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - action: light.turn_on
+                  metadata: {}
+                  target:
+                    entity_id: light.kitchen_nook_3
+                  data:
+                    hs_color:
+                      - "{{ range(0, 361) | random }}"
+                      - 100
+                    brightness_pct: "{{ range(65, 96) | random }}"
+                    transition: 0
+                - delay:
+                    milliseconds: 250
+          - action: light.turn_on
+            metadata: {}
+            target:
+              entity_id:
+                - light.playroom_1
+                - light.playroom_2
+                - light.playroom_3
+                - light.playroom_4
+                - light.foyer_entry_1
+                - light.foyer_entry_2
+                - light.foyer_entry_3
+                - light.foyer_stairway_1
+                - light.foyer_stairway_2
+                - light.foyer_stairway_3
+                - light.garage_entry_light
+                - light.kitchen_sink
+                - light.kitchen_main_1
+                - light.kitchen_main_2
+                - light.kitchen_main_3
+                - light.kitchen_main_4
+                - light.kitchen_nook_1
+                - light.kitchen_nook_2
+                - light.kitchen_nook_3
+            data:
+              color_temp_kelvin: 4000
+              brightness_pct: 75
+              transition: 1
+mode: restart
