@@ -1,0 +1,508 @@
+import type {
+  CompleteShoppingTripPersistenceRequest,
+  ShoppingItemEstimate,
+  ShoppingItemStoreListing,
+  ShoppingListItem,
+  ShoppingTripItemSnapshot,
+  ShoppingTripItemState,
+  ShoppingTripResident,
+  ShoppingTripSnapshot,
+  ShoppingTripStatus,
+  StartShoppingTripPersistenceRequest,
+} from '../contracts.js';
+import {
+  getDatabaseClient,
+  getDatabaseTransactionRunner,
+  type DatabaseQuery,
+  type DatabaseTransactionRunner,
+} from '../db/client.js';
+import {
+  optionalISOString,
+  optionalInteger,
+  optionalString,
+  requiredInteger,
+  requiredString,
+} from '../db/rowReaders.js';
+import { fetchNeededShoppingListItems } from './shoppingListRepository.js';
+
+export type ShoppingTripStore = {
+  fetchActiveTrip: () => Promise<ShoppingTripSnapshot | null>;
+  fetchTrip: (tripId: string) => Promise<ShoppingTripSnapshot | null>;
+  fetchTripItems: (tripId: string) => Promise<ShoppingTripItemSnapshot[]>;
+  startTrip: (request: StartShoppingTripPersistenceRequest) => Promise<ShoppingTripSnapshot>;
+  completeTrip: (
+    request: CompleteShoppingTripPersistenceRequest,
+  ) => Promise<ShoppingTripSnapshot | null>;
+};
+
+type ShoppingTripAggregateRow = Record<string, unknown> & {
+  id: unknown;
+  status: unknown;
+  startedBy: unknown;
+  startedAt: unknown;
+  endedBy: unknown;
+  endedAt: unknown;
+  pickedUpCount: unknown;
+  remainingCount: unknown;
+  totalItemCount: unknown;
+  estimatedTotalCents: unknown;
+  pricedPickedItemCount: unknown;
+  unpricedPickedItemCount: unknown;
+  currencyCode: unknown;
+  version: unknown;
+};
+
+type ShoppingTripIDRow = Record<string, unknown> & {
+  id: unknown;
+};
+
+type ShoppingTripItemRow = Record<string, unknown> & {
+  id: unknown;
+  tripId: unknown;
+  shoppingItemId: unknown;
+  name: unknown;
+  quantity: unknown;
+  estimatedUnitPriceCents: unknown;
+  priceSource: unknown;
+  storeId: unknown;
+  state: unknown;
+  pickedUpBy: unknown;
+  pickedUpAt: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
+};
+
+export class ShoppingTripHasNoNeededItemsError extends Error {
+  constructor() {
+    super('A shopping trip requires at least one needed item.');
+    this.name = 'ShoppingTripHasNoNeededItemsError';
+  }
+}
+
+export function createPostgresShoppingTripStore(options: {
+  database?: DatabaseQuery;
+  transactionRunner?: DatabaseTransactionRunner;
+} = {}): ShoppingTripStore {
+  if (Boolean(options.database) !== Boolean(options.transactionRunner)) {
+    throw new Error('database and transactionRunner must be injected together.');
+  }
+
+  const query = () => options.database ?? getDatabaseClient();
+  const transaction = () => options.transactionRunner ?? getDatabaseTransactionRunner();
+
+  return {
+    async fetchActiveTrip() {
+      return fetchActiveShoppingTrip(query());
+    },
+    async fetchTrip(tripId) {
+      return fetchShoppingTrip(query(), tripId);
+    },
+    async fetchTripItems(tripId) {
+      return fetchShoppingTripItems(query(), tripId);
+    },
+    async startTrip(request) {
+      return transaction()((database) => createShoppingTrip(database, request));
+    },
+    async completeTrip(request) {
+      return transaction()((database) => completeShoppingTrip(database, request));
+    },
+  };
+}
+
+export async function createShoppingTrip(
+  database: DatabaseQuery,
+  request: StartShoppingTripPersistenceRequest,
+): Promise<ShoppingTripSnapshot> {
+  const [tripRow] = await database<ShoppingTripIDRow>`
+    INSERT INTO shopping_trips (
+      started_by,
+      start_mutation_id,
+      currency_code
+    )
+    VALUES (
+      ${request.startedBy},
+      ${request.mutationId},
+      ${request.currencyCode ?? 'USD'}
+    )
+    RETURNING id
+  `;
+
+  const tripId = requiredString(tripRow?.id, 'shopping_trips.id');
+  const neededItems = await fetchNeededShoppingListItems(database);
+
+  if (neededItems.length === 0) {
+    throw new ShoppingTripHasNoNeededItemsError();
+  }
+
+  for (const [position, item] of neededItems.entries()) {
+    await insertShoppingTripItemSnapshot(database, tripId, position, item);
+  }
+
+  return requireShoppingTrip(
+    await fetchShoppingTrip(database, tripId),
+    'create',
+  );
+}
+
+export async function completeShoppingTrip(
+  database: DatabaseQuery,
+  request: CompleteShoppingTripPersistenceRequest,
+): Promise<ShoppingTripSnapshot | null> {
+  const [tripRow] = await database<ShoppingTripIDRow>`
+    UPDATE shopping_trips
+    SET
+      status = 'completed',
+      ended_by = ${request.endedBy},
+      ended_at = now(),
+      end_mutation_id = ${request.mutationId},
+      summary_recipient = ${request.summaryRecipient ?? null},
+      version = version + 1
+    WHERE id = ${request.tripId}
+      AND status = 'active'
+    RETURNING id
+  `;
+
+  if (!tripRow) {
+    return null;
+  }
+
+  return fetchShoppingTrip(database, requiredString(tripRow.id, 'shopping_trips.id'));
+}
+
+export async function fetchActiveShoppingTrip(
+  database: DatabaseQuery,
+): Promise<ShoppingTripSnapshot | null> {
+  const [row] = await database<ShoppingTripAggregateRow>`
+    SELECT
+      trip.id,
+      trip.status,
+      trip.started_by AS "startedBy",
+      trip.started_at AS "startedAt",
+      trip.ended_by AS "endedBy",
+      trip.ended_at AS "endedAt",
+      COUNT(item.id) FILTER (WHERE item.state = 'picked_up')::integer AS "pickedUpCount",
+      COUNT(item.id) FILTER (WHERE item.state = 'remaining')::integer AS "remainingCount",
+      COUNT(item.id) FILTER (WHERE item.state IN ('remaining', 'picked_up'))::integer AS "totalItemCount",
+      COALESCE(
+        SUM(item.estimated_unit_price_cents * item.quantity_snapshot)
+          FILTER (WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NOT NULL),
+        0
+      )::bigint AS "estimatedTotalCents",
+      COUNT(item.id) FILTER (
+        WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NOT NULL
+      )::integer AS "pricedPickedItemCount",
+      COUNT(item.id) FILTER (
+        WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NULL
+      )::integer AS "unpricedPickedItemCount",
+      trip.currency_code AS "currencyCode",
+      trip.version
+    FROM shopping_trips trip
+    LEFT JOIN shopping_trip_items item ON item.trip_id = trip.id
+    WHERE trip.status = 'active'
+    GROUP BY trip.id
+    ORDER BY trip.started_at DESC
+    LIMIT 1
+  `;
+
+  return row ? shoppingTripFromRow(row) : null;
+}
+
+export async function fetchShoppingTrip(
+  database: DatabaseQuery,
+  tripId: string,
+): Promise<ShoppingTripSnapshot | null> {
+  const [row] = await database<ShoppingTripAggregateRow>`
+    SELECT
+      trip.id,
+      trip.status,
+      trip.started_by AS "startedBy",
+      trip.started_at AS "startedAt",
+      trip.ended_by AS "endedBy",
+      trip.ended_at AS "endedAt",
+      COUNT(item.id) FILTER (WHERE item.state = 'picked_up')::integer AS "pickedUpCount",
+      COUNT(item.id) FILTER (WHERE item.state = 'remaining')::integer AS "remainingCount",
+      COUNT(item.id) FILTER (WHERE item.state IN ('remaining', 'picked_up'))::integer AS "totalItemCount",
+      COALESCE(
+        SUM(item.estimated_unit_price_cents * item.quantity_snapshot)
+          FILTER (WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NOT NULL),
+        0
+      )::bigint AS "estimatedTotalCents",
+      COUNT(item.id) FILTER (
+        WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NOT NULL
+      )::integer AS "pricedPickedItemCount",
+      COUNT(item.id) FILTER (
+        WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NULL
+      )::integer AS "unpricedPickedItemCount",
+      trip.currency_code AS "currencyCode",
+      trip.version
+    FROM shopping_trips trip
+    LEFT JOIN shopping_trip_items item ON item.trip_id = trip.id
+    WHERE trip.id = ${tripId}
+    GROUP BY trip.id
+    LIMIT 1
+  `;
+
+  return row ? shoppingTripFromRow(row) : null;
+}
+
+export async function fetchShoppingTripItems(
+  database: DatabaseQuery,
+  tripId: string,
+): Promise<ShoppingTripItemSnapshot[]> {
+  const rows = await database<ShoppingTripItemRow>`
+    SELECT
+      id,
+      trip_id AS "tripId",
+      shopping_item_id AS "shoppingItemId",
+      name_snapshot AS "name",
+      quantity_snapshot AS "quantity",
+      estimated_unit_price_cents AS "estimatedUnitPriceCents",
+      price_source AS "priceSource",
+      store_id AS "storeId",
+      state,
+      picked_up_by AS "pickedUpBy",
+      picked_up_at AS "pickedUpAt",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM shopping_trip_items
+    WHERE trip_id = ${tripId}
+    ORDER BY snapshot_position ASC
+  `;
+
+  return rows.map(shoppingTripItemFromRow);
+}
+
+export function estimateShoppingItem(item: Pick<ShoppingListItem, 'storeListings'>): ShoppingItemEstimate {
+  let selected:
+    | {
+        listing: ShoppingItemStoreListing;
+        price: number;
+        cents: number;
+      }
+    | undefined;
+
+  for (const listing of item.storeListings) {
+    const promo = validListingPrice(listing.price?.promo);
+    const regular = validListingPrice(listing.price?.regular);
+    const price = promo ?? regular;
+
+    if (price === undefined) {
+      continue;
+    }
+
+    const cents = priceToCents(price);
+
+    if (cents === null || (selected && price <= selected.price)) {
+      continue;
+    }
+
+    selected = { listing, price, cents };
+  }
+
+  if (!selected) {
+    return {
+      estimatedUnitPriceCents: null,
+      priceSource: null,
+      storeId: null,
+    };
+  }
+
+  return {
+    estimatedUnitPriceCents: selected.cents,
+    priceSource: listingPriceSource(selected.listing),
+    storeId: positiveInteger(selected.listing.storeId) ?? null,
+  };
+}
+
+export function priceToCents(price: number): number | null {
+  if (!Number.isFinite(price) || price < 0) {
+    return null;
+  }
+
+  const cents = Math.round((price + Number.EPSILON) * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+async function insertShoppingTripItemSnapshot(
+  database: DatabaseQuery,
+  tripId: string,
+  snapshotPosition: number,
+  item: ShoppingListItem,
+): Promise<void> {
+  const name = item.name.trim();
+
+  if (!name) {
+    throw new Error(`Shopping item ${item.id} has a blank name.`);
+  }
+
+  if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+    throw new Error(`Shopping item ${item.id} has an invalid quantity.`);
+  }
+
+  const estimate = estimateShoppingItem(item);
+
+  await database`
+    INSERT INTO shopping_trip_items (
+      trip_id,
+      shopping_item_id,
+      snapshot_position,
+      name_snapshot,
+      quantity_snapshot,
+      estimated_unit_price_cents,
+      price_source,
+      store_id,
+      state
+    )
+    VALUES (
+      ${tripId},
+      ${item.id},
+      ${snapshotPosition},
+      ${name},
+      ${item.quantity},
+      ${estimate.estimatedUnitPriceCents},
+      ${estimate.priceSource},
+      ${estimate.storeId},
+      'remaining'
+    )
+  `;
+}
+
+function shoppingTripFromRow(row: ShoppingTripAggregateRow): ShoppingTripSnapshot {
+  return {
+    id: requiredString(row.id, 'shopping_trips.id'),
+    status: requiredTripStatus(row.status),
+    startedBy: requiredResident(row.startedBy, 'shopping_trips.started_by'),
+    startedAt: requiredISOString(row.startedAt, 'shopping_trips.started_at'),
+    endedBy: optionalResident(row.endedBy, 'shopping_trips.ended_by'),
+    endedAt: nullableISOString(row.endedAt, 'shopping_trips.ended_at'),
+    pickedUpCount: requiredInteger(row.pickedUpCount, 'shopping_trip_items.picked_up_count'),
+    remainingCount: requiredInteger(row.remainingCount, 'shopping_trip_items.remaining_count'),
+    totalItemCount: requiredInteger(row.totalItemCount, 'shopping_trip_items.total_item_count'),
+    estimatedTotalCents: requiredSafeInteger(
+      row.estimatedTotalCents,
+      'shopping_trip_items.estimated_total_cents',
+    ),
+    pricedPickedItemCount: requiredInteger(
+      row.pricedPickedItemCount,
+      'shopping_trip_items.priced_picked_item_count',
+    ),
+    unpricedPickedItemCount: requiredInteger(
+      row.unpricedPickedItemCount,
+      'shopping_trip_items.unpriced_picked_item_count',
+    ),
+    currencyCode: requiredString(row.currencyCode, 'shopping_trips.currency_code'),
+    version: requiredInteger(row.version, 'shopping_trips.version'),
+  };
+}
+
+function shoppingTripItemFromRow(row: ShoppingTripItemRow): ShoppingTripItemSnapshot {
+  return {
+    id: requiredString(row.id, 'shopping_trip_items.id'),
+    tripId: requiredString(row.tripId, 'shopping_trip_items.trip_id'),
+    shoppingItemId: optionalInteger(row.shoppingItemId) ?? null,
+    name: requiredString(row.name, 'shopping_trip_items.name_snapshot'),
+    quantity: requiredInteger(row.quantity, 'shopping_trip_items.quantity_snapshot'),
+    estimatedUnitPriceCents:
+      row.estimatedUnitPriceCents === null
+        ? null
+        : requiredSafeInteger(
+            row.estimatedUnitPriceCents,
+            'shopping_trip_items.estimated_unit_price_cents',
+          ),
+    priceSource: optionalString(row.priceSource) ?? null,
+    storeId: optionalInteger(row.storeId) ?? null,
+    state: requiredTripItemState(row.state),
+    pickedUpBy: optionalResident(row.pickedUpBy, 'shopping_trip_items.picked_up_by'),
+    pickedUpAt: nullableISOString(row.pickedUpAt, 'shopping_trip_items.picked_up_at'),
+    createdAt: requiredISOString(row.createdAt, 'shopping_trip_items.created_at'),
+    updatedAt: requiredISOString(row.updatedAt, 'shopping_trip_items.updated_at'),
+  };
+}
+
+function validListingPrice(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function listingPriceSource(listing: ShoppingItemStoreListing): string {
+  return (
+    optionalString(listing.source)?.trim()
+    || optionalString(listing.storeName)?.trim()
+    || 'store_listing'
+  );
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const integer = optionalInteger(value);
+  return integer !== undefined && integer > 0 ? integer : undefined;
+}
+
+function requiredSafeInteger(value: unknown, fieldName: string): number {
+  const number = typeof value === 'string' && value.trim() ? Number(value) : value;
+
+  if (typeof number !== 'number' || !Number.isSafeInteger(number)) {
+    throw new Error(`Expected ${fieldName} to be a safe integer.`);
+  }
+
+  return number;
+}
+
+function requiredISOString(value: unknown, fieldName: string): string {
+  const date = optionalISOString(value);
+
+  if (!date) {
+    throw new Error(`Expected ${fieldName} to be an ISO timestamp.`);
+  }
+
+  return date;
+}
+
+function nullableISOString(value: unknown, fieldName: string): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return requiredISOString(value, fieldName);
+}
+
+function requiredResident(value: unknown, fieldName: string): ShoppingTripResident {
+  if (value === 'Josh' || value === 'Mallory') {
+    return value;
+  }
+
+  throw new Error(`Expected ${fieldName} to be Josh or Mallory.`);
+}
+
+function optionalResident(value: unknown, fieldName: string): ShoppingTripResident | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return requiredResident(value, fieldName);
+}
+
+function requiredTripStatus(value: unknown): ShoppingTripStatus {
+  if (value === 'active' || value === 'completed') {
+    return value;
+  }
+
+  throw new Error('Expected shopping_trips.status to be active or completed.');
+}
+
+function requiredTripItemState(value: unknown): ShoppingTripItemState {
+  if (value === 'remaining' || value === 'picked_up' || value === 'removed') {
+    return value;
+  }
+
+  throw new Error('Expected shopping_trip_items.state to be remaining, picked_up, or removed.');
+}
+
+function requireShoppingTrip(
+  trip: ShoppingTripSnapshot | null,
+  operation: string,
+): ShoppingTripSnapshot {
+  if (!trip) {
+    throw new Error(`Expected shopping trip ${operation} to return a row.`);
+  }
+
+  return trip;
+}

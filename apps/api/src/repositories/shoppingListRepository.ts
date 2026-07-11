@@ -148,6 +148,32 @@ export async function fetchShoppingListItem(
   return row ? shoppingListItemFromRow(row) : null;
 }
 
+export async function fetchNeededShoppingListItems(
+  database: DatabaseQuery,
+): Promise<ShoppingListItem[]> {
+  const rows = await database<ShoppingListRow>`
+    SELECT
+      item.id,
+      item.name,
+      item.brand,
+      item.quantity,
+      item.notes,
+      item.purchased,
+      COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
+      to_jsonb(item) ->> 'version' AS "version",
+      item.category_id AS "categoryId",
+      to_jsonb(item) ->> 'image' AS "image",
+      to_jsonb(item) -> 'store_listings' AS "storeListings"
+    FROM shopping_list item
+    WHERE item.purchased = false
+    ORDER BY item.id ASC
+    FOR SHARE
+  `;
+
+  return rows.map(shoppingListItemFromRow);
+}
+
 export async function findShoppingListItemByName(
   database: DatabaseQuery,
   name: string,

@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: Stage 1 is implemented in code as of 2026-07-11. Automated build, embedding, signing, install, and test checks pass; the manual physical-phone Lock Screen, Dynamic Island, and disabled-setting observations remain. Stages 2-9 are planning only, and no database, API, Render, or Home Assistant change has been made.
+Status: Stages 1 and 2 are implemented in code as of 2026-07-11. Stage 1 automated build, embedding, signing, install, and test checks pass; its manual physical-phone Lock Screen, Dynamic Island, and disabled-setting observations remain. Stage 2 migration and repository tests pass against a disposable Postgres-compatible database, but the migration has not been applied to the deployed database. Stages 3-9 remain planning only, and no Render or Home Assistant change has been made.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -308,6 +308,7 @@ Recommended fields:
 | **id** | Stable UUID for the trip snapshot row. |
 | **trip_id** | Parent shopping trip. |
 | **shopping_item_id** | Nullable reference to the global Shopping row; use **ON DELETE SET NULL** to preserve history. |
+| **snapshot_position** | Stable zero-based ordering captured when the trip starts. |
 | **name_snapshot** | Name used in the trip summary/history. |
 | **quantity_snapshot** | Quantity used by the estimate. |
 | **estimated_unit_price_cents** | Nullable integer-cents snapshot. |
@@ -651,6 +652,16 @@ Create one backend-owned trip model before any user-facing start action depends 
 - One active-trip enforcement exists in Postgres, not only in process memory.
 - Trip aggregates are generated from snapshot rows without a second cached source of truth.
 - No ActivityKit or UI behavior depends on client-computed counts.
+
+### Implementation Status — 2026-07-11
+
+- Added **apps/api/migrations/2026-07-11-001-shopping-trips.sql** with durable trip and item snapshots, one-active-trip enforcement, lookup/aggregation indexes, mutation IDs, history-preserving Shopping references, state-shape checks, and stable snapshot ordering.
+- Added **apps/api/src/contracts/shoppingTrips.ts** and **apps/api/src/repositories/shoppingTripRepository.ts** for active-trip reads, item snapshots, explicit completion persistence, and one-query canonical aggregates.
+- Added a transaction-capable database runner backed by one checked-out Postgres connection. Trip creation and Shopping-list snapshot reads use the same transaction-scoped tagged-query client.
+- Implemented the documented estimate rule in integer cents: valid promo before regular within each listing, highest usable listing across stores, quantity multiplication in the aggregate, and explicit priced/unpriced picked-item counts.
+- Added disposable-database integration coverage using the real migration. Tests prove persistence across repository reconstruction, database-level rejection of a second active trip, historical snapshot preservation after Shopping-row deletion, stable ordering, mixed price aggregation, empty-list rejection, and full rollback after an induced snapshot failure.
+- Added focused transaction and pricing unit tests. API typecheck, production build, and the full **127-test** API suite pass.
+- No Stage 3 route, service, WebSocket, APNs, ActivityKit, or iOS behavior was added. The migration is checked in but has not been run against the configured/deployed database; that remains a separate deployment action.
 
 ## Stage 3: Add Trip Services, Routes, Contracts, And Foreground Realtime
 
