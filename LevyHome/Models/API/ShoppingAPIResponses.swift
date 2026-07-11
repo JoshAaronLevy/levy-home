@@ -3,6 +3,7 @@ struct ShoppingListResponse: Codable, Equatable {
     let items: [ShoppingListItem]
     let stores: [ShoppingStore]
     let categories: [ShoppingCategory]
+    let activeTrip: ShoppingTrip? = nil
     let generatedAt: String?
 }
 
@@ -331,6 +332,7 @@ struct KrogerProductAisleLocation: Codable, Equatable {
 struct ShoppingListMutationResponse: Codable, Equatable {
     let ok: Bool
     let item: ShoppingListItem
+    let activeTrip: ShoppingTrip? = nil
     let mutationId: String
     let generatedAt: String?
     let push: PushDeliveryStatus?
@@ -340,9 +342,41 @@ struct DeleteShoppingListItemResponse: Codable, Equatable {
     let ok: Bool
     let itemId: Int
     let item: ShoppingListItem
+    let activeTrip: ShoppingTrip? = nil
     let mutationId: String
     let generatedAt: String?
     let push: PushDeliveryStatus?
+}
+
+struct ShoppingTrip: Codable, Equatable, Identifiable {
+    let id: String
+    let status: String
+    let startedBy: String
+    let startedAt: String
+    let endedBy: String?
+    let endedAt: String?
+    let pickedUpCount: Int
+    let remainingCount: Int
+    let totalItemCount: Int
+    let estimatedTotalCents: Int
+    let pricedPickedItemCount: Int
+    let unpricedPickedItemCount: Int
+    let currencyCode: String
+    let version: Int
+}
+
+struct ShoppingActiveTripResponse: Codable, Equatable {
+    let ok: Bool
+    let activeTrip: ShoppingTrip?
+    let generatedAt: String?
+}
+
+struct ShoppingTripMutationResponse: Codable, Equatable {
+    let ok: Bool
+    let trip: ShoppingTrip
+    let activeTrip: ShoppingTrip?
+    let mutationId: String
+    let generatedAt: String?
 }
 
 struct ShoppingStore: Codable, Equatable, Hashable, Identifiable {

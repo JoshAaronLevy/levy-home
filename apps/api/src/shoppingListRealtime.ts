@@ -3,7 +3,12 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 
-import type { ShoppingCategory, ShoppingListItem, ShoppingStore } from './contracts.js';
+import type {
+  ShoppingCategory,
+  ShoppingListItem,
+  ShoppingStore,
+  ShoppingTripSnapshot,
+} from './contracts.js';
 import { logger } from './observability/logger.js';
 
 export const SHOPPING_LIST_LIVE_PATH = '/api/shopping-list/live';
@@ -76,6 +81,24 @@ export type ShoppingListLiveMessage =
       categories: ShoppingCategory[];
       mutationId: string;
       serverTime: string;
+    }
+  | {
+      type: 'trip_started';
+      trip: ShoppingTripSnapshot;
+      mutationId: string;
+      serverTime: string;
+    }
+  | {
+      type: 'trip_updated';
+      trip: ShoppingTripSnapshot;
+      mutationId: string;
+      serverTime: string;
+    }
+  | {
+      type: 'trip_ended';
+      trip: ShoppingTripSnapshot;
+      mutationId: string;
+      serverTime: string;
     };
 
 export type ShoppingListRealtimeBroadcaster = {
@@ -84,6 +107,9 @@ export type ShoppingListRealtimeBroadcaster = {
   broadcastItemDeleted: (itemId: number, mutationId: string) => void;
   broadcastStoresChanged: (stores: ShoppingStore[], mutationId: string) => void;
   broadcastCategoriesChanged: (categories: ShoppingCategory[], mutationId: string) => void;
+  broadcastTripStarted: (trip: ShoppingTripSnapshot, mutationId: string) => void;
+  broadcastTripUpdated: (trip: ShoppingTripSnapshot, mutationId: string) => void;
+  broadcastTripEnded: (trip: ShoppingTripSnapshot, mutationId: string) => void;
 };
 
 export type ShoppingListRealtimeHub = ShoppingListRealtimeBroadcaster & {
@@ -301,7 +327,31 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
         serverTime: now(),
       });
     },
+    broadcastTripStarted(trip, mutationId) {
+      broadcastTripMessage('trip_started', trip, mutationId);
+    },
+    broadcastTripUpdated(trip, mutationId) {
+      broadcastTripMessage('trip_updated', trip, mutationId);
+    },
+    broadcastTripEnded(trip, mutationId) {
+      broadcastTripMessage('trip_ended', trip, mutationId);
+    },
   };
+
+  function broadcastTripMessage(
+    type: 'trip_started' | 'trip_updated' | 'trip_ended',
+    trip: ShoppingTripSnapshot,
+    mutationId: string,
+  ): void {
+    logRealtime('trip_broadcast', {
+      mutationType: type,
+      tripId: trip.id,
+      mutationId,
+      version: trip.version,
+      connectionCount: clients.size,
+    });
+    broadcast({ type, trip, mutationId, serverTime: now() });
+  }
 
   function expireStalePresence(): void {
     const cutoff = Date.now() - PRESENCE_TIMEOUT_MS;

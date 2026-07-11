@@ -69,6 +69,50 @@ final class APIClientTests: XCTestCase {
         XCTAssertNil(capturedRequests.first?.httpBody)
     }
 
+    func testShoppingTripMethodsBuildExpectedRequests() async throws {
+        MockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api-base/api/shopping-list/trip"):
+                return Self.response(for: request, json: #"{"ok":true,"activeTrip":null}"#)
+            case ("POST", "/api-base/api/shopping-list/trip/start"):
+                return Self.response(for: request, json: Self.shoppingTripMutationResponseJSON)
+            case ("POST", "/api-base/api/shopping-list/trip/end"):
+                return Self.response(for: request, json: Self.shoppingTripMutationResponseJSON)
+            default:
+                return Self.response(for: request, statusCode: 404, json: #"{"error":"Unhandled test path"}"#)
+            }
+        }
+
+        let tripId = "fca7f84a-8527-4a58-90b5-a78e4cde5b16"
+        let active = try await client.fetchActiveShoppingTrip()
+        let started = try await client.startShoppingTrip(
+            StartShoppingTripRequest(actor: "Josh", mutationId: "7dfadc16-69a0-448e-a5a9-c4eaf79d2e44")
+        )
+        let ended = try await client.endShoppingTrip(
+            EndShoppingTripRequest(
+                tripId: tripId,
+                actor: "Mallory",
+                mutationId: "cdfd06a5-27a9-4c86-9e2d-1b862b575dbb",
+                summaryRecipient: "Josh"
+            )
+        )
+
+        XCTAssertNil(active.activeTrip)
+        XCTAssertEqual(started.trip.id, tripId)
+        XCTAssertEqual(ended.trip.id, tripId)
+        XCTAssertEqual(capturedRequests.map { $0.url?.path }, [
+            "/api-base/api/shopping-list/trip",
+            "/api-base/api/shopping-list/trip/start",
+            "/api-base/api/shopping-list/trip/end"
+        ])
+        XCTAssertEqual(capturedRequests[1].jsonBody["actor"] as? String, "Josh")
+        XCTAssertEqual(capturedRequests[1].value(forHTTPHeaderField: "X-Levy-Home-Mutation-ID"), "7dfadc16-69a0-448e-a5a9-c4eaf79d2e44")
+        XCTAssertEqual(capturedRequests[2].jsonBody["tripId"] as? String, tripId)
+        XCTAssertEqual(capturedRequests[2].jsonBody["summaryRecipient"] as? String, "Josh")
+    }
+
     func testSupportsExpandedEndpointSurface() async throws {
         MockURLProtocol.requestHandler = { request in
             self.capturedRequests.append(request)
@@ -490,6 +534,33 @@ final class APIClientTests: XCTestCase {
             "isActive": true,
             "favoritedBy": [1, 2]
           }
+        }
+        """
+    }
+
+    private static var shoppingTripMutationResponseJSON: String {
+        """
+        {
+          "ok": true,
+          "trip": {
+            "id": "fca7f84a-8527-4a58-90b5-a78e4cde5b16",
+            "status": "active",
+            "startedBy": "Josh",
+            "startedAt": "2026-07-11T18:00:00.000Z",
+            "endedBy": null,
+            "endedAt": null,
+            "pickedUpCount": 0,
+            "remainingCount": 3,
+            "totalItemCount": 3,
+            "estimatedTotalCents": 0,
+            "pricedPickedItemCount": 0,
+            "unpricedPickedItemCount": 0,
+            "currencyCode": "USD",
+            "version": 1
+          },
+          "activeTrip": null,
+          "mutationId": "7dfadc16-69a0-448e-a5a9-c4eaf79d2e44",
+          "generatedAt": "2026-07-11T18:01:00.000Z"
         }
         """
     }

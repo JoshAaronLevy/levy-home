@@ -83,3 +83,32 @@ struct DeleteShoppingListItemRequest: Encodable, Equatable {
         self.mutationId = mutationId
     }
 }
+
+struct StartShoppingTripRequest: Encodable, Equatable {
+    let actor: String
+    let mutationId: String
+
+    init(actor: String, mutationId: String = UUID().uuidString) {
+        self.actor = actor
+        self.mutationId = mutationId
+    }
+}
+
+struct EndShoppingTripRequest: Encodable, Equatable {
+    let tripId: String
+    let actor: String
+    let mutationId: String
+    let summaryRecipient: String?
+
+    init(
+        tripId: String,
+        actor: String,
+        mutationId: String = UUID().uuidString,
+        summaryRecipient: String? = nil
+    ) {
+        self.tripId = tripId
+        self.actor = actor
+        self.mutationId = mutationId
+        self.summaryRecipient = summaryRecipient
+    }
+}

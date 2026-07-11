@@ -28,6 +28,8 @@ import { fetchNeededShoppingListItems } from './shoppingListRepository.js';
 export type ShoppingTripStore = {
   fetchActiveTrip: () => Promise<ShoppingTripSnapshot | null>;
   fetchTrip: (tripId: string) => Promise<ShoppingTripSnapshot | null>;
+  fetchTripByStartMutationId: (mutationId: string) => Promise<ShoppingTripSnapshot | null>;
+  fetchTripByEndMutationId: (mutationId: string) => Promise<ShoppingTripSnapshot | null>;
   fetchTripItems: (tripId: string) => Promise<ShoppingTripItemSnapshot[]>;
   startTrip: (request: StartShoppingTripPersistenceRequest) => Promise<ShoppingTripSnapshot>;
   completeTrip: (
@@ -96,6 +98,12 @@ export function createPostgresShoppingTripStore(options: {
     },
     async fetchTrip(tripId) {
       return fetchShoppingTrip(query(), tripId);
+    },
+    async fetchTripByStartMutationId(mutationId) {
+      return fetchShoppingTripByStartMutationId(query(), mutationId);
+    },
+    async fetchTripByEndMutationId(mutationId) {
+      return fetchShoppingTripByEndMutationId(query(), mutationId);
     },
     async fetchTripItems(tripId) {
       return fetchShoppingTripItems(query(), tripId);
@@ -243,6 +251,43 @@ export async function fetchShoppingTrip(
   `;
 
   return row ? shoppingTripFromRow(row) : null;
+}
+
+export async function fetchShoppingTripByStartMutationId(
+  database: DatabaseQuery,
+  mutationId: string,
+): Promise<ShoppingTripSnapshot | null> {
+  return fetchShoppingTripByColumn(database, 'start_mutation_id', mutationId);
+}
+
+export async function fetchShoppingTripByEndMutationId(
+  database: DatabaseQuery,
+  mutationId: string,
+): Promise<ShoppingTripSnapshot | null> {
+  return fetchShoppingTripByColumn(database, 'end_mutation_id', mutationId);
+}
+
+async function fetchShoppingTripByColumn(
+  database: DatabaseQuery,
+  column: 'start_mutation_id' | 'end_mutation_id',
+  mutationId: string,
+): Promise<ShoppingTripSnapshot | null> {
+  const rows = column === 'start_mutation_id'
+    ? await database<ShoppingTripIDRow>`
+        SELECT id
+        FROM shopping_trips
+        WHERE start_mutation_id = ${mutationId}
+        LIMIT 1
+      `
+    : await database<ShoppingTripIDRow>`
+        SELECT id
+        FROM shopping_trips
+        WHERE end_mutation_id = ${mutationId}
+        LIMIT 1
+      `;
+  const tripId = rows[0]?.id;
+
+  return tripId ? fetchShoppingTrip(database, requiredString(tripId, `shopping_trips.${column}`)) : null;
 }
 
 export async function fetchShoppingTripItems(

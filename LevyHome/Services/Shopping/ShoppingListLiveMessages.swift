@@ -52,6 +52,9 @@ enum ShoppingListLiveMessage: Decodable, Equatable {
     case itemDeleted(itemId: Int, mutationId: String, serverTime: String)
     case storesChanged(stores: [ShoppingStore], mutationId: String, serverTime: String)
     case categoriesChanged(categories: [ShoppingCategory], mutationId: String, serverTime: String)
+    case tripStarted(trip: ShoppingTrip, mutationId: String, serverTime: String)
+    case tripUpdated(trip: ShoppingTrip, mutationId: String, serverTime: String)
+    case tripEnded(trip: ShoppingTrip, mutationId: String, serverTime: String)
     case unknown(type: String?)
 
     private enum CodingKeys: String, CodingKey {
@@ -65,6 +68,7 @@ enum ShoppingListLiveMessage: Decodable, Equatable {
         case itemId
         case stores
         case categories
+        case trip
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +118,24 @@ enum ShoppingListLiveMessage: Decodable, Equatable {
         case "categories_changed":
             self = .categoriesChanged(
                 categories: try container.decode([ShoppingCategory].self, forKey: .categories),
+                mutationId: try container.decode(String.self, forKey: .mutationId),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "trip_started":
+            self = .tripStarted(
+                trip: try container.decode(ShoppingTrip.self, forKey: .trip),
+                mutationId: try container.decode(String.self, forKey: .mutationId),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "trip_updated":
+            self = .tripUpdated(
+                trip: try container.decode(ShoppingTrip.self, forKey: .trip),
+                mutationId: try container.decode(String.self, forKey: .mutationId),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "trip_ended":
+            self = .tripEnded(
+                trip: try container.decode(ShoppingTrip.self, forKey: .trip),
                 mutationId: try container.decode(String.self, forKey: .mutationId),
                 serverTime: try container.decode(String.self, forKey: .serverTime)
             )

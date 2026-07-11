@@ -5,6 +5,28 @@ extension APIClient {
         try await send(path: "/api/shopping-list")
     }
 
+    func fetchActiveShoppingTrip() async throws -> ShoppingActiveTripResponse {
+        try await send(path: "/api/shopping-list/trip")
+    }
+
+    func startShoppingTrip(_ request: StartShoppingTripRequest) async throws -> ShoppingTripMutationResponse {
+        try await send(
+            path: "/api/shopping-list/trip/start",
+            method: .post,
+            body: request,
+            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
+        )
+    }
+
+    func endShoppingTrip(_ request: EndShoppingTripRequest) async throws -> ShoppingTripMutationResponse {
+        try await send(
+            path: "/api/shopping-list/trip/end",
+            method: .post,
+            body: request,
+            additionalHeaders: Self.mutationHeaders(for: request.mutationId)
+        )
+    }
+
     func lookupShoppingListItem(named name: String) async throws -> ShoppingListItemLookupResponse {
         try await send(
             path: "/api/shopping-list/items/lookup",

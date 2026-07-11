@@ -1,4 +1,5 @@
 import type { EventPushStatus } from './activity.js';
+import type { ShoppingTripSnapshot } from './shoppingTrips.js';
 
 export type ShoppingListItem = {
   id: number;
@@ -74,6 +75,12 @@ export type ShoppingListData = {
   categories: ShoppingCategory[];
 };
 
+export type ShoppingListSnapshotResponse = ShoppingListData & {
+  ok: true;
+  activeTrip: ShoppingTripSnapshot | null;
+  generatedAt: string;
+};
+
 export type CreateShoppingListItemRequest = {
   name: string;
   brand?: string | null;
@@ -135,6 +142,7 @@ export type KrogerProductSearchResult = {
 export type ShoppingListMutationResponse = {
   ok: true;
   item: ShoppingListItem;
+  activeTrip: ShoppingTripSnapshot | null;
   mutationId: string;
   generatedAt: string;
   push?: EventPushStatus;
@@ -144,6 +152,7 @@ export type DeleteShoppingListItemResponse = {
   ok: true;
   itemId: number;
   item: ShoppingListItem;
+  activeTrip: ShoppingTripSnapshot | null;
   mutationId: string;
   generatedAt: string;
   push?: EventPushStatus;

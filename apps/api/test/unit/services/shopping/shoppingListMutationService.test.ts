@@ -5,6 +5,7 @@ import type {
   ShoppingCategory,
   ShoppingListItem,
   ShoppingStore,
+  ShoppingTripSnapshot,
 } from '../../../../src/contracts.js';
 import { HTTPError } from '../../../../src/http/errors.js';
 import type { ShoppingListStore } from '../../../../src/repositories/shoppingListRepository.js';
@@ -198,6 +199,15 @@ function recordingRealtimeBroadcaster(broadcasts: string[]): ShoppingListRealtim
     },
     broadcastCategoriesChanged(categories: ShoppingCategory[], mutationId: string) {
       broadcasts.push(`categories:${categories.length}:${mutationId}`);
+    },
+    broadcastTripStarted(trip: ShoppingTripSnapshot, mutationId: string) {
+      broadcasts.push(`trip-started:${trip.id}:${mutationId}`);
+    },
+    broadcastTripUpdated(trip: ShoppingTripSnapshot, mutationId: string) {
+      broadcasts.push(`trip-updated:${trip.id}:${mutationId}`);
+    },
+    broadcastTripEnded(trip: ShoppingTripSnapshot, mutationId: string) {
+      broadcasts.push(`trip-ended:${trip.id}:${mutationId}`);
     },
   };
 }

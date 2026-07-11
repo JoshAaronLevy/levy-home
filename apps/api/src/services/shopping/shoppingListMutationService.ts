@@ -8,6 +8,7 @@ import type {
   EventPushStatus,
   ShoppingListItem,
   ShoppingListMutationResponse,
+  ShoppingTripSnapshot,
   UpdateShoppingListItemRequest,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
@@ -15,6 +16,7 @@ import { logger as defaultLogger, safeErrorMessage, type Logger } from '../../ob
 import type { ShoppingListStore } from '../../repositories/shoppingListRepository.js';
 import type { ListMutationPushAction, NotificationService } from '../notifications/notificationService.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
+import type { ShoppingTripService } from './shoppingTripService.js';
 
 export type ShoppingListMutationService = {
   createItem: (request: CreateShoppingListItemRequest, mutationId: string) => Promise<ShoppingListMutationResponse>;
@@ -35,9 +37,10 @@ export function createShoppingListMutationService(options: {
   notificationService?: Pick<NotificationService, 'sendListMutationPush'>;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   shoppingListStore: ShoppingListStore;
+  shoppingTripService?: Pick<ShoppingTripService, 'getActiveTrip'>;
 }): ShoppingListMutationService {
   const auditLogger = options.logger ?? defaultLogger;
-  const { notificationService, shoppingListRealtime, shoppingListStore } = options;
+  const { notificationService, shoppingListRealtime, shoppingListStore, shoppingTripService } = options;
 
   return {
     async createItem(request, mutationId) {
@@ -54,7 +57,11 @@ export function createShoppingListMutationService(options: {
 
       try {
         const item = await shoppingListStore.createItem(request);
-        const response = shoppingListMutationResponse(item, mutationId);
+        const response = shoppingListMutationResponse(
+          item,
+          mutationId,
+          await currentActiveTrip(shoppingTripService),
+        );
 
         auditLogger.info('Shopping list create committed.', itemAuditDetails(item, mutationId, request.actor));
         shoppingListRealtime?.broadcastItemCreated(item, mutationId);
@@ -96,6 +103,7 @@ export function createShoppingListMutationService(options: {
         ok: true,
         itemId,
         item,
+        activeTrip: await currentActiveTrip(shoppingTripService),
         mutationId,
         generatedAt: new Date().toISOString(),
       };
@@ -146,7 +154,11 @@ export function createShoppingListMutationService(options: {
           throw shoppingItemNotFoundError();
         }
 
-        const response = shoppingListMutationResponse(item, mutationId);
+        const response = shoppingListMutationResponse(
+          item,
+          mutationId,
+          await currentActiveTrip(shoppingTripService),
+        );
 
         auditLogger.info('Shopping list update committed.', itemAuditDetails(item, mutationId, request.actor));
         shoppingListRealtime?.broadcastItemUpdated(item, mutationId);
@@ -199,13 +211,24 @@ export function mutationIdForRequest(req: Request, bodyMutationId?: string): str
   return bodyMutationId ?? (headerMutationId && headerMutationId.length > 0 ? headerMutationId : crypto.randomUUID());
 }
 
-function shoppingListMutationResponse(item: ShoppingListItem, mutationId: string): ShoppingListMutationResponse {
+function shoppingListMutationResponse(
+  item: ShoppingListItem,
+  mutationId: string,
+  activeTrip: ShoppingTripSnapshot | null,
+): ShoppingListMutationResponse {
   return {
     ok: true,
     item,
+    activeTrip,
     mutationId,
     generatedAt: new Date().toISOString(),
   };
+}
+
+async function currentActiveTrip(
+  shoppingTripService: Pick<ShoppingTripService, 'getActiveTrip'> | undefined,
+): Promise<ShoppingTripSnapshot | null> {
+  return shoppingTripService ? shoppingTripService.getActiveTrip() : null;
 }
 
 async function sendShoppingListMutationPush(

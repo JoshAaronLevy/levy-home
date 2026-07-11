@@ -410,6 +410,15 @@ final class ShoppingListLiveService: ShoppingListLiveServicing {
                 title: "Live categories updated",
                 detail: "count=\(categories.count) mutationId=\(Self.shortIdentifier(mutationId))"
             )
+        case .tripStarted(let trip, let mutationId, _),
+                .tripUpdated(let trip, let mutationId, _),
+                .tripEnded(let trip, let mutationId, _):
+            appLogStore?.record(
+                level: .info,
+                category: "Shopping List",
+                title: "Live shopping trip changed",
+                detail: "tripId=\(Self.shortIdentifier(trip.id)) version=\(trip.version) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
         case .unknown(let type):
             appLogStore?.record(
                 level: .warning,

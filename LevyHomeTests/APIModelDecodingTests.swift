@@ -228,6 +228,58 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.categories.first?.name, "Dairy")
     }
 
+    func testDecodesShoppingTripLiveMessagesAndPreservesUnknownTypes() throws {
+        let decoder = JSONDecoder()
+        let tripJSON = #"""
+        {
+          "id": "fca7f84a-8527-4a58-90b5-a78e4cde5b16",
+          "status": "active",
+          "startedBy": "Josh",
+          "startedAt": "2026-07-11T18:00:00.000Z",
+          "endedBy": null,
+          "endedAt": null,
+          "pickedUpCount": 1,
+          "remainingCount": 2,
+          "totalItemCount": 3,
+          "estimatedTotalCents": 1275,
+          "pricedPickedItemCount": 1,
+          "unpricedPickedItemCount": 0,
+          "currencyCode": "USD",
+          "version": 4
+        }
+        """#
+
+        for (type, expected) in [
+            ("trip_started", "started"),
+            ("trip_updated", "updated"),
+            ("trip_ended", "ended")
+        ] {
+            let message = try decoder.decode(
+                ShoppingListLiveMessage.self,
+                from: Data("""
+                {"type":"\(type)","trip":\(tripJSON),"mutationId":"7dfadc16-69a0-448e-a5a9-c4eaf79d2e44","serverTime":"2026-07-11T18:01:00.000Z"}
+                """.utf8)
+            )
+
+            switch (expected, message) {
+            case ("started", .tripStarted(let trip, let mutationId, _)),
+                 ("updated", .tripUpdated(let trip, let mutationId, _)),
+                 ("ended", .tripEnded(let trip, let mutationId, _)):
+                XCTAssertEqual(trip.id, "fca7f84a-8527-4a58-90b5-a78e4cde5b16")
+                XCTAssertEqual(trip.estimatedTotalCents, 1275)
+                XCTAssertEqual(mutationId, "7dfadc16-69a0-448e-a5a9-c4eaf79d2e44")
+            default:
+                XCTFail("Expected \(expected) shopping trip message.")
+            }
+        }
+
+        let unknown = try decoder.decode(
+            ShoppingListLiveMessage.self,
+            from: Data(#"{"type":"future_trip_event"}"#.utf8)
+        )
+        XCTAssertEqual(unknown, .unknown(type: "future_trip_event"))
+    }
+
     func testDecodesKrogerProductDiagnosticResponse() throws {
         let response = try decode(
             KrogerProductDiagnosticResponse.self,

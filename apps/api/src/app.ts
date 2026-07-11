@@ -20,6 +20,7 @@ import { logger, type Logger, safeErrorMessage } from './observability/logger.js
 import { registerRoutes } from './routes/index.js';
 import type { NotificationPersistenceMode } from './routes/healthRoutes.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './repositories/shoppingListRepository.js';
+import { createPostgresShoppingTripStore, type ShoppingTripStore } from './repositories/shoppingTripRepository.js';
 import {
   createPostgresToDoLocationStore,
   type ToDoLocationStore,
@@ -39,6 +40,7 @@ import {
 } from './services/notifications/notificationPreferenceStore.js';
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
+import { createShoppingTripService, type ShoppingTripService } from './services/shopping/shoppingTripService.js';
 import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
 import {
   createWeatherAlertService,
@@ -55,6 +57,7 @@ export type CreateAppOptions = {
   deviceRegistry?: DeviceRegistry;
   notificationPreferenceStore?: NotificationPreferenceStore;
   shoppingListStore?: ShoppingListStore;
+  shoppingTripStore?: ShoppingTripStore;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   toDoListRealtime?: ToDoListRealtimeHub;
   userStore?: UserStore;
@@ -101,10 +104,17 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const activityEventService = createActivityEventService({ notificationService });
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime;
+  const shoppingTripStore = options.shoppingTripStore ?? (
+    isDatabaseConfigured() ? createPostgresShoppingTripStore() : undefined
+  );
+  const shoppingTripService: ShoppingTripService | undefined = shoppingTripStore
+    ? createShoppingTripService({ shoppingListRealtime, shoppingTripStore })
+    : undefined;
   const shoppingListMutationService = createShoppingListMutationService({
     notificationService,
     shoppingListRealtime,
     shoppingListStore,
+    shoppingTripService,
   });
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
@@ -144,6 +154,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     notificationService,
     shoppingListMutationService,
     shoppingListStore,
+    shoppingTripService,
     toDoLocationStore,
     toDoListMutationService,
     toDoListStore,

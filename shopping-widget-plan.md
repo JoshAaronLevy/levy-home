@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: Stages 1 and 2 are implemented in code as of 2026-07-11. Stage 1 automated build, embedding, signing, install, and test checks pass; its manual physical-phone Lock Screen, Dynamic Island, and disabled-setting observations remain. Stage 2 migration and repository tests pass against a disposable Postgres-compatible database, but the migration has not been applied to the deployed database. Stages 3-9 remain planning only, and no Render or Home Assistant change has been made.
+Status: Stages 1 through 3 are implemented in code as of 2026-07-11. Stage 1 automated build, embedding, signing, install, and test checks pass; its manual physical-phone Lock Screen, Dynamic Island, and disabled-setting observations remain. Stages 2 and 3 migration/repository/API tests pass against a disposable Postgres-compatible database, but the migration has not been applied to the deployed database. Stages 4-9 remain planning only, and no Render or Home Assistant change has been made.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -711,6 +711,16 @@ Expose an idempotent domain API that both phones can recover from.
 - Both clients can read the same active trip.
 - Simultaneous starts converge on one trip.
 - End is durable and idempotent even before notification side effects are added.
+
+### Implementation Status — 2026-07-11
+
+- Added **GET /api/shopping-list/trip**, **POST /api/shopping-list/trip/start**, and **POST /api/shopping-list/trip/end**. Start and end require the recognized **Josh** or **Mallory** actor and UUID mutation ID; malformed requests receive **400 invalid_shopping_trip**.
+- The trip service returns an existing trip for a repeated start mutation or a second start while another trip is active. It replays an end mutation without a second write or broadcast, and returns **409 shopping_trip_has_no_needed_items** for an empty needed list.
+- Shopping list snapshots and item-mutation responses now carry nullable **activeTrip**. The app wires the durable PostgreSQL trip store when **DATABASE_URL** is configured and returns **503 database_not_configured** for trip routes otherwise, rather than creating an in-memory trip.
+- The existing Shopping WebSocket now supports complete **trip_started**, **trip_updated**, and **trip_ended** messages. Only committed new start/end transitions broadcast in this stage; `trip_updated` is reserved for the atomic Shopping-item/trip mutations in Stage 6.
+- Added Swift trip request/response models, active/start/end API client methods, and forward-compatible decoding/logging for the three trip messages. Stage 5 remains responsible for presenting active-trip state and real Start/End controls in the Shopping UI.
+- Disposable-database route tests cover no trip, durable start/read after API reconstruction, repeated mutation IDs, second-resident convergence, empty-list rejection, explicit end, repeated end, wrong trip ID, and post-commit broadcasts. API typecheck/build and all **131** API tests pass; focused iOS API/decoder tests pass.
+- No ActivityKit token registration, APNs/live-activity delivery, summary notification, or real Shopping UI action was added. The migration remains checked in but unapplied to the deployed database.
 
 ## Stage 4: Prove Remote Start, Update, And End On The Second Phone
 

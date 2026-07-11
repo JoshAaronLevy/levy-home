@@ -341,6 +341,8 @@ final class ShoppingListViewModel: ObservableObject {
             self.stores = stores
         case .categoriesChanged(let categories, _, _):
             self.categories = categories
+        case .tripStarted, .tripUpdated, .tripEnded:
+            return
         case .unknown:
             return
         }

@@ -12,4 +12,9 @@ export {
   validateShoppingProductSearchQuery,
   validateUpdateShoppingListItemBody,
 } from './shoppingValidation.js';
+export {
+  validateCompleteShoppingTripBody,
+  validateShoppingTripMutationId,
+  validateStartShoppingTripBody,
+} from './shoppingTripValidation.js';
 export { validateCreateToDoLocationBody } from './todoValidation.js';

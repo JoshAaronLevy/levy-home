@@ -3,6 +3,7 @@ import { Router } from 'express';
 import type {
   KrogerProductSearchResponse,
   ShoppingListItemLookupResponse,
+  ShoppingListSnapshotResponse,
 } from '../contracts.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import type { ShoppingListMutationService } from '../services/shopping/shoppingListMutationService.js';
@@ -11,6 +12,7 @@ import {
   readShoppingListItemId,
 } from '../services/shopping/shoppingListMutationService.js';
 import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
+import type { ShoppingTripService } from '../services/shopping/shoppingTripService.js';
 import {
   validateCreateShoppingListItemBody,
   validateDeleteShoppingListItemBody,
@@ -23,6 +25,7 @@ export type ShoppingListRouteDependencies = {
   krogerProductSearchRunner: (query?: string) => Promise<KrogerProductSearchResponse>;
   shoppingListMutationService: ShoppingListMutationService;
   shoppingListStore: ShoppingListStore;
+  shoppingTripService?: ShoppingTripService;
 };
 
 export function createShoppingListRoutes(deps: ShoppingListRouteDependencies): Router {
@@ -31,11 +34,14 @@ export function createShoppingListRoutes(deps: ShoppingListRouteDependencies): R
   router.get('/api/shopping-list', asyncHandler(async (_req, res) => {
     const shoppingList = await deps.shoppingListStore.fetchShoppingList();
 
-    res.json({
+    const response: ShoppingListSnapshotResponse = {
       ok: true,
       ...shoppingList,
+      activeTrip: await deps.shoppingTripService?.getActiveTrip() ?? null,
       generatedAt: new Date().toISOString(),
-    });
+    };
+
+    res.json(response);
   }));
 
   router.get('/api/shopping-list/items/lookup', asyncHandler(async (req, res) => {

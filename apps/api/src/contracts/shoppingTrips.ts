@@ -55,3 +55,17 @@ export type ShoppingItemEstimate = {
   priceSource: string | null;
   storeId: number | null;
 };
+
+export type ShoppingActiveTripResponse = {
+  ok: true;
+  activeTrip: ShoppingTripSnapshot | null;
+  generatedAt: string;
+};
+
+export type ShoppingTripMutationResponse = {
+  ok: true;
+  trip: ShoppingTripSnapshot;
+  activeTrip: ShoppingTripSnapshot | null;
+  mutationId: string;
+  generatedAt: string;
+};
