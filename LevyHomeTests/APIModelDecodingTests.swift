@@ -166,6 +166,7 @@ final class APIModelDecodingTests: XCTestCase {
             {
               "ok": true,
               "generatedAt": "2026-06-22T12:31:00.000Z",
+              "activeTrip": \(shoppingTripJSON),
               "items": [
                 {
                   "id": 1,
@@ -226,6 +227,49 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.items.first?.categoryId, 3)
         XCTAssertEqual(response.stores.first?.name, "Target")
         XCTAssertEqual(response.categories.first?.name, "Dairy")
+        XCTAssertEqual(response.activeTrip?.id, "trip-1")
+        XCTAssertEqual(response.activeTrip?.version, 4)
+    }
+
+    func testDecodesActiveTripFromShoppingItemMutationResponses() throws {
+        let itemJSON = """
+        {
+          "id": 1,
+          "name": "Whole milk",
+          "quantity": 2,
+          "purchased": false,
+          "categoryId": null,
+          "storeListings": []
+        }
+        """
+        let update = try decode(
+            ShoppingListMutationResponse.self,
+            from: """
+            {
+              "ok": true,
+              "item": \(itemJSON),
+              "activeTrip": \(shoppingTripJSON),
+              "mutationId": "mutation-update",
+              "generatedAt": "2026-07-11T20:00:00.000Z"
+            }
+            """
+        )
+        let deletion = try decode(
+            DeleteShoppingListItemResponse.self,
+            from: """
+            {
+              "ok": true,
+              "itemId": 1,
+              "item": \(itemJSON),
+              "activeTrip": \(shoppingTripJSON),
+              "mutationId": "mutation-delete",
+              "generatedAt": "2026-07-11T20:00:00.000Z"
+            }
+            """
+        )
+
+        XCTAssertEqual(update.activeTrip?.id, "trip-1")
+        XCTAssertEqual(deletion.activeTrip?.id, "trip-1")
     }
 
     func testDecodesShoppingTripLiveMessagesAndPreservesUnknownTypes() throws {
@@ -534,6 +578,28 @@ final class APIModelDecodingTests: XCTestCase {
             "ticketCount": 1,
             "invalidTokenCount": 0
           }
+        }
+        """
+    }
+
+    private var shoppingTripJSON: String {
+        """
+        {
+          "id": "trip-1",
+          "status": "active",
+          "startedBy": "Josh",
+          "startedAt": "2026-07-11T18:00:00.000Z",
+          "endedBy": null,
+          "endedAt": null,
+          "pickedUpCount": 1,
+          "remainingCount": 2,
+          "totalItemCount": 3,
+          "estimatedTotalCents": 499,
+          "pricedPickedItemCount": 1,
+          "unpricedPickedItemCount": 0,
+          "currencyCode": "USD",
+          "version": 4,
+          "activityUpdatedAtEpochSeconds": 1783802400
         }
         """
     }

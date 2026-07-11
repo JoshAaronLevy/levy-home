@@ -109,7 +109,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       normalizedProductResponseFilePath:
         readOptionalString(env.KROGER_NORMALIZED_PRODUCT_RESPONSE_PATH) ??
         path.join(API_PACKAGE_ROOT, 'kroger-products-normalized.json'),
-      productSearchLimit: clampNumber(readNumber(env.KROGER_PRODUCT_SEARCH_LIMIT, 10), 1, 50),
+      productSearchLimit: clampNumber(readNumber(env.KROGER_PRODUCT_SEARCH_LIMIT, 50), 1, 50),
       locationId: readOptionalString(env.KROGER_LOCATION_ID) ?? '62000008',
       shoppingStoreId: readNumber(env.KROGER_SHOPPING_STORE_ID, 2),
       shoppingStoreName: readOptionalString(env.KROGER_SHOPPING_STORE_NAME) ?? 'King Soopers',

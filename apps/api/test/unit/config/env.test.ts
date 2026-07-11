@@ -53,6 +53,11 @@ test('readConfig parses Kroger API diagnostic configuration', () => {
   assert.equal(config.kroger.shoppingStoreName, 'King Soopers');
 });
 
+test('readConfig requests up to 50 Kroger products by default and clamps larger limits', () => {
+  assert.equal(readConfig({}).kroger.productSearchLimit, 50);
+  assert.equal(readConfig({ KROGER_PRODUCT_SEARCH_LIMIT: '75' }).kroger.productSearchLimit, 50);
+});
+
 test('readConfig parses weather alert configuration', () => {
   const config = readConfig({
     WEATHER_ALERTS_ENABLED: 'true',

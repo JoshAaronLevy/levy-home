@@ -30,6 +30,11 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingTripEnder = (EndShoppingTripRequest) async throws -> ShoppingTripMutationResponse
     typealias ShoppingTripDisplayClaimer = (String, ClaimShoppingTripDisplayRequest) async throws -> ClaimShoppingTripDisplayResponse
 
+    private struct ShoppingItemUpdateOutcome {
+        let response: ShoppingListMutationResponse
+        let activeTripRevisionBaseline: UInt64
+    }
+
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
     @Published private(set) var categories: [ShoppingCategory] = []
@@ -62,6 +67,8 @@ final class ShoppingListViewModel: ObservableObject {
     private var isSyncingLiveSnapshot = false
     private var liveUpdatesTask: Task<Void, Never>?
     private var liveConnectionStateTask: Task<Void, Never>?
+    private var committedStateRevision: UInt64 = 0
+    private var activeTripRevision: UInt64 = 0
 
     var isEmpty: Bool {
         hasLoaded && items.isEmpty && errorMessage == nil && !isLoading
@@ -345,10 +352,14 @@ final class ShoppingListViewModel: ObservableObject {
         defer { isStartingTrip = false }
 
         do {
+            let activeTripRevisionAtRequestStart = activeTripRevision
             let response = try await startShoppingTrip(
                 StartShoppingTripRequest(actor: actor, originatingPushDeviceId: originatingPushDeviceId)
             )
-            activeTrip = response.activeTrip ?? response.trip
+            applyCommittedActiveTrip(
+                response.activeTrip ?? response.trip,
+                ifUnchangedSince: activeTripRevisionAtRequestStart
+            )
             errorMessage = nil
             return response
         } catch {
@@ -364,10 +375,14 @@ final class ShoppingListViewModel: ObservableObject {
         defer { isEndingTrip = false }
 
         do {
+            let activeTripRevisionAtRequestStart = activeTripRevision
             let response = try await endShoppingTrip(
                 EndShoppingTripRequest(tripId: activeTrip.id, actor: actor)
             )
-            self.activeTrip = response.activeTrip
+            applyCommittedActiveTrip(
+                response.activeTrip,
+                ifUnchangedSince: activeTripRevisionAtRequestStart
+            )
             errorMessage = nil
             return response
         } catch {
@@ -442,15 +457,19 @@ final class ShoppingListViewModel: ObservableObject {
         case .itemCreated(let item, _, _), .itemUpdated(let item, _, _):
             applyCommittedItem(item)
         case .itemDeleted(let itemId, _, _):
-            items.removeAll { $0.id == itemId }
+            removeCommittedItem(id: itemId)
         case .storesChanged(let stores, _, _):
+            guard self.stores != stores else { return }
             self.stores = stores
+            committedStateRevision &+= 1
         case .categoriesChanged(let categories, _, _):
+            guard self.categories != categories else { return }
             self.categories = categories
+            committedStateRevision &+= 1
         case .tripStarted(let trip, _, _), .tripUpdated(let trip, _, _):
-            activeTrip = trip
+            applyCommittedActiveTrip(trip, recordsAuthoritativeEvent: true)
         case .tripEnded:
-            activeTrip = nil
+            applyCommittedActiveTrip(nil, recordsAuthoritativeEvent: true)
         case .unknown:
             return
         }
@@ -486,10 +505,14 @@ final class ShoppingListViewModel: ObservableObject {
         )
 
         do {
+            let activeTripRevisionAtRequestStart = activeTripRevision
             let response = try await createShoppingListItem(request)
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
-            activeTrip = response.activeTrip
+            applyCommittedActiveTrip(
+                response.activeTrip,
+                ifUnchangedSince: activeTripRevisionAtRequestStart
+            )
             errorMessage = nil
             recordShoppingMutationLog(
                 level: .success,
@@ -515,12 +538,18 @@ final class ShoppingListViewModel: ObservableObject {
         }
     }
 
-    func updateItem(id itemId: Int, with draft: ShoppingItemDraft) async throws {
-        try await updateItem(id: itemId, request: draft.updateRequest(actor: currentActorName))
+    func updateItem(_ item: ShoppingListItem, with draft: ShoppingItemDraft) async throws {
+        let request = draft.updateRequest(comparedTo: item, actor: currentActorName)
+
+        guard request.hasMutableFields else {
+            return
+        }
+
+        _ = try await updateItem(id: item.id, request: request)
     }
 
     func addBackToNeeded(_ item: ShoppingListItem, from draft: ShoppingItemDraft) async throws {
-        try await updateItem(
+        _ = try await updateItem(
             id: item.id,
             request: draft.addBackRequest(actor: currentActorName)
         )
@@ -529,11 +558,11 @@ final class ShoppingListViewModel: ObservableObject {
     @discardableResult
     func setPurchased(_ item: ShoppingListItem, purchased: Bool) async -> ShoppingTrip? {
         do {
-            let response = try await updateItem(
+            _ = try await updateItem(
                 id: item.id,
                 request: UpdateShoppingListItemRequest(purchased: purchased, actor: currentActorName)
             )
-            return response.activeTrip
+            return activeTrip
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -548,7 +577,7 @@ final class ShoppingListViewModel: ObservableObject {
         }
 
         do {
-            try await updateItem(
+            _ = try await updateItem(
                 id: item.id,
                 request: UpdateShoppingListItemRequest(quantity: nextQuantity, actor: currentActorName)
             )
@@ -580,10 +609,14 @@ final class ShoppingListViewModel: ObservableObject {
         )
 
         do {
+            let activeTripRevisionAtRequestStart = activeTripRevision
             let response = try await deleteShoppingListItem(item.id, request.mutationId, request.actor)
-            items.removeAll { $0.id == response.itemId }
+            removeCommittedItem(id: response.itemId)
             generatedAt = response.generatedAt
-            activeTrip = response.activeTrip
+            applyCommittedActiveTrip(
+                response.activeTrip,
+                ifUnchangedSince: activeTripRevisionAtRequestStart
+            )
             errorMessage = nil
             recordShoppingMutationLog(
                 level: .success,
@@ -612,7 +645,7 @@ final class ShoppingListViewModel: ObservableObject {
 
     @discardableResult
     private func load(isRefresh: Bool) async -> Bool {
-        guard !isLoading, !isRefreshing else {
+        guard !isLoading, !isRefreshing, !isSyncingLiveSnapshot else {
             return false
         }
 
@@ -628,8 +661,15 @@ final class ShoppingListViewModel: ObservableObject {
         }
 
         do {
-            let response = try await loadShoppingList()
-            applySnapshot(response)
+            for _ in 0..<2 {
+                let revisionAtRequestStart = committedStateRevision
+                let response = try await loadShoppingList()
+
+                if applySnapshot(response, ifUnchangedSince: revisionAtRequestStart) {
+                    break
+                }
+            }
+
             errorMessage = nil
             return true
         } catch {
@@ -655,20 +695,55 @@ final class ShoppingListViewModel: ObservableObject {
         }
 
         do {
-            applySnapshot(try await loadShoppingList())
+            for _ in 0..<2 {
+                let revisionAtRequestStart = committedStateRevision
+
+                if applySnapshot(
+                    try await loadShoppingList(),
+                    ifUnchangedSince: revisionAtRequestStart
+                ) {
+                    break
+                }
+            }
+
             errorMessage = nil
         } catch {
             // Keep the last confirmed snapshot visible. Pull-to-refresh remains the fallback.
         }
     }
 
-    private func applySnapshot(_ response: ShoppingListResponse) {
+    @discardableResult
+    private func applySnapshot(
+        _ response: ShoppingListResponse,
+        ifUnchangedSince revisionAtRequestStart: UInt64
+    ) -> Bool {
+        guard committedStateRevision == revisionAtRequestStart else {
+            hasLoaded = true
+            return false
+        }
+
+        let didChangeCommittedState = items != response.items
+            || stores != response.stores
+            || categories != response.categories
+            || activeTrip != response.activeTrip
+        let didChangeActiveTrip = activeTrip != response.activeTrip
+
         items = response.items
         stores = response.stores
         categories = response.categories
         generatedAt = response.generatedAt
         activeTrip = response.activeTrip
+
+        if didChangeActiveTrip {
+            activeTripRevision &+= 1
+        }
+
+        if didChangeCommittedState {
+            committedStateRevision &+= 1
+        }
+
         hasLoaded = true
+        return true
     }
 
     private func applyCommittedItem(_ item: ShoppingListItem) {
@@ -677,10 +752,55 @@ final class ShoppingListViewModel: ObservableObject {
                 return
             }
 
+            guard items[existingIndex] != item else {
+                return
+            }
+
             items[existingIndex] = item
         } else {
             items.append(item)
         }
+
+        committedStateRevision &+= 1
+    }
+
+    private func removeCommittedItem(id itemId: Int) {
+        guard items.contains(where: { $0.id == itemId }) else {
+            return
+        }
+
+        items.removeAll { $0.id == itemId }
+        committedStateRevision &+= 1
+    }
+
+    private func applyCommittedActiveTrip(
+        _ trip: ShoppingTrip?,
+        ifUnchangedSince expectedRevision: UInt64? = nil,
+        recordsAuthoritativeEvent: Bool = false
+    ) {
+        if let expectedRevision, activeTripRevision != expectedRevision {
+            return
+        }
+
+        if let activeTrip,
+           let trip,
+           activeTrip.id == trip.id,
+           trip.version < activeTrip.version {
+            return
+        }
+
+        guard activeTrip != trip else {
+            if recordsAuthoritativeEvent {
+                activeTripRevision &+= 1
+                committedStateRevision &+= 1
+            }
+
+            return
+        }
+
+        activeTrip = trip
+        activeTripRevision &+= 1
+        committedStateRevision &+= 1
     }
 
     private func shouldReplace(existing: ShoppingListItem, with incoming: ShoppingListItem) -> Bool {
@@ -712,10 +832,14 @@ final class ShoppingListViewModel: ObservableObject {
         )
 
         do {
-            let response = try await updateShoppingListItem(itemId, request)
+            let outcome = try await updateShoppingItemWithRecovery(itemId: itemId, request: request)
+            let response = outcome.response
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
-            activeTrip = response.activeTrip
+            applyCommittedActiveTrip(
+                response.activeTrip,
+                ifUnchangedSince: outcome.activeTripRevisionBaseline
+            )
             errorMessage = nil
             recordShoppingMutationLog(
                 level: .success,
@@ -740,6 +864,149 @@ final class ShoppingListViewModel: ObservableObject {
             )
             throw error
         }
+    }
+
+    private func updateShoppingItemWithRecovery(
+        itemId: Int,
+        request: UpdateShoppingListItemRequest
+    ) async throws -> ShoppingItemUpdateOutcome {
+        let initialActiveTripRevision = activeTripRevision
+
+        do {
+            return ShoppingItemUpdateOutcome(
+                response: try await updateShoppingListItem(itemId, request),
+                activeTripRevisionBaseline: initialActiveTripRevision
+            )
+        } catch {
+            guard Self.isTransportFailure(error) else {
+                throw error
+            }
+            let transportError = error
+
+            recordShoppingMutationLog(
+                level: .warning,
+                title: "Reconciling shopping item update",
+                detail: [
+                    "itemId=\(itemId)",
+                    "mutationId=\(Self.shortIdentifier(request.mutationId))",
+                    error.localizedDescription
+                ].joined(separator: " ")
+            )
+
+            do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+            } catch {
+                throw CancellationError()
+            }
+
+            if let committedItem = items.first(where: { $0.id == itemId }),
+               request.isReflected(in: committedItem) {
+                return ShoppingItemUpdateOutcome(
+                    response: reconciledMutationResponse(item: committedItem, request: request),
+                    activeTripRevisionBaseline: activeTripRevision
+                )
+            }
+
+            var didConfirmUncommitted = false
+
+            for _ in 0..<2 {
+                let revisionAtRequestStart = committedStateRevision
+                let snapshot: ShoppingListResponse
+
+                do {
+                    snapshot = try await loadShoppingList()
+                } catch {
+                    if error.isTaskCancellation {
+                        throw CancellationError()
+                    }
+
+                    throw transportError
+                }
+
+                let didApplySnapshot = applySnapshot(
+                    snapshot,
+                    ifUnchangedSince: revisionAtRequestStart
+                )
+
+                if let snapshotItem = snapshot.items.first(where: { $0.id == itemId }),
+                   request.isReflected(in: snapshotItem) {
+                    if didApplySnapshot {
+                        return ShoppingItemUpdateOutcome(
+                            response: ShoppingListMutationResponse(
+                                ok: true,
+                                item: snapshotItem,
+                                activeTrip: snapshot.activeTrip,
+                                mutationId: request.mutationId,
+                                generatedAt: snapshot.generatedAt
+                            ),
+                            activeTripRevisionBaseline: activeTripRevision
+                        )
+                    }
+
+                    if let currentItem = items.first(where: { $0.id == itemId }),
+                       shouldReplace(existing: currentItem, with: snapshotItem) {
+                        return ShoppingItemUpdateOutcome(
+                            response: reconciledMutationResponse(item: snapshotItem, request: request),
+                            activeTripRevisionBaseline: activeTripRevision
+                        )
+                    }
+                }
+
+                if didApplySnapshot {
+                    didConfirmUncommitted = true
+                    break
+                }
+
+                if let committedItem = items.first(where: { $0.id == itemId }),
+                   request.isReflected(in: committedItem) {
+                    return ShoppingItemUpdateOutcome(
+                        response: reconciledMutationResponse(item: committedItem, request: request),
+                        activeTripRevisionBaseline: activeTripRevision
+                    )
+                }
+            }
+
+            guard didConfirmUncommitted else {
+                throw transportError
+            }
+
+            recordShoppingMutationLog(
+                level: .warning,
+                title: "Retrying shopping item update",
+                detail: [
+                    "itemId=\(itemId)",
+                    "mutationId=\(Self.shortIdentifier(request.mutationId))"
+                ].joined(separator: " ")
+            )
+
+            let retryActiveTripRevision = activeTripRevision
+            return ShoppingItemUpdateOutcome(
+                response: try await updateShoppingListItem(itemId, request),
+                activeTripRevisionBaseline: retryActiveTripRevision
+            )
+        }
+    }
+
+    private func reconciledMutationResponse(
+        item: ShoppingListItem,
+        request: UpdateShoppingListItemRequest
+    ) -> ShoppingListMutationResponse {
+        ShoppingListMutationResponse(
+            ok: true,
+            item: item,
+            activeTrip: activeTrip,
+            mutationId: request.mutationId,
+            generatedAt: generatedAt
+        )
+    }
+
+    private static func isTransportFailure(_ error: Error) -> Bool {
+        if let apiError = error as? APIError,
+           case .transport = apiError {
+            return true
+        }
+
+        return error is URLError && !error.isTaskCancellation
     }
 
     private func recordShoppingMutationLog(

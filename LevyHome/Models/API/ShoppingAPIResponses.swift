@@ -3,8 +3,24 @@ struct ShoppingListResponse: Codable, Equatable {
     let items: [ShoppingListItem]
     let stores: [ShoppingStore]
     let categories: [ShoppingCategory]
-    let activeTrip: ShoppingTrip? = nil
+    let activeTrip: ShoppingTrip?
     let generatedAt: String?
+
+    init(
+        ok: Bool,
+        items: [ShoppingListItem],
+        stores: [ShoppingStore],
+        categories: [ShoppingCategory],
+        activeTrip: ShoppingTrip? = nil,
+        generatedAt: String?
+    ) {
+        self.ok = ok
+        self.items = items
+        self.stores = stores
+        self.categories = categories
+        self.activeTrip = activeTrip
+        self.generatedAt = generatedAt
+    }
 }
 
 struct ShoppingListItem: Codable, Equatable, Identifiable {
@@ -332,20 +348,54 @@ struct KrogerProductAisleLocation: Codable, Equatable {
 struct ShoppingListMutationResponse: Codable, Equatable {
     let ok: Bool
     let item: ShoppingListItem
-    let activeTrip: ShoppingTrip? = nil
+    let activeTrip: ShoppingTrip?
     let mutationId: String
     let generatedAt: String?
     let push: PushDeliveryStatus?
+
+    init(
+        ok: Bool,
+        item: ShoppingListItem,
+        activeTrip: ShoppingTrip? = nil,
+        mutationId: String,
+        generatedAt: String?,
+        push: PushDeliveryStatus? = nil
+    ) {
+        self.ok = ok
+        self.item = item
+        self.activeTrip = activeTrip
+        self.mutationId = mutationId
+        self.generatedAt = generatedAt
+        self.push = push
+    }
 }
 
 struct DeleteShoppingListItemResponse: Codable, Equatable {
     let ok: Bool
     let itemId: Int
     let item: ShoppingListItem
-    let activeTrip: ShoppingTrip? = nil
+    let activeTrip: ShoppingTrip?
     let mutationId: String
     let generatedAt: String?
     let push: PushDeliveryStatus?
+
+    init(
+        ok: Bool,
+        itemId: Int,
+        item: ShoppingListItem,
+        activeTrip: ShoppingTrip? = nil,
+        mutationId: String,
+        generatedAt: String?,
+        push: PushDeliveryStatus? = nil
+    ) {
+        self.ok = ok
+        self.itemId = itemId
+        self.item = item
+        self.activeTrip = activeTrip
+        self.mutationId = mutationId
+        self.generatedAt = generatedAt
+        self.push = push
+    }
 }
 
 struct ShoppingTrip: Codable, Equatable, Identifiable {

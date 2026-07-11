@@ -298,7 +298,19 @@ export function createShoppingListMutationService(options: {
   ): Promise<void> {
     if (!trip || !tripUpdated) return;
     shoppingListRealtime?.broadcastTripUpdated(trip, mutationId);
-    await shoppingLiveActivityDeliveryService?.enqueueEvent({ event: 'update', trip });
+
+    try {
+      await shoppingLiveActivityDeliveryService?.enqueueEvent({ event: 'update', trip });
+    } catch (error) {
+      // The list and trip transaction is already committed. Delivery recovery
+      // must not turn a successful edit into a false HTTP failure.
+      auditLogger.warn('Shopping Live Activity update enqueue failed after list commit.', {
+        mutationId,
+        tripId: trip.id,
+        tripVersion: trip.version,
+        error: safeErrorMessage(error),
+      });
+    }
   }
 }
 

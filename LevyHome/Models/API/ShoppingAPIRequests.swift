@@ -72,6 +72,64 @@ struct UpdateShoppingListItemRequest: Encodable, Equatable {
         self.actor = actor
         self.mutationId = mutationId
     }
+
+    var hasMutableFields: Bool {
+        name != nil
+            || brand != nil
+            || quantity != nil
+            || notes != nil
+            || purchased != nil
+            || categoryId != nil
+            || image != nil
+            || storeListings != nil
+    }
+
+    func isReflected(in item: ShoppingListItem) -> Bool {
+        if let name, item.name != name {
+            return false
+        }
+
+        if let brand, !brand.matches(item.brand) {
+            return false
+        }
+
+        if let quantity, item.quantity != quantity {
+            return false
+        }
+
+        if let notes, !notes.matches(item.notes) {
+            return false
+        }
+
+        if let purchased, item.purchased != purchased {
+            return false
+        }
+
+        if let categoryId, !categoryId.matches(item.categoryId) {
+            return false
+        }
+
+        if let image, !image.matches(item.image) {
+            return false
+        }
+
+        if let storeListings, item.storeListings != storeListings {
+            return false
+        }
+
+        return true
+    }
+}
+
+private extension ShoppingListNullableValue where Value: Equatable {
+    func matches(_ value: Value?) -> Bool {
+        switch self {
+        case .value(let expected):
+            return value == expected
+        case .null:
+            return value == nil
+        }
+    }
 }
 
 struct DeleteShoppingListItemRequest: Encodable, Equatable {

@@ -22,6 +22,333 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isEmpty)
     }
 
+    func testEditSurvivesOlderRefreshThatFinishesAfterMutation() async throws {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        let refreshGate = ShoppingListResponseGate()
+        var loadCount = 0
+        var capturedRequest: UpdateShoppingListItemRequest?
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                loadCount += 1
+
+                switch loadCount {
+                case 1:
+                    return Self.response(items: [original])
+                case 2:
+                    return await refreshGate.waitForResponse()
+                default:
+                    return Self.response(items: [updated], activeTrip: Self.trip())
+                }
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, request in
+                capturedRequest = request
+                return ShoppingListMutationResponse(
+                    ok: true,
+                    item: updated,
+                    activeTrip: Self.trip(),
+                    mutationId: request.mutationId,
+                    generatedAt: "2026-07-11T20:01:00Z"
+                )
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+
+        let refreshTask = Task { await viewModel.refresh() }
+        await refreshGate.waitUntilStarted()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+
+        try await viewModel.updateItem(original, with: draft)
+        await refreshGate.resume(with: Self.response(items: [original]))
+        await refreshTask.value
+
+        XCTAssertEqual(viewModel.items.first?.name, "Granola")
+        XCTAssertEqual(viewModel.items.first?.version, 2)
+        XCTAssertEqual(viewModel.activeTrip?.id, Self.trip().id)
+        XCTAssertEqual(capturedRequest?.name, "Granola")
+        XCTAssertNil(capturedRequest?.purchased)
+        XCTAssertNil(capturedRequest?.quantity)
+        XCTAssertNil(capturedRequest?.brand)
+        XCTAssertFalse(viewModel.isMutatingItem(original.id))
+    }
+
+    func testTransportFailureReconcilesThenRetriesOnlyWhenEditWasNotCommitted() async throws {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        var loadCount = 0
+        var updateRequests: [UpdateShoppingListItemRequest] = []
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                loadCount += 1
+                return Self.response(items: [original])
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, request in
+                updateRequests.append(request)
+
+                if updateRequests.count == 1 {
+                    throw APIError.transport("The network connection was lost.")
+                }
+
+                return ShoppingListMutationResponse(
+                    ok: true,
+                    item: updated,
+                    mutationId: request.mutationId,
+                    generatedAt: "2026-07-11T20:02:00Z"
+                )
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+
+        try await viewModel.updateItem(original, with: draft)
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(updateRequests.count, 2)
+        XCTAssertEqual(updateRequests.map(\.mutationId), [
+            updateRequests[0].mutationId,
+            updateRequests[0].mutationId
+        ])
+        XCTAssertEqual(viewModel.items.first?.name, "Granola")
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.isMutatingItem(original.id))
+    }
+
+    func testRetryAppliesTripStateReturnedAfterReconciliationAdvancedIt() async throws {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        let initialTrip = Self.trip(version: 1, pickedUpCount: 0, remainingCount: 1)
+        let reconciledTrip = Self.trip(version: 2, pickedUpCount: 1, remainingCount: 0)
+        let retryTrip = Self.trip(version: 3, pickedUpCount: 0, remainingCount: 1)
+        var loadCount = 0
+        var updateCallCount = 0
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                loadCount += 1
+                return Self.response(
+                    items: [original],
+                    activeTrip: loadCount == 1 ? initialTrip : reconciledTrip
+                )
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, request in
+                updateCallCount += 1
+
+                if updateCallCount == 1 {
+                    throw APIError.transport("The network connection was lost.")
+                }
+
+                return ShoppingListMutationResponse(
+                    ok: true,
+                    item: updated,
+                    activeTrip: retryTrip,
+                    mutationId: request.mutationId,
+                    generatedAt: "2026-07-11T20:02:00Z"
+                )
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+
+        try await viewModel.updateItem(original, with: draft)
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(updateCallCount, 2)
+        XCTAssertEqual(viewModel.activeTrip?.version, 3)
+        XCTAssertEqual(viewModel.activeTrip?.remainingCount, 1)
+    }
+
+    func testTransportFailureAcceptsReconciledEditWithoutDuplicateRetry() async throws {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        var loadCount = 0
+        var updateCallCount = 0
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                loadCount += 1
+                return Self.response(items: loadCount == 1 ? [original] : [updated])
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in
+                updateCallCount += 1
+                throw APIError.transport("The response connection was lost after commit.")
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+
+        try await viewModel.updateItem(original, with: draft)
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(updateCallCount, 1)
+        XCTAssertEqual(viewModel.items.first?.name, "Granola")
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testTransportFailureDoesNotRetryWhenReconciliationCannotConfirmState() async {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        var loadCount = 0
+        var updateCallCount = 0
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                loadCount += 1
+
+                if loadCount == 1 {
+                    return Self.response(items: [original])
+                }
+
+                throw APIError.transport("The shopping list could not be reloaded.")
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in
+                updateCallCount += 1
+                throw APIError.transport("The response connection was lost after commit.")
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+
+        do {
+            try await viewModel.updateItem(original, with: draft)
+            XCTFail("Expected the uncertain update to remain failed.")
+        } catch {
+            XCTAssertEqual(
+                error as? APIError,
+                APIError.transport("The response connection was lost after commit.")
+            )
+        }
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(updateCallCount, 1)
+        XCTAssertEqual(viewModel.items.first?.name, "Cereal")
+    }
+
+    func testReconciledEditSurvivesOlderRefreshThatWasAlreadyInFlight() async throws {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        let staleRefreshGate = ShoppingListResponseGate()
+        var loadCount = 0
+        var updateCallCount = 0
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                loadCount += 1
+
+                switch loadCount {
+                case 1:
+                    return Self.response(items: [original])
+                case 2:
+                    return await staleRefreshGate.waitForResponse()
+                default:
+                    return Self.response(items: [updated])
+                }
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in
+                updateCallCount += 1
+                throw APIError.transport("The response connection was lost after commit.")
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+
+        let staleRefreshTask = Task { await viewModel.refresh() }
+        await staleRefreshGate.waitUntilStarted()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+        try await viewModel.updateItem(original, with: draft)
+        await staleRefreshGate.resume(with: Self.response(items: [original]))
+        await staleRefreshTask.value
+
+        XCTAssertEqual(loadCount, 4)
+        XCTAssertEqual(updateCallCount, 1)
+        XCTAssertEqual(viewModel.items.first?.name, "Granola")
+        XCTAssertEqual(viewModel.items.first?.version, 2)
+    }
+
+    func testDelayedEditResponseDoesNotResurrectTripEndedByLiveUpdate() async throws {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        let trip = Self.trip()
+        let updateGate = ShoppingListMutationResponseGate()
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                Self.response(items: [original])
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, request in
+                await updateGate.waitForResponse(
+                    ShoppingListMutationResponse(
+                        ok: true,
+                        item: updated,
+                        activeTrip: trip,
+                        mutationId: request.mutationId,
+                        generatedAt: "2026-07-11T20:03:00Z"
+                    )
+                )
+            },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") }
+        )
+        await viewModel.loadIfNeeded()
+        var draft = ShoppingItemDraft(item: original)
+        draft.name = "Granola"
+
+        let updateTask = Task {
+            try await viewModel.updateItem(original, with: draft)
+        }
+        await updateGate.waitUntilStarted()
+        await viewModel.applyLiveMessage(
+            .tripEnded(
+                trip: trip,
+                mutationId: "end-trip",
+                serverTime: "2026-07-11T20:02:30Z"
+            )
+        )
+        await updateGate.resume()
+        try await updateTask.value
+
+        XCTAssertEqual(viewModel.items.first?.name, "Granola")
+        XCTAssertNil(viewModel.activeTrip)
+    }
+
     func testLiveConnectionStateBuildsStatusBadges() {
         let viewModel = ShoppingListViewModel(
             liveService: EmptyShoppingListLiveService(),
@@ -237,12 +564,16 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isStartingTrip)
     }
 
-    private static func response(items: [ShoppingListItem]) -> ShoppingListResponse {
+    private static func response(
+        items: [ShoppingListItem],
+        activeTrip: ShoppingTrip? = nil
+    ) -> ShoppingListResponse {
         ShoppingListResponse(
             ok: true,
             items: items,
             stores: [],
             categories: [],
+            activeTrip: activeTrip,
             generatedAt: "2026-07-01T17:30:00Z"
         )
     }
@@ -271,7 +602,11 @@ final class ShoppingListViewModelTests: XCTestCase {
         )
     }
 
-    private static func trip() -> ShoppingTrip {
+    private static func trip(
+        version: Int = 1,
+        pickedUpCount: Int = 0,
+        remainingCount: Int = 1
+    ) -> ShoppingTrip {
         ShoppingTrip(
             id: "fca7f84a-8527-4a58-90b5-a78e4cde5b16",
             status: "active",
@@ -279,14 +614,14 @@ final class ShoppingListViewModelTests: XCTestCase {
             startedAt: "2026-07-11T18:00:00.000Z",
             endedBy: nil,
             endedAt: nil,
-            pickedUpCount: 0,
-            remainingCount: 1,
+            pickedUpCount: pickedUpCount,
+            remainingCount: remainingCount,
             totalItemCount: 1,
             estimatedTotalCents: 0,
             pricedPickedItemCount: 0,
             unpricedPickedItemCount: 0,
             currencyCode: "USD",
-            version: 1,
+            version: version,
             activityUpdatedAtEpochSeconds: nil
         )
     }
@@ -318,6 +653,70 @@ final class ShoppingListViewModelTests: XCTestCase {
             deviceName: nil,
             lastSeenAt: lastSeenAt
         )
+    }
+}
+
+private actor ShoppingListResponseGate {
+    private var responseContinuation: CheckedContinuation<ShoppingListResponse, Never>?
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+    private var hasStarted = false
+
+    func waitForResponse() async -> ShoppingListResponse {
+        hasStarted = true
+        startContinuations.forEach { $0.resume() }
+        startContinuations = []
+
+        return await withCheckedContinuation { continuation in
+            responseContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !hasStarted else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startContinuations.append(continuation)
+        }
+    }
+
+    func resume(with response: ShoppingListResponse) {
+        responseContinuation?.resume(returning: response)
+        responseContinuation = nil
+    }
+}
+
+private actor ShoppingListMutationResponseGate {
+    private var responseContinuation: CheckedContinuation<Void, Never>?
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+    private var hasStarted = false
+
+    func waitForResponse(_ response: ShoppingListMutationResponse) async -> ShoppingListMutationResponse {
+        hasStarted = true
+        startContinuations.forEach { $0.resume() }
+        startContinuations = []
+
+        await withCheckedContinuation { continuation in
+            responseContinuation = continuation
+        }
+
+        return response
+    }
+
+    func waitUntilStarted() async {
+        guard !hasStarted else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startContinuations.append(continuation)
+        }
+    }
+
+    func resume() {
+        responseContinuation?.resume()
+        responseContinuation = nil
     }
 }
 

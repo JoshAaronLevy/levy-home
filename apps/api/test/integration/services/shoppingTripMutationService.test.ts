@@ -139,3 +139,47 @@ test('a trip-snapshot failure rolls back the corresponding global Shopping mutat
   assert.equal((await shoppingListStore.fetchItem(milk.id))?.name, 'Milk');
   assert.equal((await shoppingTripStore.fetchActiveTrip())?.version, trip.version);
 });
+
+test('a Live Activity enqueue failure does not turn a committed Shopping edit into an HTTP failure', async (t) => {
+  const disposable = await createDisposableShoppingDatabase();
+  t.after(() => disposable.close());
+  await disposable.database`
+    INSERT INTO shopping_list (name, quantity, purchased, store_listings)
+    VALUES ('Milk', 1, false, '[]'::jsonb)
+  `;
+  const shoppingListStore = createPostgresShoppingListStore(disposable.database);
+  const shoppingTripStore = createPostgresShoppingTripStore({
+    database: disposable.database,
+    transactionRunner: disposable.transactionRunner,
+  });
+  await shoppingTripStore.startTrip({ startedBy: 'Josh', mutationId: randomUUID() });
+  const milk = await shoppingListStore.findItemByName('Milk');
+  assert.ok(milk);
+  const warnings: string[] = [];
+  const service = createShoppingListMutationService({
+    logger: {
+      debug() {},
+      error() {},
+      info() {},
+      warn(message) { warnings.push(message); },
+    },
+    shoppingListStore,
+    shoppingTripStore,
+    transactionRunner: disposable.transactionRunner,
+    shoppingLiveActivityDeliveryService: {
+      async enqueueEvent() {
+        throw new Error('delivery queue temporarily unavailable');
+      },
+    },
+  });
+
+  const response = await service.updateItem(
+    milk.id,
+    { purchased: true, actor: 'Josh' },
+    randomUUID(),
+  );
+
+  assert.equal(response.item.purchased, true);
+  assert.equal((await shoppingListStore.fetchItem(milk.id))?.purchased, true);
+  assert.deepEqual(warnings, ['Shopping Live Activity update enqueue failed after list commit.']);
+});

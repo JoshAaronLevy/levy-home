@@ -182,16 +182,22 @@ struct ShoppingItemDraft: Equatable {
         )
     }
 
-    func updateRequest(actor: String? = nil) -> UpdateShoppingListItemRequest {
-        UpdateShoppingListItemRequest(
-            name: trimmedName,
-            brand: nullableString(brand),
-            quantity: quantity,
-            notes: nullableString(notes),
-            purchased: purchased,
-            categoryId: nullableCategoryId,
-            image: nullableString(image),
-            storeListings: storeListings,
+    func updateRequest(
+        comparedTo item: ShoppingListItem,
+        actor: String? = nil
+    ) -> UpdateShoppingListItemRequest {
+        let normalizedBrand = normalizedOptionalText(brand)
+        let normalizedNotes = normalizedOptionalText(notes)
+        let normalizedImage = normalizedOptionalText(image)
+
+        return UpdateShoppingListItemRequest(
+            name: trimmedName == item.name ? nil : trimmedName,
+            brand: normalizedBrand == item.brand ? nil : nullableString(brand),
+            quantity: quantity == item.quantity ? nil : quantity,
+            notes: normalizedNotes == item.notes ? nil : nullableString(notes),
+            categoryId: selectedCategoryId == item.categoryId ? nil : nullableCategoryId,
+            image: normalizedImage == item.image ? nil : nullableString(image),
+            storeListings: storeListings == item.storeListings ? nil : storeListings,
             actor: actor
         )
     }
@@ -1917,7 +1923,7 @@ private struct ShoppingItemEditorSheet: View {
             case .add:
                 try await viewModel.createItem(from: draft)
             case .edit(let item):
-                try await viewModel.updateItem(id: item.id, with: draft)
+                try await viewModel.updateItem(item, with: draft)
             }
 
             dismiss()
