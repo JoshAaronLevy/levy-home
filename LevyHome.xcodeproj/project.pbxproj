@@ -153,6 +153,13 @@
 		F61000000000000000000001 /* ToDoListLiveServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61000000000000000000011 /* ToDoListLiveServicing.swift */; };
 		F61000000000000000000002 /* ToDoListLiveMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61000000000000000000012 /* ToDoListLiveMessages.swift */; };
 		F61000000000000000000003 /* ToDoListLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61000000000000000000013 /* ToDoListLiveService.swift */; };
+		B40000000000000000000001 /* ShoppingTripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000010 /* ShoppingTripActivityAttributes.swift */; };
+		B40000000000000000000002 /* ShoppingLiveActivityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000011 /* ShoppingLiveActivityCoordinator.swift */; };
+		B40000000000000000000003 /* ShoppingTripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000010 /* ShoppingTripActivityAttributes.swift */; };
+		B40000000000000000000004 /* LevyHomeWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000012 /* LevyHomeWidgetsBundle.swift */; };
+		B40000000000000000000005 /* ShoppingTripLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000013 /* ShoppingTripLiveActivity.swift */; };
+		B40000000000000000000006 /* LevyHomeWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B40000000000000000000015 /* LevyHomeWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B40000000000000000000008 /* ShoppingLiveActivityCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -163,7 +170,28 @@
 			remoteGlobalIDString = A10000000000000000000040;
 			remoteInfo = LevyHome;
 		};
+		B40000000000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000041 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B40000000000000000000040;
+			remoteInfo = LevyHomeWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B40000000000000000000049 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B40000000000000000000006 /* LevyHomeWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		3ED0FA092FE73778007B46DD /* LevyHomeRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LevyHomeRelease.entitlements; sourceTree = "<group>"; };
@@ -317,6 +345,13 @@
 		F70000000000000000000024 /* APIClient+ToDo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+ToDo.swift"; sourceTree = "<group>"; };
 		F70000000000000000000025 /* APIClient+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Notifications.swift"; sourceTree = "<group>"; };
 		F70000000000000000000026 /* APIClient+System.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+System.swift"; sourceTree = "<group>"; };
+		B40000000000000000000010 /* ShoppingTripActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingTripActivityAttributes.swift; sourceTree = "<group>"; };
+		B40000000000000000000011 /* ShoppingLiveActivityCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingLiveActivityCoordinator.swift; sourceTree = "<group>"; };
+		B40000000000000000000012 /* LevyHomeWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevyHomeWidgetsBundle.swift; sourceTree = "<group>"; };
+		B40000000000000000000013 /* ShoppingTripLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingTripLiveActivity.swift; sourceTree = "<group>"; };
+		B40000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B40000000000000000000015 /* LevyHomeWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LevyHomeWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingLiveActivityCoordinatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -334,6 +369,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B40000000000000000000020 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -341,6 +383,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000031 /* LevyHome */,
+				B40000000000000000000030 /* LevyHomeWidgets */,
 				A50000000000000000000004 /* LevyHomeTests */,
 				A10000000000000000000032 /* Products */,
 			);
@@ -366,6 +409,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000004 /* LevyHome.app */,
+				B40000000000000000000015 /* LevyHomeWidgets.appex */,
 				A50000000000000000000001 /* LevyHomeTests.xctest */,
 			);
 			name = Products;
@@ -542,6 +586,7 @@
 			isa = PBXGroup;
 			children = (
 				F40000000000000000000041 /* Home */,
+				B40000000000000000000031 /* Shopping */,
 				A40000000000000000000011 /* EventType.swift */,
 				A40000000000000000000012 /* EventSeverity.swift */,
 				A40000000000000000000013 /* LevyHomeEvent.swift */,
@@ -591,6 +636,14 @@
 			path = Home;
 			sourceTree = "<group>";
 		};
+		B40000000000000000000031 /* Shopping */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000010 /* ShoppingTripActivityAttributes.swift */,
+			);
+			path = Shopping;
+			sourceTree = "<group>";
+		};
 		A50000000000000000000004 /* LevyHomeTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -607,6 +660,7 @@
 				A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */,
 				D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */,
 				C10000000000000000000015 /* PushRegistrationViewModelTests.swift */,
+				B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */,
 			);
 			path = LevyHomeTests;
 			sourceTree = "<group>";
@@ -661,6 +715,7 @@
 				F60000000000000000000023 /* ShoppingListViewerPresence.swift */,
 				F60000000000000000000024 /* ShoppingListLiveConnectionState.swift */,
 				E70000000000000000000011 /* ShoppingListLiveService.swift */,
+				B40000000000000000000011 /* ShoppingLiveActivityCoordinator.swift */,
 			);
 			path = Shopping;
 			sourceTree = "<group>";
@@ -798,6 +853,16 @@
 			path = Shopping;
 			sourceTree = "<group>";
 		};
+		B40000000000000000000030 /* LevyHomeWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000012 /* LevyHomeWidgetsBundle.swift */,
+				B40000000000000000000013 /* ShoppingTripLiveActivity.swift */,
+				B40000000000000000000014 /* Info.plist */,
+			);
+			path = LevyHomeWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -808,15 +873,34 @@
 				A10000000000000000000050 /* Sources */,
 				A10000000000000000000020 /* Frameworks */,
 				A10000000000000000000051 /* Resources */,
+				B40000000000000000000049 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B40000000000000000000052 /* PBXTargetDependency */,
 			);
 			name = LevyHome;
 			productName = LevyHome;
 			productReference = A10000000000000000000004 /* LevyHome.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B40000000000000000000040 /* LevyHomeWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B40000000000000000000060 /* Build configuration list for PBXNativeTarget "LevyHomeWidgets" */;
+			buildPhases = (
+				B40000000000000000000050 /* Sources */,
+				B40000000000000000000020 /* Frameworks */,
+				B40000000000000000000051 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LevyHomeWidgets;
+			productName = LevyHomeWidgets;
+			productReference = B40000000000000000000015 /* LevyHomeWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		A50000000000000000000008 /* LevyHomeTests */ = {
 			isa = PBXNativeTarget;
@@ -849,6 +933,9 @@
 					A10000000000000000000040 = {
 						CreatedOnToolsVersion = 26.5;
 					};
+					B40000000000000000000040 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					A50000000000000000000008 = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = A10000000000000000000040;
@@ -869,6 +956,7 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000040 /* LevyHome */,
+				B40000000000000000000040 /* LevyHomeWidgets */,
 				A50000000000000000000008 /* LevyHomeTests */,
 			);
 		};
@@ -885,6 +973,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A50000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B40000000000000000000051 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -998,6 +1093,8 @@
 				F60000000000000000000002 /* ShoppingListLiveMessages.swift in Sources */,
 				F60000000000000000000003 /* ShoppingListViewerPresence.swift in Sources */,
 				F60000000000000000000004 /* ShoppingListLiveConnectionState.swift in Sources */,
+				B40000000000000000000001 /* ShoppingTripActivityAttributes.swift in Sources */,
+				B40000000000000000000002 /* ShoppingLiveActivityCoordinator.swift in Sources */,
 				F61000000000000000000001 /* ToDoListLiveServicing.swift in Sources */,
 				F61000000000000000000002 /* ToDoListLiveMessages.swift in Sources */,
 				F61000000000000000000003 /* ToDoListLiveService.swift in Sources */,
@@ -1032,6 +1129,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B40000000000000000000050 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B40000000000000000000003 /* ShoppingTripActivityAttributes.swift in Sources */,
+				B40000000000000000000004 /* LevyHomeWidgetsBundle.swift in Sources */,
+				B40000000000000000000005 /* ShoppingTripLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A50000000000000000000006 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1049,6 +1156,7 @@
 				A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */,
 				D10000000000000000000005 /* ThemePreferenceViewModelTests.swift in Sources */,
 				C10000000000000000000005 /* PushRegistrationViewModelTests.swift in Sources */,
+				B40000000000000000000008 /* ShoppingLiveActivityCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1059,6 +1167,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000040 /* LevyHome */;
 			targetProxy = A5000000000000000000000C /* PBXContainerItemProxy */;
+		};
+		B40000000000000000000052 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B40000000000000000000040 /* LevyHomeWidgets */;
+			targetProxy = B40000000000000000000007 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1244,6 +1357,62 @@
 			};
 			name = Release;
 		};
+		B40000000000000000000072 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = 45K7QCRX6Y;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LevyHomeWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.10.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B40000000000000000000073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = 45K7QCRX6Y;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LevyHomeWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.10.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		A5000000000000000000000A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1315,6 +1484,15 @@
 			buildConfigurations = (
 				A10000000000000000000070 /* Debug */,
 				A10000000000000000000071 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B40000000000000000000060 /* Build configuration list for PBXNativeTarget "LevyHomeWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B40000000000000000000072 /* Debug */,
+				B40000000000000000000073 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

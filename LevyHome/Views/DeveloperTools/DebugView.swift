@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DebugView: View {
+    @EnvironmentObject private var shoppingLiveActivityCoordinator: ShoppingLiveActivityCoordinator
     @ObservedObject var pushRegistrationViewModel: PushRegistrationViewModel
     @ObservedObject var notificationPreferencesViewModel: NotificationPreferencesViewModel
     @StateObject private var notificationTestViewModel: NotificationPipelineTestViewModel
@@ -65,6 +66,7 @@ struct DebugView: View {
         .navigationTitle("Developer")
         .task {
             if showsDebugControls {
+                shoppingLiveActivityCoordinator.refreshState()
                 await pushRegistrationViewModel.refreshStatus()
             }
         }
@@ -72,6 +74,75 @@ struct DebugView: View {
 
     @ViewBuilder
     private var debugControlSections: some View {
+        InfoPanel(
+            title: "Shopping Live Activity",
+            subtitle: "Stage 1 local Lock Screen and Dynamic Island proof.",
+            systemImage: "cart.badge.clock"
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                statusRow(
+                    title: "Authorization",
+                    detail: shoppingLiveActivityAuthorizationDetail,
+                    badgeLabel: shoppingLiveActivityCoordinator.activitiesAreEnabled ? "Enabled" : "Disabled",
+                    badgeImage: shoppingLiveActivityCoordinator.activitiesAreEnabled
+                        ? "checkmark.circle"
+                        : "exclamationmark.triangle",
+                    badgeTone: shoppingLiveActivityCoordinator.activitiesAreEnabled ? .success : .warning
+                )
+
+                statusRow(
+                    title: "Sample activity",
+                    detail: shoppingLiveActivityStatusDetail,
+                    badgeLabel: shoppingLiveActivityCoordinator.hasActiveActivity ? "Active" : "Stopped",
+                    badgeImage: shoppingLiveActivityCoordinator.hasActiveActivity ? "cart.fill" : "cart",
+                    badgeTone: shoppingLiveActivityCoordinator.hasActiveActivity ? .accent : .neutral
+                )
+
+                ErrorBannerView(
+                    message: shoppingLiveActivityCoordinator.statusMessage,
+                    tone: shoppingLiveActivityMessageTone
+                )
+
+                Text("Tap Update repeatedly to cycle through 0, 3, 99, and 999 items left, with estimates from $0.00 through $9,999.99.")
+                    .font(.footnote)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                PrimaryActionButton(
+                    title: "Start Sample Activity",
+                    systemImage: "play.fill",
+                    isDisabled: shoppingLiveActivityCoordinator.hasActiveActivity
+                        || shoppingLiveActivityCoordinator.isRunningOperation
+                ) {
+                    Task {
+                        await shoppingLiveActivityCoordinator.startSampleActivity()
+                    }
+                }
+
+                PrimaryActionButton(
+                    title: "Update Sample Activity",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    isDisabled: !shoppingLiveActivityCoordinator.hasActiveActivity
+                        || shoppingLiveActivityCoordinator.isRunningOperation
+                ) {
+                    Task {
+                        await shoppingLiveActivityCoordinator.updateSampleActivity()
+                    }
+                }
+
+                PrimaryActionButton(
+                    title: "End Sample Activity",
+                    systemImage: "stop.fill",
+                    isDisabled: !shoppingLiveActivityCoordinator.hasActiveActivity
+                        || shoppingLiveActivityCoordinator.isRunningOperation
+                ) {
+                    Task {
+                        await shoppingLiveActivityCoordinator.endSampleActivity()
+                    }
+                }
+            }
+        }
+
         InfoPanel(
             title: "Native Push",
             subtitle: "APNs registration for this device.",
@@ -205,6 +276,37 @@ struct DebugView: View {
         }
     }
 
+    private var shoppingLiveActivityAuthorizationDetail: String {
+        shoppingLiveActivityCoordinator.activitiesAreEnabled
+            ? "iOS currently allows Levy Home to show Live Activities."
+            : "Enable Live Activities for Levy Home in iOS Settings to run this proof."
+    }
+
+    private var shoppingLiveActivityStatusDetail: String {
+        guard let activityID = shoppingLiveActivityCoordinator.activeActivityID else {
+            return "No local sample is running. The real Shopping New button remains unchanged."
+        }
+
+        return "Local sample ID: \(activityID)"
+    }
+
+    private var shoppingLiveActivityMessageTone: BannerTone {
+        guard shoppingLiveActivityCoordinator.activitiesAreEnabled else {
+            return .warning
+        }
+
+        switch shoppingLiveActivityCoordinator.lastResult?.kind {
+        case .started, .recovered, .updated, .ended:
+            return .success
+        case .unavailable:
+            return .warning
+        case .failed:
+            return .error
+        case nil:
+            return .info
+        }
+    }
+
     private func statusRow(
         title: String,
         detail: String,
@@ -307,6 +409,7 @@ struct DebugView: View {
             }
         )
     }
+    .environmentObject(ShoppingLiveActivityCoordinator())
 }
 
 @MainActor

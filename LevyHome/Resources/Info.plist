@@ -46,6 +46,8 @@
 		<string>MKDirectionsModeCar</string>
 		<string>MKDirectionsModePedestrian</string>
 	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Levy Home needs access to Bluetooth devices</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>

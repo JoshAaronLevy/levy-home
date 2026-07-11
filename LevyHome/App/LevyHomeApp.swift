@@ -7,6 +7,7 @@ struct LevyHomeApp: App {
     private let appEnvironment: AppEnvironment
     @StateObject private var themePreferenceViewModel: ThemePreferenceViewModel
     @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
+    @StateObject private var shoppingLiveActivityCoordinator: ShoppingLiveActivityCoordinator
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
 
     init() {
@@ -25,6 +26,9 @@ struct LevyHomeApp: App {
                 appVersion: appEnvironment.config.appVersion
             )
         )
+        _shoppingLiveActivityCoordinator = StateObject(
+            wrappedValue: ShoppingLiveActivityCoordinator()
+        )
     }
 
     var body: some Scene {
@@ -32,6 +36,7 @@ struct LevyHomeApp: App {
             RootTabView()
                 .environment(\.appEnvironment, appEnvironment)
                 .environmentObject(themePreferenceViewModel)
+                .environmentObject(shoppingLiveActivityCoordinator)
                 .preferredColorScheme(themePreferenceViewModel.preferredColorScheme)
                 .task(id: notificationRegistrationDeviceName ?? "") {
                     pushRegistrationViewModel.updateDeviceName(notificationRegistrationDeviceName)

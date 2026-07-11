@@ -139,7 +139,7 @@ private struct DeveloperPreferenceLinkLabel: View {
 
     private var subtitle: String {
         showsDebugControls
-            ? "Device registration, preference sync, and logs."
+            ? "Device registration, Live Activities, preference sync, and logs."
             : "Runtime logs and activity diagnostics."
     }
 }
@@ -268,6 +268,7 @@ private struct ResidentPreferenceView: View {
             }
         )
     }
+    .environmentObject(ShoppingLiveActivityCoordinator())
 }
 
 private extension TestNotificationPipelineResponse {

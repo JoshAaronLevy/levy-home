@@ -57,4 +57,5 @@ private enum RootTab: Hashable {
                 )
             )
         )
+        .environmentObject(ShoppingLiveActivityCoordinator())
 }

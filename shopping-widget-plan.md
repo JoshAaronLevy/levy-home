@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: planning only. This document does not implement the Live Activity, change the iOS project, add database tables, change the API, deploy Render, or modify Home Assistant.
+Status: Stage 1 is implemented in code as of 2026-07-11. Automated build, embedding, signing, install, and test checks pass; the manual physical-phone Lock Screen, Dynamic Island, and disabled-setting observations remain. Stages 2-9 are planning only, and no database, API, Render, or Home Assistant change has been made.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -131,7 +131,7 @@ The first implementation is complete only when all of the following are true:
 11. Ordinary per-item “picked up” pushes are suppressed during an active trip so the Live Activity does not create notification spam.
 12. The exported production IPA embeds and signs the Widget extension, contains the correct Live Activity plist support, and uses production APNs entitlements.
 
-## Current Starting Point
+## Starting Point Before Stage 1
 
 ### Shopping UI
 
@@ -565,6 +565,7 @@ De-risk Widget-extension signing and real Lock Screen presentation before changi
 3. Add:
    - **LevyHomeWidgets/LevyHomeWidgetsBundle.swift**
    - **LevyHomeWidgets/ShoppingTripLiveActivity.swift**
+   - **LevyHomeWidgets/Info.plist**, including **NSExtensionPointIdentifier = com.apple.widgetkit-extension**
    - **LevyHome/Models/Shopping/ShoppingTripActivityAttributes.swift**
 4. Compile the Activity attributes file into both targets.
 5. Add **NSSupportsLiveActivities = true** to **LevyHome/Resources/Info.plist**.
@@ -597,6 +598,16 @@ De-risk Widget-extension signing and real Lock Screen presentation before changi
 - A sample Live Activity can start, update, and end locally.
 - The real Shopping button still does not create an unpersisted fake trip.
 - Layout is readable with 0, 3, 99, and 999 remaining items and estimates from zero through four digits.
+
+### Implementation Status — 2026-07-11
+
+- The Widget extension, shared ActivityKit state, app-scoped coordinator, and temporary Developer controls are implemented.
+- Debug and Release simulator builds compile the app and extension together, and the built app embeds **PlugIns/LevyHomeWidgets.appex** with the expected bundle ID and WidgetKit extension point.
+- The signed Debug app and extension validate under team **45K7QCRX6Y** and are installed on Josh's paired iPhone 16 Pro.
+- The full iOS unit-test suite passes, including coordinator coverage for disabled authorization, start failure, active and pending deduplication, update stress states, and final dismissal.
+- The Update control cycles through 0, 3, 99, and 999 remaining items and estimates from **$0.00** through **$9,999.99** for physical layout inspection.
+- The real Shopping **New** handler remains **onStartShop: {}**.
+- Manual phone acceptance is still required: launch the installed build, start the sample in **Preferences -> Developer**, inspect the Lock Screen and every Dynamic Island presentation, exercise update/end, and repeat once with Live Activities disabled.
 
 ## Stage 2: Add Durable Shopping Trip Persistence
 
