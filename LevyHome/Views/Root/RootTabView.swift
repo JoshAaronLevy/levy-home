@@ -44,6 +44,9 @@ struct RootTabView: View {
                 selectedTab = .list
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .levyHomeOpenShopping)) { _ in
+            selectedTab = .list
+        }
     }
 }
 

@@ -24,6 +24,8 @@ export type APNsSendRequest = {
   title: string;
   body: string;
   data?: Record<string, string>;
+  collapseId?: string;
+  expiration?: number;
 };
 
 export type APNsSendResult = {

@@ -243,6 +243,23 @@ final class NotificationService: NSObject, NotificationServicing, UNUserNotifica
         }
     }
 
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        defer { completionHandler() }
+
+        guard
+            let levyHome = response.notification.request.content.userInfo["levyHome"] as? [String: Any],
+            levyHome["listType"] as? String == "shopping"
+        else {
+            return
+        }
+
+        NotificationCenter.default.post(name: .levyHomeOpenShopping, object: nil)
+    }
+
     private var availability: PushRegistrationAvailability {
         #if targetEnvironment(simulator)
         return .simulatorUnavailable

@@ -461,6 +461,7 @@ private struct ShoppingListContentView: View {
     @State private var editorMode: ShoppingItemEditorMode?
     @State private var pendingDeleteItem: ShoppingListItem?
     @State private var tripDisplayMessage: String?
+    @State private var isShowingEndTripConfirmation = false
     let isSelected: Bool
 
     init(viewModel: ShoppingListViewModel, isSelected: Bool = true) {
@@ -537,6 +538,20 @@ private struct ShoppingListContentView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            "End Shopping Trip?",
+            isPresented: $isShowingEndTripConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("End Shop", role: .destructive) {
+                Task { await endTrip() }
+            }
+            Button("Keep Shopping", role: .cancel) {}
+        } message: {
+            if let trip = viewModel.activeTrip {
+                Text(endTripConfirmationMessage(for: trip))
+            }
         }
         .alert(
             "Delete Item?",
@@ -634,7 +649,7 @@ private struct ShoppingListContentView: View {
                 Task { await startTrip() }
             },
             onEndShop: {
-                Task { await endTrip() }
+                isShowingEndTripConfirmation = true
             },
             onFilter: {
                 draftFilters = appliedFilters
@@ -686,6 +701,13 @@ private struct ShoppingListContentView: View {
         guard let response = await viewModel.endTrip() else { return }
         let result = await shoppingLiveActivityCoordinator.endTripActivity(for: response.trip)
         tripDisplayMessage = result.message
+    }
+
+    private func endTripConfirmationMessage(for trip: ShoppingTrip) -> String {
+        let estimate = trip.pricedPickedItemCount > 0
+            ? " Estimated \\((Decimal(trip.estimatedTotalCents) / 100).formatted(.currency(code: trip.currencyCode)))."
+            : ""
+        return "\\(trip.pickedUpCount) picked up • \\(trip.remainingCount) left.\\(estimate)"
     }
 
     private func refreshForSelectedVisit() async {

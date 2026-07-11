@@ -74,6 +74,8 @@ class APNsPushSender implements PushSender {
       topic: credentials.bundleId,
       pushType: 'alert',
       priority: 10,
+      ...(request.collapseId ? { collapseId: request.collapseId } : {}),
+      ...(request.expiration !== undefined ? { expiration: request.expiration } : {}),
       payload: JSON.stringify({
         aps: {
           alert: {
@@ -208,6 +210,7 @@ type APNsPayloadRequest = {
   pushType: 'alert' | 'liveactivity';
   priority: 5 | 10;
   expiration?: number;
+  collapseId?: string;
   payload: string;
 };
 
@@ -228,6 +231,7 @@ function sendAPNsPayload(
       'apns-push-type': request.pushType,
       'apns-priority': String(request.priority),
       ...(request.expiration !== undefined ? { 'apns-expiration': String(request.expiration) } : {}),
+      ...(request.collapseId ? { 'apns-collapse-id': request.collapseId } : {}),
       'content-type': 'application/json',
     });
     const chunks: Buffer[] = [];

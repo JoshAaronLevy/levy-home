@@ -19,6 +19,7 @@ import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
 import type { WeatherAlertService } from './services/weather/weatherAlertService.js';
 import type { ToDoListRealtimeHub } from './todoListRealtime.js';
 import type { ShoppingLiveActivityDeliveryService } from './services/shopping/shoppingLiveActivityDeliveryService.js';
+import type { ShoppingTripSummaryDeliveryService } from './services/shopping/shoppingTripSummaryDeliveryService.js';
 
 export function startServer(config?: AppConfig, options: { logger?: Logger } = {}): void {
   const serverLogger = options.logger ?? logger;
@@ -32,6 +33,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   const toDoListRealtime = app.get('toDoListRealtime') as ToDoListRealtimeHub | undefined;
   const weatherAlertService = app.get('weatherAlertService') as WeatherAlertService | undefined;
   const shoppingLiveActivityDeliveryService = app.get('shoppingLiveActivityDeliveryService') as ShoppingLiveActivityDeliveryService | undefined;
+  const shoppingTripSummaryDeliveryService = app.get('shoppingTripSummaryDeliveryService') as ShoppingTripSummaryDeliveryService | undefined;
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -55,6 +57,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     activityListener?.start();
     weatherAlertService?.start();
     shoppingLiveActivityDeliveryService?.start();
+    shoppingTripSummaryDeliveryService?.start();
     void backfillHomeAssistantActivity(resolvedConfig, {
       logger: serverLogger,
       onStateChanged: storeHomeAssistantPhoneActivity,
@@ -73,6 +76,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     activityListener?.stop();
     weatherAlertService?.stop();
     shoppingLiveActivityDeliveryService?.stop();
+    shoppingTripSummaryDeliveryService?.stop();
     shoppingListRealtime.close();
     toDoListRealtime?.close();
   });
@@ -109,6 +113,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     shoppingListRealtime.close();
     weatherAlertService?.stop();
     shoppingLiveActivityDeliveryService?.stop();
+    shoppingTripSummaryDeliveryService?.stop();
     toDoListRealtime?.close();
 
     server.close((error) => {

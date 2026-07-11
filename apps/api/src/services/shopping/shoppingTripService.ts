@@ -13,6 +13,7 @@ import {
 } from '../../repositories/shoppingTripRepository.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
 import type { ShoppingLiveActivityDeliveryService } from './shoppingLiveActivityDeliveryService.js';
+import type { ShoppingTripSummaryDeliveryService } from './shoppingTripSummaryDeliveryService.js';
 
 export type ShoppingTripService = {
   getActiveTrip: () => Promise<ShoppingTripSnapshot | null>;
@@ -24,9 +25,15 @@ export type ShoppingTripService = {
 export function createShoppingTripService(options: {
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   shoppingLiveActivityDeliveryService?: Pick<ShoppingLiveActivityDeliveryService, 'enqueueEvent'>;
+  shoppingTripSummaryDeliveryService?: Pick<ShoppingTripSummaryDeliveryService, 'processPending'>;
   shoppingTripStore: ShoppingTripStore;
 }): ShoppingTripService {
-  const { shoppingListRealtime, shoppingLiveActivityDeliveryService, shoppingTripStore } = options;
+  const {
+    shoppingListRealtime,
+    shoppingLiveActivityDeliveryService,
+    shoppingTripSummaryDeliveryService,
+    shoppingTripStore,
+  } = options;
   const displayForStartRequest = async (
     trip: ShoppingTripSnapshot,
     request: StartShoppingTripPersistenceRequest,
@@ -141,6 +148,8 @@ export function createShoppingTripService(options: {
 
       if (completedTrip) {
         shoppingListRealtime?.broadcastTripEnded(completedTrip, request.mutationId);
+        await shoppingLiveActivityDeliveryService?.enqueueEvent({ event: 'end', trip: completedTrip });
+        void shoppingTripSummaryDeliveryService?.processPending();
         return tripMutationResponse(completedTrip, request.mutationId, null);
       }
 

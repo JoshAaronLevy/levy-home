@@ -36,6 +36,10 @@ import {
   type ShoppingLiveActivityStore,
 } from './repositories/shoppingLiveActivityRepository.js';
 import {
+  createPostgresShoppingTripSummaryStore,
+  type ShoppingTripSummaryStore,
+} from './repositories/shoppingTripSummaryRepository.js';
+import {
   createPostgresToDoLocationStore,
   type ToDoLocationStore,
 } from './repositories/todoLocationRepository.js';
@@ -59,6 +63,10 @@ import {
   createShoppingLiveActivityDeliveryService,
   type ShoppingLiveActivityDeliveryService,
 } from './services/shopping/shoppingLiveActivityDeliveryService.js';
+import {
+  createShoppingTripSummaryDeliveryService,
+  type ShoppingTripSummaryDeliveryService,
+} from './services/shopping/shoppingTripSummaryDeliveryService.js';
 import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
 import {
   createWeatherAlertService,
@@ -80,6 +88,8 @@ export type CreateAppOptions = {
   shoppingLiveActivityStore?: ShoppingLiveActivityStore;
   shoppingLiveActivityPushSender?: ShoppingLiveActivityPushSender;
   shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
+  shoppingTripSummaryStore?: ShoppingTripSummaryStore;
+  shoppingTripSummaryDeliveryService?: ShoppingTripSummaryDeliveryService;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   toDoListRealtime?: ToDoListRealtimeHub;
   userStore?: UserStore;
@@ -141,10 +151,24 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         shoppingTripStore,
       })
       : undefined);
+  const shoppingTripSummaryStore = options.shoppingTripSummaryStore ?? (
+    isDatabaseConfigured() ? createPostgresShoppingTripSummaryStore() : undefined
+  );
+  const shoppingTripSummaryDeliveryService: ShoppingTripSummaryDeliveryService | undefined =
+    options.shoppingTripSummaryDeliveryService ?? (shoppingTripSummaryStore
+      ? createShoppingTripSummaryDeliveryService({
+        logger: appLogger,
+        pushSender,
+        deviceRegistry,
+        notificationPreferenceStore,
+        shoppingTripSummaryStore,
+      })
+      : undefined);
   const shoppingTripService: ShoppingTripService | undefined = shoppingTripStore
     ? createShoppingTripService({
       shoppingListRealtime,
       shoppingLiveActivityDeliveryService,
+      shoppingTripSummaryDeliveryService,
       shoppingTripStore,
     })
     : undefined;
@@ -185,6 +209,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.set('toDoListRealtime', toDoListRealtime);
   app.set('weatherAlertService', weatherAlertService);
   app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);
+  app.set('shoppingTripSummaryDeliveryService', shoppingTripSummaryDeliveryService);
 
   registerRoutes(app, {
     activityStore,

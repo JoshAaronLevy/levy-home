@@ -303,6 +303,7 @@ export async function completeShoppingTrip(
   database: DatabaseQuery,
   request: CompleteShoppingTripPersistenceRequest,
 ): Promise<ShoppingTripSnapshot | null> {
+  const summaryRecipient = request.summaryRecipient ?? counterpartRecipient(request.endedBy);
   const [tripRow] = await database<ShoppingTripIDRow>`
     UPDATE shopping_trips
     SET
@@ -310,7 +311,8 @@ export async function completeShoppingTrip(
       ended_by = ${request.endedBy},
       ended_at = now(),
       end_mutation_id = ${request.mutationId},
-      summary_recipient = ${request.summaryRecipient ?? null},
+      summary_recipient = ${summaryRecipient},
+      summary_enqueued_at = now(),
       version = version + 1
     WHERE id = ${request.tripId}
       AND status = 'active'
@@ -321,7 +323,70 @@ export async function completeShoppingTrip(
     return null;
   }
 
-  return fetchShoppingTrip(database, requiredString(tripRow.id, 'shopping_trips.id'));
+  const trip = await fetchShoppingTrip(database, requiredString(tripRow.id, 'shopping_trips.id'));
+
+  if (!trip) {
+    throw new Error('Expected completed shopping trip to remain readable.');
+  }
+
+  await createShoppingTripSummaryDeliveries(database, trip, summaryRecipient);
+  return trip;
+}
+
+async function createShoppingTripSummaryDeliveries(
+  database: DatabaseQuery,
+  trip: ShoppingTripSnapshot,
+  recipient: ShoppingTripResident,
+): Promise<void> {
+  const rows = await database<{ id: unknown }>`
+    SELECT id
+    FROM push_devices
+    WHERE provider = 'apns'
+      AND lower(COALESCE(device_name, '')) LIKE ${`%${recipient.toLowerCase()}%`}
+    ORDER BY registered_at ASC, id ASC
+  `;
+  const { title, body } = shoppingTripSummaryCopy(trip);
+
+  for (const row of rows) {
+    await database`
+      INSERT INTO shopping_trip_summary_deliveries (
+        trip_id,
+        recipient,
+        push_device_id,
+        title,
+        body
+      )
+      VALUES (${trip.id}, ${recipient}, ${requiredString(row.id, 'push_devices.id')}, ${title}, ${body})
+      ON CONFLICT (trip_id, push_device_id) DO NOTHING
+    `;
+  }
+}
+
+function shoppingTripSummaryCopy(trip: ShoppingTripSnapshot): { title: string; body: string } {
+  const counts = trip.remainingCount > 0
+    ? `${trip.pickedUpCount} picked up • ${trip.remainingCount} left`
+    : `${trip.pickedUpCount} picked up`;
+  const estimate = trip.pricedPickedItemCount > 0
+    ? ` • Est. ${formatCurrencyCents(trip.estimatedTotalCents, trip.currencyCode)}`
+    : '';
+
+  return {
+    title: 'Shopping trip ended',
+    body: `${trip.endedBy ?? trip.startedBy} ended the trip: ${counts}${estimate}`,
+  };
+}
+
+function counterpartRecipient(resident: ShoppingTripResident): ShoppingTripResident {
+  return resident === 'Josh' ? 'Mallory' : 'Josh';
+}
+
+function formatCurrencyCents(cents: number, currencyCode: string): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currencyCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
 }
 
 export async function lockActiveShoppingTrip(

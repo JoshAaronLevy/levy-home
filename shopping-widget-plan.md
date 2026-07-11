@@ -988,6 +988,16 @@ Finalize the shared trip once, end both Live Activities, and deliver one useful 
 - Exactly the intended counterpart is targeted for one summary.
 - Delivery failure cannot reopen or roll back a completed trip.
 
+### Implementation Status — 2026-07-11
+
+- Added **apps/api/migrations/2026-07-11-005-shopping-trip-summaries.sql** and a durable **shopping_trip_summary_deliveries** dispatcher. Completion creates at most one summary row per matching counterpart APNs device in the same transaction that marks the trip completed, preserving the final snapshot and selected counterpart recipient.
+- The end flow now derives an immutable counterpart summary such as **Josh ended the trip: 8 picked up • 2 left • Est. $67.42**. Summaries without priced picked items omit the estimate rather than reporting a misleading zero amount.
+- The summary dispatcher starts/stops with the API server, claims rows atomically, checks the existing per-device **shopping_list** preference, records provider acceptance separately from attempted delivery, uses a trip/recipient collapse ID and one-hour expiration, retries transient failures with bounded backoff, and terminally skips disabled/missing recipient devices.
+- Completing a trip now queues non-alerting ActivityKit **end** work for all active per-trip update tokens after the completion transaction commits. The existing durable ActivityKit dispatcher resumes pending ends after restart; summary delivery failure cannot reopen the completed trip.
+- The Shopping UI now asks for an explicit **End Shop** confirmation with final counts and estimate. Tapping an ordinary Shopping summary notification routes the app to the Shopping tab through the shared navigation signal.
+- Added disposable-database coverage for counterpart-only summary creation, provider acceptance deduplication, and preference-disabled terminal skipping. API typecheck/build and all **142** API tests pass; the full iOS simulator suite passes.
+- Migration 005 is not applied to the configured/deployed database and physical APNs/ActivityKit end acceptance remains outstanding. Stage 8 should add the broader token invalidation, readiness diagnostics, and operational hardening described below.
+
 ## Stage 8: Add Recovery, Observability, And Operational Hardening
 
 ### Goal
