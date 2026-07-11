@@ -507,6 +507,10 @@ private struct ShoppingListContentView: View {
             guard isSelected else { return }
             Task { await recoverActiveTripDisplay() }
         }
+        .onChange(of: viewModel.activeTrip?.version) { _, _ in
+            guard let trip = viewModel.activeTrip, isSelected else { return }
+            Task { await shoppingLiveActivityCoordinator.updateTripActivity(for: trip) }
+        }
         .refreshable {
             await viewModel.refresh()
         }
@@ -602,7 +606,9 @@ private struct ShoppingListContentView: View {
                     mutatingItemIDs: viewModel.mutatingItemIDs,
                     onTogglePurchased: { item in
                         Task {
-                            await viewModel.setPurchased(item, purchased: !item.purchased)
+                            if let trip = await viewModel.setPurchased(item, purchased: !item.purchased) {
+                                await shoppingLiveActivityCoordinator.updateTripActivity(for: trip)
+                            }
                         }
                     },
                     onEdit: { item in

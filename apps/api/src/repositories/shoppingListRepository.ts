@@ -148,6 +148,33 @@ export async function fetchShoppingListItem(
   return row ? shoppingListItemFromRow(row) : null;
 }
 
+export async function fetchShoppingListItemForUpdate(
+  database: DatabaseQuery,
+  id: number,
+): Promise<ShoppingListItem | null> {
+  const [row] = await database<ShoppingListRow>`
+    SELECT
+      item.id,
+      item.name,
+      item.brand,
+      item.quantity,
+      item.notes,
+      item.purchased,
+      COALESCE(to_jsonb(item) ->> 'created', to_jsonb(item) ->> 'created_at') AS "created",
+      COALESCE(to_jsonb(item) ->> 'updated', to_jsonb(item) ->> 'updated_at') AS "updated",
+      to_jsonb(item) ->> 'version' AS "version",
+      item.category_id AS "categoryId",
+      to_jsonb(item) ->> 'image' AS "image",
+      to_jsonb(item) -> 'store_listings' AS "storeListings"
+    FROM shopping_list item
+    WHERE item.id = ${id}
+    LIMIT 1
+    FOR UPDATE
+  `;
+
+  return row ? shoppingListItemFromRow(row) : null;
+}
+
 export async function fetchNeededShoppingListItems(
   database: DatabaseQuery,
 ): Promise<ShoppingListItem[]> {

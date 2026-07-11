@@ -468,6 +468,29 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
         return publish(kind: .ended, message: "Ended this iPhone's shopping Live Activity.")
     }
 
+    @discardableResult
+    func updateTripActivity(for trip: ShoppingTrip) async -> ShoppingLiveActivityOperationResult {
+        guard beginOperation() else {
+            return publishBusyResult()
+        }
+        defer { isRunningOperation = false }
+
+        let activities = activeTripActivities(for: trip.id)
+        guard !activities.isEmpty else {
+            return publish(kind: .unavailable, message: "No local shopping Live Activity is running on this iPhone.")
+        }
+
+        let state = Self.activityState(from: trip, updatedAt: now())
+        for activity in activities where activity.stateVersion < state.stateVersion {
+            await activity.update(to: state)
+        }
+        return publish(
+            kind: .updated,
+            message: "Updated this iPhone's shopping Live Activity.",
+            activityID: activities.first?.id
+        )
+    }
+
     private func beginOperation() -> Bool {
         guard !isRunningOperation else {
             return false
@@ -661,7 +684,9 @@ final class ShoppingLiveActivityCoordinator: ObservableObject {
             unpricedPickedItemCount: trip.unpricedPickedItemCount,
             currencyCode: trip.currencyCode,
             stateVersion: trip.version,
-            updatedAtEpochSeconds: epochSeconds(from: updatedAt)
+            updatedAtEpochSeconds: trip.activityUpdatedAtEpochSeconds
+                .flatMap { $0 > 0 ? $0 : nil }
+                ?? epochSeconds(from: updatedAt)
         )
     }
 

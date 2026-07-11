@@ -363,6 +363,7 @@ struct ShoppingTrip: Codable, Equatable, Identifiable {
     let unpricedPickedItemCount: Int
     let currencyCode: String
     let version: Int
+    let activityUpdatedAtEpochSeconds: Int?
 }
 
 struct ShoppingActiveTripResponse: Codable, Equatable {

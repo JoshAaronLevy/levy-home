@@ -159,6 +159,9 @@ export function createShoppingLiveActivityDeliveryService(options: {
       return registration;
     },
     async enqueueEvent({ event, trip, excludeResident }) {
+      if (event === 'update') {
+        await options.shoppingLiveActivityStore.supersedePendingUpdates(trip.id, trip.version);
+      }
       const registrations = await options.shoppingLiveActivityStore.findActiveRegistrations({
         tokenType: event === 'start' ? 'push_to_start' : 'activity_update',
         ...(event === 'start' ? {} : { tripId: trip.id }),
@@ -178,7 +181,9 @@ export function createShoppingLiveActivityDeliveryService(options: {
     trip: ShoppingTripSnapshot;
     registrations: Array<ShoppingLiveActivityRegistration | StoredShoppingLiveActivityRegistration>;
   }): Promise<ShoppingLiveActivityDelivery[]> {
-    const timestamp = epochSeconds(now());
+    const timestamp = optionsForQueue.event === 'update' && optionsForQueue.trip.activityUpdatedAtEpochSeconds > 0
+      ? optionsForQueue.trip.activityUpdatedAtEpochSeconds
+      : epochSeconds(now());
     const payload = buildShoppingLiveActivityPayload(optionsForQueue.event, optionsForQueue.trip, timestamp);
 
     return Promise.all(optionsForQueue.registrations.map((registration) => options.shoppingLiveActivityStore.enqueueDelivery({

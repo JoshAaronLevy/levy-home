@@ -19,6 +19,7 @@ const trip = {
   unpricedPickedItemCount: 0,
   currencyCode: 'USD',
   version: 4,
+  activityUpdatedAtEpochSeconds: 1_752_259_200,
 };
 
 test('ActivityKit APNs requests use the required path, topic, type, priority, expiration, and start payload', () => {

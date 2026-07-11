@@ -57,6 +57,7 @@ export type ShoppingLiveActivityStore = {
   markDeliveryPermanentFailure: (deliveryId: string, reason: string) => Promise<void>;
   invalidateRegistration: (registrationId: string) => Promise<void>;
   reconcileAmbiguousStartDeliveries: (options: { tripId: string; pushDeviceId: string }) => Promise<void>;
+  supersedePendingUpdates: (tripId: string, newerStateVersion: number) => Promise<void>;
   recoverStaleClaims: () => Promise<void>;
 };
 
@@ -339,6 +340,19 @@ export function createPostgresShoppingLiveActivityStore(options: {
           AND delivery.event_type = 'start'
           AND delivery.status = 'ambiguous'
           AND registration.push_device_id = ${pushDeviceId}
+      `;
+    },
+    async supersedePendingUpdates(tripId, newerStateVersion) {
+      await query()`
+        UPDATE shopping_live_activity_deliveries
+        SET
+          status = 'failed',
+          last_error_reason = 'superseded by a newer committed shopping trip version',
+          updated_at = now()
+        WHERE trip_id = ${tripId}
+          AND event_type = 'update'
+          AND state_version < ${newerStateVersion}
+          AND status IN ('pending', 'ambiguous')
       `;
     },
     async recoverStaleClaims() {

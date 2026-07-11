@@ -64,6 +64,7 @@ type ShoppingTripAggregateRow = Record<string, unknown> & {
   unpricedPickedItemCount: unknown;
   currencyCode: unknown;
   version: unknown;
+  activityUpdatedAtEpochSeconds: unknown;
 };
 
 type ShoppingTripIDRow = Record<string, unknown> & {
@@ -100,6 +101,11 @@ export class ShoppingTripHasNoNeededItemsError extends Error {
     this.name = 'ShoppingTripHasNoNeededItemsError';
   }
 }
+
+export type ShoppingTripItemMutation =
+  | { kind: 'created'; item: ShoppingListItem; actor?: string }
+  | { kind: 'updated'; previousItem: ShoppingListItem; item: ShoppingListItem; actor?: string }
+  | { kind: 'deleted'; item: ShoppingListItem; actor?: string };
 
 export function createPostgresShoppingTripStore(options: {
   database?: DatabaseQuery;
@@ -318,6 +324,104 @@ export async function completeShoppingTrip(
   return fetchShoppingTrip(database, requiredString(tripRow.id, 'shopping_trips.id'));
 }
 
+export async function lockActiveShoppingTrip(
+  database: DatabaseQuery,
+): Promise<ShoppingTripSnapshot | null> {
+  const [row] = await database<ShoppingTripIDRow>`
+    SELECT id
+    FROM shopping_trips
+    WHERE status = 'active'
+    ORDER BY started_at DESC
+    LIMIT 1
+    FOR UPDATE
+  `;
+
+  return row ? fetchShoppingTrip(database, requiredString(row.id, 'shopping_trips.id')) : null;
+}
+
+export async function applyShoppingTripItemMutation(
+  database: DatabaseQuery,
+  activeTrip: ShoppingTripSnapshot,
+  mutation: ShoppingTripItemMutation,
+): Promise<ShoppingTripSnapshot> {
+  let publicStateChanged = false;
+
+  if (mutation.kind === 'created') {
+    if (!mutation.item.purchased) {
+      await insertShoppingTripItemAtNextPosition(database, activeTrip.id, mutation.item);
+      publicStateChanged = true;
+    }
+  } else {
+    const snapshot = await fetchShoppingTripItemForShoppingItem(database, activeTrip.id, mutation.item.id);
+
+    if (mutation.kind === 'deleted') {
+      if (snapshot?.state === 'remaining') {
+        await database`
+          UPDATE shopping_trip_items
+          SET state = 'removed', picked_up_by = NULL, picked_up_at = NULL
+          WHERE id = ${snapshot.id}
+        `;
+        publicStateChanged = true;
+      }
+    } else if (!snapshot && !mutation.item.purchased) {
+      await insertShoppingTripItemAtNextPosition(database, activeTrip.id, mutation.item);
+      publicStateChanged = true;
+    } else if (snapshot) {
+      const purchasedChanged = mutation.previousItem.purchased !== mutation.item.purchased;
+      const nextState: ShoppingTripItemState = mutation.item.purchased ? 'picked_up' : 'remaining';
+      const estimate = estimateShoppingItem(mutation.item);
+      const estimateChanged = snapshot.estimatedUnitPriceCents !== estimate.estimatedUnitPriceCents
+        || snapshot.quantity !== mutation.item.quantity;
+
+      if (purchasedChanged || (snapshot.state === 'removed' && nextState === 'remaining')) {
+        await database`
+          UPDATE shopping_trip_items
+          SET
+            state = ${nextState},
+            picked_up_by = ${nextState === 'picked_up' ? mutation.actor ?? null : null},
+            picked_up_at = ${nextState === 'picked_up' ? new Date().toISOString() : null}
+          WHERE id = ${snapshot.id}
+        `;
+        publicStateChanged = true;
+      }
+
+      await database`
+        UPDATE shopping_trip_items
+        SET
+          name_snapshot = ${mutation.item.name.trim()},
+          quantity_snapshot = ${mutation.item.quantity},
+          estimated_unit_price_cents = ${estimate.estimatedUnitPriceCents},
+          price_source = ${estimate.priceSource},
+          store_id = ${estimate.storeId}
+        WHERE id = ${snapshot.id}
+      `;
+
+      if (!purchasedChanged && snapshot.state === 'picked_up' && estimateChanged) {
+        publicStateChanged = true;
+      }
+    }
+  }
+
+  if (publicStateChanged) {
+    const nextTimestamp = Math.max(
+      activeTrip.activityUpdatedAtEpochSeconds + 1,
+      Math.floor(Date.now() / 1_000),
+    );
+    await database`
+      UPDATE shopping_trips
+      SET
+        version = version + 1,
+        activity_updated_at_epoch_seconds = ${nextTimestamp}
+      WHERE id = ${activeTrip.id}
+    `;
+  }
+
+  return requireShoppingTrip(
+    await fetchShoppingTrip(database, activeTrip.id),
+    'apply shopping item mutation',
+  );
+}
+
 export async function fetchActiveShoppingTrip(
   database: DatabaseQuery,
 ): Promise<ShoppingTripSnapshot | null> {
@@ -344,7 +448,8 @@ export async function fetchActiveShoppingTrip(
         WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NULL
       )::integer AS "unpricedPickedItemCount",
       trip.currency_code AS "currencyCode",
-      trip.version
+      trip.version,
+      trip.activity_updated_at_epoch_seconds AS "activityUpdatedAtEpochSeconds"
     FROM shopping_trips trip
     LEFT JOIN shopping_trip_items item ON item.trip_id = trip.id
     WHERE trip.status = 'active'
@@ -383,7 +488,8 @@ export async function fetchShoppingTrip(
         WHERE item.state = 'picked_up' AND item.estimated_unit_price_cents IS NULL
       )::integer AS "unpricedPickedItemCount",
       trip.currency_code AS "currencyCode",
-      trip.version
+      trip.version,
+      trip.activity_updated_at_epoch_seconds AS "activityUpdatedAtEpochSeconds"
     FROM shopping_trips trip
     LEFT JOIN shopping_trip_items item ON item.trip_id = trip.id
     WHERE trip.id = ${tripId}
@@ -553,6 +659,54 @@ async function insertShoppingTripItemSnapshot(
   `;
 }
 
+async function insertShoppingTripItemAtNextPosition(
+  database: DatabaseQuery,
+  tripId: string,
+  item: ShoppingListItem,
+): Promise<void> {
+  const [row] = await database<{ nextPosition: unknown }>`
+    SELECT COALESCE(MAX(snapshot_position), -1) + 1 AS "nextPosition"
+    FROM shopping_trip_items
+    WHERE trip_id = ${tripId}
+  `;
+  await insertShoppingTripItemSnapshot(
+    database,
+    tripId,
+    requiredInteger(row?.nextPosition, 'shopping_trip_items.next_position'),
+    item,
+  );
+}
+
+async function fetchShoppingTripItemForShoppingItem(
+  database: DatabaseQuery,
+  tripId: string,
+  shoppingItemId: number,
+): Promise<ShoppingTripItemSnapshot | null> {
+  const rows = await database<ShoppingTripItemRow>`
+    SELECT
+      id,
+      trip_id AS "tripId",
+      shopping_item_id AS "shoppingItemId",
+      name_snapshot AS "name",
+      quantity_snapshot AS "quantity",
+      estimated_unit_price_cents AS "estimatedUnitPriceCents",
+      price_source AS "priceSource",
+      store_id AS "storeId",
+      state,
+      picked_up_by AS "pickedUpBy",
+      picked_up_at AS "pickedUpAt",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM shopping_trip_items
+    WHERE trip_id = ${tripId}
+      AND shopping_item_id = ${shoppingItemId}
+    LIMIT 1
+    FOR UPDATE
+  `;
+
+  return rows[0] ? shoppingTripItemFromRow(rows[0]) : null;
+}
+
 function shoppingTripFromRow(row: ShoppingTripAggregateRow): ShoppingTripSnapshot {
   return {
     id: requiredString(row.id, 'shopping_trips.id'),
@@ -578,6 +732,10 @@ function shoppingTripFromRow(row: ShoppingTripAggregateRow): ShoppingTripSnapsho
     ),
     currencyCode: requiredString(row.currencyCode, 'shopping_trips.currency_code'),
     version: requiredInteger(row.version, 'shopping_trips.version'),
+    activityUpdatedAtEpochSeconds: requiredSafeInteger(
+      row.activityUpdatedAtEpochSeconds,
+      'shopping_trips.activity_updated_at_epoch_seconds',
+    ),
   };
 }
 

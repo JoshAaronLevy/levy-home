@@ -13,10 +13,23 @@ import type {
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import { logger as defaultLogger, safeErrorMessage, type Logger } from '../../observability/logger.js';
-import type { ShoppingListStore } from '../../repositories/shoppingListRepository.js';
+import {
+  createShoppingListItem,
+  deleteShoppingListItem,
+  fetchShoppingListItemForUpdate,
+  updateShoppingListItem,
+  type ShoppingListStore,
+} from '../../repositories/shoppingListRepository.js';
+import { type DatabaseTransactionRunner } from '../../db/client.js';
+import {
+  applyShoppingTripItemMutation,
+  lockActiveShoppingTrip,
+  type ShoppingTripStore,
+} from '../../repositories/shoppingTripRepository.js';
 import type { ListMutationPushAction, NotificationService } from '../notifications/notificationService.js';
 import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
 import type { ShoppingTripService } from './shoppingTripService.js';
+import type { ShoppingLiveActivityDeliveryService } from './shoppingLiveActivityDeliveryService.js';
 
 export type ShoppingListMutationService = {
   createItem: (request: CreateShoppingListItemRequest, mutationId: string) => Promise<ShoppingListMutationResponse>;
@@ -38,9 +51,20 @@ export function createShoppingListMutationService(options: {
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
   shoppingListStore: ShoppingListStore;
   shoppingTripService?: Pick<ShoppingTripService, 'getActiveTrip'>;
+  shoppingTripStore?: ShoppingTripStore;
+  transactionRunner?: DatabaseTransactionRunner;
+  shoppingLiveActivityDeliveryService?: Pick<ShoppingLiveActivityDeliveryService, 'enqueueEvent'>;
 }): ShoppingListMutationService {
   const auditLogger = options.logger ?? defaultLogger;
-  const { notificationService, shoppingListRealtime, shoppingListStore, shoppingTripService } = options;
+  const {
+    notificationService,
+    shoppingListRealtime,
+    shoppingListStore,
+    shoppingTripService,
+    shoppingTripStore,
+    transactionRunner,
+    shoppingLiveActivityDeliveryService,
+  } = options;
 
   return {
     async createItem(request, mutationId) {
@@ -56,15 +80,17 @@ export function createShoppingListMutationService(options: {
       }
 
       try {
-        const item = await shoppingListStore.createItem(request);
+        const committed = await commitShoppingMutation({ kind: 'created', request });
+        const { item } = committed;
         const response = shoppingListMutationResponse(
           item,
           mutationId,
-          await currentActiveTrip(shoppingTripService),
+          committed.activeTrip,
         );
 
         auditLogger.info('Shopping list create committed.', itemAuditDetails(item, mutationId, request.actor));
         shoppingListRealtime?.broadcastItemCreated(item, mutationId);
+        await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
         response.push = await sendShoppingListMutationPush(notificationService, item, 'created', request.actor);
         auditLogger.info('Shopping list create completed.', {
           ...itemAuditDetails(item, mutationId, request.actor),
@@ -89,7 +115,8 @@ export function createShoppingListMutationService(options: {
       }
     },
     async deleteItem(itemId, mutationId, request = {}) {
-      const item = await shoppingListStore.deleteItem(itemId);
+      const committed = await commitShoppingMutation({ kind: 'deleted', itemId, request });
+      const { item } = committed;
 
       if (!item) {
         auditLogger.warn('Shopping list delete rejected as missing.', {
@@ -103,13 +130,14 @@ export function createShoppingListMutationService(options: {
         ok: true,
         itemId,
         item,
-        activeTrip: await currentActiveTrip(shoppingTripService),
+        activeTrip: committed.activeTrip,
         mutationId,
         generatedAt: new Date().toISOString(),
       };
 
       auditLogger.info('Shopping list delete committed.', itemAuditDetails(item, mutationId, request.actor));
       shoppingListRealtime?.broadcastItemDeleted(itemId, mutationId);
+      await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
       response.push = await sendShoppingListMutationPush(notificationService, item, 'deleted', request.actor);
       auditLogger.info('Shopping list delete completed.', {
         ...itemAuditDetails(item, mutationId, request.actor),
@@ -144,7 +172,8 @@ export function createShoppingListMutationService(options: {
       }
 
       try {
-        const item = await shoppingListStore.updateItem(itemId, request);
+        const committed = await commitShoppingMutation({ kind: 'updated', itemId, request });
+        const { item } = committed;
 
         if (!item) {
           auditLogger.warn('Shopping list update rejected as missing.', {
@@ -157,17 +186,20 @@ export function createShoppingListMutationService(options: {
         const response = shoppingListMutationResponse(
           item,
           mutationId,
-          await currentActiveTrip(shoppingTripService),
+          committed.activeTrip,
         );
 
         auditLogger.info('Shopping list update committed.', itemAuditDetails(item, mutationId, request.actor));
         shoppingListRealtime?.broadcastItemUpdated(item, mutationId);
-        response.push = await sendShoppingListMutationPush(
-          notificationService,
-          item,
-          request.purchased === true ? 'completed' : 'updated',
-          request.actor,
-        );
+        await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
+        response.push = committed.activeTrip && request.purchased !== undefined
+          ? suppressedTripItemPushStatus()
+          : await sendShoppingListMutationPush(
+            notificationService,
+            item,
+            request.purchased === true ? 'completed' : 'updated',
+            request.actor,
+          );
         auditLogger.info('Shopping list update completed.', {
           ...itemAuditDetails(item, mutationId, request.actor),
           ...pushAuditDetails(response.push),
@@ -193,6 +225,81 @@ export function createShoppingListMutationService(options: {
       }
     },
   };
+
+  async function commitShoppingMutation(input:
+    | { kind: 'created'; request: CreateShoppingListItemRequest }
+    | { kind: 'updated'; itemId: number; request: UpdateShoppingListItemRequest }
+    | { kind: 'deleted'; itemId: number; request: DeleteShoppingListItemRequest },
+  ): Promise<{ item: ShoppingListItem; activeTrip: ShoppingTripSnapshot | null; tripUpdated: boolean }> {
+    if (!transactionRunner || !shoppingTripStore) {
+      if (input.kind === 'created') {
+        const item = await shoppingListStore.createItem(input.request);
+        return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
+      }
+      if (input.kind === 'updated') {
+        const item = await shoppingListStore.updateItem(input.itemId, input.request);
+        if (!item) throw shoppingItemNotFoundError();
+        return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
+      }
+      const item = await shoppingListStore.deleteItem(input.itemId);
+      if (!item) throw shoppingItemNotFoundError();
+      return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
+    }
+
+    return transactionRunner(async (database) => {
+      const activeTrip = await lockActiveShoppingTrip(database);
+
+      if (input.kind === 'created') {
+        if (activeTrip && input.request.purchased === true) {
+          throw new HTTPError(409, 'Cannot add a pre-picked item while a shopping trip is active.', 'shopping_trip_create_purchased_not_supported');
+        }
+        const item = await createShoppingListItem(database, input.request);
+        const updatedTrip = activeTrip
+          ? await applyShoppingTripItemMutation(database, activeTrip, { kind: 'created', item, actor: input.request.actor })
+          : null;
+        return { item, activeTrip: updatedTrip, tripUpdated: Boolean(updatedTrip && updatedTrip.version !== activeTrip?.version) };
+      }
+
+      const previousItem = await fetchShoppingListItemForUpdate(database, input.itemId);
+      if (!previousItem) throw shoppingItemNotFoundError();
+
+      if (input.kind === 'updated') {
+        if (activeTrip && input.request.purchased !== undefined) {
+          requireShoppingTripActor(input.request.actor);
+        }
+        const item = await updateShoppingListItem(database, input.itemId, input.request);
+        if (!item) throw shoppingItemNotFoundError();
+        const updatedTrip = activeTrip
+          ? await applyShoppingTripItemMutation(database, activeTrip, {
+            kind: 'updated', previousItem, item, actor: input.request.actor,
+          })
+          : null;
+        return { item, activeTrip: updatedTrip, tripUpdated: Boolean(updatedTrip && updatedTrip.version !== activeTrip?.version) };
+      }
+
+      const updatedTrip = activeTrip
+        ? await applyShoppingTripItemMutation(database, activeTrip, {
+          kind: 'deleted', item: previousItem, actor: input.request.actor,
+        })
+        : null;
+      // The snapshot's shopping_item_id uses ON DELETE SET NULL. Apply the
+      // trip transition first so a remaining row can be marked removed while
+      // it still has its original shopping-list identity.
+      const item = await deleteShoppingListItem(database, input.itemId);
+      if (!item) throw shoppingItemNotFoundError();
+      return { item, activeTrip: updatedTrip, tripUpdated: Boolean(updatedTrip && updatedTrip.version !== activeTrip?.version) };
+    });
+  }
+
+  async function publishTripUpdateIfNeeded(
+    trip: ShoppingTripSnapshot | null,
+    tripUpdated: boolean,
+    mutationId: string,
+  ): Promise<void> {
+    if (!trip || !tripUpdated) return;
+    shoppingListRealtime?.broadcastTripUpdated(trip, mutationId);
+    await shoppingLiveActivityDeliveryService?.enqueueEvent({ event: 'update', trip });
+  }
 }
 
 export function readShoppingListItemId(value: unknown): number {
@@ -259,6 +366,30 @@ async function sendShoppingListMutationPush(
 
 function shoppingItemNotFoundError(): HTTPError {
   return new HTTPError(404, 'Shopping item was not found.', 'shopping_item_not_found');
+}
+
+function requireShoppingTripActor(actor: string | undefined): asserts actor is 'Josh' | 'Mallory' {
+  if (actor === 'Josh' || actor === 'Mallory') {
+    return;
+  }
+
+  throw new HTTPError(
+    409,
+    'A shopping trip needs Josh or Mallory recorded for a pickup change.',
+    'shopping_trip_actor_required',
+  );
+}
+
+function suppressedTripItemPushStatus(): EventPushStatus {
+  return {
+    attempted: false,
+    skipped: true,
+    reason: 'shopping_trip_activity_update',
+    sentNotificationCount: 0,
+    failedNotificationCount: 0,
+    invalidTokenCount: 0,
+    ticketCount: 0,
+  };
 }
 
 function duplicateShoppingItemError(item?: ShoppingListItem): HTTPError {

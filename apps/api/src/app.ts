@@ -14,7 +14,12 @@ import {
 import type { AppConfig } from './config.js';
 import { readConfig } from './config.js';
 import type { KrogerProductSearchResponse } from './contracts.js';
-import { DatabaseConfigurationError, isDatabaseConfigured } from './db/client.js';
+import {
+  DatabaseConfigurationError,
+  getDatabaseTransactionRunner,
+  isDatabaseConfigured,
+  type DatabaseTransactionRunner,
+} from './db/client.js';
 import { createHomeAssistantFacade } from './integrations/homeAssistant/facade.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './http/errors.js';
@@ -71,6 +76,7 @@ export type CreateAppOptions = {
   notificationPreferenceStore?: NotificationPreferenceStore;
   shoppingListStore?: ShoppingListStore;
   shoppingTripStore?: ShoppingTripStore;
+  shoppingMutationTransactionRunner?: DatabaseTransactionRunner;
   shoppingLiveActivityStore?: ShoppingLiveActivityStore;
   shoppingLiveActivityPushSender?: ShoppingLiveActivityPushSender;
   shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
@@ -147,6 +153,13 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     shoppingListRealtime,
     shoppingListStore,
     shoppingTripService,
+    shoppingTripStore,
+    ...(options.shoppingMutationTransactionRunner
+      ? { transactionRunner: options.shoppingMutationTransactionRunner }
+      : shoppingTripStore && isDatabaseConfigured()
+        ? { transactionRunner: getDatabaseTransactionRunner() }
+      : {}),
+    shoppingLiveActivityDeliveryService,
   });
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();

@@ -918,6 +918,17 @@ Make every item checkoff update the canonical trip and both Lock Screen presenta
 - The two phones converge after rapid or reordered activity.
 - Checking off groceries does not generate an ordinary notification per item.
 
+### Implementation Status — 2026-07-11
+
+- Added **apps/api/migrations/2026-07-11-004-shopping-trip-mutations.sql** with a persisted **activity_updated_at_epoch_seconds** value. Each public trip-state transition advances the durable trip version and assigns a strictly increasing timestamp, including multiple commits in one wall-clock second.
+- Refactored the Shopping mutation service to use one transaction-scoped database connection for the active-trip lock, previous-item read, global Shopping row mutation, trip-snapshot mutation, aggregate read, and response. Item/Trip changes roll back together if any operation fails.
+- Implemented the Stage 6 transition behavior: pickup, unpickup, repeat/no-op pickup state, needed-item creation, remaining-item removal, picked-item history retention, and remaining/picked snapshot price/quantity refresh. Public trip version/timestamp changes only when the observable trip state changes.
+- Active-trip purchase mutations require **Josh** or **Mallory**; an unattributed pickup/unpickup is rejected, and creating an already-picked item during a trip is rejected. Purchase mutations now suppress the ordinary counterpart Shopping notification.
+- After the database commit, the service broadcasts **trip_updated** and persists/coalesces ActivityKit update work. Pending older update deliveries are superseded; retries retain the already-persisted payload and timestamp. The current iPhone applies the confirmed trip state to its local Activity, while counterpart update tokens receive the same complete snapshot at priority 5.
+- The Shopping view model now replaces its active-trip state from all committed item create/update/delete responses, so the summary and Lock Screen state no longer rely on view-local checkoff math.
+- Added disposable-database integration coverage for the transition matrix, induced rollback after the global row write, atomic actor rejection, price estimate, picked-history retention, notification suppression, post-commit realtime/ActivityKit handoff, and strictly increasing timestamps. API typecheck/build and all **140** API tests pass; the full iOS simulator suite passes.
+- This migration is not applied to the configured/deployed database, and real two-phone ActivityKit update acceptance remains outstanding. Stage 7 should add the explicit end confirmation, durable counterpart summary dispatcher, and coordinated remote end behavior.
+
 ## Stage 7: End The Trip And Notify Only The Other Resident
 
 ### Goal

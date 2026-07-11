@@ -29,6 +29,7 @@ export type ShoppingTripSnapshot = {
   unpricedPickedItemCount: number;
   currencyCode: string;
   version: number;
+  activityUpdatedAtEpochSeconds: number;
 };
 
 export type ShoppingTripItemSnapshot = {

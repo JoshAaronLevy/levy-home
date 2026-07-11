@@ -489,6 +489,7 @@ final class ShoppingListViewModel: ObservableObject {
             let response = try await createShoppingListItem(request)
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
+            activeTrip = response.activeTrip
             errorMessage = nil
             recordShoppingMutationLog(
                 level: .success,
@@ -525,14 +526,17 @@ final class ShoppingListViewModel: ObservableObject {
         )
     }
 
-    func setPurchased(_ item: ShoppingListItem, purchased: Bool) async {
+    @discardableResult
+    func setPurchased(_ item: ShoppingListItem, purchased: Bool) async -> ShoppingTrip? {
         do {
-            try await updateItem(
+            let response = try await updateItem(
                 id: item.id,
                 request: UpdateShoppingListItemRequest(purchased: purchased, actor: currentActorName)
             )
+            return response.activeTrip
         } catch {
             errorMessage = error.localizedDescription
+            return nil
         }
     }
 
@@ -579,6 +583,7 @@ final class ShoppingListViewModel: ObservableObject {
             let response = try await deleteShoppingListItem(item.id, request.mutationId, request.actor)
             items.removeAll { $0.id == response.itemId }
             generatedAt = response.generatedAt
+            activeTrip = response.activeTrip
             errorMessage = nil
             recordShoppingMutationLog(
                 level: .success,
@@ -686,9 +691,9 @@ final class ShoppingListViewModel: ObservableObject {
         return incomingVersion >= existingVersion
     }
 
-    private func updateItem(id itemId: Int, request: UpdateShoppingListItemRequest) async throws {
+    private func updateItem(id itemId: Int, request: UpdateShoppingListItemRequest) async throws -> ShoppingListMutationResponse {
         guard !mutatingItemIDs.contains(itemId) else {
-            return
+            throw APIError.transport("This shopping item is already being updated.")
         }
 
         mutatingItemIDs.insert(itemId)
@@ -710,6 +715,7 @@ final class ShoppingListViewModel: ObservableObject {
             let response = try await updateShoppingListItem(itemId, request)
             applyCommittedItem(response.item)
             generatedAt = response.generatedAt
+            activeTrip = response.activeTrip
             errorMessage = nil
             recordShoppingMutationLog(
                 level: .success,
@@ -720,6 +726,7 @@ final class ShoppingListViewModel: ObservableObject {
                     "mutationId=\(Self.shortIdentifier(response.mutationId))"
                 ].joined(separator: " ")
             )
+            return response
         } catch {
             errorMessage = error.localizedDescription
             recordShoppingMutationLog(
