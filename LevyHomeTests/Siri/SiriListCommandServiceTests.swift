@@ -169,13 +169,133 @@ final class SiriListCommandServiceTests: XCTestCase {
         XCTAssertEqual(resolution, .rejected)
     }
 
+    func testRejectsSeveralToDoTitlesBeforeMutation() {
+        let resolution = SiriIntentResolver.resolveCommand(
+            list: .toDo,
+            titles: ["Call the dentist", "Book vet"],
+            residentName: "Josh"
+        )
+
+        XCTAssertEqual(resolution, .rejected)
+    }
+
+    func testCreatesOpenToDoWithJoshAttribution() async {
+        let toDoAPI = ToDoAPIStub(
+            users: [makeUser(id: 7, firstName: "Josh", lastName: "Levy")],
+            createdItem: makeToDoItem(id: 301, name: "Call the dentist", createdBy: 7)
+        )
+        let service = makeService(
+            api: ShoppingAPIStub(snapshot: makeSnapshot()),
+            toDoAPI: toDoAPI,
+            mutationIDs: ["todo-1"]
+        )
+
+        let result = await service.execute(
+            SiriListCommand(list: .toDo, title: "  Call the dentist  ", residentName: "Josh")
+        )
+
+        XCTAssertEqual(result, .added(SiriListCommandItem(item: makeToDoItem(id: 301, name: "Call the dentist", createdBy: 7))))
+        XCTAssertEqual(toDoAPI.fetchUsersCount, 1)
+        XCTAssertEqual(toDoAPI.createdRequests.count, 1)
+        XCTAssertEqual(toDoAPI.createdRequests[0].name, "Call the dentist")
+        XCTAssertEqual(toDoAPI.createdRequests[0].status, .open)
+        XCTAssertEqual(toDoAPI.createdRequests[0].locationIds, [])
+        XCTAssertNil(toDoAPI.createdRequests[0].date)
+        XCTAssertNil(toDoAPI.createdRequests[0].recurring)
+        XCTAssertNil(toDoAPI.createdRequests[0].notes)
+        XCTAssertNil(toDoAPI.createdRequests[0].alerts)
+        XCTAssertNil(toDoAPI.createdRequests[0].subtasks)
+        XCTAssertEqual(toDoAPI.createdRequests[0].createdBy, 7)
+        XCTAssertEqual(toDoAPI.createdRequests[0].actor, "Josh")
+        XCTAssertEqual(toDoAPI.createdRequests[0].mutationId, "todo-1")
+    }
+
+    func testMatchesMalloryByCaseInsensitiveFullNameWithWhitespace() async {
+        let toDoAPI = ToDoAPIStub(
+            users: [makeUser(id: 8, firstName: "Mallory", lastName: "Levy")],
+            createdItem: makeToDoItem(id: 302, name: "Book vet", createdBy: 8)
+        )
+        let service = makeService(
+            api: ShoppingAPIStub(snapshot: makeSnapshot()),
+            toDoAPI: toDoAPI,
+            mutationIDs: ["todo-2"]
+        )
+
+        _ = await service.execute(
+            SiriListCommand(list: .toDo, title: "Book vet", residentName: "  mAlLoRy LeVy  ")
+        )
+
+        XCTAssertEqual(toDoAPI.createdRequests.first?.createdBy, 8)
+        XCTAssertEqual(toDoAPI.createdRequests.first?.actor, "mAlLoRy LeVy")
+    }
+
+    func testDoesNotFallBackToFirstUserWhenResidentIsMissing() async {
+        let toDoAPI = ToDoAPIStub(
+            users: [makeUser(id: 7, firstName: "Josh", lastName: "Levy")]
+        )
+        let service = makeService(api: ShoppingAPIStub(snapshot: makeSnapshot()), toDoAPI: toDoAPI)
+
+        let result = await service.execute(
+            SiriListCommand(list: .toDo, title: "Call the dentist", residentName: "Mallory")
+        )
+
+        XCTAssertEqual(result, .requiresDeviceOwner)
+        XCTAssertEqual(toDoAPI.fetchUsersCount, 1)
+        XCTAssertTrue(toDoAPI.createdRequests.isEmpty)
+    }
+
+    func testFailsToDoWithoutFalseSuccessWhenUserLookupFails() async {
+        let toDoAPI = ToDoAPIStub(fetchUsersError: APIError.transport("Offline"))
+        let service = makeService(api: ShoppingAPIStub(snapshot: makeSnapshot()), toDoAPI: toDoAPI)
+
+        let result = await service.execute(
+            SiriListCommand(list: .toDo, title: "Call the dentist", residentName: "Josh")
+        )
+
+        XCTAssertEqual(result, .failed)
+        XCTAssertTrue(toDoAPI.createdRequests.isEmpty)
+    }
+
+    func testAllowsDuplicateToDoTitlesAsSeparateCreates() async {
+        let toDoAPI = ToDoAPIStub(users: [makeUser(id: 7, firstName: "Josh", lastName: "Levy")])
+        let service = makeService(
+            api: ShoppingAPIStub(snapshot: makeSnapshot()),
+            toDoAPI: toDoAPI,
+            mutationIDs: ["todo-1", "todo-2"]
+        )
+        let command = SiriListCommand(list: .toDo, title: "Call the dentist", residentName: "Josh")
+
+        _ = await service.execute(command)
+        _ = await service.execute(command)
+
+        XCTAssertEqual(toDoAPI.createdRequests.map(\.name), ["Call the dentist", "Call the dentist"])
+        XCTAssertEqual(toDoAPI.createdRequests.map(\.mutationId), ["todo-1", "todo-2"])
+    }
+
+    func testFailsToDoWithoutFalseSuccessWhenCreateFails() async {
+        let toDoAPI = ToDoAPIStub(
+            users: [makeUser(id: 7, firstName: "Josh", lastName: "Levy")],
+            createError: APIError.transport("Offline")
+        )
+        let service = makeService(api: ShoppingAPIStub(snapshot: makeSnapshot()), toDoAPI: toDoAPI)
+
+        let result = await service.execute(
+            SiriListCommand(list: .toDo, title: "Call the dentist", residentName: "Josh")
+        )
+
+        XCTAssertEqual(result, .failed)
+        XCTAssertEqual(toDoAPI.createdRequests.count, 1)
+    }
+
     private func makeService(
         api: ShoppingAPIStub,
+        toDoAPI: ToDoAPIStub? = nil,
         mutationIDs: [String] = []
     ) -> SiriListCommandService {
         var mutationIDs = mutationIDs
         return SiriListCommandService(
             shoppingAPI: api,
+            toDoAPI: toDoAPI,
             makeMutationID: {
                 guard !mutationIDs.isEmpty else {
                     return UUID().uuidString
@@ -218,6 +338,28 @@ final class SiriListCommandServiceTests: XCTestCase {
             created: nil,
             updated: nil,
             categoryId: categoryID
+        )
+    }
+
+    private func makeUser(id: Int, firstName: String, lastName: String) -> LevyHomeUser {
+        LevyHomeUser(
+            id: id,
+            firstName: firstName,
+            lastName: lastName,
+            email: "\(firstName.lowercased())@example.test",
+            mobileDevice: nil,
+            lastLogin: nil
+        )
+    }
+
+    private func makeToDoItem(id: Int, name: String, createdBy: Int) -> ToDoItem {
+        ToDoItem(
+            id: id,
+            name: name,
+            status: .open,
+            locationIds: [],
+            locationDisplayText: "",
+            createdBy: createdBy
         )
     }
 }
@@ -301,6 +443,62 @@ private final class ShoppingAPIStub: SiriShoppingListAPI {
             item: item,
             mutationId: request.mutationId,
             generatedAt: nil
+        )
+    }
+}
+
+private final class ToDoAPIStub: SiriToDoListAPI {
+    let users: [LevyHomeUser]
+    let createdItem: ToDoItem?
+    let fetchUsersError: Error?
+    let createError: Error?
+
+    private(set) var fetchUsersCount = 0
+    private(set) var createdRequests: [CreateToDoItemRequest] = []
+
+    init(
+        users: [LevyHomeUser] = [],
+        createdItem: ToDoItem? = nil,
+        fetchUsersError: Error? = nil,
+        createError: Error? = nil
+    ) {
+        self.users = users
+        self.createdItem = createdItem
+        self.fetchUsersError = fetchUsersError
+        self.createError = createError
+    }
+
+    func fetchUsers() async throws -> UsersResponse {
+        fetchUsersCount += 1
+
+        if let fetchUsersError {
+            throw fetchUsersError
+        }
+
+        return UsersResponse(ok: true, users: users, generatedAt: nil)
+    }
+
+    func createToDoItem(_ request: CreateToDoItemRequest) async throws -> ToDoListMutationResponse {
+        createdRequests.append(request)
+
+        if let createError {
+            throw createError
+        }
+
+        let item = createdItem ?? ToDoItem(
+            id: createdRequests.count,
+            name: request.name,
+            status: request.status ?? .open,
+            locationIds: request.locationIds ?? [],
+            locationDisplayText: "",
+            createdBy: request.createdBy
+        )
+        return ToDoListMutationResponse(
+            ok: true,
+            item: item,
+            mutationId: request.mutationId,
+            generatedAt: nil,
+            push: nil
         )
     }
 }

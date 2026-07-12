@@ -5,8 +5,10 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
     private let logger = Logger(subsystem: "com.levyhome.app.intents", category: "Routing")
     private let sharedSettings = SiriSharedSettings()
     private let extensionConfiguration = SiriExtensionConfiguration()
+    private lazy var apiClient = APIClient(baseURL: extensionConfiguration.apiBaseURL)
     private lazy var commandService = SiriListCommandService(
-        shoppingAPI: APIClient(baseURL: extensionConfiguration.apiBaseURL)
+        shoppingAPI: apiClient,
+        toDoAPI: apiClient
     )
 
     override func handler(for intent: INIntent) -> Any {
@@ -33,14 +35,14 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
 
         guard
             let taskTitles = intent.taskTitles,
-            shoppingListWasSelected(in: intent.targetTaskList)
+            let list = selectedList(in: intent.targetTaskList)
         else {
             completion(INAddTasksIntentResponse(code: .failure, userActivity: nil))
             return
         }
 
         let resolution = SiriIntentResolver.resolveCommand(
-            list: .shopping,
+            list: list,
             titles: taskTitles.map(\.spokenPhrase),
             residentName: residentName
         )
@@ -64,18 +66,22 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
         }
     }
 
-    private func shoppingListWasSelected(in taskList: INTaskList?) -> Bool {
+    private func selectedList(in taskList: INTaskList?) -> SiriListKind? {
         guard let taskList else {
-            return false
+            return nil
         }
 
-        if taskList.identifier == SiriListKind.shopping.siriTaskListIdentifier {
-            return true
+        if let list = SiriListKind.allCases.first(where: {
+            taskList.identifier == $0.siriTaskListIdentifier
+        }) {
+            return list
         }
 
-        return taskList.title.spokenPhrase
+        let title = taskList.title.spokenPhrase
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .localizedCaseInsensitiveCompare(SiriListKind.shopping.displayName) == .orderedSame
+        return SiriListKind.allCases.first(where: {
+            title.localizedCaseInsensitiveCompare($0.displayName) == .orderedSame
+        })
     }
 
     private func response(for result: SiriListCommandResult) -> INAddTasksIntentResponse {
@@ -83,7 +89,7 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
         case .added(let item), .alreadyPresent(let item), .restored(let item):
             let response = INAddTasksIntentResponse(code: .success, userActivity: nil)
             response.addedTasks = [task(for: item)]
-            response.modifiedTaskList = shoppingTaskList()
+            response.modifiedTaskList = taskList(for: item.list)
             return response
         case .requiresDeviceOwner:
             return INAddTasksIntentResponse(code: .failureRequiringAppLaunch, userActivity: nil)
@@ -92,14 +98,14 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
         }
     }
 
-    private func shoppingTaskList() -> INTaskList {
+    private func taskList(for list: SiriListKind) -> INTaskList {
         INTaskList(
-            title: INSpeakableString(spokenPhrase: SiriListKind.shopping.displayName),
+            title: INSpeakableString(spokenPhrase: list.displayName),
             tasks: [],
             groupName: nil,
             createdDateComponents: nil,
             modifiedDateComponents: nil,
-            identifier: SiriListKind.shopping.siriTaskListIdentifier
+            identifier: list.siriTaskListIdentifier
         )
     }
 
@@ -112,7 +118,7 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
             temporalEventTrigger: nil,
             createdDateComponents: nil,
             modifiedDateComponents: nil,
-            identifier: "shopping-\(item.id)",
+            identifier: "\(item.list.rawValue)-\(item.id)",
             priority: .notFlagged
         )
     }

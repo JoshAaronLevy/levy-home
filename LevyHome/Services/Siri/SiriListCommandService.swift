@@ -20,25 +20,39 @@ protocol SiriShoppingListAPI {
     ) async throws -> ShoppingListMutationResponse
 }
 
+protocol SiriToDoListAPI {
+    func fetchUsers() async throws -> UsersResponse
+    func createToDoItem(_ request: CreateToDoItemRequest) async throws -> ToDoListMutationResponse
+}
+
 extension APIClient: SiriShoppingListAPI {}
+extension APIClient: SiriToDoListAPI {}
 
 final class SiriListCommandService: SiriListCommandServicing {
     private let shoppingAPI: SiriShoppingListAPI
+    private let toDoAPI: SiriToDoListAPI?
     private let makeMutationID: () -> String
 
     init(
         shoppingAPI: SiriShoppingListAPI,
+        toDoAPI: SiriToDoListAPI? = nil,
         makeMutationID: @escaping () -> String = { UUID().uuidString }
     ) {
         self.shoppingAPI = shoppingAPI
+        self.toDoAPI = toDoAPI
         self.makeMutationID = makeMutationID
     }
 
     func execute(_ command: SiriListCommand) async -> SiriListCommandResult {
-        guard command.list == .shopping else {
-            return .notImplemented
+        switch command.list {
+        case .shopping:
+            return await executeShopping(command)
+        case .toDo:
+            return await executeToDo(command)
         }
+    }
 
+    private func executeShopping(_ command: SiriListCommand) async -> SiriListCommandResult {
         let title = canonicalTitle(command.title)
         let normalizedCommandTitle = normalizedTitle(title)
         let residentName = command.residentName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -74,6 +88,45 @@ final class SiriListCommandService: SiriListCommandServicing {
                 categoryID: miscellaneousCategory.id,
                 residentName: residentName
             )
+        } catch {
+            return .failed
+        }
+    }
+
+    private func executeToDo(_ command: SiriListCommand) async -> SiriListCommandResult {
+        guard let toDoAPI else {
+            return .notImplemented
+        }
+
+        let title = canonicalTitle(command.title)
+        let residentName = command.residentName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !title.isEmpty else {
+            return .rejected
+        }
+
+        guard !residentName.isEmpty else {
+            return .requiresDeviceOwner
+        }
+
+        do {
+            let users = try await toDoAPI.fetchUsers().users
+            guard let resident = users.first(where: {
+                namesMatch(residentName, $0.firstName) || namesMatch(residentName, $0.fullName)
+            }) else {
+                return .requiresDeviceOwner
+            }
+
+            let request = CreateToDoItemRequest(
+                name: title,
+                status: .open,
+                locationIds: [],
+                createdBy: resident.id,
+                actor: residentName,
+                mutationId: makeMutationID()
+            )
+            let response = try await toDoAPI.createToDoItem(request)
+            return .added(SiriListCommandItem(item: response.item))
         } catch {
             return .failed
         }
@@ -141,6 +194,11 @@ final class SiriListCommandService: SiriListCommandServicing {
         value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    }
+
+    private func namesMatch(_ first: String, _ second: String) -> Bool {
+        first.trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare(second.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
     }
 
     private func isDuplicateConflict(_ error: APIError) -> Bool {

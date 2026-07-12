@@ -3,10 +3,18 @@ import Foundation
 struct SiriListCommandItem: Equatable {
     let id: Int
     let title: String
+    let list: SiriListKind
 
     init(item: ShoppingListItem) {
         id = item.id
         title = item.name
+        list = .shopping
+    }
+
+    init(item: ToDoItem) {
+        id = item.id
+        title = item.name
+        list = .toDo
     }
 }
 
