@@ -499,16 +499,29 @@ private struct ShoppingListContentView: View {
         }
         .appScreenChrome()
         .task {
+            guard isSelected, scenePhase == .active else {
+                return
+            }
+
             await viewModel.loadIfNeeded()
             await recoverActiveTripDisplay()
         }
         .onChange(of: isSelected) { _, selected in
-            guard selected else { return }
+            guard selected else {
+                viewModel.stopLiveUpdates()
+                return
+            }
             Task { await refreshForSelectedVisit() }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, isSelected else { return }
+            guard phase == .active, isSelected else {
+                viewModel.stopLiveUpdates()
+                return
+            }
             Task { await refreshForSelectedVisit() }
+        }
+        .onDisappear {
+            viewModel.stopLiveUpdates()
         }
         .onChange(of: viewModel.activeTrip?.id) { _, _ in
             guard isSelected else { return }

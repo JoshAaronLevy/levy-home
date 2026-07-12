@@ -15,7 +15,7 @@ import {
   type HomeAssistantStateChangedEvent,
 } from './integrations/homeAssistant/activityListener.js';
 import { logger, type Logger, safeErrorMessage } from './observability/logger.js';
-import { createShoppingListRealtimeHub } from './shoppingListRealtime.js';
+import type { ShoppingListRealtimeHub } from './shoppingListRealtime.js';
 import type { WeatherAlertService } from './services/weather/weatherAlertService.js';
 import type { ToDoListRealtimeHub } from './todoListRealtime.js';
 import type { ShoppingLiveActivityDeliveryService } from './services/shopping/shoppingLiveActivityDeliveryService.js';
@@ -28,8 +28,8 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   logApnsPrivateKeyStatus(resolvedConfig, serverLogger);
 
   const activityStore = createRecentActivityStore(500);
-  const shoppingListRealtime = createShoppingListRealtimeHub();
-  const app = createApp({ config: resolvedConfig, activityStore, logger: serverLogger, shoppingListRealtime });
+  const app = createApp({ config: resolvedConfig, activityStore, logger: serverLogger });
+  const shoppingListRealtime = app.get('shoppingListRealtime') as ShoppingListRealtimeHub;
   const toDoListRealtime = app.get('toDoListRealtime') as ToDoListRealtimeHub | undefined;
   const weatherAlertService = app.get('weatherAlertService') as WeatherAlertService | undefined;
   const shoppingLiveActivityDeliveryService = app.get('shoppingLiveActivityDeliveryService') as ShoppingLiveActivityDeliveryService | undefined;

@@ -28,7 +28,7 @@ test('to-do mutation service records created items for session push instead of s
   assert.deepEqual(recordings, ['created:7:mutation-1:Josh']);
 });
 
-test('to-do mutation service updates items without recording session pushes', async () => {
+test('to-do mutation service records updates for the viewer session push', async () => {
   const recordings: string[] = [];
   const updatedItem = todoItem({ id: 9, name: 'Book camp', status: 'completed' });
   const service = createToDoListMutationService({
@@ -44,7 +44,7 @@ test('to-do mutation service updates items without recording session pushes', as
 
   assert.equal(response.item, updatedItem);
   assert.equal(response.push, undefined);
-  assert.deepEqual(recordings, []);
+  assert.deepEqual(recordings, ['completed:9:mutation-2:Mallory']);
 });
 
 test('to-do mutation service returns not found for missing deletes', async () => {
@@ -67,8 +67,8 @@ test('to-do mutation service returns not found for missing deletes', async () =>
 
 function recordingRealtimeSessionRecorder(recordings: string[]): ToDoListRealtimeSessionRecorder {
   return {
-    recordItemCreated(item, mutationId, actor) {
-      recordings.push(`created:${item.id}:${mutationId}:${actor ?? ''}`);
+    recordItemMutation(item, mutationId, action, actor) {
+      recordings.push(`${action}:${item.id}:${mutationId}:${actor ?? ''}`);
     },
     async flushPendingSessionForViewerId() {
       return undefined;

@@ -38,7 +38,7 @@ export function createToDoListMutationService(options: {
       const item = await toDoListStore.createItem(request);
       const response = toDoListMutationResponse(item, mutationId);
 
-      toDoListRealtime?.recordItemCreated(item, mutationId, request.actor);
+      toDoListRealtime?.recordItemMutation(item, mutationId, 'created', request.actor);
 
       return response;
     },
@@ -50,6 +50,13 @@ export function createToDoListMutationService(options: {
       }
 
       const response = toDoListMutationResponse(item, mutationId);
+
+      toDoListRealtime?.recordItemMutation(
+        item,
+        mutationId,
+        request.status === 'completed' ? 'completed' : 'updated',
+        request.actor,
+      );
 
       return response;
     },
@@ -67,6 +74,8 @@ export function createToDoListMutationService(options: {
         mutationId,
         generatedAt: new Date().toISOString(),
       };
+
+      toDoListRealtime?.recordItemMutation(item, mutationId, 'deleted', request.actor);
 
       return response;
     },

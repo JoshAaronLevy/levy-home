@@ -5,13 +5,16 @@ import { WebSocket, WebSocketServer, type RawData } from 'ws';
 
 import type { EventPushStatus, ToDoItem } from './contracts.js';
 import { logger } from './observability/logger.js';
-import type { ListSessionPushPayload, NotificationService } from './services/notifications/notificationService.js';
+import type {
+  ListMutationPushAction,
+  ListSessionPushPayload,
+  NotificationService,
+} from './services/notifications/notificationService.js';
 
 export const TODO_LIST_LIVE_PATH = '/api/todo-list/live';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const PRESENCE_TIMEOUT_MS = 75_000;
-const DISCONNECTED_CREATE_FALLBACK_FLUSH_MS = 5_000;
 
 export type ToDoListClientLiveMessage =
   | {
@@ -46,7 +49,12 @@ export type ToDoListLiveMessage =
     };
 
 export type ToDoListRealtimeSessionRecorder = {
-  recordItemCreated: (item: ToDoItem, mutationId: string, actor?: string) => void;
+  recordItemMutation: (
+    item: ToDoItem,
+    mutationId: string,
+    action: ListMutationPushAction,
+    actor?: string,
+  ) => void;
   flushPendingSessionForViewerId: (viewerId: string) => Promise<EventPushStatus | undefined>;
 };
 
@@ -62,15 +70,16 @@ type ClientState = {
   presence?: ToDoListViewerPresence;
 };
 
-type PendingToDoAdd = {
+type PendingToDoMutation = {
   itemId: number;
   itemName: string;
   mutationId: string;
+  action: ListMutationPushAction;
 };
 
-type PendingToDoAddSession = {
+type PendingToDoMutationSession = {
   actor: string;
-  items: PendingToDoAdd[];
+  items: PendingToDoMutation[];
 };
 
 export function createToDoListRealtimeHub(options: {
@@ -78,7 +87,7 @@ export function createToDoListRealtimeHub(options: {
 } = {}): ToDoListRealtimeHub {
   const server = new WebSocketServer({ noServer: true });
   const clients = new Map<WebSocket, ClientState>();
-  const pendingAddsByViewerId = new Map<string, PendingToDoAddSession>();
+  const pendingMutationsByViewerId = new Map<string, PendingToDoMutationSession>();
   let isClosed = false;
   const heartbeat = setInterval(() => {
     expireStalePresence();
@@ -217,7 +226,7 @@ export function createToDoListRealtimeHub(options: {
     connectionCount() {
       return clients.size;
     },
-    recordItemCreated(item, mutationId, actor) {
+    recordItemMutation(item, mutationId, action, actor) {
       const normalizedActor = readActor(actor);
       const viewerId = viewerIdForActor(normalizedActor);
 
@@ -226,11 +235,12 @@ export function createToDoListRealtimeHub(options: {
           reason: 'missing_actor',
           itemId: item.id,
           mutationId,
+          action,
         });
         return;
       }
 
-      const session = pendingAddsByViewerId.get(viewerId) ?? {
+      const session = pendingMutationsByViewerId.get(viewerId) ?? {
         actor: normalizedActor,
         items: [],
       };
@@ -240,31 +250,27 @@ export function createToDoListRealtimeHub(options: {
         itemId: item.id,
         itemName: item.name,
         mutationId,
+        action,
       });
-      pendingAddsByViewerId.set(viewerId, session);
+      pendingMutationsByViewerId.set(viewerId, session);
 
-      logRealtime('todo_add_recorded', {
+      logRealtime('todo_mutation_recorded', {
         viewerId,
         itemId: item.id,
+        action,
         pendingItemCount: session.items.length,
       });
 
-      if (!hasActiveViewer(viewerId)) {
-        const fallbackFlush = setTimeout(() => {
-          void hub.flushPendingSessionForViewerId(viewerId);
-        }, DISCONNECTED_CREATE_FALLBACK_FLUSH_MS);
-        fallbackFlush.unref();
-      }
     },
     async flushPendingSessionForViewerId(viewerId) {
       const normalizedViewerId = normalizeViewerId(viewerId);
-      const session = pendingAddsByViewerId.get(normalizedViewerId);
+      const session = pendingMutationsByViewerId.get(normalizedViewerId);
 
       if (!session || session.items.length === 0) {
         return undefined;
       }
 
-      pendingAddsByViewerId.delete(normalizedViewerId);
+      pendingMutationsByViewerId.delete(normalizedViewerId);
 
       if (!options.notificationService) {
         return undefined;
@@ -273,9 +279,11 @@ export function createToDoListRealtimeHub(options: {
       try {
         const payload: ListSessionPushPayload = {
           listType: 'todo',
-          action: 'created',
           actor: session.actor,
-          itemNames: session.items.map((item) => item.itemName),
+          items: session.items.map((item) => ({
+            itemName: item.itemName,
+            action: item.action,
+          })),
         };
         const push = await options.notificationService.sendListSessionPush(payload);
 

@@ -4,12 +4,18 @@ import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 
 import type {
+  EventPushStatus,
   ShoppingCategory,
   ShoppingListItem,
   ShoppingStore,
   ShoppingTripSnapshot,
 } from './contracts.js';
 import { logger } from './observability/logger.js';
+import type {
+  ListMutationPushAction,
+  ListSessionPushPayload,
+  NotificationService,
+} from './services/notifications/notificationService.js';
 
 export const SHOPPING_LIST_LIVE_PATH = '/api/shopping-list/live';
 
@@ -112,7 +118,17 @@ export type ShoppingListRealtimeBroadcaster = {
   broadcastTripEnded: (trip: ShoppingTripSnapshot, mutationId: string) => void;
 };
 
-export type ShoppingListRealtimeHub = ShoppingListRealtimeBroadcaster & {
+export type ShoppingListRealtimeSessionRecorder = {
+  recordItemMutation: (
+    item: ShoppingListItem,
+    mutationId: string,
+    action: ListMutationPushAction,
+    actor?: string,
+  ) => void;
+  flushPendingSessionForViewerId: (viewerId: string) => Promise<EventPushStatus | undefined>;
+};
+
+export type ShoppingListRealtimeHub = ShoppingListRealtimeBroadcaster & ShoppingListRealtimeSessionRecorder & {
   handleUpgrade: (request: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
   close: () => void;
   connectionCount: () => number;
@@ -124,9 +140,24 @@ type ClientState = {
   presence?: ShoppingListViewerPresence;
 };
 
-export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
+type PendingShoppingMutation = {
+  itemId: number;
+  itemName: string;
+  mutationId: string;
+  action: ListMutationPushAction;
+};
+
+type PendingShoppingMutationSession = {
+  actor: string;
+  items: PendingShoppingMutation[];
+};
+
+export function createShoppingListRealtimeHub(options: {
+  notificationService?: Pick<NotificationService, 'sendListSessionPush'>;
+} = {}): ShoppingListRealtimeHub {
   const server = new WebSocketServer({ noServer: true });
   const clients = new Map<WebSocket, ClientState>();
+  const pendingMutationsByViewerId = new Map<string, PendingShoppingMutationSession>();
   let isClosed = false;
   const heartbeat = setInterval(() => {
     expireStalePresence();
@@ -193,7 +224,7 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
 
       if (message.type === 'subscribe') {
         state.presence = {
-          viewerId: message.viewerId,
+          viewerId: normalizeViewerId(message.viewerId),
           displayName: message.displayName,
           connectionId: state.connectionId,
           ...(message.deviceName ? { deviceName: message.deviceName } : {}),
@@ -202,13 +233,13 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
         broadcastPresenceChanged();
         logRealtime('presence_subscribed', {
           connectionId: state.connectionId,
-          viewerId: message.viewerId,
+          viewerId: state.presence.viewerId,
           activeViewerCount: currentViewers().length,
         });
         return;
       }
 
-      if (state.presence?.viewerId === message.viewerId) {
+      if (state.presence?.viewerId === normalizeViewerId(message.viewerId)) {
         state.presence = {
           ...state.presence,
           lastSeenAt: now(),
@@ -222,8 +253,9 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
 
       clients.delete(socket);
 
-      if (hadPresence) {
+      if (hadPresence && viewerId) {
         broadcastPresenceChanged();
+        void flushIfViewerInactive(viewerId);
         logRealtime('presence_disconnected', {
           connectionId: state.connectionId,
           viewerId,
@@ -268,6 +300,93 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
     },
     connectionCount() {
       return clients.size;
+    },
+    recordItemMutation(item, mutationId, action, actor) {
+      const normalizedActor = readActor(actor);
+      const viewerId = viewerIdForActor(normalizedActor);
+
+      if (!normalizedActor || !viewerId) {
+        logRealtime('shopping_session_push_skipped', {
+          reason: 'missing_actor',
+          itemId: item.id,
+          mutationId,
+          action,
+        });
+        return;
+      }
+
+      const session = pendingMutationsByViewerId.get(viewerId) ?? {
+        actor: normalizedActor,
+        items: [],
+      };
+
+      session.actor = normalizedActor;
+      session.items.push({
+        itemId: item.id,
+        itemName: item.name,
+        mutationId,
+        action,
+      });
+      pendingMutationsByViewerId.set(viewerId, session);
+
+      logRealtime('shopping_mutation_recorded', {
+        viewerId,
+        itemId: item.id,
+        action,
+        pendingItemCount: session.items.length,
+      });
+
+    },
+    async flushPendingSessionForViewerId(viewerId) {
+      const normalizedViewerId = normalizeViewerId(viewerId);
+      const session = pendingMutationsByViewerId.get(normalizedViewerId);
+
+      if (!session || session.items.length === 0) {
+        return undefined;
+      }
+
+      pendingMutationsByViewerId.delete(normalizedViewerId);
+
+      if (!options.notificationService) {
+        return undefined;
+      }
+
+      try {
+        const payload: ListSessionPushPayload = {
+          listType: 'shopping',
+          actor: session.actor,
+          items: session.items.map((item) => ({
+            itemName: item.itemName,
+            action: item.action,
+          })),
+        };
+        const push = await options.notificationService.sendListSessionPush(payload);
+
+        logRealtime('shopping_session_push_sent', {
+          viewerId: normalizedViewerId,
+          itemCount: session.items.length,
+          attempted: push.attempted,
+          skipped: push.skipped,
+          sentNotificationCount: push.sentNotificationCount,
+          reason: push.reason,
+        });
+
+        return push;
+      } catch (error) {
+        const push: EventPushStatus = {
+          attempted: false,
+          skipped: true,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+
+        logRealtime('shopping_session_push_failed', {
+          viewerId: normalizedViewerId,
+          itemCount: session.items.length,
+          reason: push.reason,
+        });
+
+        return push;
+      }
     },
     broadcastItemCreated(item, mutationId) {
       logRealtime('mutation_broadcast', {
@@ -355,6 +474,7 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
 
   function expireStalePresence(): void {
     const cutoff = Date.now() - PRESENCE_TIMEOUT_MS;
+    const expiredViewerIds = new Set<string>();
     let didChange = false;
 
     for (const state of clients.values()) {
@@ -367,6 +487,7 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
           connectionId: state.connectionId,
           viewerId: state.presence.viewerId,
         });
+        expiredViewerIds.add(state.presence.viewerId);
         state.presence = undefined;
         didChange = true;
       }
@@ -374,6 +495,10 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
 
     if (didChange) {
       broadcastPresenceChanged();
+    }
+
+    for (const viewerId of expiredViewerIds) {
+      void flushIfViewerInactive(viewerId);
     }
   }
 
@@ -406,6 +531,20 @@ export function createShoppingListRealtimeHub(): ShoppingListRealtimeHub {
     return Array.from(viewersById.values()).sort((left, right) =>
       left.displayName.localeCompare(right.displayName),
     );
+  }
+
+  function hasActiveViewer(viewerId: string): boolean {
+    const normalizedViewerId = normalizeViewerId(viewerId);
+
+    return Array.from(clients.values()).some((state) => state.presence?.viewerId === normalizedViewerId);
+  }
+
+  async function flushIfViewerInactive(viewerId: string): Promise<EventPushStatus | undefined> {
+    if (hasActiveViewer(viewerId)) {
+      return undefined;
+    }
+
+    return hub.flushPendingSessionForViewerId(viewerId);
   }
 
   function broadcast(message: ShoppingListLiveMessage): void {
@@ -513,6 +652,30 @@ function readOptionalString(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readActor(actor: unknown): string | undefined {
+  return typeof actor === 'string' && actor.trim().length > 0 ? actor.trim() : undefined;
+}
+
+function viewerIdForActor(actor: string | undefined): string | undefined {
+  const normalizedActor = normalizeViewerId(actor);
+
+  if (normalizedActor.includes('josh')) {
+    return 'josh';
+  }
+
+  if (normalizedActor.includes('mallory')) {
+    return 'mallory';
+  }
+
+  return undefined;
+}
+
+function normalizeViewerId(value: unknown): string {
+  return typeof value === 'string'
+    ? value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+    : '';
 }
 
 function now(): string {

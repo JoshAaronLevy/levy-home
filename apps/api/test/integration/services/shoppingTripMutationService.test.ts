@@ -7,7 +7,7 @@ import { createPostgresShoppingTripStore } from '../../../src/repositories/shopp
 import { createShoppingListMutationService } from '../../../src/services/shopping/shoppingListMutationService.js';
 import { createDisposableShoppingDatabase } from '../../support/pgliteDatabase.js';
 
-test('active-trip mutations atomically maintain trip state and suppress per-item counterpart pushes', async (t) => {
+test('active-trip mutations atomically maintain trip state without per-item counterpart pushes', async (t) => {
   const disposable = await createDisposableShoppingDatabase();
   t.after(() => disposable.close());
   await disposable.database`
@@ -25,19 +25,12 @@ test('active-trip mutations atomically maintain trip state and suppress per-item
   const trip = await shoppingTripStore.startTrip({ startedBy: 'Josh', mutationId: randomUUID() });
   const realtimeVersions: number[] = [];
   const activityVersions: number[] = [];
-  let ordinaryPushCount = 0;
   const service = createShoppingListMutationService({
     logger: {
       debug() {},
       error() {},
       info() {},
       warn() {},
-    },
-    notificationService: {
-      async sendListMutationPush() {
-        ordinaryPushCount += 1;
-        return { attempted: false, skipped: true, reason: 'test' };
-      },
     },
     shoppingListRealtime: {
       broadcastItemCreated() {},
@@ -104,7 +97,6 @@ test('active-trip mutations atomically maintain trip state and suppress per-item
   assert.equal(deletedPicked.activeTrip?.version, repickedMilk.activeTrip?.version);
   assert.equal(await shoppingListStore.fetchItem(milk.id), null);
 
-  assert.equal(ordinaryPushCount, 3); // create and two deletes; purchased mutations are intentionally suppressed.
   assert.deepEqual(realtimeVersions, activityVersions);
   assert.deepEqual(realtimeVersions, [...realtimeVersions].sort((first, second) => first - second));
 });

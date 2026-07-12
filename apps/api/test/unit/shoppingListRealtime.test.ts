@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import { WebSocket } from 'ws';
 
 import type { ListSessionPushPayload } from '../../src/services/notifications/notificationService.js';
-import { createToDoListRealtimeHub } from '../../src/todoListRealtime.js';
+import { createShoppingListRealtimeHub } from '../../src/shoppingListRealtime.js';
 
-test('to-do realtime batches list mutations until the viewer session is flushed', async () => {
+test('shopping realtime sends one session summary only after recorded mutations are flushed', async () => {
   const pushes: ListSessionPushPayload[] = [];
-  const hub = createToDoListRealtimeHub({
+  const hub = createShoppingListRealtimeHub({
     notificationService: {
       async sendListSessionPush(payload) {
         pushes.push(payload);
@@ -23,33 +23,34 @@ test('to-do realtime batches list mutations until the viewer session is flushed'
     },
   });
 
-  hub.recordItemMutation(todoItem(1, 'Schedule dentist'), 'mutation-1', 'created', 'Josh');
-  hub.recordItemMutation(todoItem(2, 'Book camp'), 'mutation-2', 'completed', 'Josh');
+  const viewOnlyFlush = await hub.flushPendingSessionForViewerId('josh');
+  assert.equal(viewOnlyFlush, undefined);
+  assert.deepEqual(pushes, []);
+
+  hub.recordItemMutation(shoppingItem(1, 'Whole milk'), 'mutation-1', 'created', 'Josh');
+  hub.recordItemMutation(shoppingItem(2, 'Eggs'), 'mutation-2', 'updated', 'Josh');
 
   const push = await hub.flushPendingSessionForViewerId('josh');
 
   assert.equal(push?.attempted, true);
   assert.deepEqual(pushes, [
     {
-      listType: 'todo',
+      listType: 'shopping',
       actor: 'Josh',
       items: [
-        { itemName: 'Schedule dentist', action: 'created' },
-        { itemName: 'Book camp', action: 'completed' },
+        { itemName: 'Whole milk', action: 'created' },
+        { itemName: 'Eggs', action: 'updated' },
       ],
     },
   ]);
-
-  const secondFlush = await hub.flushPendingSessionForViewerId('josh');
-
-  assert.equal(secondFlush, undefined);
+  assert.equal(await hub.flushPendingSessionForViewerId('josh'), undefined);
 
   hub.close();
 });
 
-test('to-do realtime flushes a changed viewer session after its final connection closes', async (t) => {
+test('shopping realtime flushes a changed viewer session after its final connection closes', async (t) => {
   const pushes: ListSessionPushPayload[] = [];
-  const hub = createToDoListRealtimeHub({
+  const hub = createShoppingListRealtimeHub({
     notificationService: {
       async sendListSessionPush(payload) {
         pushes.push(payload);
@@ -72,7 +73,7 @@ test('to-do realtime flushes a changed viewer session after its final connection
   await once(server, 'listening');
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
-  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/api/todo-list/live`);
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/api/shopping-list/live`);
   t.after(() => {
     socket.terminate();
     hub.close();
@@ -83,35 +84,35 @@ test('to-do realtime flushes a changed viewer session after its final connection
   const presenceChanged = waitForMessage(socket, (message) => message.type === 'presence_changed');
   socket.send(JSON.stringify({
     type: 'subscribe',
-    viewerId: 'mallory',
-    displayName: 'Mallory',
+    viewerId: 'josh',
+    displayName: 'Josh',
   }));
   await presenceChanged;
 
-  hub.recordItemMutation(todoItem(8, 'Call plumber'), 'mutation-8', 'updated', 'Mallory');
+  hub.recordItemMutation(shoppingItem(7, 'Pasta'), 'mutation-7', 'created', 'Josh');
   socket.close();
   await once(socket, 'close');
   await waitForCondition(() => pushes.length === 1);
 
   assert.deepEqual(pushes, [
     {
-      listType: 'todo',
-      actor: 'Mallory',
-      items: [{ itemName: 'Call plumber', action: 'updated' }],
+      listType: 'shopping',
+      actor: 'Josh',
+      items: [{ itemName: 'Pasta', action: 'created' }],
     },
   ]);
 });
 
-function todoItem(id: number, name: string) {
+function shoppingItem(id: number, name: string) {
   return {
     id,
     name,
-    status: 'open' as const,
-    locationIds: [],
-    locationDisplayText: 'No location',
-    alerts: [],
-    subtasks: [],
-    createdDate: '2026-07-03T12:00:00.000Z',
+    quantity: 1,
+    purchased: false,
+    created: '2026-07-11T12:00:00.000Z',
+    updated: '2026-07-11T12:00:00.000Z',
+    categoryId: null,
+    storeListings: [],
   };
 }
 
@@ -122,7 +123,7 @@ function waitForMessage(
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error('Timed out waiting for a To Do realtime message.'));
+      reject(new Error('Timed out waiting for a Shopping realtime message.'));
     }, 1_000);
 
     const onMessage = (data: WebSocket.RawData) => {
@@ -153,7 +154,7 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 
   while (!condition()) {
     if (Date.now() >= deadline) {
-      throw new Error('Timed out waiting for the To Do session push.');
+      throw new Error('Timed out waiting for the Shopping session push.');
     }
 
     await new Promise((resolve) => setTimeout(resolve, 10));

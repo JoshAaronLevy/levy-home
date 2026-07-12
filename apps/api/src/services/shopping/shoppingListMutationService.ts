@@ -5,7 +5,6 @@ import type {
   CreateShoppingListItemRequest,
   DeleteShoppingListItemRequest,
   DeleteShoppingListItemResponse,
-  EventPushStatus,
   ShoppingListItem,
   ShoppingListMutationResponse,
   ShoppingTripSnapshot,
@@ -26,8 +25,10 @@ import {
   lockActiveShoppingTrip,
   type ShoppingTripStore,
 } from '../../repositories/shoppingTripRepository.js';
-import type { ListMutationPushAction, NotificationService } from '../notifications/notificationService.js';
-import type { ShoppingListRealtimeBroadcaster } from '../../shoppingListRealtime.js';
+import type {
+  ShoppingListRealtimeBroadcaster,
+  ShoppingListRealtimeSessionRecorder,
+} from '../../shoppingListRealtime.js';
 import type { ShoppingTripService } from './shoppingTripService.js';
 import type { ShoppingLiveActivityDeliveryService } from './shoppingLiveActivityDeliveryService.js';
 
@@ -47,8 +48,7 @@ export type ShoppingListMutationService = {
 
 export function createShoppingListMutationService(options: {
   logger?: Logger;
-  notificationService?: Pick<NotificationService, 'sendListMutationPush'>;
-  shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  shoppingListRealtime?: ShoppingListRealtimeBroadcaster & Partial<ShoppingListRealtimeSessionRecorder>;
   shoppingListStore: ShoppingListStore;
   shoppingTripService?: Pick<ShoppingTripService, 'getActiveTrip'>;
   shoppingTripStore?: ShoppingTripStore;
@@ -57,7 +57,6 @@ export function createShoppingListMutationService(options: {
 }): ShoppingListMutationService {
   const auditLogger = options.logger ?? defaultLogger;
   const {
-    notificationService,
     shoppingListRealtime,
     shoppingListStore,
     shoppingTripService,
@@ -91,10 +90,10 @@ export function createShoppingListMutationService(options: {
         auditLogger.info('Shopping list create committed.', itemAuditDetails(item, mutationId, request.actor));
         shoppingListRealtime?.broadcastItemCreated(item, mutationId);
         await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
-        response.push = await sendShoppingListMutationPush(notificationService, item, 'created', request.actor);
+        shoppingListRealtime?.recordItemMutation?.(item, mutationId, 'created', request.actor);
         auditLogger.info('Shopping list create completed.', {
           ...itemAuditDetails(item, mutationId, request.actor),
-          ...pushAuditDetails(response.push),
+          notification: 'session_pending',
         });
 
         return response;
@@ -138,10 +137,10 @@ export function createShoppingListMutationService(options: {
       auditLogger.info('Shopping list delete committed.', itemAuditDetails(item, mutationId, request.actor));
       shoppingListRealtime?.broadcastItemDeleted(itemId, mutationId);
       await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
-      response.push = await sendShoppingListMutationPush(notificationService, item, 'deleted', request.actor);
+      shoppingListRealtime?.recordItemMutation?.(item, mutationId, 'deleted', request.actor);
       auditLogger.info('Shopping list delete completed.', {
         ...itemAuditDetails(item, mutationId, request.actor),
-        ...pushAuditDetails(response.push),
+        notification: 'session_pending',
       });
 
       return response;
@@ -192,17 +191,15 @@ export function createShoppingListMutationService(options: {
         auditLogger.info('Shopping list update committed.', itemAuditDetails(item, mutationId, request.actor));
         shoppingListRealtime?.broadcastItemUpdated(item, mutationId);
         await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
-        response.push = committed.activeTrip && request.purchased !== undefined
-          ? suppressedTripItemPushStatus()
-          : await sendShoppingListMutationPush(
-            notificationService,
-            item,
-            request.purchased === true ? 'completed' : 'updated',
-            request.actor,
-          );
+        shoppingListRealtime?.recordItemMutation?.(
+          item,
+          mutationId,
+          request.purchased === true ? 'completed' : 'updated',
+          request.actor,
+        );
         auditLogger.info('Shopping list update completed.', {
           ...itemAuditDetails(item, mutationId, request.actor),
-          ...pushAuditDetails(response.push),
+          notification: 'session_pending',
         });
 
         return response;
@@ -350,32 +347,6 @@ async function currentActiveTrip(
   return shoppingTripService ? shoppingTripService.getActiveTrip() : null;
 }
 
-async function sendShoppingListMutationPush(
-  notificationService: Pick<NotificationService, 'sendListMutationPush'> | undefined,
-  item: ShoppingListItem,
-  action: ListMutationPushAction,
-  actor?: string,
-): Promise<EventPushStatus | undefined> {
-  if (!notificationService) {
-    return undefined;
-  }
-
-  try {
-    return await notificationService.sendListMutationPush({
-      listType: 'shopping',
-      action,
-      itemName: item.name,
-      actor,
-    });
-  } catch (error) {
-    return {
-      attempted: false,
-      skipped: true,
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
 function shoppingItemNotFoundError(): HTTPError {
   return new HTTPError(404, 'Shopping item was not found.', 'shopping_item_not_found');
 }
@@ -390,18 +361,6 @@ function requireShoppingTripActor(actor: string | undefined): asserts actor is '
     'A shopping trip needs Josh or Mallory recorded for a pickup change.',
     'shopping_trip_actor_required',
   );
-}
-
-function suppressedTripItemPushStatus(): EventPushStatus {
-  return {
-    attempted: false,
-    skipped: true,
-    reason: 'shopping_trip_activity_update',
-    sentNotificationCount: 0,
-    failedNotificationCount: 0,
-    invalidTokenCount: 0,
-    ticketCount: 0,
-  };
 }
 
 function duplicateShoppingItemError(item?: ShoppingListItem): HTTPError {
@@ -448,21 +407,5 @@ function itemAuditDetails(
     purchased: item.purchased,
     categoryId: item.categoryId,
     version: item.version,
-  };
-}
-
-function pushAuditDetails(push: EventPushStatus | undefined): Record<string, unknown> {
-  if (!push) {
-    return {
-      pushStatus: 'not_configured',
-    };
-  }
-
-  return {
-    pushAttempted: push.attempted,
-    pushSkipped: push.skipped,
-    pushTicketCount: push.ticketCount ?? push.sentNotificationCount,
-    pushFailedCount: push.failedNotificationCount,
-    ...(push.reason ? { pushReason: push.reason } : {}),
   };
 }

@@ -32,12 +32,14 @@ export type ListMutationPushPayload = {
   actor?: string;
 };
 
-export type ListSessionPushAction = 'created';
+export type ListSessionPushItem = {
+  itemName: string;
+  action: ListMutationPushAction;
+};
 
 export type ListSessionPushPayload = {
-  listType: 'todo';
-  action: ListSessionPushAction;
-  itemNames: string[];
+  listType: 'shopping' | 'todo';
+  items: ListSessionPushItem[];
   actor?: string;
 };
 
@@ -155,7 +157,7 @@ export function createNotificationService(options: {
     },
     async sendListSessionPush(payload) {
       const actor = readNotificationActor(payload.actor);
-      const itemNames = normalizeListSessionItemNames(payload.itemNames);
+      const items = normalizeListSessionItems(payload.items);
 
       if (!actor) {
         return {
@@ -165,7 +167,7 @@ export function createNotificationService(options: {
         };
       }
 
-      if (itemNames.length === 0) {
+      if (items.length === 0) {
         return {
           attempted: false,
           skipped: true,
@@ -199,16 +201,16 @@ export function createNotificationService(options: {
           body: bodyForListSession({
             ...payload,
             actor,
-            itemNames,
+            items,
           }),
         },
         preferenceCategory,
         data: {
           category: preferenceCategory,
           listType: payload.listType,
-          action: payload.action,
+          action: sessionAction(items),
           actor,
-          itemCount: String(itemNames.length),
+          itemCount: String(items.length),
         },
       });
 
@@ -484,18 +486,56 @@ function bodyForListMutation(payload: ListMutationPushPayload & { actor: string 
   }
 }
 
-function bodyForListSession(payload: ListSessionPushPayload & { actor: string; itemNames: string[] }): string {
-  if (payload.itemNames.length === 1) {
-    return `${payload.actor} added ${payload.itemNames[0]}.`;
+function bodyForListSession(payload: ListSessionPushPayload & { actor: string; items: ListSessionPushItem[] }): string {
+  const itemNames = payload.items.map((item) => item.itemName);
+
+  if (payload.items.length === 1) {
+    return bodyForListMutation({
+      listType: payload.listType,
+      action: payload.items[0]!.action,
+      itemName: payload.items[0]!.itemName,
+      actor: payload.actor,
+    });
   }
 
-  return `${payload.actor} added ${payload.itemNames.length} to-do items: ${formatListItemNames(payload.itemNames)}.`;
+  const listLabel = payload.listType === 'shopping' ? 'shopping items' : 'to-do items';
+  const action = sessionAction(payload.items);
+  const verb = action === 'created'
+    ? 'added'
+    : action === 'deleted'
+      ? 'removed'
+      : action === 'completed'
+        ? payload.listType === 'shopping' ? 'checked off' : 'completed'
+        : 'updated';
+
+  return `${payload.actor} ${verb} ${payload.items.length} ${listLabel}: ${formatListItemNames(itemNames)}.`;
 }
 
-function normalizeListSessionItemNames(itemNames: unknown[]): string[] {
-  return itemNames
-    .map((itemName) => (typeof itemName === 'string' ? itemName.trim() : ''))
-    .filter((itemName) => itemName.length > 0);
+function normalizeListSessionItems(items: unknown[]): ListSessionPushItem[] {
+  return items.flatMap((item): ListSessionPushItem[] => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const itemName = typeof (item as { itemName?: unknown }).itemName === 'string'
+      ? (item as { itemName: string }).itemName.trim()
+      : '';
+    const action = (item as { action?: unknown }).action;
+
+    if (!itemName || action !== 'created' && action !== 'updated' && action !== 'deleted' && action !== 'completed') {
+      return [];
+    }
+
+    return [{ itemName, action }];
+  });
+}
+
+function sessionAction(items: ListSessionPushItem[]): ListMutationPushAction | 'session' {
+  const [first] = items;
+
+  return first && items.every((item) => item.action === first.action)
+    ? first.action
+    : 'session';
 }
 
 function formatListItemNames(itemNames: string[]): string {

@@ -9,20 +9,21 @@ import type {
 } from '../../../../src/contracts.js';
 import { HTTPError } from '../../../../src/http/errors.js';
 import type { ShoppingListStore } from '../../../../src/repositories/shoppingListRepository.js';
-import type { ShoppingListRealtimeBroadcaster } from '../../../../src/shoppingListRealtime.js';
+import type {
+  ShoppingListRealtimeBroadcaster,
+  ShoppingListRealtimeSessionRecorder,
+} from '../../../../src/shoppingListRealtime.js';
 import { createShoppingListMutationService } from '../../../../src/services/shopping/shoppingListMutationService.js';
-import type { ListMutationPushPayload } from '../../../../src/services/notifications/notificationService.js';
 import type { Logger } from '../../../../src/observability/logger.js';
 
-test('shopping mutation service creates items, broadcasts successful mutations, and sends actor push', async () => {
+test('shopping mutation service records creates for a later session push instead of sending immediately', async () => {
   const broadcasts: string[] = [];
+  const sessionRecords: string[] = [];
   const logs: RecordedLogEntry[] = [];
-  const pushes: ListMutationPushPayload[] = [];
   const createdItem = shoppingItem({ id: 1, name: 'Whole milk' });
   const service = createShoppingListMutationService({
     logger: recordingLogger(logs),
-    notificationService: recordingNotificationService(pushes),
-    shoppingListRealtime: recordingRealtimeBroadcaster(broadcasts),
+    shoppingListRealtime: recordingRealtimeBroadcaster(broadcasts, sessionRecords),
     shoppingListStore: shoppingStore({
       async createItem() {
         return createdItem;
@@ -38,8 +39,9 @@ test('shopping mutation service creates items, broadcasts successful mutations, 
   assert.equal(response.ok, true);
   assert.equal(response.item, createdItem);
   assert.equal(response.mutationId, 'mutation-1');
-  assert.equal(response.push?.attempted, true);
+  assert.equal(response.push, undefined);
   assert.deepEqual(broadcasts, ['created:1:mutation-1']);
+  assert.deepEqual(sessionRecords, ['created:1:mutation-1:Josh']);
   assert.deepEqual(logs.map((entry) => entry.message), [
     'Shopping list create committed.',
     'Shopping list create completed.',
@@ -53,14 +55,6 @@ test('shopping mutation service creates items, broadcasts successful mutations, 
     categoryId: null,
     version: undefined,
   });
-  assert.deepEqual(pushes, [
-    {
-      listType: 'shopping',
-      action: 'created',
-      itemName: 'Whole milk',
-      actor: 'Josh',
-    },
-  ]);
 });
 
 test('shopping mutation service rejects duplicate item creates before writing', async () => {
@@ -183,7 +177,10 @@ function recordingLogger(entries: RecordedLogEntry[]): Logger {
   };
 }
 
-function recordingRealtimeBroadcaster(broadcasts: string[]): ShoppingListRealtimeBroadcaster {
+function recordingRealtimeBroadcaster(
+  broadcasts: string[],
+  sessionRecords: string[] = [],
+): ShoppingListRealtimeBroadcaster & Partial<ShoppingListRealtimeSessionRecorder> {
   return {
     broadcastItemCreated(item, mutationId) {
       broadcasts.push(`created:${item.id}:${mutationId}`);
@@ -209,19 +206,8 @@ function recordingRealtimeBroadcaster(broadcasts: string[]): ShoppingListRealtim
     broadcastTripEnded(trip: ShoppingTripSnapshot, mutationId: string) {
       broadcasts.push(`trip-ended:${trip.id}:${mutationId}`);
     },
-  };
-}
-
-function recordingNotificationService(pushes: ListMutationPushPayload[]) {
-  return {
-    async sendListMutationPush(payload: ListMutationPushPayload) {
-      pushes.push(payload);
-
-      return {
-        attempted: true,
-        skipped: false,
-        sentNotificationCount: 1,
-      };
+    recordItemMutation(item, mutationId, action, actor) {
+      sessionRecords.push(`${action}:${item.id}:${mutationId}:${actor ?? ''}`);
     },
   };
 }

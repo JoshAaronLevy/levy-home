@@ -72,7 +72,10 @@ import {
   createWeatherAlertService,
   type WeatherAlertService,
 } from './services/weather/weatherAlertService.js';
-import type { ShoppingListRealtimeBroadcaster } from './shoppingListRealtime.js';
+import {
+  createShoppingListRealtimeHub,
+  type ShoppingListRealtimeBroadcaster,
+} from './shoppingListRealtime.js';
 import { createToDoListRealtimeHub, type ToDoListRealtimeHub } from './todoListRealtime.js';
 
 export type CreateAppOptions = {
@@ -135,7 +138,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   });
   const activityEventService = createActivityEventService({ notificationService });
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
-  const shoppingListRealtime = options.shoppingListRealtime;
+  const shoppingListRealtime = options.shoppingListRealtime ?? createShoppingListRealtimeHub({ notificationService });
   const shoppingTripStore = options.shoppingTripStore ?? (
     isDatabaseConfigured() ? createPostgresShoppingTripStore() : undefined
   );
@@ -173,7 +176,6 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     })
     : undefined;
   const shoppingListMutationService = createShoppingListMutationService({
-    notificationService,
     shoppingListRealtime,
     shoppingListStore,
     shoppingTripService,
@@ -206,6 +208,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(cors());
   app.use(noStoreCacheControl);
   app.use(express.json({ limit: '1mb' }));
+  app.set('shoppingListRealtime', shoppingListRealtime);
   app.set('toDoListRealtime', toDoListRealtime);
   app.set('weatherAlertService', weatherAlertService);
   app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);

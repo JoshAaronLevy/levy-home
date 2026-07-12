@@ -211,9 +211,11 @@ test('notification service sends To Do add session summaries only to the other r
 
   const push = await notificationService.sendListSessionPush({
     listType: 'todo',
-    action: 'created',
     actor: 'Josh',
-    itemNames: ['Schedule dentist', 'Book summer camp'],
+    items: [
+      { itemName: 'Schedule dentist', action: 'created' },
+      { itemName: 'Book summer camp', action: 'created' },
+    ],
   });
 
   assert.equal(push.attempted, true);
