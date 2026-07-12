@@ -28,34 +28,24 @@
 				<dict>
 					<key>VocabularyItemIdentifier</key>
 					<string>levy-home-shopping</string>
-					<key>VocabularyItemExamples</key>
-					<array>
-						<string>Using Levy Home, add paper plates to Shopping.</string>
-						<string>Add milk to the Levy Home shopping list.</string>
-					</array>
 					<key>VocabularyItemSynonyms</key>
 					<array>
-						<dict><key>VocabularyItemPhrase</key><string>Shopping</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>shopping list</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>grocery list</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>groceries</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>Shopping</string><key>VocabularyItemExamples</key><array><string>Using Levy Home, add paper plates to Shopping.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>shopping list</string><key>VocabularyItemExamples</key><array><string>Add milk to the Levy Home shopping list.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>grocery list</string><key>VocabularyItemExamples</key><array><string>Add bananas to the Levy Home grocery list.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>groceries</string><key>VocabularyItemExamples</key><array><string>Add eggs to Levy Home groceries.</string></array></dict>
 					</array>
 				</dict>
 				<dict>
 					<key>VocabularyItemIdentifier</key>
 					<string>levy-home-todo</string>
-					<key>VocabularyItemExamples</key>
-					<array>
-						<string>Using Levy Home, add call the dentist to To Do.</string>
-						<string>Add return library books to the Levy Home task list.</string>
-					</array>
 					<key>VocabularyItemSynonyms</key>
 					<array>
-						<dict><key>VocabularyItemPhrase</key><string>To Do</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>to-do list</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>todo list</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>task list</string></dict>
-						<dict><key>VocabularyItemPhrase</key><string>tasks</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>To Do</string><key>VocabularyItemExamples</key><array><string>Using Levy Home, add call the dentist to To Do.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>to-do list</string><key>VocabularyItemExamples</key><array><string>Add return library books to the Levy Home to-do list.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>todo list</string><key>VocabularyItemExamples</key><array><string>Add book the vet to the Levy Home todo list.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>task list</string><key>VocabularyItemExamples</key><array><string>Add take out recycling to the Levy Home task list.</string></array></dict>
+						<dict><key>VocabularyItemPhrase</key><string>tasks</string><key>VocabularyItemExamples</key><array><string>Add call Mom to Levy Home tasks.</string></array></dict>
 					</array>
 				</dict>
 			</array>

@@ -88,7 +88,9 @@ require_vocabulary_item_examples() {
   local vocabulary_plist="$1"
   local item_index="$2"
   local expected_identifier="$3"
+  local synonym_count="$4"
   local actual_identifier
+  local synonym_index
 
   actual_identifier="$(extract_plist_value "$vocabulary_plist" "ParameterVocabularies:0:ParameterVocabulary:$item_index:VocabularyItemIdentifier")"
 
@@ -97,10 +99,12 @@ require_vocabulary_item_examples() {
     exit 1
   fi
 
-  if ! /usr/libexec/PlistBuddy -c "Print :ParameterVocabularies:0:ParameterVocabulary:$item_index:VocabularyItemExamples" "$vocabulary_plist" | /usr/bin/sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | /usr/bin/grep -Ev '^(Array \{|\})$' | /usr/bin/grep -q .; then
-    echo "Missing Siri vocabulary examples for '$expected_identifier'." >&2
-    exit 1
-  fi
+  for ((synonym_index = 0; synonym_index < synonym_count; synonym_index++)); do
+    if ! /usr/libexec/PlistBuddy -c "Print :ParameterVocabularies:0:ParameterVocabulary:$item_index:VocabularyItemSynonyms:$synonym_index:VocabularyItemExamples" "$vocabulary_plist" | /usr/bin/sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | /usr/bin/grep -Ev '^(Array \{|\})$' | /usr/bin/grep -q .; then
+      echo "Missing Siri vocabulary examples for synonym $synonym_index of '$expected_identifier'." >&2
+      exit 1
+    fi
+  done
 }
 
 /usr/bin/unzip -qq "$ipa_path" -d "$work_dir/unpacked"
@@ -134,8 +138,8 @@ if ! /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionAttributes:Intent
   exit 1
 fi
 
-require_vocabulary_item_examples "$vocabulary_plist" 0 'levy-home-shopping'
-require_vocabulary_item_examples "$vocabulary_plist" 1 'levy-home-todo'
+require_vocabulary_item_examples "$vocabulary_plist" 0 'levy-home-shopping' 4
+require_vocabulary_item_examples "$vocabulary_plist" 1 'levy-home-todo' 5
 
 /usr/bin/codesign --verify --deep --strict "$app_path"
 /usr/bin/codesign -d --entitlements :- "$app_path" > "$app_entitlements" 2>/dev/null
