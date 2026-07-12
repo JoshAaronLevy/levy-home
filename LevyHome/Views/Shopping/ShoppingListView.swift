@@ -5,7 +5,8 @@ import UIKit
 
 struct ShoppingListView: View {
     @Environment(\.appEnvironment) private var appEnvironment
-    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
+    private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
     let isSelected: Bool
 
     init(isSelected: Bool = true) {

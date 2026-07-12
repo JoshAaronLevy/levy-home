@@ -8,9 +8,16 @@ struct LevyHomeApp: App {
     @StateObject private var themePreferenceViewModel: ThemePreferenceViewModel
     @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
     @StateObject private var shoppingLiveActivityCoordinator: ShoppingLiveActivityCoordinator
-    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @AppStorage private var currentResidentName: String
 
     init() {
+        ResidentPreference.migrateFromStandardDefaults()
+        _currentResidentName = AppStorage(
+            wrappedValue: ResidentDeviceOwnerDefaults.defaultName,
+            ResidentPreference.storageKey,
+            store: ResidentPreference.sharedDefaults
+        )
+
         let appEnvironment = AppEnvironment.live()
         self.appEnvironment = appEnvironment
         _themePreferenceViewModel = StateObject(

@@ -3,7 +3,8 @@ import SwiftUI
 struct PreferencesView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @EnvironmentObject private var themePreferenceViewModel: ThemePreferenceViewModel
-    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
+    private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
     @StateObject private var siriAuthorizationService = SiriAuthorizationService()
 
     var body: some View {
@@ -39,7 +40,8 @@ private struct PreferencesContentView: View {
     @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
     @ObservedObject private var themePreferenceViewModel: ThemePreferenceViewModel
     @ObservedObject private var siriAuthorizationService: SiriAuthorizationService
-    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
+    private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
     private let apnsEnvironment: APNsEnvironment
     private let isDeveloperToolsEnabled: Bool
     private let sendNotificationPipelineTest: () async throws -> TestNotificationPipelineResponse

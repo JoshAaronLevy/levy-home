@@ -59,13 +59,6 @@ struct AppEnvironment {
     }
 }
 
-enum AppLogLevel: String, Codable, Equatable {
-    case info
-    case success
-    case warning
-    case error
-}
-
 struct AppLogEntry: Codable, Equatable, Identifiable {
     let id: UUID
     let timestamp: Date
@@ -91,7 +84,7 @@ struct AppLogEntry: Codable, Equatable, Identifiable {
     }
 }
 
-final class AppLogStore: ObservableObject {
+final class AppLogStore: ObservableObject, APIClientLogging {
     @Published private(set) var entries: [AppLogEntry]
 
     private let userDefaults: UserDefaults

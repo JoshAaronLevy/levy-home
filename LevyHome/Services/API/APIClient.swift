@@ -13,14 +13,14 @@ final class APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
-    private let appLogStore: AppLogStore?
+    private let appLogStore: (any APIClientLogging)?
 
     init(
         baseURL: URL,
         session: URLSession = .shared,
         decoder: JSONDecoder = JSONDecoder(),
         encoder: JSONEncoder = JSONEncoder(),
-        appLogStore: AppLogStore? = nil
+        appLogStore: (any APIClientLogging)? = nil
     ) {
         self.baseURL = baseURL
         self.session = session

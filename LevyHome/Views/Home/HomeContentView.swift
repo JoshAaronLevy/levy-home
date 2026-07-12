@@ -9,7 +9,8 @@ struct HomeContentView: View {
     @State private var isShowingConfirmationDialog = false
     @State private var isWeatherExpanded = false
     @State private var selectedLightingArea: BlueprintLightingArea?
-    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
+    private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
 
     init(
         homeViewModel: HomeOverviewViewModel,

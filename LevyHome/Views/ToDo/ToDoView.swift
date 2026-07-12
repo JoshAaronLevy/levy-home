@@ -7,7 +7,8 @@ import UIKit
 struct ToDoView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
+    private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
     @StateObject private var viewModel = ToDoViewModel()
     @StateObject private var familyCalendarViewModel = ToDoFamilyCalendarViewModel()
     @StateObject private var personalRemindersViewModel = ToDoPersonalRemindersViewModel()

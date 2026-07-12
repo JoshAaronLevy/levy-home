@@ -166,6 +166,42 @@
 		910000000000000000000003 /* SiriPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900000000000000000000006 /* SiriPreferencesView.swift */; };
 		910000000000000000000004 /* AppIntentVocabulary.plist in Resources */ = {isa = PBXBuildFile; fileRef = 930000000000000000000003 /* AppIntentVocabulary.plist */; };
 		910000000000000000000005 /* LevyHomeIntents.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 900000000000000000000004 /* LevyHomeIntents.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		980000000000000000000001 /* APIClientLogging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000001 /* APIClientLogging.swift */; };
+		980000000000000000000002 /* APIClient+Users.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000002 /* APIClient+Users.swift */; };
+		980000000000000000000003 /* PushDeliveryStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000003 /* PushDeliveryStatus.swift */; };
+		980000000000000000000004 /* ResidentDeviceOwnerDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000004 /* ResidentDeviceOwnerDefaults.swift */; };
+		980000000000000000000005 /* SiriListKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000005 /* SiriListKind.swift */; };
+		980000000000000000000006 /* SiriListCommandResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000006 /* SiriListCommandResult.swift */; };
+		980000000000000000000007 /* SiriListCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000007 /* SiriListCommandService.swift */; };
+		980000000000000000000008 /* SiriIntentResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000008 /* SiriIntentResolver.swift */; };
+		980000000000000000000009 /* SiriSharedSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000009 /* SiriSharedSettings.swift */; };
+		980000000000000000000010 /* SiriExtensionConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000010 /* SiriExtensionConfiguration.swift */; };
+		980000000000000000000011 /* SiriResidentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000011 /* SiriResidentStoreTests.swift */; };
+		980000000000000000000012 /* SiriExtensionConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000012 /* SiriExtensionConfigurationTests.swift */; };
+		980000000000000000000013 /* APIClientLogging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000001 /* APIClientLogging.swift */; };
+		980000000000000000000014 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* APIClient.swift */; };
+		980000000000000000000015 /* APIClient+Users.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000002 /* APIClient+Users.swift */; };
+		980000000000000000000016 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000011 /* APIError.swift */; };
+		980000000000000000000017 /* ShoppingAPIRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8000000000000000000002A /* ShoppingAPIRequests.swift */; };
+		980000000000000000000018 /* ShoppingAPIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8000000000000000000002B /* ShoppingAPIResponses.swift */; };
+		980000000000000000000019 /* ToDoAPIRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000027 /* ToDoAPIRequests.swift */; };
+		980000000000000000000020 /* ToDoAPIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000028 /* ToDoAPIResponses.swift */; };
+		980000000000000000000021 /* PushDeliveryStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000003 /* PushDeliveryStatus.swift */; };
+		980000000000000000000022 /* NullableAPIValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000029 /* NullableAPIValue.swift */; };
+		980000000000000000000023 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000030 /* JSONValue.swift */; };
+		980000000000000000000024 /* APIClient+Shopping.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000023 /* APIClient+Shopping.swift */; };
+		980000000000000000000025 /* APIClient+ToDo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000024 /* APIClient+ToDo.swift */; };
+		980000000000000000000026 /* SiriListKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000005 /* SiriListKind.swift */; };
+		980000000000000000000027 /* SiriListCommandResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000006 /* SiriListCommandResult.swift */; };
+		980000000000000000000028 /* SiriListCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000007 /* SiriListCommandService.swift */; };
+		980000000000000000000029 /* SiriIntentResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000008 /* SiriIntentResolver.swift */; };
+		980000000000000000000030 /* SiriSharedSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000009 /* SiriSharedSettings.swift */; };
+		980000000000000000000031 /* SiriExtensionConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000010 /* SiriExtensionConfiguration.swift */; };
+		980000000000000000000032 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* PrivacyInfo.xcprivacy */; };
+		980000000000000000000033 /* UserAPIResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000026 /* UserAPIResponses.swift */; };
+		980000000000000000000034 /* APIClient+ListItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000013 /* APIClient+ListItems.swift */; };
+		980000000000000000000035 /* APIClient+ListItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000013 /* APIClient+ListItems.swift */; };
+		980000000000000000000037 /* DeviceAPIRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8000000000000000000002E /* DeviceAPIRequests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -374,6 +410,19 @@
 		900000000000000000000005 /* SiriAuthorizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriAuthorizationService.swift; sourceTree = "<group>"; };
 		900000000000000000000006 /* SiriPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriPreferencesView.swift; sourceTree = "<group>"; };
 		900000000000000000000007 /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Base; path = Base.lproj/AppIntentVocabulary.plist; sourceTree = "<group>"; };
+		970000000000000000000001 /* APIClientLogging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientLogging.swift; sourceTree = "<group>"; };
+		970000000000000000000002 /* APIClient+Users.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Users.swift"; sourceTree = "<group>"; };
+		970000000000000000000003 /* PushDeliveryStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushDeliveryStatus.swift; sourceTree = "<group>"; };
+		970000000000000000000004 /* ResidentDeviceOwnerDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentDeviceOwnerDefaults.swift; sourceTree = "<group>"; };
+		970000000000000000000005 /* SiriListKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriListKind.swift; sourceTree = "<group>"; };
+		970000000000000000000006 /* SiriListCommandResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriListCommandResult.swift; sourceTree = "<group>"; };
+		970000000000000000000007 /* SiriListCommandService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriListCommandService.swift; sourceTree = "<group>"; };
+		970000000000000000000008 /* SiriIntentResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriIntentResolver.swift; sourceTree = "<group>"; };
+		970000000000000000000009 /* SiriSharedSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriSharedSettings.swift; sourceTree = "<group>"; };
+		970000000000000000000010 /* SiriExtensionConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriExtensionConfiguration.swift; sourceTree = "<group>"; };
+		970000000000000000000011 /* SiriResidentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriResidentStoreTests.swift; sourceTree = "<group>"; };
+		970000000000000000000012 /* SiriExtensionConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriExtensionConfigurationTests.swift; sourceTree = "<group>"; };
+		970000000000000000000013 /* APIClient+ListItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+ListItems.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -461,6 +510,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000010 /* LevyHomeApp.swift */,
+				970000000000000000000004 /* ResidentDeviceOwnerDefaults.swift */,
 				D40000000000000000000002 /* AppNavigation.swift */,
 				A10000000000000000000014 /* AppConfig.swift */,
 				A10000000000000000000015 /* AppEnvironment.swift */,
@@ -653,6 +703,7 @@
 			children = (
 				F80000000000000000000029 /* NullableAPIValue.swift */,
 				F80000000000000000000030 /* JSONValue.swift */,
+				970000000000000000000003 /* PushDeliveryStatus.swift */,
 				F80000000000000000000021 /* EventsAPIRequests.swift */,
 				F80000000000000000000022 /* EventsAPIResponses.swift */,
 				F80000000000000000000023 /* HomeAPIResponses.swift */,
@@ -705,6 +756,7 @@
 				D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */,
 				C10000000000000000000015 /* PushRegistrationViewModelTests.swift */,
 				B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */,
+				970000000000000000000020 /* Siri */,
 			);
 			path = LevyHomeTests;
 			sourceTree = "<group>";
@@ -779,12 +831,15 @@
 			isa = PBXGroup;
 			children = (
 				A70000000000000000000011 /* APIClient.swift */,
+				970000000000000000000001 /* APIClientLogging.swift */,
 				F70000000000000000000021 /* APIClient+Activity.swift */,
 				F70000000000000000000022 /* APIClient+Home.swift */,
 				F70000000000000000000023 /* APIClient+Shopping.swift */,
 				F70000000000000000000024 /* APIClient+ToDo.swift */,
 				F70000000000000000000025 /* APIClient+Notifications.swift */,
 				F70000000000000000000026 /* APIClient+System.swift */,
+				970000000000000000000002 /* APIClient+Users.swift */,
+				970000000000000000000013 /* APIClient+ListItems.swift */,
 			);
 			path = API;
 			sourceTree = "<group>";
@@ -923,6 +978,21 @@
 			isa = PBXGroup;
 			children = (
 				900000000000000000000005 /* SiriAuthorizationService.swift */,
+				970000000000000000000005 /* SiriListKind.swift */,
+				970000000000000000000006 /* SiriListCommandResult.swift */,
+				970000000000000000000007 /* SiriListCommandService.swift */,
+				970000000000000000000008 /* SiriIntentResolver.swift */,
+				970000000000000000000009 /* SiriSharedSettings.swift */,
+				970000000000000000000010 /* SiriExtensionConfiguration.swift */,
+			);
+			path = Siri;
+			sourceTree = "<group>";
+		};
+		970000000000000000000020 /* Siri */ = {
+			isa = PBXGroup;
+			children = (
+				970000000000000000000011 /* SiriResidentStoreTests.swift */,
+				970000000000000000000012 /* SiriExtensionConfigurationTests.swift */,
 			);
 			path = Siri;
 			sourceTree = "<group>";
@@ -1077,6 +1147,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				980000000000000000000032 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1090,6 +1161,7 @@
 				A10000000000000000000001 /* LevyHomeApp.swift in Sources */,
 				D40000000000000000000001 /* AppNavigation.swift in Sources */,
 				A10000000000000000000005 /* AppConfig.swift in Sources */,
+				980000000000000000000004 /* ResidentDeviceOwnerDefaults.swift in Sources */,
 				A10000000000000000000006 /* AppEnvironment.swift in Sources */,
 				A10000000000000000000007 /* BuildConfiguration.swift in Sources */,
 				C10000000000000000000001 /* AppDelegate.swift in Sources */,
@@ -1176,13 +1248,17 @@
 				F8000000000000000000000E /* DeviceAPIRequests.swift in Sources */,
 				F8000000000000000000000F /* HealthAPIResponses.swift in Sources */,
 				F80000000000000000000010 /* JSONValue.swift in Sources */,
+				980000000000000000000003 /* PushDeliveryStatus.swift in Sources */,
 				A70000000000000000000001 /* APIClient.swift in Sources */,
+				980000000000000000000001 /* APIClientLogging.swift in Sources */,
 				F70000000000000000000001 /* APIClient+Activity.swift in Sources */,
 				F70000000000000000000002 /* APIClient+Home.swift in Sources */,
 				F70000000000000000000003 /* APIClient+Shopping.swift in Sources */,
 				F70000000000000000000004 /* APIClient+ToDo.swift in Sources */,
 				F70000000000000000000005 /* APIClient+Notifications.swift in Sources */,
 				F70000000000000000000006 /* APIClient+System.swift in Sources */,
+				980000000000000000000002 /* APIClient+Users.swift in Sources */,
+				980000000000000000000034 /* APIClient+ListItems.swift in Sources */,
 				E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */,
 				F60000000000000000000001 /* ShoppingListLiveServicing.swift in Sources */,
 				F60000000000000000000002 /* ShoppingListLiveMessages.swift in Sources */,
@@ -1222,6 +1298,12 @@
 				C10000000000000000000004 /* DebugView.swift in Sources */,
 				AA0000000000000000000001 /* PreferencesView.swift in Sources */,
 				910000000000000000000002 /* SiriAuthorizationService.swift in Sources */,
+				980000000000000000000005 /* SiriListKind.swift in Sources */,
+				980000000000000000000006 /* SiriListCommandResult.swift in Sources */,
+				980000000000000000000007 /* SiriListCommandService.swift in Sources */,
+				980000000000000000000008 /* SiriIntentResolver.swift in Sources */,
+				980000000000000000000009 /* SiriSharedSettings.swift in Sources */,
+				980000000000000000000010 /* SiriExtensionConfiguration.swift in Sources */,
 				910000000000000000000003 /* SiriPreferencesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1241,6 +1323,26 @@
 			buildActionMask = 2147483647;
 			files = (
 				910000000000000000000001 /* IntentHandler.swift in Sources */,
+				980000000000000000000013 /* APIClientLogging.swift in Sources */,
+				980000000000000000000014 /* APIClient.swift in Sources */,
+				980000000000000000000015 /* APIClient+Users.swift in Sources */,
+				980000000000000000000033 /* UserAPIResponses.swift in Sources */,
+				980000000000000000000016 /* APIError.swift in Sources */,
+				980000000000000000000017 /* ShoppingAPIRequests.swift in Sources */,
+				980000000000000000000018 /* ShoppingAPIResponses.swift in Sources */,
+				980000000000000000000019 /* ToDoAPIRequests.swift in Sources */,
+				980000000000000000000020 /* ToDoAPIResponses.swift in Sources */,
+				980000000000000000000021 /* PushDeliveryStatus.swift in Sources */,
+				980000000000000000000022 /* NullableAPIValue.swift in Sources */,
+				980000000000000000000023 /* JSONValue.swift in Sources */,
+				980000000000000000000037 /* DeviceAPIRequests.swift in Sources */,
+				980000000000000000000035 /* APIClient+ListItems.swift in Sources */,
+				980000000000000000000026 /* SiriListKind.swift in Sources */,
+				980000000000000000000027 /* SiriListCommandResult.swift in Sources */,
+				980000000000000000000028 /* SiriListCommandService.swift in Sources */,
+				980000000000000000000029 /* SiriIntentResolver.swift in Sources */,
+				980000000000000000000030 /* SiriSharedSettings.swift in Sources */,
+				980000000000000000000031 /* SiriExtensionConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1262,6 +1364,8 @@
 				D10000000000000000000005 /* ThemePreferenceViewModelTests.swift in Sources */,
 				C10000000000000000000005 /* PushRegistrationViewModelTests.swift in Sources */,
 				B40000000000000000000008 /* ShoppingLiveActivityCoordinatorTests.swift in Sources */,
+				980000000000000000000011 /* SiriResidentStoreTests.swift in Sources */,
+				980000000000000000000012 /* SiriExtensionConfigurationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

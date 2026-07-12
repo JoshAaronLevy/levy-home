@@ -1,5 +1,4 @@
 import Foundation
-import UIKit
 
 struct HomeOverview: Codable, Equatable {
     let garageStatus: GarageStatus
@@ -63,47 +62,5 @@ struct HomePresenceStatus: Codable, Equatable, Identifiable {
 
     var id: String {
         person.lowercased()
-    }
-}
-
-enum ResidentIdentity: String, CaseIterable, Identifiable {
-    case josh = "Josh"
-    case mallory = "Mallory"
-
-    var id: String {
-        rawValue
-    }
-
-    var systemImage: String {
-        switch self {
-        case .josh:
-            return "person.crop.circle"
-        case .mallory:
-            return "person.crop.circle.fill"
-        }
-    }
-
-    static func inferred(from deviceName: String) -> ResidentIdentity? {
-        let normalizedName = deviceName
-            .lowercased()
-            .replacingOccurrences(of: "[^a-z0-9]+", with: " ", options: .regularExpression)
-
-        if normalizedName.contains("josh") {
-            return .josh
-        }
-
-        if normalizedName.contains("mallory") {
-            return .mallory
-        }
-
-        return nil
-    }
-}
-
-enum ResidentPreference {
-    static let storageKey = "currentResidentName"
-
-    static var defaultName: String {
-        ResidentIdentity.inferred(from: UIDevice.current.name)?.rawValue ?? ""
     }
 }
