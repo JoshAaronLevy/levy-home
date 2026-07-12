@@ -204,6 +204,7 @@
 		980000000000000000000037 /* DeviceAPIRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8000000000000000000002E /* DeviceAPIRequests.swift */; };
 		980000000000000000000038 /* SiriListCommandServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000015 /* SiriListCommandServiceTests.swift */; };
 		980000000000000000000039 /* SiriIntentResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000016 /* SiriIntentResolverTests.swift */; };
+		980000000000000000000040 /* SiriAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970000000000000000000017 /* SiriAppShortcuts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -427,6 +428,7 @@
 		970000000000000000000013 /* APIClient+ListItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+ListItems.swift"; sourceTree = "<group>"; };
 		970000000000000000000015 /* SiriListCommandServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriListCommandServiceTests.swift; sourceTree = "<group>"; };
 		970000000000000000000016 /* SiriIntentResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriIntentResolverTests.swift; sourceTree = "<group>"; };
+		970000000000000000000017 /* SiriAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriAppShortcuts.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -988,6 +990,7 @@
 				970000000000000000000008 /* SiriIntentResolver.swift */,
 				970000000000000000000009 /* SiriSharedSettings.swift */,
 				970000000000000000000010 /* SiriExtensionConfiguration.swift */,
+				970000000000000000000017 /* SiriAppShortcuts.swift */,
 			);
 			path = Siri;
 			sourceTree = "<group>";
@@ -1310,6 +1313,7 @@
 				980000000000000000000008 /* SiriIntentResolver.swift in Sources */,
 				980000000000000000000009 /* SiriSharedSettings.swift in Sources */,
 				980000000000000000000010 /* SiriExtensionConfiguration.swift in Sources */,
+				980000000000000000000040 /* SiriAppShortcuts.swift in Sources */,
 				910000000000000000000003 /* SiriPreferencesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

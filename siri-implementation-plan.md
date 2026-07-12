@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: Stages 1-7 code and automation implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and Stage 7’s exported-IPA/TestFlight physical validation remain outstanding. Stages 8-9 remain planning only. Stage 6 adds To Do realtime mutation broadcasts but does not require a database, environment, Render, or Home Assistant configuration change.
+Status: Stages 1-8 code and automation implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and Stage 7’s exported-IPA/TestFlight physical validation remain outstanding. Stage 9 remains planning only. Stage 6 adds To Do realtime mutation broadcasts but does not require a database, environment, Render, or Home Assistant configuration change.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -108,7 +108,7 @@ Do not make a generalized list framework, add a Siri-specific backend endpoint, 
 
 ## Pre-Stage 1 Baseline
 
-The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-7 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, Shopping and To Do command slices, deterministic Siri resolution/error handling, realtime freshness for extension-created mutations, and automated signed-IPA verification.
+The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-8 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, Shopping and To Do command slices, deterministic Siri resolution/error handling, realtime freshness for extension-created mutations, automated signed-IPA verification, and an App Shortcut fallback.
 
 ### Xcode And Apple Configuration
 

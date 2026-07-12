@@ -1,3 +1,4 @@
+import AppIntents
 import Intents
 import SwiftUI
 import UIKit
@@ -37,6 +38,9 @@ struct SiriPreferencesView: View {
                         .font(.footnote)
                         .foregroundStyle(AppColors.mutedText)
                 }
+
+                ShortcutsLink()
+                    .shortcutsLinkStyle(.automaticOutline)
             }
         }
         .onAppear { authorizationService.refresh() }

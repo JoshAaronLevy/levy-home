@@ -179,6 +179,38 @@ final class SiriListCommandServiceTests: XCTestCase {
         XCTAssertEqual(resolution, .rejected)
     }
 
+    func testAppShortcutRunnerUsesThePreconfiguredShoppingList() async {
+        let service = SiriCommandServiceStub(
+            result: .added(SiriListCommandItem(item: makeItem(id: 71, name: "Paper plates")))
+        )
+        let runner = SiriAppShortcutCommandRunner(commandService: service, residentName: { "Josh" })
+
+        let result = await runner.execute(list: .shopping, title: "  Paper plates  ")
+
+        XCTAssertEqual(result, .added(SiriListCommandItem(item: makeItem(id: 71, name: "Paper plates"))))
+        XCTAssertEqual(service.commands, [SiriListCommand(list: .shopping, title: "Paper plates", residentName: "Josh")])
+    }
+
+    func testAppShortcutRunnerRequiresAResidentBeforeCallingTheService() async {
+        let service = SiriCommandServiceStub(result: .failed)
+        let runner = SiriAppShortcutCommandRunner(commandService: service, residentName: { nil })
+
+        let result = await runner.execute(list: .toDo, title: "Call the dentist")
+
+        XCTAssertEqual(result, .requiresDeviceOwner)
+        XCTAssertTrue(service.commands.isEmpty)
+    }
+
+    func testAppShortcutRunnerRejectsAnEmptyItemBeforeCallingTheService() async {
+        let service = SiriCommandServiceStub(result: .failed)
+        let runner = SiriAppShortcutCommandRunner(commandService: service, residentName: { "Mallory" })
+
+        let result = await runner.execute(list: .toDo, title: "  \n ")
+
+        XCTAssertEqual(result, .rejected)
+        XCTAssertTrue(service.commands.isEmpty)
+    }
+
     func testCreatesOpenToDoWithJoshAttribution() async {
         let toDoAPI = ToDoAPIStub(
             users: [makeUser(id: 7, firstName: "Josh", lastName: "Levy")],
@@ -500,5 +532,19 @@ private final class ToDoAPIStub: SiriToDoListAPI {
             generatedAt: nil,
             push: nil
         )
+    }
+}
+
+private final class SiriCommandServiceStub: SiriListCommandServicing {
+    let result: SiriListCommandResult
+    private(set) var commands: [SiriListCommand] = []
+
+    init(result: SiriListCommandResult) {
+        self.result = result
+    }
+
+    func execute(_ command: SiriListCommand) async -> SiriListCommandResult {
+        commands.append(command)
+        return result
     }
 }
