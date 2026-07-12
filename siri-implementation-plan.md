@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: Stages 1-6 code implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and physical-device routing validation remain outstanding. Stages 7-9 remain planning only. Stage 6 adds To Do realtime mutation broadcasts but does not require a database, environment, Render, or Home Assistant configuration change.
+Status: Stages 1-7 code and automation implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and Stage 7’s exported-IPA/TestFlight physical validation remain outstanding. Stages 8-9 remain planning only. Stage 6 adds To Do realtime mutation broadcasts but does not require a database, environment, Render, or Home Assistant configuration change.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -108,7 +108,7 @@ Do not make a generalized list framework, add a Siri-specific backend endpoint, 
 
 ## Pre-Stage 1 Baseline
 
-The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-6 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, Shopping and To Do command slices, deterministic Siri resolution/error handling, and realtime freshness for extension-created mutations.
+The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-7 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, Shopping and To Do command slices, deterministic Siri resolution/error handling, realtime freshness for extension-created mutations, and automated signed-IPA verification.
 
 ### Xcode And Apple Configuration
 
@@ -536,6 +536,12 @@ The API commands become mandatory when Stage 6 changes To Do realtime contracts.
 ### Exported IPA Verification
 
 Archive and export a signed build only when a release/export is authorized. Trust the exported IPA rather than the raw archive.
+
+After export, run:
+
+```sh
+bash scripts/verify-siri-ipa.sh deployments/LevyHome-<version>.ipa <production-api-base-url>
+```
 
 Verify the exact exported artifact contains:
 
