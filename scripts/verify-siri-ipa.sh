@@ -84,12 +84,32 @@ decode_and_validate_profile() {
   fi
 }
 
+require_vocabulary_item_examples() {
+  local vocabulary_plist="$1"
+  local item_index="$2"
+  local expected_identifier="$3"
+  local actual_identifier
+
+  actual_identifier="$(extract_plist_value "$vocabulary_plist" "ParameterVocabularies:0:ParameterVocabulary:$item_index:VocabularyItemIdentifier")"
+
+  if [[ "$actual_identifier" != "$expected_identifier" ]]; then
+    echo "Unexpected Siri vocabulary item at index $item_index. Expected '$expected_identifier', found '$actual_identifier'." >&2
+    exit 1
+  fi
+
+  if ! /usr/libexec/PlistBuddy -c "Print :ParameterVocabularies:0:ParameterVocabulary:$item_index:VocabularyItemExamples" "$vocabulary_plist" | /usr/bin/sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | /usr/bin/grep -Ev '^(Array \{|\})$' | /usr/bin/grep -q .; then
+    echo "Missing Siri vocabulary examples for '$expected_identifier'." >&2
+    exit 1
+  fi
+}
+
 /usr/bin/unzip -qq "$ipa_path" -d "$work_dir/unpacked"
 
 app_path="$work_dir/unpacked/Payload/LevyHome.app"
 extension_path="$app_path/PlugIns/LevyHomeIntents.appex"
 app_info_plist="$app_path/Info.plist"
 extension_info_plist="$extension_path/Info.plist"
+vocabulary_plist="$app_path/Base.lproj/AppIntentVocabulary.plist"
 app_entitlements="$work_dir/app-entitlements.plist"
 extension_entitlements="$work_dir/extension-entitlements.plist"
 
@@ -97,6 +117,7 @@ require_path "$app_path" "Levy Home app bundle"
 require_path "$extension_path" "LevyHomeIntents extension"
 require_path "$app_info_plist" "host app Info.plist"
 require_path "$extension_info_plist" "Intents extension Info.plist"
+require_path "$vocabulary_plist" "English Siri vocabulary"
 require_path "$app_path/embedded.mobileprovision" "host app provisioning profile"
 require_path "$extension_path/embedded.mobileprovision" "Intents extension provisioning profile"
 
@@ -112,6 +133,9 @@ if ! /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionAttributes:Intent
   echo "LevyHomeIntents does not declare INAddTasksIntent." >&2
   exit 1
 fi
+
+require_vocabulary_item_examples "$vocabulary_plist" 0 'levy-home-shopping'
+require_vocabulary_item_examples "$vocabulary_plist" 1 'levy-home-todo'
 
 /usr/bin/codesign --verify --deep --strict "$app_path"
 /usr/bin/codesign -d --entitlements :- "$app_path" > "$app_entitlements" 2>/dev/null

@@ -28,6 +28,11 @@
 				<dict>
 					<key>VocabularyItemIdentifier</key>
 					<string>levy-home-shopping</string>
+					<key>VocabularyItemExamples</key>
+					<array>
+						<string>Using Levy Home, add paper plates to Shopping.</string>
+						<string>Add milk to the Levy Home shopping list.</string>
+					</array>
 					<key>VocabularyItemSynonyms</key>
 					<array>
 						<dict><key>VocabularyItemPhrase</key><string>Shopping</string></dict>
@@ -39,6 +44,11 @@
 				<dict>
 					<key>VocabularyItemIdentifier</key>
 					<string>levy-home-todo</string>
+					<key>VocabularyItemExamples</key>
+					<array>
+						<string>Using Levy Home, add call the dentist to To Do.</string>
+						<string>Add return library books to the Levy Home task list.</string>
+					</array>
 					<key>VocabularyItemSynonyms</key>
 					<array>
 						<dict><key>VocabularyItemPhrase</key><string>To Do</string></dict>

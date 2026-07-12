@@ -88,6 +88,8 @@ private struct PreferencesContentView: View {
                 NotificationPreferencesView(viewModel: viewModel)
 
                 developerLink
+
+                releaseNotesLink
             }
             .padding(.horizontal, AppSpacing.screen)
             .padding(.top, AppSpacing.large)
@@ -107,10 +109,34 @@ private struct PreferencesContentView: View {
                 sendShoppingLiveActivityDelivery: sendShoppingLiveActivityDelivery
             )
         } label: {
-            DeveloperPreferenceLinkLabel(showsDebugControls: isDeveloperToolsEnabled)
+            PreferencesNavigationLinkLabel(
+                title: "Developer",
+                subtitle: developerSubtitle,
+                systemImage: "wrench.and.screwdriver"
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Developer")
+    }
+
+    private var releaseNotesLink: some View {
+        NavigationLink {
+            ReleaseNotesView()
+        } label: {
+            PreferencesNavigationLinkLabel(
+                title: "Release Notes",
+                subtitle: "See what’s new in Levy Home.",
+                systemImage: "text.book.closed"
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Release Notes")
+    }
+
+    private var developerSubtitle: String {
+        isDeveloperToolsEnabled
+            ? "Device registration, Live Activities, preference sync, and logs."
+            : "Runtime logs and activity diagnostics."
     }
 
     private var notificationRegistrationDeviceName: String? {
@@ -120,18 +146,20 @@ private struct PreferencesContentView: View {
     }
 }
 
-private struct DeveloperPreferenceLinkLabel: View {
-    let showsDebugControls: Bool
+private struct PreferencesNavigationLinkLabel: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
 
     var body: some View {
         HStack(spacing: AppSpacing.medium) {
-            Image(systemName: "wrench.and.screwdriver")
+            Image(systemName: systemImage)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(AppColors.accent)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                Text("Developer")
+                Text(title)
                     .font(.headline)
                     .foregroundStyle(.primary)
 
@@ -156,11 +184,50 @@ private struct DeveloperPreferenceLinkLabel: View {
                 .stroke(AppColors.panelBorder, lineWidth: 1)
         }
     }
+}
 
-    private var subtitle: String {
-        showsDebugControls
-            ? "Device registration, Live Activities, preference sync, and logs."
-            : "Runtime logs and activity diagnostics."
+private struct ReleaseNotesView: View {
+    private let changes = [
+        "Add one Shopping or To Do item with Siri while Levy Home is closed.",
+        "Use Levy Home add-item shortcuts from Siri, Spotlight, or Shortcuts.",
+        "Keep both phones’ shared Shopping and To Do lists current after a Siri change.",
+        "Review the latest changes directly from Preferences."
+    ]
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            InfoPanel(
+                title: "Version \(latestVersion)",
+                subtitle: "Latest release",
+                systemImage: "sparkles"
+            ) {
+                VStack(alignment: .leading, spacing: AppSpacing.medium) {
+                    Text("What’s new")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    ForEach(changes, id: \.self) { change in
+                        HStack(alignment: .top, spacing: AppSpacing.small) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(AppColors.success)
+
+                            Text(change)
+                                .font(.subheadline)
+                                .foregroundStyle(AppColors.mutedText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+            .padding(AppSpacing.screen)
+        }
+        .background(AppColors.pageBackground)
+        .navigationTitle("Release Notes")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var latestVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "11.1.1"
     }
 }
 
