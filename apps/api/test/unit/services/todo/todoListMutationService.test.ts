@@ -4,10 +4,10 @@ import { test } from 'node:test';
 import type { ToDoItem } from '../../../../src/contracts.js';
 import { HTTPError } from '../../../../src/http/errors.js';
 import type { ToDoListStore } from '../../../../src/repositories/todoListRepository.js';
-import type { ToDoListRealtimeSessionRecorder } from '../../../../src/todoListRealtime.js';
+import type { ToDoListRealtimeMutationReporter } from '../../../../src/todoListRealtime.js';
 import { createToDoListMutationService } from '../../../../src/services/todo/todoListMutationService.js';
 
-test('to-do mutation service records created items for session push instead of sending immediate pushes', async () => {
+test('to-do mutation service broadcasts a committed create and preserves session push recording', async () => {
   const recordings: string[] = [];
   const createdItem = todoItem({ id: 7, name: 'Schedule dentist' });
   const service = createToDoListMutationService({
@@ -25,7 +25,7 @@ test('to-do mutation service records created items for session push instead of s
   assert.equal(response.item, createdItem);
   assert.equal(response.mutationId, 'mutation-1');
   assert.equal(response.push, undefined);
-  assert.deepEqual(recordings, ['created:7:mutation-1:Josh']);
+  assert.deepEqual(recordings, ['broadcast-created:7:mutation-1', 'created:7:mutation-1:Josh']);
 });
 
 test('to-do mutation service records updates for the viewer session push', async () => {
@@ -44,7 +44,7 @@ test('to-do mutation service records updates for the viewer session push', async
 
   assert.equal(response.item, updatedItem);
   assert.equal(response.push, undefined);
-  assert.deepEqual(recordings, ['completed:9:mutation-2:Mallory']);
+  assert.deepEqual(recordings, ['broadcast-updated:9:mutation-2', 'completed:9:mutation-2:Mallory']);
 });
 
 test('to-do mutation service returns not found for missing deletes', async () => {
@@ -65,8 +65,17 @@ test('to-do mutation service returns not found for missing deletes', async () =>
   );
 });
 
-function recordingRealtimeSessionRecorder(recordings: string[]): ToDoListRealtimeSessionRecorder {
+function recordingRealtimeSessionRecorder(recordings: string[]): ToDoListRealtimeMutationReporter {
   return {
+    broadcastItemCreated(item, mutationId) {
+      recordings.push(`broadcast-created:${item.id}:${mutationId}`);
+    },
+    broadcastItemUpdated(item, mutationId) {
+      recordings.push(`broadcast-updated:${item.id}:${mutationId}`);
+    },
+    broadcastItemDeleted(itemId, mutationId) {
+      recordings.push(`broadcast-deleted:${itemId}:${mutationId}`);
+    },
     recordItemMutation(item, mutationId, action, actor) {
       recordings.push(`${action}:${item.id}:${mutationId}:${actor ?? ''}`);
     },

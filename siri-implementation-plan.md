@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: Stages 1-5 code implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and physical-device routing validation remain outstanding. Stages 6-9 remain planning only and do not change the API, database, Render service, or Home Assistant configuration.
+Status: Stages 1-6 code implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and physical-device routing validation remain outstanding. Stages 7-9 remain planning only. Stage 6 adds To Do realtime mutation broadcasts but does not require a database, environment, Render, or Home Assistant configuration change.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -108,7 +108,7 @@ Do not make a generalized list framework, add a Siri-specific backend endpoint, 
 
 ## Pre-Stage 1 Baseline
 
-The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-5 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, Shopping and To Do command slices, and deterministic Siri resolution/error handling.
+The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-6 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, Shopping and To Do command slices, deterministic Siri resolution/error handling, and realtime freshness for extension-created mutations.
 
 ### Xcode And Apple Configuration
 

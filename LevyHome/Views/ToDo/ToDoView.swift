@@ -261,7 +261,10 @@ struct ToDoView: View {
                 viewerIdentity: identity,
                 appLogStore: appEnvironment.appLogStore
             ),
-            currentViewerId: identity.viewerId
+            currentViewerId: identity.viewerId,
+            loadSnapshot: { [apiClient = appEnvironment.apiClient] in
+                try await apiClient.fetchToDoList()
+            }
         )
     }
 

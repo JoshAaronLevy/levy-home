@@ -46,7 +46,36 @@ export type ToDoListLiveMessage =
       type: 'presence_changed';
       viewers: ToDoListViewerPresence[];
       serverTime: string;
+    }
+  | {
+      type: 'snapshot_required';
+      reason: 'connected' | 'missed_messages' | 'server_restart';
+      serverTime: string;
+    }
+  | {
+      type: 'item_created';
+      item: ToDoItem;
+      mutationId: string;
+      serverTime: string;
+    }
+  | {
+      type: 'item_updated';
+      item: ToDoItem;
+      mutationId: string;
+      serverTime: string;
+    }
+  | {
+      type: 'item_deleted';
+      itemId: number;
+      mutationId: string;
+      serverTime: string;
     };
+
+export type ToDoListRealtimeBroadcaster = {
+  broadcastItemCreated: (item: ToDoItem, mutationId: string) => void;
+  broadcastItemUpdated: (item: ToDoItem, mutationId: string) => void;
+  broadcastItemDeleted: (itemId: number, mutationId: string) => void;
+};
 
 export type ToDoListRealtimeSessionRecorder = {
   recordItemMutation: (
@@ -58,7 +87,9 @@ export type ToDoListRealtimeSessionRecorder = {
   flushPendingSessionForViewerId: (viewerId: string) => Promise<EventPushStatus | undefined>;
 };
 
-export type ToDoListRealtimeHub = ToDoListRealtimeSessionRecorder & {
+export type ToDoListRealtimeMutationReporter = ToDoListRealtimeBroadcaster & ToDoListRealtimeSessionRecorder;
+
+export type ToDoListRealtimeHub = ToDoListRealtimeMutationReporter & {
   handleUpgrade: (request: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
   close: () => void;
   connectionCount: () => number;
@@ -120,6 +151,11 @@ export function createToDoListRealtimeHub(options: {
     sendMessage(socket, {
       type: 'hello',
       connectionId: state.connectionId,
+      serverTime: now(),
+    });
+    sendMessage(socket, {
+      type: 'snapshot_required',
+      reason: 'connected',
       serverTime: now(),
     });
 
@@ -225,6 +261,26 @@ export function createToDoListRealtimeHub(options: {
     },
     connectionCount() {
       return clients.size;
+    },
+    broadcastItemCreated(item, mutationId) {
+      broadcastItemMessage('item_created', item, mutationId);
+    },
+    broadcastItemUpdated(item, mutationId) {
+      broadcastItemMessage('item_updated', item, mutationId);
+    },
+    broadcastItemDeleted(itemId, mutationId) {
+      logRealtime('mutation_broadcast', {
+        mutationType: 'item_deleted',
+        itemId,
+        mutationId,
+        connectionCount: clients.size,
+      });
+      broadcast({
+        type: 'item_deleted',
+        itemId,
+        mutationId,
+        serverTime: now(),
+      });
     },
     recordItemMutation(item, mutationId, action, actor) {
       const normalizedActor = readActor(actor);
@@ -394,6 +450,25 @@ export function createToDoListRealtimeHub(options: {
     for (const socket of clients.keys()) {
       sendMessage(socket, message);
     }
+  }
+
+  function broadcastItemMessage(
+    type: 'item_created' | 'item_updated',
+    item: ToDoItem,
+    mutationId: string,
+  ): void {
+    logRealtime('mutation_broadcast', {
+      mutationType: type,
+      itemId: item.id,
+      mutationId,
+      connectionCount: clients.size,
+    });
+    broadcast({
+      type,
+      item,
+      mutationId,
+      serverTime: now(),
+    });
   }
 
   return hub;

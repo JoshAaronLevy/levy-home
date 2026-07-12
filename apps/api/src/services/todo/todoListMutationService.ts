@@ -11,7 +11,7 @@ import type {
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import type { ToDoListStore } from '../../repositories/todoListRepository.js';
-import type { ToDoListRealtimeSessionRecorder } from '../../todoListRealtime.js';
+import type { ToDoListRealtimeMutationReporter } from '../../todoListRealtime.js';
 
 export type ToDoListMutationService = {
   createItem: (request: CreateToDoItemRequest, mutationId: string) => Promise<ToDoListMutationResponse>;
@@ -28,7 +28,7 @@ export type ToDoListMutationService = {
 };
 
 export function createToDoListMutationService(options: {
-  toDoListRealtime?: ToDoListRealtimeSessionRecorder;
+  toDoListRealtime?: ToDoListRealtimeMutationReporter;
   toDoListStore: ToDoListStore;
 }): ToDoListMutationService {
   const { toDoListRealtime, toDoListStore } = options;
@@ -38,6 +38,7 @@ export function createToDoListMutationService(options: {
       const item = await toDoListStore.createItem(request);
       const response = toDoListMutationResponse(item, mutationId);
 
+      toDoListRealtime?.broadcastItemCreated(item, mutationId);
       toDoListRealtime?.recordItemMutation(item, mutationId, 'created', request.actor);
 
       return response;
@@ -51,6 +52,7 @@ export function createToDoListMutationService(options: {
 
       const response = toDoListMutationResponse(item, mutationId);
 
+      toDoListRealtime?.broadcastItemUpdated(item, mutationId);
       toDoListRealtime?.recordItemMutation(
         item,
         mutationId,
@@ -75,6 +77,7 @@ export function createToDoListMutationService(options: {
         generatedAt: new Date().toISOString(),
       };
 
+      toDoListRealtime?.broadcastItemDeleted(itemId, mutationId);
       toDoListRealtime?.recordItemMutation(item, mutationId, 'deleted', request.actor);
 
       return response;

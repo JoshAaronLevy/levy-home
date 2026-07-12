@@ -1,6 +1,8 @@
 import Combine
 import Foundation
 
+typealias ToDoListSnapshotLoader = () async throws -> ToDoListResponse
+
 @MainActor
 final class ToDoViewModel: ObservableObject {
     @Published private(set) var items: [ToDoItem] = []
@@ -14,8 +16,11 @@ final class ToDoViewModel: ObservableObject {
     @Published private(set) var mutatingItemIDs: Set<Int> = []
 
     private var liveService: ToDoListLiveServicing?
+    private var loadLiveSnapshot: ToDoListSnapshotLoader?
     private var liveUpdatesTask: Task<Void, Never>?
     private var currentViewerId: String?
+    private var isSyncingLiveSnapshot = false
+    private var committedStateRevision: UInt64 = 0
 
     deinit {
         liveUpdatesTask?.cancel()
@@ -50,16 +55,23 @@ final class ToDoViewModel: ObservableObject {
         }
 
         do {
-            async let todoListResponse = apiClient.fetchToDoList()
-            async let usersResponse = apiClient.fetchUsers()
-            let (todoList, fetchedUsers) = try await (todoListResponse, usersResponse)
+            for _ in 0..<2 {
+                let revisionAtRequestStart = committedStateRevision
+                async let todoListResponse = apiClient.fetchToDoList()
+                async let usersResponse = apiClient.fetchUsers()
+                let (todoList, fetchedUsers) = try await (todoListResponse, usersResponse)
 
-            items = Self.sortedItems(todoList.items)
-            categories = todoList.categories
-            locations = todoList.locations
-            users = fetchedUsers.users
+                if applySnapshot(
+                    todoList,
+                    users: fetchedUsers.users,
+                    ifUnchangedSince: revisionAtRequestStart
+                ) {
+                    errorMessage = nil
+                    return
+                }
+            }
+
             hasLoaded = true
-            errorMessage = nil
         } catch {
             guard !error.isTaskCancellation else {
                 return
@@ -87,7 +99,8 @@ final class ToDoViewModel: ObservableObject {
 
     func startLiveUpdatesIfNeeded(
         liveService: ToDoListLiveServicing,
-        currentViewerId: String
+        currentViewerId: String,
+        loadSnapshot: @escaping ToDoListSnapshotLoader
     ) {
         if self.currentViewerId == currentViewerId, liveUpdatesTask != nil {
             return
@@ -96,6 +109,7 @@ final class ToDoViewModel: ObservableObject {
         stopLiveUpdates()
 
         self.liveService = liveService
+        loadLiveSnapshot = loadSnapshot
         self.currentViewerId = currentViewerId
 
         liveUpdatesTask = Task { [weak self] in
@@ -104,7 +118,7 @@ final class ToDoViewModel: ObservableObject {
                     break
                 }
 
-                self?.applyLiveMessage(message)
+                await self?.applyLiveMessage(message)
             }
         }
     }
@@ -114,16 +128,23 @@ final class ToDoViewModel: ObservableObject {
         liveUpdatesTask = nil
         liveService?.disconnect()
         liveService = nil
+        loadLiveSnapshot = nil
         currentViewerId = nil
         activeViewers = []
     }
 
-    func applyLiveMessage(_ message: ToDoListLiveMessage) {
+    func applyLiveMessage(_ message: ToDoListLiveMessage) async {
         switch message {
         case .hello:
             return
         case .presenceChanged(let viewers, _):
             activeViewers = Self.deduplicatedViewers(viewers)
+        case .snapshotRequired:
+            await refreshFromLiveSnapshot()
+        case .itemCreated(let item, _, _), .itemUpdated(let item, _, _):
+            apply(item)
+        case .itemDeleted(let itemId, _, _):
+            removeCommittedItem(id: itemId)
         case .unknown:
             return
         }
@@ -178,7 +199,7 @@ final class ToDoViewModel: ObservableObject {
     }
 
     func deleteSimulatorTask(_ task: ToDoTask) {
-        items.removeAll { $0.id == task.id }
+        removeCommittedItem(id: task.id)
         errorMessage = nil
     }
     #endif
@@ -269,7 +290,7 @@ final class ToDoViewModel: ObservableObject {
 
         do {
             let response = try await apiClient.deleteToDoItem(id: task.id, actor: actor)
-            items.removeAll { $0.id == response.itemId }
+            removeCommittedItem(id: response.itemId)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -399,6 +420,74 @@ final class ToDoViewModel: ObservableObject {
         }
 
         items = Self.sortedItems(items)
+        committedStateRevision &+= 1
+    }
+
+    private func removeCommittedItem(id itemId: Int) {
+        guard items.contains(where: { $0.id == itemId }) else {
+            return
+        }
+
+        items.removeAll { $0.id == itemId }
+        committedStateRevision &+= 1
+    }
+
+    private func refreshFromLiveSnapshot() async {
+        guard !isSyncingLiveSnapshot, let loadLiveSnapshot else {
+            return
+        }
+
+        isSyncingLiveSnapshot = true
+        defer { isSyncingLiveSnapshot = false }
+
+        do {
+            for _ in 0..<2 {
+                let revisionAtRequestStart = committedStateRevision
+                let snapshot = try await loadLiveSnapshot()
+
+                if applySnapshot(snapshot, ifUnchangedSince: revisionAtRequestStart) {
+                    errorMessage = nil
+                    return
+                }
+            }
+        } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @discardableResult
+    private func applySnapshot(
+        _ snapshot: ToDoListResponse,
+        users fetchedUsers: [LevyHomeUser]? = nil,
+        ifUnchangedSince revisionAtRequestStart: UInt64
+    ) -> Bool {
+        guard committedStateRevision == revisionAtRequestStart else {
+            return false
+        }
+
+        let sortedSnapshotItems = Self.sortedItems(snapshot.items)
+        let didChangeList = items != sortedSnapshotItems
+            || categories != snapshot.categories
+            || locations != snapshot.locations
+
+        items = sortedSnapshotItems
+        categories = snapshot.categories
+        locations = snapshot.locations
+
+        if let fetchedUsers {
+            users = fetchedUsers
+        }
+
+        if didChangeList {
+            committedStateRevision &+= 1
+        }
+
+        hasLoaded = true
+        return true
     }
 
     #if targetEnvironment(simulator)

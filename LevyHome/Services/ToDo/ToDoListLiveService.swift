@@ -310,6 +310,27 @@ final class ToDoListLiveService: ToDoListLiveServicing {
                 title: "Live presence updated",
                 detail: "\(viewers.count) active viewer\(viewers.count == 1 ? "" : "s")."
             )
+        case .snapshotRequired(let reason, _):
+            appLogStore?.record(
+                level: .info,
+                category: "To Do",
+                title: "Refreshing live To Do snapshot",
+                detail: reason.rawValue
+            )
+        case .itemCreated(let item, let mutationId, _), .itemUpdated(let item, let mutationId, _):
+            appLogStore?.record(
+                level: .info,
+                category: "To Do",
+                title: "Applied live To Do item",
+                detail: "itemId=\(item.id) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
+        case .itemDeleted(let itemId, let mutationId, _):
+            appLogStore?.record(
+                level: .info,
+                category: "To Do",
+                title: "Removed live To Do item",
+                detail: "itemId=\(itemId) mutationId=\(Self.shortIdentifier(mutationId))"
+            )
         case .unknown(let type):
             appLogStore?.record(
                 level: .warning,

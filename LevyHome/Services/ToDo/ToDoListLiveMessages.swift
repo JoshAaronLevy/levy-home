@@ -35,9 +35,56 @@ struct ToDoListViewerPresence: Codable, Equatable, Identifiable {
     }
 }
 
+enum ToDoListSnapshotRequiredReason: Equatable {
+    case connected
+    case missedMessages
+    case serverRestart
+    case unknown(String)
+
+    var rawValue: String {
+        switch self {
+        case .connected:
+            return "connected"
+        case .missedMessages:
+            return "missed_messages"
+        case .serverRestart:
+            return "server_restart"
+        case .unknown(let value):
+            return value
+        }
+    }
+}
+
+extension ToDoListSnapshotRequiredReason: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+
+        switch rawValue {
+        case "connected":
+            self = .connected
+        case "missed_messages":
+            self = .missedMessages
+        case "server_restart":
+            self = .serverRestart
+        default:
+            self = .unknown(rawValue)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 enum ToDoListLiveMessage: Decodable, Equatable {
     case hello(connectionId: String, serverTime: String)
     case presenceChanged(viewers: [ToDoListViewerPresence], serverTime: String)
+    case snapshotRequired(reason: ToDoListSnapshotRequiredReason, serverTime: String)
+    case itemCreated(item: ToDoItem, mutationId: String, serverTime: String)
+    case itemUpdated(item: ToDoItem, mutationId: String, serverTime: String)
+    case itemDeleted(itemId: Int, mutationId: String, serverTime: String)
     case unknown(type: String?)
 
     private enum CodingKeys: String, CodingKey {
@@ -45,6 +92,10 @@ enum ToDoListLiveMessage: Decodable, Equatable {
         case connectionId
         case serverTime
         case viewers
+        case reason
+        case item
+        case mutationId
+        case itemId
     }
 
     init(from decoder: Decoder) throws {
@@ -60,6 +111,29 @@ enum ToDoListLiveMessage: Decodable, Equatable {
         case "presence_changed":
             self = .presenceChanged(
                 viewers: try container.decode([ToDoListViewerPresence].self, forKey: .viewers),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "snapshot_required":
+            self = .snapshotRequired(
+                reason: try container.decode(ToDoListSnapshotRequiredReason.self, forKey: .reason),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "item_created":
+            self = .itemCreated(
+                item: try container.decode(ToDoItem.self, forKey: .item),
+                mutationId: try container.decode(String.self, forKey: .mutationId),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "item_updated":
+            self = .itemUpdated(
+                item: try container.decode(ToDoItem.self, forKey: .item),
+                mutationId: try container.decode(String.self, forKey: .mutationId),
+                serverTime: try container.decode(String.self, forKey: .serverTime)
+            )
+        case "item_deleted":
+            self = .itemDeleted(
+                itemId: try container.decode(Int.self, forKey: .itemId),
+                mutationId: try container.decode(String.self, forKey: .mutationId),
                 serverTime: try container.decode(String.self, forKey: .serverTime)
             )
         default:

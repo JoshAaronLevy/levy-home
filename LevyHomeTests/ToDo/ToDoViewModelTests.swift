@@ -153,6 +153,109 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "To Do unavailable")
     }
 
+    func testLiveItemEventsUpsertAndDeleteByBackendID() async {
+        let viewModel = ToDoViewModel()
+        let created = Self.liveItem(id: 41, name: "Call plumber")
+
+        await viewModel.applyLiveMessage(
+            .itemCreated(item: created, mutationId: "created-41", serverTime: "2026-07-11T20:00:00Z")
+        )
+        await viewModel.applyLiveMessage(
+            .itemUpdated(
+                item: Self.liveItem(id: 41, name: "Call plumber", status: .completed),
+                mutationId: "updated-41",
+                serverTime: "2026-07-11T20:01:00Z"
+            )
+        )
+
+        XCTAssertEqual(viewModel.items.count, 1)
+        XCTAssertEqual(viewModel.items.first?.id, 41)
+        XCTAssertEqual(viewModel.items.first?.status, .completed)
+
+        await viewModel.applyLiveMessage(
+            .itemDeleted(itemId: 41, mutationId: "deleted-41", serverTime: "2026-07-11T20:02:00Z")
+        )
+
+        XCTAssertTrue(viewModel.items.isEmpty)
+    }
+
+    func testLiveMessagesDecodeSnapshotAndItemMutationPayloads() throws {
+        let snapshotMessage = try JSONDecoder().decode(
+            ToDoListLiveMessage.self,
+            from: Data(#"{"type":"snapshot_required","reason":"connected","serverTime":"2026-07-11T20:00:00Z"}"#.utf8)
+        )
+        let itemMessage = try JSONDecoder().decode(
+            ToDoListLiveMessage.self,
+            from: Data(
+                #"{"type":"item_created","item":{"id":41,"name":"Call plumber","status":"open","locationIds":[],"locationDisplayText":"No location","alerts":[],"subtasks":[]},"mutationId":"created-41","serverTime":"2026-07-11T20:00:01Z"}"#.utf8
+            )
+        )
+
+        XCTAssertEqual(
+            snapshotMessage,
+            .snapshotRequired(reason: .connected, serverTime: "2026-07-11T20:00:00Z")
+        )
+        XCTAssertEqual(
+            itemMessage,
+            .itemCreated(
+                item: Self.liveItem(id: 41, name: "Call plumber", createdBy: nil),
+                mutationId: "created-41",
+                serverTime: "2026-07-11T20:00:01Z"
+            )
+        )
+    }
+
+    func testLateLiveSnapshotCannotOverwriteNewerItemEvent() async {
+        let viewModel = ToDoViewModel()
+        let liveService = ToDoListLiveServiceStub()
+        let snapshotGate = ToDoSnapshotGate()
+        let staleSnapshot = ToDoListResponse(
+            ok: true,
+            items: [Self.liveItem(id: 7, name: "Stale task")],
+            categories: [],
+            locations: [],
+            generatedAt: nil
+        )
+
+        viewModel.startLiveUpdatesIfNeeded(
+            liveService: liveService,
+            currentViewerId: "josh",
+            loadSnapshot: {
+                await snapshotGate.load()
+            }
+        )
+
+        let snapshotTask = Task { @MainActor in
+            await viewModel.applyLiveMessage(
+                .snapshotRequired(reason: .connected, serverTime: "2026-07-11T20:00:00Z")
+            )
+        }
+        await snapshotGate.waitUntilLoadStarts()
+
+        await viewModel.applyLiveMessage(
+            .itemCreated(
+                item: Self.liveItem(id: 8, name: "Added while snapshot loaded"),
+                mutationId: "created-8",
+                serverTime: "2026-07-11T20:00:01Z"
+            )
+        )
+        await snapshotGate.resolve(with: staleSnapshot)
+        await snapshotGate.waitUntilLoadStarts(number: 2)
+        await snapshotGate.resolve(
+            with: ToDoListResponse(
+                ok: true,
+                items: [Self.liveItem(id: 8, name: "Added while snapshot loaded")],
+                categories: [],
+                locations: [],
+                generatedAt: nil
+            )
+        )
+        await snapshotTask.value
+
+        XCTAssertEqual(viewModel.items.map(\.id), [8])
+        viewModel.stopLiveUpdates()
+    }
+
     func testPersonalRemindersTodayFilterExcludesFutureRecurringInstances() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -185,6 +288,22 @@ final class ToDoViewModelTests: XCTestCase {
         )!
 
         return (response, Data(json.utf8))
+    }
+
+    private static func liveItem(
+        id: Int,
+        name: String,
+        status: ToDoItemStatus = .open,
+        createdBy: Int? = 1
+    ) -> ToDoItem {
+        ToDoItem(
+            id: id,
+            name: name,
+            status: status,
+            locationIds: [],
+            locationDisplayText: "No location",
+            createdBy: createdBy
+        )
     }
 
     private static func toDoListJSON(status: String) -> String {
@@ -368,6 +487,49 @@ private final class CapturedRequestStore {
         lock.withLock {
             storedRequests.append(request)
         }
+    }
+}
+
+private final class ToDoListLiveServiceStub: ToDoListLiveServicing {
+    func messages() -> AsyncStream<ToDoListLiveMessage> {
+        AsyncStream { _ in }
+    }
+
+    func disconnect() {}
+}
+
+private actor ToDoSnapshotGate {
+    private var loadCount = 0
+    private var startContinuations: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var responseContinuation: CheckedContinuation<ToDoListResponse, Never>?
+
+    func load() async -> ToDoListResponse {
+        loadCount += 1
+        let currentLoadCount = loadCount
+        let readyContinuations = startContinuations
+            .filter { $0.key <= currentLoadCount }
+            .map(\.value)
+        startContinuations = startContinuations.filter { $0.key > currentLoadCount }
+        readyContinuations.forEach { $0.resume() }
+
+        return await withCheckedContinuation { continuation in
+            responseContinuation = continuation
+        }
+    }
+
+    func waitUntilLoadStarts(number: Int = 1) async {
+        guard loadCount < number else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startContinuations[number] = continuation
+        }
+    }
+
+    func resolve(with response: ToDoListResponse) {
+        responseContinuation?.resume(returning: response)
+        responseContinuation = nil
     }
 }
 
