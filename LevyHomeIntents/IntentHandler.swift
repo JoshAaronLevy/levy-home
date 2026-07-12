@@ -15,6 +15,91 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
         self
     }
 
+    func resolveTargetTaskList(
+        for intent: INAddTasksIntent,
+        with completion: @escaping (INAddTasksTargetTaskListResolutionResult) -> Void
+    ) {
+        let resolution = SiriIntentResolver.resolveTargetTaskList(
+            identifier: intent.targetTaskList?.identifier,
+            title: intent.targetTaskList?.title.spokenPhrase
+        )
+
+        switch resolution {
+        case .resolved(let list):
+            completion(taskListResolutionResult(for: .success(with: taskList(for: list))))
+        case .disambiguationRequired:
+            completion(taskListResolutionResult(for: .disambiguation(with: SiriListKind.allCases.map(taskList(for:)))))
+        case .unsupported:
+            completion(.unsupported())
+        }
+    }
+
+    func resolveTaskTitles(
+        for intent: INAddTasksIntent,
+        with completion: @escaping ([INSpeakableStringResolutionResult]) -> Void
+    ) {
+        switch SiriIntentResolver.resolveTaskTitles(intent.taskTitles?.map(\.spokenPhrase)) {
+        case .resolved(let title):
+            completion([.success(with: INSpeakableString(spokenPhrase: title))])
+        case .needsValue:
+            completion([.needsValue()])
+        case .unsupported:
+            completion((intent.taskTitles ?? []).map { _ in .unsupported() })
+        }
+    }
+
+    func resolveSpatialEventTrigger(
+        for intent: INAddTasksIntent,
+        with completion: @escaping (INSpatialEventTriggerResolutionResult) -> Void
+    ) {
+        completion(intent.spatialEventTrigger == nil ? .notRequired() : .unsupported())
+    }
+
+    func resolveTemporalEventTrigger(
+        for intent: INAddTasksIntent,
+        with completion: @escaping (INAddTasksTemporalEventTriggerResolutionResult) -> Void
+    ) {
+        completion(intent.temporalEventTrigger == nil ? .notRequired() : .unsupported())
+    }
+
+    func resolvePriority(
+        for intent: INAddTasksIntent,
+        with completion: @escaping (INTaskPriorityResolutionResult) -> Void
+    ) {
+        switch intent.priority {
+        case .unknown, .notFlagged:
+            completion(.notRequired())
+        case .flagged:
+            completion(.unsupported())
+        @unknown default:
+            completion(.unsupported())
+        }
+    }
+
+    func confirm(
+        intent: INAddTasksIntent,
+        completion: @escaping (INAddTasksIntentResponse) -> Void
+    ) {
+        guard !hasUnsupportedMetadata(in: intent) else {
+            completion(INAddTasksIntentResponse(code: .failure, userActivity: nil))
+            return
+        }
+
+        guard let residentName = sharedSettings.residentName else {
+            completion(INAddTasksIntentResponse(code: .failureRequiringAppLaunch, userActivity: nil))
+            return
+        }
+
+        switch command(for: intent, residentName: residentName) {
+        case .command:
+            completion(INAddTasksIntentResponse(code: .ready, userActivity: nil))
+        case .requiresDeviceOwner:
+            completion(INAddTasksIntentResponse(code: .failureRequiringAppLaunch, userActivity: nil))
+        case .rejected:
+            completion(INAddTasksIntentResponse(code: .failure, userActivity: nil))
+        }
+    }
+
     func handle(
         intent: INAddTasksIntent,
         completion: @escaping (INAddTasksIntentResponse) -> Void
@@ -23,7 +108,7 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
         let taskCount = intent.taskTitles?.count ?? 0
         let apiConfigurationIsResolved = extensionConfiguration.apiBaseURL.host != nil
 
-        // Stage 1 deliberately proves routing only. Do not log spoken titles or mutate a list.
+        // Do not log spoken titles. Siri can provide them as personal data.
         logger.notice(
             "Siri routing probe received: listIdentifier=\(targetListIdentifier, privacy: .public), taskCount=\(taskCount, privacy: .public), apiConfigurationIsResolved=\(apiConfigurationIsResolved, privacy: .public)"
         )
@@ -33,19 +118,12 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
             return
         }
 
-        guard
-            let taskTitles = intent.taskTitles,
-            let list = selectedList(in: intent.targetTaskList)
-        else {
+        guard !hasUnsupportedMetadata(in: intent) else {
             completion(INAddTasksIntentResponse(code: .failure, userActivity: nil))
             return
         }
 
-        let resolution = SiriIntentResolver.resolveCommand(
-            list: list,
-            titles: taskTitles.map(\.spokenPhrase),
-            residentName: residentName
-        )
+        let resolution = command(for: intent, residentName: residentName)
 
         guard case .command(let command) = resolution else {
             let responseCode: INAddTasksIntentResponseCode = resolution == .requiresDeviceOwner
@@ -66,22 +144,37 @@ final class IntentHandler: INExtension, INAddTasksIntentHandling {
         }
     }
 
-    private func selectedList(in taskList: INTaskList?) -> SiriListKind? {
-        guard let taskList else {
-            return nil
+    private func command(for intent: INAddTasksIntent, residentName: String) -> SiriIntentCommandResolution {
+        guard case .resolved(let list) = SiriIntentResolver.resolveTargetTaskList(
+            identifier: intent.targetTaskList?.identifier,
+            title: intent.targetTaskList?.title.spokenPhrase
+        ) else {
+            return .rejected
         }
 
-        if let list = SiriListKind.allCases.first(where: {
-            taskList.identifier == $0.siriTaskListIdentifier
-        }) {
-            return list
+        guard case .resolved(let title) = SiriIntentResolver.resolveTaskTitles(
+            intent.taskTitles?.map(\.spokenPhrase)
+        ) else {
+            return .rejected
         }
 
-        let title = taskList.title.spokenPhrase
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return SiriListKind.allCases.first(where: {
-            title.localizedCaseInsensitiveCompare($0.displayName) == .orderedSame
-        })
+        return SiriIntentResolver.resolveCommand(
+            list: list,
+            titles: [title],
+            residentName: residentName
+        )
+    }
+
+    private func hasUnsupportedMetadata(in intent: INAddTasksIntent) -> Bool {
+        intent.spatialEventTrigger != nil
+            || intent.temporalEventTrigger != nil
+            || intent.priority == .flagged
+    }
+
+    private func taskListResolutionResult(
+        for result: INTaskListResolutionResult
+    ) -> INAddTasksTargetTaskListResolutionResult {
+        INAddTasksTargetTaskListResolutionResult(taskListResolutionResult: result)
     }
 
     private func response(for result: SiriListCommandResult) -> INAddTasksIntentResponse {

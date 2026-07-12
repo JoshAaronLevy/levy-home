@@ -21,4 +21,13 @@ enum SiriListKind: String, CaseIterable, Codable, Equatable {
             return "levy-home-todo"
         }
     }
+
+    var acceptedTaskListNames: [String] {
+        switch self {
+        case .shopping:
+            return ["Shopping", "shopping list", "grocery list", "groceries"]
+        case .toDo:
+            return ["To Do", "to-do list", "todo list", "task list", "tasks"]
+        }
+    }
 }

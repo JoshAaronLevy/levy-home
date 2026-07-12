@@ -29,6 +29,14 @@ struct SiriPreferencesView: View {
                 }
 
                 actionButton
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text("Voice request format")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Ask Siri to add one item at a time to Shopping or To Do in Levy Home. More exact examples will appear after device validation.")
+                        .font(.footnote)
+                        .foregroundStyle(AppColors.mutedText)
+                }
             }
         }
         .onAppear { authorizationService.refresh() }
