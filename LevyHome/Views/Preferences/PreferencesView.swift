@@ -4,6 +4,7 @@ struct PreferencesView: View {
     @Environment(\.appEnvironment) private var appEnvironment
     @EnvironmentObject private var themePreferenceViewModel: ThemePreferenceViewModel
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
+    @StateObject private var siriAuthorizationService = SiriAuthorizationService()
 
     var body: some View {
         PreferencesContentView(
@@ -17,6 +18,7 @@ struct PreferencesView: View {
                 appVersion: appEnvironment.config.appVersion
             ),
             themePreferenceViewModel: themePreferenceViewModel,
+            siriAuthorizationService: siriAuthorizationService,
             apnsEnvironment: appEnvironment.config.apiAPNsEnvironment,
             isDeveloperToolsEnabled: appEnvironment.config.isDeveloperToolsEnabled,
             sendNotificationPipelineTest: {
@@ -36,6 +38,7 @@ private struct PreferencesContentView: View {
     @StateObject private var viewModel: NotificationPreferencesViewModel
     @StateObject private var pushRegistrationViewModel: PushRegistrationViewModel
     @ObservedObject private var themePreferenceViewModel: ThemePreferenceViewModel
+    @ObservedObject private var siriAuthorizationService: SiriAuthorizationService
     @AppStorage(ResidentPreference.storageKey) private var currentResidentName = ResidentPreference.defaultName
     private let apnsEnvironment: APNsEnvironment
     private let isDeveloperToolsEnabled: Bool
@@ -46,6 +49,7 @@ private struct PreferencesContentView: View {
         viewModel: NotificationPreferencesViewModel,
         pushRegistrationViewModel: PushRegistrationViewModel,
         themePreferenceViewModel: ThemePreferenceViewModel,
+        siriAuthorizationService: SiriAuthorizationService,
         apnsEnvironment: APNsEnvironment = .sandbox,
         isDeveloperToolsEnabled: Bool = false,
         sendNotificationPipelineTest: @escaping () async throws -> TestNotificationPipelineResponse,
@@ -54,6 +58,7 @@ private struct PreferencesContentView: View {
         _viewModel = StateObject(wrappedValue: viewModel)
         _pushRegistrationViewModel = StateObject(wrappedValue: pushRegistrationViewModel)
         self.themePreferenceViewModel = themePreferenceViewModel
+        self.siriAuthorizationService = siriAuthorizationService
         self.apnsEnvironment = apnsEnvironment
         self.isDeveloperToolsEnabled = isDeveloperToolsEnabled
         self.sendNotificationPipelineTest = sendNotificationPipelineTest
@@ -73,6 +78,8 @@ private struct PreferencesContentView: View {
                 )
 
                 ThemePreferenceRowView(viewModel: themePreferenceViewModel)
+
+                SiriPreferencesView(authorizationService: siriAuthorizationService)
 
                 ResidentPreferenceRowView(currentResidentName: $currentResidentName)
 
@@ -272,6 +279,7 @@ private struct ResidentPreferenceView: View {
                     userDefaults: UserDefaults(suiteName: "PreferencesThemePreview") ?? .standard
                 )
             ),
+            siriAuthorizationService: SiriAuthorizationService(),
             apnsEnvironment: .sandbox,
             isDeveloperToolsEnabled: true,
             sendNotificationPipelineTest: {

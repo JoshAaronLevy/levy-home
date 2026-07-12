@@ -75,6 +75,8 @@
 	<string>Levy Home would like to access motion events on your phone</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Levy Home would like to access your Reminders</string>
+	<key>NSSiriUsageDescription</key>
+	<string>Levy Home uses Siri to add items to your shared Shopping and To Do lists.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IntentPhrases</key>
+	<array>
+		<dict>
+			<key>IntentExamples</key>
+			<array>
+				<string>Using Levy Home, add paper plates to Shopping.</string>
+				<string>Add paper plates to Shopping in Levy Home.</string>
+				<string>Add paper plates to the Levy Home shopping list.</string>
+				<string>Using Levy Home, add call the dentist to To Do.</string>
+			</array>
+			<key>IntentName</key>
+			<string>INAddTasksIntent</string>
+		</dict>
+	</array>
+	<key>ParameterVocabularies</key>
+	<array>
+		<dict>
+			<key>ParameterNames</key>
+			<array>
+				<string>INAddTasksIntent.targetTaskList</string>
+			</array>
+			<key>ParameterVocabulary</key>
+			<array>
+				<dict>
+					<key>VocabularyItemIdentifier</key>
+					<string>levy-home-shopping</string>
+					<key>VocabularyItemSynonyms</key>
+					<array>
+						<dict><key>VocabularyItemPhrase</key><string>Shopping</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>shopping list</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>grocery list</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>groceries</string></dict>
+					</array>
+				</dict>
+				<dict>
+					<key>VocabularyItemIdentifier</key>
+					<string>levy-home-todo</string>
+					<key>VocabularyItemSynonyms</key>
+					<array>
+						<dict><key>VocabularyItemPhrase</key><string>To Do</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>to-do list</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>todo list</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>task list</string></dict>
+						<dict><key>VocabularyItemPhrase</key><string>tasks</string></dict>
+					</array>
+				</dict>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

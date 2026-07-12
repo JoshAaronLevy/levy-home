@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: planning only. This document does not implement Siri support or change the current app, API, database, Render service, or Home Assistant configuration.
+Status: Stage 1 code implementation completed on 2026-07-11; its required Apple-account signing and physical-device routing validation remain outstanding. Stages 2-9 remain planning only and do not change the API, database, Render service, or Home Assistant configuration.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -106,7 +106,9 @@ References:
 
 Do not make a generalized list framework, add a Siri-specific backend endpoint, or put network logic in `ShoppingListViewModel` or `ToDoViewModel`. This is a two-list household feature and should stay small.
 
-## Current Starting Point
+## Pre-Stage 1 Baseline
+
+The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stage 1 has now added its extension packaging, Siri authorization UI, vocabulary, and entitlement declarations.
 
 ### Xcode And Apple Configuration
 
