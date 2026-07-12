@@ -12,4 +12,13 @@ enum SiriListKind: String, CaseIterable, Codable, Equatable {
             return "To Do"
         }
     }
+
+    var siriTaskListIdentifier: String {
+        switch self {
+        case .shopping:
+            return "levy-home-shopping"
+        case .toDo:
+            return "levy-home-todo"
+        }
+    }
 }

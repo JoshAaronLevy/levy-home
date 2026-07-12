@@ -2,7 +2,7 @@
 
 Created: 2026-07-11
 
-Status: Stages 1-2 code implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and physical-device routing validation remain outstanding. Stages 3-9 remain planning only and do not change the API, database, Render service, or Home Assistant configuration.
+Status: Stages 1-3 code implementation completed on 2026-07-11; Stage 1’s required Apple-account signing and physical-device routing validation remain outstanding. Stages 4-9 remain planning only and do not change the API, database, Render service, or Home Assistant configuration.
 
 ## What Josh Needs To Do Outside The Codebase
 
@@ -108,7 +108,7 @@ Do not make a generalized list framework, add a Siri-specific backend endpoint, 
 
 ## Pre-Stage 1 Baseline
 
-The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-2 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, and shared extension-safe foundations.
+The following described the repository before the Stage 1 implementation above. It remains the basis for the later-stage design, except where Stages 1-3 have now added extension packaging, Siri authorization UI, vocabulary, entitlement declarations, shared extension-safe foundations, and the Shopping command slice.
 
 ### Xcode And Apple Configuration
 
