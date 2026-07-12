@@ -59,7 +59,7 @@ require_entitlement_array_value() {
   local expected_value="$3"
   local description="$4"
 
-  if ! /usr/libexec/PlistBuddy -c "Print :$key_path" "$entitlements_path" | /usr/bin/grep -Fqx "$expected_value"; then
+  if ! /usr/libexec/PlistBuddy -c "Print :$key_path" "$entitlements_path" | /usr/bin/sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | /usr/bin/grep -Fqx "$expected_value"; then
     echo "Missing $description entitlement value '$expected_value'." >&2
     exit 1
   fi
@@ -108,7 +108,7 @@ if [[ "$app_api_url" != "$expected_api_url" || "$extension_api_url" != "$expecte
   exit 1
 fi
 
-if ! /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionAttributes:IntentsSupported' "$extension_info_plist" | /usr/bin/grep -Fqx 'INAddTasksIntent'; then
+if ! /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionAttributes:IntentsSupported' "$extension_info_plist" | /usr/bin/grep -Eq '^[[:space:]]*INAddTasksIntent[[:space:]]*$'; then
   echo "LevyHomeIntents does not declare INAddTasksIntent." >&2
   exit 1
 fi
