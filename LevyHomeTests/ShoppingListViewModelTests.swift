@@ -564,6 +564,40 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isStartingTrip)
     }
 
+    func testCompactOrderingPlacesMostRecentlyActiveItemsFirst() {
+        let category = ShoppingCategory(id: 42, name: "Miscellaneous")
+        let older = ShoppingListDisplayItem(
+            item: Self.item(
+                id: 10,
+                name: "Older",
+                updated: "2026-07-11T06:00:00Z"
+            ),
+            category: category
+        )
+        let newer = ShoppingListDisplayItem(
+            item: Self.item(
+                id: 11,
+                name: "Newer",
+                updated: "2026-07-11T08:00:00Z"
+            ),
+            category: category
+        )
+        let sameTimeHigherVersion = ShoppingListDisplayItem(
+            item: Self.item(
+                id: 12,
+                name: "Higher version",
+                version: 3,
+                updated: "2026-07-11T08:00:00Z"
+            ),
+            category: category
+        )
+
+        let sorted = [older, newer, sameTimeHigherVersion]
+            .sorted(by: ShoppingListDisplayItem.isMoreRecentlyActive)
+
+        XCTAssertEqual(sorted.map(\.id), [12, 11, 10])
+    }
+
     private static func response(
         items: [ShoppingListItem],
         activeTrip: ShoppingTrip? = nil
@@ -626,7 +660,12 @@ final class ShoppingListViewModelTests: XCTestCase {
         )
     }
 
-    private static func item(id: Int, name: String, version: Int = 1) -> ShoppingListItem {
+    private static func item(
+        id: Int,
+        name: String,
+        version: Int = 1,
+        updated: String = "2026-07-01T17:00:00Z"
+    ) -> ShoppingListItem {
         ShoppingListItem(
             id: id,
             name: name,
@@ -635,7 +674,7 @@ final class ShoppingListViewModelTests: XCTestCase {
             notes: nil,
             purchased: false,
             created: "2026-07-01T17:00:00Z",
-            updated: "2026-07-01T17:00:00Z",
+            updated: updated,
             version: version,
             categoryId: nil
         )

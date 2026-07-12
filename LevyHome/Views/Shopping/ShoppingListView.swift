@@ -552,6 +552,9 @@ private struct ShoppingListContentView: View {
                     isShowingFilterSheet = false
                 },
                 onApply: {
+                    if draftFilters.viewMode == .compact {
+                        selectedCategoryId = nil
+                    }
                     appliedFilters = draftFilters
                     isShowingFilterSheet = false
                 }
@@ -626,33 +629,64 @@ private struct ShoppingListContentView: View {
 
         ShoppingListSearchField(searchText: $searchText)
 
-        ShoppingCategoryFilterBar(
-            selectedCategoryId: $selectedCategoryId,
-            categories: filterCategories,
-            counts: categoryCounts
-        )
+        if appliedFilters.viewMode == .detailed {
+            ShoppingCategoryFilterBar(
+                selectedCategoryId: $selectedCategoryId,
+                categories: filterCategories,
+                counts: categoryCounts
+            )
+        }
 
-        if viewModel.isEmpty || groupedItems.isEmpty {
+        if viewModel.isEmpty || filteredItems.isEmpty {
             emptyState
         } else {
-            ForEach(groupedItems) { group in
-                ShoppingCategorySection(
-                    group: group,
-                    mutatingItemIDs: viewModel.mutatingItemIDs,
-                    onTogglePurchased: { item in
-                        Task {
-                            if let trip = await viewModel.setPurchased(item, purchased: !item.purchased) {
-                                await shoppingLiveActivityCoordinator.updateTripActivity(for: trip)
-                            }
+            switch appliedFilters.viewMode {
+            case .detailed:
+                ForEach(groupedItems) { group in
+                    ShoppingCategorySection(
+                        group: group,
+                        mutatingItemIDs: viewModel.mutatingItemIDs,
+                        onTogglePurchased: togglePurchased,
+                        onEdit: { item in
+                            editorMode = .edit(item)
+                        },
+                        onDelete: { item in
+                            pendingDeleteItem = item
                         }
-                    },
-                    onEdit: { item in
-                        editorMode = .edit(item)
-                    },
-                    onDelete: { item in
-                        pendingDeleteItem = item
-                    }
-                )
+                    )
+                }
+            case .compact:
+                if !compactNeededItems.isEmpty {
+                    ShoppingCompactSection(
+                        title: "Needed",
+                        systemImage: "cart.badge.plus",
+                        items: compactNeededItems,
+                        mutatingItemIDs: viewModel.mutatingItemIDs,
+                        onTogglePurchased: togglePurchased,
+                        onEdit: { item in
+                            editorMode = .edit(item)
+                        },
+                        onDelete: { item in
+                            pendingDeleteItem = item
+                        }
+                    )
+                }
+
+                if !compactPickedUpItems.isEmpty {
+                    ShoppingCompactSection(
+                        title: "Picked Up",
+                        systemImage: "checkmark.circle.fill",
+                        items: compactPickedUpItems,
+                        mutatingItemIDs: viewModel.mutatingItemIDs,
+                        onTogglePurchased: togglePurchased,
+                        onEdit: { item in
+                            editorMode = .edit(item)
+                        },
+                        onDelete: { item in
+                            pendingDeleteItem = item
+                        }
+                    )
+                }
             }
         }
     }
@@ -802,6 +836,20 @@ private struct ShoppingListContentView: View {
         }
     }
 
+    private var compactNeededItems: [ShoppingListDisplayItem] {
+        compactItems(purchased: false)
+    }
+
+    private var compactPickedUpItems: [ShoppingListDisplayItem] {
+        compactItems(purchased: true)
+    }
+
+    private func compactItems(purchased: Bool) -> [ShoppingListDisplayItem] {
+        filteredItems
+            .filter { $0.item.purchased == purchased }
+            .sorted(by: ShoppingListDisplayItem.isMoreRecentlyActive)
+    }
+
     private var filteredItems: [ShoppingListDisplayItem] {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -899,6 +947,14 @@ private struct ShoppingListContentView: View {
 
     private static let fallbackMiscellaneousCategory = ShoppingCategory(id: 0, name: "Miscellaneous")
 
+    private func togglePurchased(_ item: ShoppingListItem) {
+        Task {
+            if let trip = await viewModel.setPurchased(item, purchased: !item.purchased) {
+                await shoppingLiveActivityCoordinator.updateTripActivity(for: trip)
+            }
+        }
+    }
+
     private func delete(_ item: ShoppingListItem) async {
         defer {
             pendingDeleteItem = nil
@@ -954,12 +1010,31 @@ private struct ShoppingListFilterSheet: View {
 
     @State private var isStatusExpanded = true
     @State private var isStoreExpanded = true
+    @State private var isViewExpanded = true
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: AppSpacing.medium) {
+                        ShoppingFilterAccordionSection(
+                            title: "View",
+                            systemImage: "rectangle.3.group",
+                            isExpanded: $isViewExpanded
+                        ) {
+                            VStack(spacing: AppSpacing.small) {
+                                ForEach(ShoppingListViewMode.allCases) { viewMode in
+                                    ShoppingFilterOptionRow(
+                                        title: viewMode.title,
+                                        systemImage: viewMode.systemImage,
+                                        isSelected: filters.viewMode == viewMode
+                                    ) {
+                                        filters.viewMode = viewMode
+                                    }
+                                }
+                            }
+                        }
+
                         ShoppingFilterAccordionSection(
                             title: "Status",
                             systemImage: "checkmark.circle",
@@ -1113,11 +1188,12 @@ private struct ShoppingFilterOptionRow: View {
 }
 
 fileprivate struct ShoppingListFilters: Equatable {
+    var viewMode: ShoppingListViewMode = .detailed
     var neededOnly = false
     var selectedStores: Set<ShoppingStoreFilterOption> = []
 
     var isActive: Bool {
-        neededOnly || !selectedStores.isEmpty
+        viewMode != .detailed || neededOnly || !selectedStores.isEmpty
     }
 
     mutating func toggleStore(_ store: ShoppingStoreFilterOption) {
@@ -1138,6 +1214,31 @@ fileprivate struct ShoppingListFilters: Equatable {
 
         return selectedStores.allSatisfy { store in
             displayItem.matches(storeFilter: store, storesById: storesById)
+        }
+    }
+}
+
+fileprivate enum ShoppingListViewMode: String, CaseIterable, Identifiable {
+    case detailed
+    case compact
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .detailed:
+            return "Detailed"
+        case .compact:
+            return "Compact"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .detailed:
+            return "rectangle.3.group"
+        case .compact:
+            return "list.bullet"
         }
     }
 }
@@ -2614,6 +2715,68 @@ private struct ShoppingCategorySection: View {
     }
 }
 
+private struct ShoppingCompactSection: View {
+    let title: String
+    let systemImage: String
+    let items: [ShoppingListDisplayItem]
+    let mutatingItemIDs: Set<Int>
+    let onTogglePurchased: (ShoppingListItem) -> Void
+    let onEdit: (ShoppingListItem) -> Void
+    let onDelete: (ShoppingListItem) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: AppSpacing.small) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.accent)
+
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Text("\(items.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.mutedText)
+            }
+            .padding(.horizontal, AppSpacing.large)
+            .padding(.vertical, AppSpacing.medium)
+
+            Divider()
+                .padding(.leading, AppSpacing.large)
+
+            ForEach(items) { item in
+                ShoppingCompactItemRow(
+                    displayItem: item,
+                    isMutating: mutatingItemIDs.contains(item.item.id),
+                    onTogglePurchased: {
+                        onTogglePurchased(item.item)
+                    },
+                    onEdit: {
+                        onEdit(item.item)
+                    },
+                    onDelete: {
+                        onDelete(item.item)
+                    }
+                )
+
+                if item.id != items.last?.id {
+                    Divider()
+                        .padding(.leading, 54)
+                }
+            }
+        }
+        .background(AppColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+    }
+}
+
 private struct ShoppingItemRow: View {
     let displayItem: ShoppingListDisplayItem
     let isMutating: Bool
@@ -2633,7 +2796,7 @@ private struct ShoppingItemRow: View {
             .disabled(isMutating)
             .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
 
-            itemImage
+            ShoppingItemThumbnail(imageURL: displayItem.item.image, size: 42)
 
             VStack(alignment: .leading, spacing: AppSpacing.small) {
                 Text(displayItem.item.name)
@@ -2701,32 +2864,97 @@ private struct ShoppingItemRow: View {
         }
     }
 
-    @ViewBuilder
-    private var itemImage: some View {
-        if let image = displayItem.item.image, let url = URL(string: image) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                default:
-                    Image(systemName: "shippingbox")
-                        .font(.headline)
-                        .foregroundStyle(AppColors.mutedText)
-                }
+}
+
+private struct ShoppingCompactItemRow: View {
+    let displayItem: ShoppingListDisplayItem
+    let isMutating: Bool
+    let onTogglePurchased: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppSpacing.medium) {
+            Button(action: onTogglePurchased) {
+                Image(systemName: displayItem.item.purchased ? "checkmark.circle.fill" : "circle")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(displayItem.item.purchased ? AppColors.success : AppColors.accent)
+                    .frame(width: 30, height: 30)
             }
-            .frame(width: 42, height: 42)
-            .background(AppColors.insetPanelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
-        } else {
-            Image(systemName: "shippingbox")
-                .font(.headline)
-                .foregroundStyle(AppColors.mutedText)
-                .frame(width: 42, height: 42)
-                .background(AppColors.insetPanelBackground)
-                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+            .accessibilityLabel(displayItem.item.purchased ? "Mark needed" : "Mark picked up")
+
+            ShoppingItemThumbnail(imageURL: displayItem.item.image, size: 34)
+
+            Text(displayItem.item.name)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(displayItem.item.purchased ? AppColors.mutedText : .primary)
+                .strikethrough(displayItem.item.purchased, color: AppColors.mutedText)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isMutating {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                RowQuantityBadge(quantity: displayItem.item.quantity)
+            }
         }
+        .padding(AppSpacing.medium)
+        .background(AppColors.panelBackground)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(displayItem.compactAccessibilityLabel)
+        .accessibilityAction(named: Text("Delete"), onDelete)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .contextMenu {
+            Button(action: onEdit) {
+                Label("Edit", systemImage: "pencil")
+            }
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+}
+
+private struct ShoppingItemThumbnail: View {
+    let imageURL: String?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let imageURL, let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .background(AppColors.insetPanelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "shippingbox")
+            .font(.headline)
+            .foregroundStyle(AppColors.mutedText)
     }
 }
 
@@ -2803,7 +3031,7 @@ private struct ShoppingCategoryGroup: Identifiable {
     var id: ShoppingCategory { category }
 }
 
-private struct ShoppingListDisplayItem: Identifiable, Comparable {
+struct ShoppingListDisplayItem: Identifiable, Comparable {
     let item: ShoppingListItem
     let category: ShoppingCategory
 
@@ -2835,6 +3063,11 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
         return "\(item.name), quantity \(item.quantity), \(category.name), \(state)\(storesText)"
     }
 
+    var compactAccessibilityLabel: String {
+        let state = item.purchased ? "picked up" : "needed"
+        return "\(item.name), quantity \(item.quantity), \(state)"
+    }
+
     func matches(_ searchText: String) -> Bool {
         let searchableValues = [
             item.name,
@@ -2855,6 +3088,24 @@ private struct ShoppingListDisplayItem: Identifiable, Comparable {
         }
 
         return lhs.item.name.localizedCaseInsensitiveCompare(rhs.item.name) == .orderedAscending
+    }
+
+    static func isMoreRecentlyActive(_ lhs: ShoppingListDisplayItem, _ rhs: ShoppingListDisplayItem) -> Bool {
+        let lhsTimestamp = lhs.item.updated ?? lhs.item.created ?? ""
+        let rhsTimestamp = rhs.item.updated ?? rhs.item.created ?? ""
+
+        if lhsTimestamp != rhsTimestamp {
+            return lhsTimestamp > rhsTimestamp
+        }
+
+        let lhsVersion = lhs.item.version ?? 0
+        let rhsVersion = rhs.item.version ?? 0
+
+        if lhsVersion != rhsVersion {
+            return lhsVersion > rhsVersion
+        }
+
+        return lhs.item.id > rhs.item.id
     }
 }
 
