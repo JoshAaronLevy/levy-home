@@ -3,6 +3,7 @@ import SwiftUI
 struct CameraView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: CameraViewModel
+    @State private var isFullscreen = false
 
     init(cameraService: CameraService) {
         _viewModel = StateObject(wrappedValue: CameraViewModel(service: cameraService))
@@ -39,7 +40,7 @@ struct CameraView: View {
                     Spacer()
                     HStack {
                         Spacer()
-                        speakerVolumePopover
+                        CameraSpeakerControlsView(viewModel: viewModel)
                     }
                 }
                 .padding(.trailing, AppSpacing.screen)
@@ -48,10 +49,19 @@ struct CameraView: View {
         }
         .appScreenChrome()
         .task { await viewModel.start() }
-        .onDisappear { Task { await viewModel.stop() } }
+        .onDisappear {
+            if !isFullscreen {
+                Task { await viewModel.stop() }
+            }
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active {
                 Task { await viewModel.stop() }
+            }
+        }
+        .fullScreenCover(isPresented: $isFullscreen) {
+            CameraFullscreenView(viewModel: viewModel) {
+                isFullscreen = false
             }
         }
     }
@@ -101,6 +111,8 @@ struct CameraView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Kids Room camera")
         .accessibilityValue(statusLabel)
+        .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .onTapGesture { isFullscreen = true }
     }
 
     @ViewBuilder

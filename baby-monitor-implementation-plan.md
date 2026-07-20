@@ -407,6 +407,22 @@ dismissal, and returning to the same portrait view state.
 portrait Camera, preserves a healthy session, and matches the intended visual
 hierarchy.
 
+#### Stage 6 implementation record (2026-07-20)
+
+- Added a dedicated fullscreen Camera view opened by tapping the portrait video.
+  It uses the existing `CameraViewModel`, so it preserves the active video
+  session, current speaker-volume state, and PTZ in-flight state rather than
+  starting a second session.
+- Added a landscape-only fullscreen orientation policy and restored portrait
+  orientation on dismissal. The fullscreen layout has edge-to-edge video,
+  compact translucent lower-corner controls, and an accessible upper-right
+  close button.
+- Reused the Camera speaker popover in fullscreen. The microphone control
+  remains visibly unavailable because Stage 5 talkback is deferred.
+- Source/compile proof is complete. Actual rotation, playback continuity, safe
+  insets, and fullscreen control behavior remain physical-device checks before
+  the exit criteria can be claimed.
+
 ### Stage 7 — End-to-end QA, privacy review, and release
 
 **Goal:** prove the complete household feature before release.
@@ -430,6 +446,33 @@ physical-device proof, and release workflow.
 **Exit criteria:** all shipped controls have physical-device proof; unsupported
 ones are absent or clearly deferred; the release contains no client-side Home
 Assistant secrets.
+
+#### Stage 7 implementation record (2026-07-20)
+
+- Added the camera API, privacy, and safe smoke-check documentation to
+  `docs/07-home-assistant-facade.md`. It explicitly documents the brokered
+  session boundary, the separate Levy Home camera credential, the absence of
+  microphone/talkback/cry-sensitivity functionality, and the prohibition on
+  persisting or logging camera media and Home Assistant credentials.
+- Added `docs/manual-qa-camera.md` as the physical-device release checklist,
+  including lifecycle, recovery, PTZ safe-position, fullscreen, and log-review
+  checks. It intentionally excludes the deferred Stage 5 talkback capability.
+- The source review confirms the app makes camera API calls only through the
+  curated backend contract; stream requests do not use `AppLogStore`, and the
+  general API client records request paths/statuses rather than headers, bodies,
+  or response data. Backend logging redacts bearer credentials. The app privacy
+  manifest still declares no collected data, and the shipped camera feature
+  requests no microphone access.
+- `npm --prefix apps/api run typecheck` and `npm --prefix apps/api test` pass.
+  `xcodebuild build-for-testing` compiled the iOS app and unit-test bundle
+  successfully without launching a simulator. A refreshed 2026-07-20 Home
+  Assistant catalog confirms `camera.kids_room` and
+  `number.kids_room_speaker_volume` are enabled, and the
+  `eufy_security.start_p2p_livestream`, `stop_p2p_livestream`, and `ptz`
+  actions remain available.
+- Per the requested workflow, simulator boot and physical-device QA remain
+  pending until the final phone-testing pass; therefore Stage 7 exit criteria
+  and release approval are not yet claimed.
 
 ## Suggested implementation order for future prompts
 

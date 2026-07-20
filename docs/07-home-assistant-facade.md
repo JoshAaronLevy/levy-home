@@ -76,6 +76,19 @@ token, RTSP address, or Eufy credential. Stream connection closure attempts to
 stop the session. Camera speaker volume is separate from iPhone playback volume
 and cry sensitivity.
 
+### Camera privacy and logging
+
+Camera video is proxied only for an active, authenticated in-memory session. It
+is not written to the API filesystem, database, event timeline, or analytics.
+The camera endpoints accept only the curated Kids Room actions and do not expose
+raw Home Assistant responses to the app. API logging redacts bearer credentials;
+the iOS camera stream client does not log request headers, stream URLs, MJPEG
+frames, or response bodies. The current release does not request microphone
+permission or provide two-way talkback, and no cry-sensitivity control is
+shown. The Levy Home camera bearer credential is distinct from the Home
+Assistant token; it must be stored in release build configuration, never source
+control, and is not a substitute for a Home Assistant credential.
+
 Device registration is provider-aware:
 
 - Native iOS APNs registrations must include `token`, `platform: "ios"`, `provider: "apns"`, and `environment: "sandbox"` or `"production"`.
@@ -113,6 +126,36 @@ curl -X POST http://localhost:4000/api/home/actions \
 
 curl -X POST http://localhost:4000/api/home/actions/light-groups/upstairs_hallway/off
 ```
+
+Camera route smoke checks require the separate Levy Home camera access token.
+They use only the brokered API path; do not substitute a Home Assistant token or
+call the Home Assistant stream proxy from a phone:
+
+```sh
+export CAMERA_ACCESS_TOKEN='your-levy-home-camera-access-token'
+
+curl -H "Authorization: Bearer $CAMERA_ACCESS_TOKEN" \
+  http://localhost:4000/api/camera/kids-room
+
+curl -X POST -H "Authorization: Bearer $CAMERA_ACCESS_TOKEN" \
+  http://localhost:4000/api/camera/kids-room/sessions
+
+curl -X POST \
+  -H "Authorization: Bearer $CAMERA_ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"direction":"UP"}' \
+  http://localhost:4000/api/camera/kids-room/ptz
+
+curl -X PUT \
+  -H "Authorization: Bearer $CAMERA_ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"value":10}' \
+  http://localhost:4000/api/camera/kids-room/speaker-volume
+```
+
+After any live PTZ check, visually return the Kids Room camera to its safe
+position. Stop the session using the opaque `id` returned by the session-create
+response; never record or share the stream bytes or authorization header.
 
 As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves both `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and `HOME_ASSISTANT_LIGHT_GROUPS` blank. The older `downstairs`, `bedrooms`, and `light.all_lights` examples were demo/fallback values and do not exist in the live catalog.
 

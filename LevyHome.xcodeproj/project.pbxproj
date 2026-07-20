@@ -105,6 +105,9 @@
 		C70000000000000000000002 /* APIClient+Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000012 /* APIClient+Camera.swift */; };
 		C70000000000000000000003 /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000013 /* CameraService.swift */; };
 		C70000000000000000000004 /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000014 /* CameraViewModel.swift */; };
+		D80000000000000000000001 /* CameraFullscreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000011 /* CameraFullscreenView.swift */; };
+		D80000000000000000000002 /* CameraSpeakerControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000012 /* CameraSpeakerControlsView.swift */; };
+		D80000000000000000000003 /* CameraOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000013 /* CameraOrientation.swift */; };
 		B10000000000000000000001 /* HomeStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* HomeStatusService.swift */; };
 		B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HomeOverviewViewModel.swift */; };
 		B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* HomeOverviewViewModelTests.swift */; };
@@ -353,6 +356,9 @@
 		C70000000000000000000012 /* APIClient+Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Camera.swift"; sourceTree = "<group>"; };
 		C70000000000000000000013 /* CameraService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
 		C70000000000000000000014 /* CameraViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModel.swift; sourceTree = "<group>"; };
+		D80000000000000000000011 /* CameraFullscreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraFullscreenView.swift; sourceTree = "<group>"; };
+		D80000000000000000000012 /* CameraSpeakerControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSpeakerControlsView.swift; sourceTree = "<group>"; };
+		D80000000000000000000013 /* CameraOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraOrientation.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* HomeStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatusService.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HomeOverviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* HomeOverviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModelTests.swift; sourceTree = "<group>"; };
@@ -544,6 +550,7 @@
 				A10000000000000000000015 /* AppEnvironment.swift */,
 				C10000000000000000000011 /* AppDelegate.swift */,
 				A10000000000000000000016 /* BuildConfiguration.swift */,
+				D80000000000000000000013 /* CameraOrientation.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -660,6 +667,8 @@
 			isa = PBXGroup;
 			children = (
 				B50000000000000000000011 /* CameraView.swift */,
+				D80000000000000000000011 /* CameraFullscreenView.swift */,
+				D80000000000000000000012 /* CameraSpeakerControlsView.swift */,
 			);
 			path = Camera;
 			sourceTree = "<group>";
@@ -1391,6 +1400,9 @@
 				C70000000000000000000002 /* APIClient+Camera.swift in Sources */,
 				C70000000000000000000003 /* CameraService.swift in Sources */,
 				C70000000000000000000004 /* CameraViewModel.swift in Sources */,
+				D80000000000000000000001 /* CameraFullscreenView.swift in Sources */,
+				D80000000000000000000002 /* CameraSpeakerControlsView.swift in Sources */,
+				D80000000000000000000003 /* CameraOrientation.swift in Sources */,
 				910000000000000000000002 /* SiriAuthorizationService.swift in Sources */,
 				980000000000000000000005 /* SiriListKind.swift in Sources */,
 				980000000000000000000006 /* SiriListCommandResult.swift in Sources */,
