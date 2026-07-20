@@ -20,6 +20,7 @@ export type PushSendOptions = {
   payload: TestPushPayload;
   preferenceCategory?: NotificationPreferenceCategory;
   data?: Record<string, string>;
+  mutableContent?: boolean;
   onInvalidToken?: (deviceId: string) => Promise<void>;
 };
 
@@ -93,6 +94,7 @@ export function createNotificationService(options: {
               body: payload.message ?? display.body,
             },
             preferenceCategory,
+            ...(doorbellImageURL(payload) ? { data: { category: preferenceCategory, imageURL: doorbellImageURL(payload)! }, mutableContent: true } : {}),
           })
         : undefined;
 
@@ -275,6 +277,7 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
           title: options.payload.title,
           body: options.payload.body,
           data: options.data ?? (options.preferenceCategory ? { category: options.preferenceCategory } : { debug: 'true' }),
+          mutableContent: options.mutableContent,
         }),
       );
     } catch (error) {
@@ -312,6 +315,11 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
     ...(configurationError ? { configurationError } : {}),
     results,
   };
+}
+
+function doorbellImageURL(payload: HomeAssistantEventPayload): string | undefined {
+  const value = payload.category === 'doorbell' ? payload.metadata?.imageURL : undefined;
+  return typeof value === 'string' && value.startsWith('https://') ? value : undefined;
 }
 
 async function filterPreferenceEnabledDevices(

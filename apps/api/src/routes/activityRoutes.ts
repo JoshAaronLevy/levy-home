@@ -8,6 +8,7 @@ import { buildEventDedupeKey } from '../contracts.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { requireHaWebhookSecret } from '../http/middleware/requireHaWebhookSecret.js';
 import type { ActivityEventService } from '../services/activity/activityEventService.js';
+import type { DoorbellImageService } from '../services/doorbell/doorbellImageService.js';
 import {
   fetchNormalizedHomeAssistantHistoryEvents,
   mergeActivityEvents,
@@ -22,6 +23,7 @@ export type ActivityRouteDependencies = {
   activityEventService: ActivityEventService;
   activityStore: RecentActivityStore;
   config: AppConfig;
+  doorbellImageService: DoorbellImageService;
 };
 
 export function createActivityRoutes(deps: ActivityRouteDependencies): Router {
@@ -38,7 +40,8 @@ export function createActivityRoutes(deps: ActivityRouteDependencies): Router {
         return;
       }
 
-      const event = await deps.activityEventService.createStoredEvent(validation.value);
+      const eventPayload = await addDoorbellImageURL(validation.value, req, deps.doorbellImageService);
+      const event = await deps.activityEventService.createStoredEvent(eventPayload);
       deps.activityStore.add(event);
 
       res.status(201).json({
@@ -72,4 +75,15 @@ export function createActivityRoutes(deps: ActivityRouteDependencies): Router {
   }));
 
   return router;
+}
+
+async function addDoorbellImageURL(
+  payload: import('../contracts.js').HomeAssistantEventPayload,
+  request: import('express').Request,
+  imageService: DoorbellImageService,
+): Promise<import('../contracts.js').HomeAssistantEventPayload> {
+  const imageEntityId = payload.metadata?.imageEntityId;
+  if (payload.category !== 'doorbell' || typeof imageEntityId !== 'string') return payload;
+  const imageURL = await imageService.capture(imageEntityId, request);
+  return imageURL ? { ...payload, metadata: { ...payload.metadata, imageURL } } : payload;
 }

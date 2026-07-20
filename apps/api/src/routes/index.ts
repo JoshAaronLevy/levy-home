@@ -20,6 +20,7 @@ import type { ToDoLocationStore } from '../repositories/todoLocationRepository.j
 import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
 import type { UserStore } from '../repositories/userRepository.js';
+import type { DoorbellImageService } from '../services/doorbell/doorbellImageService.js';
 import { createActivityRoutes } from './activityRoutes.js';
 import { createDebugRoutes } from './debugRoutes.js';
 import { createDeviceRoutes } from './deviceRoutes.js';
@@ -37,6 +38,7 @@ export type AppRouteDependencies = {
   activityEventService: ActivityEventService;
   activityStore: RecentActivityStore;
   config: AppConfig;
+  doorbellImageService: DoorbellImageService;
   deviceRegistry: DeviceRegistry;
   homeAssistant: HomeAssistantFacade;
   homeService: HomeService;
@@ -70,4 +72,13 @@ export function registerRoutes(app: Express, deps: AppRouteDependencies): void {
   app.use(createShoppingTripRoutes(deps));
   app.use(createShoppingLiveActivityRoutes(deps));
   app.use(createActivityRoutes(deps));
+  app.get('/api/doorbell-images/:id', (req, res) => {
+    const image = deps.doorbellImageService.read(
+      req.params.id,
+      typeof req.query.expires === 'string' ? req.query.expires : undefined,
+      typeof req.query.signature === 'string' ? req.query.signature : undefined,
+    );
+    if (!image) { res.sendStatus(404); return; }
+    res.type(image.contentType).send(image.bytes);
+  });
 }

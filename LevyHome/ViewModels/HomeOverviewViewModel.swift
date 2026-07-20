@@ -10,15 +10,22 @@ struct HomeOverviewStatusData: Equatable {
 @MainActor
 final class HomeOverviewViewModel: ObservableObject {
     typealias OverviewLoader = () async throws -> HomeOverview
+    typealias TodayActivityLoader = (_ limit: Int, _ start: Date, _ end: Date) async throws -> EventsResponse
 
     @Published private(set) var overview: HomeOverview?
     @Published private(set) var errorMessage: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
+    @Published private(set) var todayActivityEvents: [LevyHomeEvent] = []
+    @Published private(set) var hasLoadedTodayActivity = false
 
     private let loadOverview: OverviewLoader
+    private let loadTodayActivity: TodayActivityLoader
     private let dateFormatter: DateFormattingService
+    private let now: () -> Date
+    private var calendar: Calendar
     private var hasLoaded = false
+    private var loadedActivityDayStart: Date?
 
     var statusData: HomeOverviewStatusData {
         if isLoading {
@@ -109,38 +116,28 @@ final class HomeOverviewViewModel: ObservableObject {
         )
     }
 
-    var recentImportantEventData: RecentImportantEventData {
-        guard let event = overview?.recentImportantEvent else {
-            return RecentImportantEventData(
-                title: "No recent important events",
-                detail: "High-signal home events will appear here after Home Assistant sends them.",
-                timestamp: generatedAtText,
-                badgeLabel: "Quiet",
-                tone: .neutral
-            )
-        }
-
-        return RecentImportantEventData(
-            title: event.display.title,
-            detail: event.display.body,
-            timestamp: dateFormatter.displayString(for: event.receivedAt),
-            badgeLabel: event.display.severity.displayTitle,
-            tone: event.display.severity.tone
+    convenience init(service: HomeStatusServicing, apiClient: APIClient) {
+        self.init(
+            loadTodayActivity: { limit, start, end in
+                try await apiClient.fetchRecentEvents(limit: limit, start: start, end: end)
+            },
+            loadOverview: { try await service.fetchOverview() }
         )
-    }
-
-    convenience init(service: HomeStatusServicing) {
-        self.init {
-            try await service.fetchOverview()
-        }
     }
 
     init(
         dateFormatter: DateFormattingService = DateFormattingService(),
+        now: @escaping () -> Date = Date.init,
+        timeZone: TimeZone = TimeZone(identifier: "America/Denver") ?? .current,
+        loadTodayActivity: @escaping TodayActivityLoader = { _, _, _ in EventsResponse(ok: true, events: []) },
         loadOverview: @escaping OverviewLoader
     ) {
         self.dateFormatter = dateFormatter
+        self.now = now
+        self.loadTodayActivity = loadTodayActivity
         self.loadOverview = loadOverview
+        calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
     }
 
     func loadIfNeeded() async {
@@ -159,6 +156,24 @@ final class HomeOverviewViewModel: ObservableObject {
         self.overview = overview
         errorMessage = nil
         hasLoaded = true
+    }
+
+    func refreshTodayActivityIfDayChanged() async {
+        let range = activityDayRange(for: now())
+        guard loadedActivityDayStart != range.start else {
+            return
+        }
+
+        // Never carry yesterday's rows across the Mountain-time midnight boundary,
+        // including when the following request is unavailable.
+        todayActivityEvents = []
+        hasLoadedTodayActivity = false
+        await refreshTodayActivity()
+    }
+
+    func secondsUntilNextMountainMidnight() -> TimeInterval {
+        let range = activityDayRange(for: now())
+        return max(range.end.timeIntervalSince(now()), 1)
     }
 
     private func load(isRefresh: Bool) async {
@@ -189,14 +204,38 @@ final class HomeOverviewViewModel: ObservableObject {
             errorMessage = error.localizedDescription
             hasLoaded = true
         }
+
+        await refreshTodayActivity()
     }
 
-    private var generatedAtText: String {
-        guard let generatedAt = overview?.generatedAt else {
-            return "Waiting for live data"
-        }
+    private func refreshTodayActivity() async {
+        let range = activityDayRange(for: now())
 
-        return "Updated \(dateFormatter.displayString(for: generatedAt))"
+        do {
+            let response = try await loadTodayActivity(500, range.start, range.end)
+            todayActivityEvents = response.events
+                .filter { range.contains(eventDate($0)) }
+                .sorted { eventDate($0) > eventDate($1) }
+            loadedActivityDayStart = range.start
+            hasLoadedTodayActivity = true
+        } catch is CancellationError {
+            return
+        } catch {
+            // Activity is supplementary to the Home overview. Keep its prior state rather than
+            // presenting an empty-day message when the feed could not be loaded.
+        }
+    }
+
+    private func activityDayRange(for date: Date) -> DateInterval {
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.date(byAdding: .day, value: 1, to: start)!
+        return DateInterval(start: start, end: end)
+    }
+
+    private func eventDate(_ event: LevyHomeEvent) -> Date {
+        Self.isoFormatterWithFractionalSeconds.date(from: event.occurredAt) ??
+            Self.isoFormatter.date(from: event.occurredAt) ??
+            .distantPast
     }
 
     private func garageDetail(for garageStatus: GarageStatus) -> String {
@@ -218,6 +257,18 @@ final class HomeOverviewViewModel: ObservableObject {
 
         return details.joined(separator: " ")
     }
+
+    private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 }
 
 private extension GarageStatus.State {

@@ -25,18 +25,16 @@ struct ActivityRibbonRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(HomePalette.secondaryInk)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(HomePalette.secondaryInk)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
             }
 
             Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(HomePalette.secondaryInk.opacity(0.45))
         }
         .padding(.vertical, AppSpacing.small)
     }

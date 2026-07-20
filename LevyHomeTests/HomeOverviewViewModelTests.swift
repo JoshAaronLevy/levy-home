@@ -87,26 +87,27 @@ final class HomeOverviewViewModelTests: XCTestCase {
         )
     }
 
-    func testRecentImportantEventUsesBackendEventData() async {
-        let event = Self.event(
-            id: "event-1",
-            display: EventDisplayMetadata(
-                title: "Garage still open",
-                body: "The garage is still open at 10 PM.",
-                severity: .critical
-            )
-        )
+    func testLoadsOnlyEventsFromTheCurrentMountainDay() async {
+        let now = Self.date("2026-07-20T18:00:00Z") // Noon in Denver (MDT).
+        var requestedRange: (Date, Date)?
+        let currentEvent = Self.event(id: "doorbell", occurredAt: "2026-07-20T06:15:00Z")
+        let priorDayEvent = Self.event(id: "prior-day", occurredAt: "2026-07-20T05:59:59Z")
 
-        let viewModel = HomeOverviewViewModel {
-            Self.overview(recentImportantEvent: event)
-        }
+        let viewModel = HomeOverviewViewModel(
+            now: { now },
+            loadTodayActivity: { _, start, end in
+                requestedRange = (start, end)
+                return EventsResponse(ok: true, events: [priorDayEvent, currentEvent])
+            },
+            loadOverview: { Self.overview() }
+        )
 
         await viewModel.loadIfNeeded()
 
-        XCTAssertEqual(viewModel.recentImportantEventData.title, "Garage still open")
-        XCTAssertEqual(viewModel.recentImportantEventData.detail, "The garage is still open at 10 PM.")
-        XCTAssertEqual(viewModel.recentImportantEventData.badgeLabel, "Critical")
-        XCTAssertEqual(viewModel.recentImportantEventData.tone, .critical)
+        XCTAssertEqual(requestedRange?.0, Self.date("2026-07-20T06:00:00Z"))
+        XCTAssertEqual(requestedRange?.1, Self.date("2026-07-21T06:00:00Z"))
+        XCTAssertEqual(viewModel.todayActivityEvents.map(\.id), ["doorbell"])
+        XCTAssertTrue(viewModel.hasLoadedTodayActivity)
     }
 
     func testFailureWithoutOverviewShowsErrorAndOfflineStatus() async {
@@ -200,23 +201,29 @@ final class HomeOverviewViewModelTests: XCTestCase {
         )
     }
 
-    private static func event(
-        id: String,
-        display: EventDisplayMetadata
-    ) -> LevyHomeEvent {
-        LevyHomeEvent(
+    private static func event(id: String, occurredAt: String = "2026-06-12T14:00:00Z") -> LevyHomeEvent {
+        let display = EventDisplayMetadata(
+            title: "Doorbell pressed",
+            body: "Someone pressed the doorbell.",
+            severity: .critical
+        )
+        return LevyHomeEvent(
             id: id,
-            type: .garageStillOpenAt10PM,
-            entityId: "cover.main_garage_door",
-            category: .garage,
+            type: .doorbellPressed,
+            entityId: "binary_sensor.doorbell_ringing",
+            category: .doorbell,
             severity: .high,
             source: "home_assistant",
-            occurredAt: "2026-06-12T14:00:00Z",
+            occurredAt: occurredAt,
             title: display.title,
             message: display.body,
             receivedAt: "2026-06-12T14:00:01Z",
             display: display,
             push: nil
         )
+    }
+
+    private static func date(_ rawValue: String) -> Date {
+        ISO8601DateFormatter().date(from: rawValue)!
     }
 }

@@ -10,7 +10,10 @@ struct HomeView: View {
 
     var body: some View {
         HomeContentView(
-            homeViewModel: HomeOverviewViewModel(service: appEnvironment.homeStatusService),
+            homeViewModel: HomeOverviewViewModel(
+                service: appEnvironment.homeStatusService,
+                apiClient: appEnvironment.apiClient
+            ),
             weatherViewModel: HomeWeatherViewModel(service: appEnvironment.homeWeatherService),
             quickActionsViewModel: QuickActionsViewModel(
                 service: appEnvironment.quickActionService,

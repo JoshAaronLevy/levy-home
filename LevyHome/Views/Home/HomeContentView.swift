@@ -80,8 +80,8 @@ struct HomeContentView: View {
                 // }
 
                 RecentActivityRibbon(
-                    recentEventData: homeViewModel.recentImportantEventData,
-                    garageData: homeViewModel.garageCardData
+                    events: homeViewModel.todayActivityEvents,
+                    hasLoadedEvents: homeViewModel.hasLoadedTodayActivity
                 )
             }
             .padding(.horizontal, AppSpacing.screen)
@@ -94,6 +94,9 @@ struct HomeContentView: View {
         .task {
             await loadHomeContentIfNeeded()
         }
+        .task {
+            await refreshActivityAtMountainMidnight()
+        }
         .onChange(of: isSelected) { _, newValue in
             guard newValue else {
                 return
@@ -101,6 +104,7 @@ struct HomeContentView: View {
 
             Task {
                 await refreshWeatherForHomeVisit()
+                await homeViewModel.refreshTodayActivityIfDayChanged()
             }
         }
         .onChange(of: scenePhase) { _, newValue in
@@ -110,6 +114,7 @@ struct HomeContentView: View {
 
             Task {
                 await refreshWeatherForHomeVisit()
+                await homeViewModel.refreshTodayActivityIfDayChanged()
             }
         }
         .refreshable {
@@ -172,6 +177,19 @@ struct HomeContentView: View {
     private func refreshWeatherForHomeVisit() async {
         await runHomeContentOperation {
             await weatherViewModel.refreshForHomeVisit()
+        }
+    }
+
+    private func refreshActivityAtMountainMidnight() async {
+        while !Task.isCancelled {
+            let delay = homeViewModel.secondsUntilNextMountainMidnight()
+            do {
+                try await Task.sleep(for: .seconds(delay + 1))
+            } catch {
+                return
+            }
+
+            await homeViewModel.refreshTodayActivityIfDayChanged()
         }
     }
 

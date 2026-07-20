@@ -72,6 +72,7 @@ import {
   createWeatherAlertService,
   type WeatherAlertService,
 } from './services/weather/weatherAlertService.js';
+import { createDoorbellImageService } from './services/doorbell/doorbellImageService.js';
 import {
   createShoppingListRealtimeHub,
   type ShoppingListRealtimeBroadcaster,
@@ -137,6 +138,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     logger: appLogger,
   });
   const activityEventService = createActivityEventService({ notificationService });
+  const doorbellImageService = createDoorbellImageService(config);
   const shoppingListStore = options.shoppingListStore ?? createPostgresShoppingListStore();
   const shoppingListRealtime = options.shoppingListRealtime ?? createShoppingListRealtimeHub({ notificationService });
   const shoppingTripStore = options.shoppingTripStore ?? (
@@ -205,6 +207,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     ((query?: string) => searchKrogerProducts(config, { query }));
 
   app.set('etag', false);
+  app.set('trust proxy', 1);
   app.use(cors());
   app.use(noStoreCacheControl);
   app.use(express.json({ limit: '1mb' }));
@@ -218,6 +221,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     activityStore,
     activityEventService,
     config,
+    doorbellImageService,
     deviceRegistry,
     homeAssistant,
     homeService,

@@ -161,6 +161,8 @@
 		B40000000000000000000005 /* ShoppingTripLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000013 /* ShoppingTripLiveActivity.swift */; };
 		B40000000000000000000006 /* LevyHomeWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B40000000000000000000015 /* LevyHomeWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B40000000000000000000008 /* ShoppingLiveActivityCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */; };
+		D12000000000000000000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D12000000000000000000011 /* NotificationService.swift */; };
+		D12000000000000000000002 /* LevyHomeDoorbellNotification.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = D12000000000000000000012 /* LevyHomeDoorbellNotification.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		910000000000000000000001 /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900000000000000000000001 /* IntentHandler.swift */; };
 		910000000000000000000002 /* SiriAuthorizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900000000000000000000005 /* SiriAuthorizationService.swift */; };
 		910000000000000000000003 /* SiriPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900000000000000000000006 /* SiriPreferencesView.swift */; };
@@ -240,6 +242,7 @@
 			files = (
 				B40000000000000000000006 /* LevyHomeWidgets.appex in Embed App Extensions */,
 				910000000000000000000005 /* LevyHomeIntents.appex in Embed App Extensions */,
+				D12000000000000000000002 /* LevyHomeDoorbellNotification.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -405,6 +408,9 @@
 		B40000000000000000000013 /* ShoppingTripLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingTripLiveActivity.swift; sourceTree = "<group>"; };
 		B40000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B40000000000000000000015 /* LevyHomeWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LevyHomeWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D12000000000000000000011 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		D12000000000000000000012 /* LevyHomeDoorbellNotification.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LevyHomeDoorbellNotification.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D12000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingLiveActivityCoordinatorTests.swift; sourceTree = "<group>"; };
 		900000000000000000000001 /* IntentHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentHandler.swift; sourceTree = "<group>"; };
 		900000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -479,6 +485,7 @@
 			children = (
 				A10000000000000000000031 /* LevyHome */,
 				B40000000000000000000030 /* LevyHomeWidgets */,
+				D12000000000000000000010 /* LevyHomeDoorbellNotification */,
 				930000000000000000000001 /* LevyHomeIntents */,
 				A50000000000000000000004 /* LevyHomeTests */,
 				A10000000000000000000032 /* Products */,
@@ -506,6 +513,7 @@
 			children = (
 				A10000000000000000000004 /* LevyHome.app */,
 				B40000000000000000000015 /* LevyHomeWidgets.appex */,
+				D12000000000000000000012 /* LevyHomeDoorbellNotification.appex */,
 				900000000000000000000004 /* LevyHomeIntents.appex */,
 				A50000000000000000000001 /* LevyHomeTests.xctest */,
 			);
@@ -970,6 +978,12 @@
 			path = LevyHomeWidgets;
 			sourceTree = "<group>";
 		};
+		D12000000000000000000010 /* LevyHomeDoorbellNotification */ = {
+			isa = PBXGroup;
+			children = (D12000000000000000000011 /* NotificationService.swift */, D12000000000000000000013 /* Info.plist */, );
+			path = LevyHomeDoorbellNotification;
+			sourceTree = "<group>";
+		};
 		930000000000000000000001 /* LevyHomeIntents */ = {
 			isa = PBXGroup;
 			children = (
@@ -1063,6 +1077,17 @@
 			productReference = B40000000000000000000015 /* LevyHomeWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		D12000000000000000000020 /* LevyHomeDoorbellNotification */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D12000000000000000000030 /* Build configuration list for PBXNativeTarget "LevyHomeDoorbellNotification" */;
+			buildPhases = (D12000000000000000000021 /* Sources */, D12000000000000000000022 /* Frameworks */, D12000000000000000000023 /* Resources */, );
+			buildRules = ();
+			dependencies = ();
+			name = LevyHomeDoorbellNotification;
+			productName = LevyHomeDoorbellNotification;
+			productReference = D12000000000000000000012 /* LevyHomeDoorbellNotification.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		A50000000000000000000008 /* LevyHomeTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A50000000000000000000009 /* Build configuration list for PBXNativeTarget "LevyHomeTests" */;
@@ -1121,6 +1146,7 @@
 			targets = (
 				A10000000000000000000040 /* LevyHome */,
 				B40000000000000000000040 /* LevyHomeWidgets */,
+				D12000000000000000000020 /* LevyHomeDoorbellNotification */,
 				920000000000000000000001 /* LevyHomeIntents */,
 				A50000000000000000000008 /* LevyHomeTests */,
 			);
@@ -1328,6 +1354,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D12000000000000000000021 /* Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D12000000000000000000001 /* NotificationService.swift in Sources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		D12000000000000000000022 /* Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		D12000000000000000000023 /* Resources */ = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		940000000000000000000002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1526,7 +1555,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHome/Resources/LevyHome.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1539,7 +1568,7 @@
 					"@executable_path/Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1558,7 +1587,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHome/LevyHomeRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1571,7 +1600,7 @@
 					"@executable_path/Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1588,7 +1617,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeWidgets/Info.plist;
@@ -1598,7 +1627,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1616,7 +1645,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeWidgets/Info.plist;
@@ -1626,7 +1655,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1639,13 +1668,23 @@
 			};
 			name = Release;
 		};
+		D12000000000000000000031 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 34; DEVELOPMENT_TEAM = 45K7QCRX6Y; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LevyHomeDoorbellNotification/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 18.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 12.1.1; PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.doorbellnotification; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; };
+			name = Debug;
+		};
+		D12000000000000000000032 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 34; DEVELOPMENT_TEAM = 45K7QCRX6Y; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LevyHomeDoorbellNotification/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 18.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 12.1.1; PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.doorbellnotification; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; };
+			name = Release;
+		};
 		950000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHomeIntents/LevyHomeIntents.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeIntents/Info.plist;
@@ -1656,7 +1695,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.intents;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1675,7 +1714,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHomeIntents/LevyHomeIntents.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeIntents/Info.plist;
@@ -1686,7 +1725,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.intents;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1704,7 +1743,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -1713,7 +1752,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1731,7 +1770,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -1740,7 +1779,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 12.0.0;
+				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1780,6 +1819,12 @@
 				B40000000000000000000072 /* Debug */,
 				B40000000000000000000073 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D12000000000000000000030 /* Build configuration list for PBXNativeTarget "LevyHomeDoorbellNotification" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (D12000000000000000000031 /* Debug */, D12000000000000000000032 /* Release */, );
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};

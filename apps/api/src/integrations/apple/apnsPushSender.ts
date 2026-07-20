@@ -83,6 +83,7 @@ class APNsPushSender implements PushSender {
             body: request.body,
           },
           sound: 'default',
+          ...(request.mutableContent ? { 'mutable-content': 1 } : {}),
         },
         ...(request.data ? { levyHome: request.data } : {}),
       }),
