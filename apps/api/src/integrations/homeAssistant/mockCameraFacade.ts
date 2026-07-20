@@ -1,5 +1,5 @@
 import type { AppConfig } from '../../config.js';
-import type { CameraStatus } from '../../contracts.js';
+import type { CameraPanTiltDirection, CameraStatus } from '../../contracts.js';
 
 export class MockCameraFacade {
   private isStreaming = false;
@@ -31,6 +31,8 @@ export class MockCameraFacade {
       headers: { 'Content-Type': 'multipart/x-mixed-replace; boundary=mock' },
     });
   }
+
+  async move(_direction: CameraPanTiltDirection): Promise<void> {}
 
   async setSpeakerVolume(value: number): Promise<CameraStatus> {
     this.speakerVolume = value;

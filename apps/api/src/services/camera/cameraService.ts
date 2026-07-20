@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 import type { CameraFacade } from '../../integrations/homeAssistant/cameraFacade.js';
-import type { CameraSession, CameraStatus } from '../../contracts.js';
+import type { CameraPanTiltDirection, CameraSession, CameraStatus } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 
 const SESSION_TTL_MS = 5 * 60 * 1000;
@@ -60,6 +60,10 @@ export class CameraService {
     }
 
     return this.facade.setSpeakerVolume(value);
+  }
+
+  async move(direction: CameraPanTiltDirection): Promise<void> {
+    await this.facade.move(direction);
   }
 
   private async createSession(): Promise<CameraSession> {

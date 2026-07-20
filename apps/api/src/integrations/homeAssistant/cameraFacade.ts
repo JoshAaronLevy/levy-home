@@ -1,5 +1,5 @@
 import type { AppConfig } from '../../config.js';
-import type { CameraStatus } from '../../contracts.js';
+import type { CameraPanTiltDirection, CameraStatus } from '../../contracts.js';
 import { LiveCameraFacade } from './liveCameraFacade.js';
 import { MockCameraFacade } from './mockCameraFacade.js';
 
@@ -8,6 +8,7 @@ export type CameraFacade = {
   startStream(): Promise<void>;
   stopStream(): Promise<void>;
   openStream(): Promise<Response>;
+  move(direction: CameraPanTiltDirection): Promise<void>;
   setSpeakerVolume(value: number): Promise<CameraStatus>;
 };
 

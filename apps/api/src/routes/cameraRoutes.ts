@@ -49,6 +49,17 @@ export function createCameraRoutes(cameraService: CameraService, accessToken?: s
     res.end();
   }));
 
+  router.post('/api/camera/kids-room/ptz', asyncHandler(async (req, res) => {
+    const direction = typeof req.body?.direction === 'string' ? req.body.direction : '';
+
+    if (!isCameraPanTiltDirection(direction)) {
+      throw new HTTPError(400, 'Camera direction must be UP, DOWN, LEFT, or RIGHT.', 'invalid_camera_direction');
+    }
+
+    await cameraService.move(direction);
+    res.status(204).end();
+  }));
+
   router.put('/api/camera/kids-room/speaker-volume', asyncHandler(async (req, res) => {
     const value = typeof req.body?.value === 'number' ? req.body.value : Number.NaN;
     res.json({ ok: true, camera: await cameraService.setSpeakerVolume(value) });
@@ -89,4 +100,8 @@ function sessionIdFrom(value: string | string[] | undefined): string {
   }
 
   return value;
+}
+
+function isCameraPanTiltDirection(value: string): value is import('../contracts.js').CameraPanTiltDirection {
+  return ['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(value);
 }

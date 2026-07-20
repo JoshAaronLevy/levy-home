@@ -101,6 +101,10 @@
 		B50000000000000000000001 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000011 /* CameraView.swift */; };
 		B50000000000000000000002 /* CameraControlState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000012 /* CameraControlState.swift */; };
 		B50000000000000000000003 /* RootTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000013 /* RootTabTests.swift */; };
+		C70000000000000000000001 /* CameraAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000011 /* CameraAPIModels.swift */; };
+		C70000000000000000000002 /* APIClient+Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000012 /* APIClient+Camera.swift */; };
+		C70000000000000000000003 /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000013 /* CameraService.swift */; };
+		C70000000000000000000004 /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70000000000000000000014 /* CameraViewModel.swift */; };
 		B10000000000000000000001 /* HomeStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* HomeStatusService.swift */; };
 		B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HomeOverviewViewModel.swift */; };
 		B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* HomeOverviewViewModelTests.swift */; };
@@ -345,6 +349,10 @@
 		B50000000000000000000011 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		B50000000000000000000012 /* CameraControlState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraControlState.swift; sourceTree = "<group>"; };
 		B50000000000000000000013 /* RootTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabTests.swift; sourceTree = "<group>"; };
+		C70000000000000000000011 /* CameraAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraAPIModels.swift; sourceTree = "<group>"; };
+		C70000000000000000000012 /* APIClient+Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Camera.swift"; sourceTree = "<group>"; };
+		C70000000000000000000013 /* CameraService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
+		C70000000000000000000014 /* CameraViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* HomeStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatusService.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HomeOverviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* HomeOverviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModelTests.swift; sourceTree = "<group>"; };
@@ -732,6 +740,7 @@
 			isa = PBXGroup;
 			children = (
 				B50000000000000000000012 /* CameraControlState.swift */,
+				C70000000000000000000011 /* CameraAPIModels.swift */,
 			);
 			path = Camera;
 			sourceTree = "<group>";
@@ -822,6 +831,7 @@
 				A90000000000000000000011 /* NotificationPreferencesService.swift */,
 				D10000000000000000000012 /* ThemePreferenceService.swift */,
 				C10000000000000000000012 /* NotificationService.swift */,
+				C70000000000000000000015 /* Camera */,
 				E00000000000000000000025 /* EventKit */,
 			);
 			path = Services;
@@ -870,6 +880,7 @@
 			isa = PBXGroup;
 			children = (
 				A70000000000000000000011 /* APIClient.swift */,
+				C70000000000000000000012 /* APIClient+Camera.swift */,
 				970000000000000000000001 /* APIClientLogging.swift */,
 				F70000000000000000000021 /* APIClient+Activity.swift */,
 				F70000000000000000000022 /* APIClient+Home.swift */,
@@ -883,9 +894,18 @@
 			path = API;
 			sourceTree = "<group>";
 		};
+		C70000000000000000000015 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				C70000000000000000000013 /* CameraService.swift */,
+			);
+			path = Camera;
+			sourceTree = "<group>";
+		};
 		A80000000000000000000021 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				C70000000000000000000016 /* Camera */,
 				A80000000000000000000011 /* ActivityViewModel.swift */,
 				B10000000000000000000012 /* HomeOverviewViewModel.swift */,
 				B30000000000000000000013 /* HomeWeatherViewModel.swift */,
@@ -897,6 +917,14 @@
 				E30000000000000000000021 /* Shopping */,
 			);
 			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		C70000000000000000000016 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				C70000000000000000000014 /* CameraViewModel.swift */,
+			);
+			path = Camera;
 			sourceTree = "<group>";
 		};
 		AA0000000000000000000021 /* Preferences */ = {
@@ -1359,6 +1387,10 @@
 				AA0000000000000000000001 /* PreferencesView.swift in Sources */,
 				B50000000000000000000001 /* CameraView.swift in Sources */,
 				B50000000000000000000002 /* CameraControlState.swift in Sources */,
+				C70000000000000000000001 /* CameraAPIModels.swift in Sources */,
+				C70000000000000000000002 /* APIClient+Camera.swift in Sources */,
+				C70000000000000000000003 /* CameraService.swift in Sources */,
+				C70000000000000000000004 /* CameraViewModel.swift in Sources */,
 				910000000000000000000002 /* SiriAuthorizationService.swift in Sources */,
 				980000000000000000000005 /* SiriListKind.swift in Sources */,
 				980000000000000000000006 /* SiriListCommandResult.swift in Sources */,
@@ -1596,6 +1628,7 @@
 					"@executable_path/Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
+				LEVY_HOME_CAMERA_ACCESS_TOKEN = "";
 				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1628,6 +1661,7 @@
 					"@executable_path/Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
+				LEVY_HOME_CAMERA_ACCESS_TOKEN = "";
 				MARKETING_VERSION = 12.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";

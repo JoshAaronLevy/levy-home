@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootTabView: View {
+    @Environment(\.appEnvironment) private var appEnvironment
     @State private var selectedTab: RootTab = .home
 
     var body: some View {
@@ -30,7 +31,10 @@ struct RootTabView: View {
             .tag(RootTab.todo)
 
             NavigationStack {
-                CameraView()
+                CameraView(cameraService: CameraService(
+                    apiClient: appEnvironment.apiClient,
+                    cameraAccessToken: appEnvironment.config.cameraAccessToken
+                ))
             }
             .tabItem {
                 Label(RootTab.camera.title, systemImage: RootTab.camera.systemImage)

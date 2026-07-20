@@ -93,6 +93,24 @@ test('camera speaker volume accepts only the bounded camera speaker setting', as
   assert.equal(invalidBody.code, 'invalid_camera_speaker_volume');
 });
 
+test('camera PTZ accepts only the approved four directions', async () => {
+  const moved = await fetch(`${routes.baseURL()}/api/camera/kids-room/ptz`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...cameraHeaders },
+    body: JSON.stringify({ direction: 'UP' }),
+  });
+  assert.equal(moved.status, 204);
+
+  const invalid = await fetch(`${routes.baseURL()}/api/camera/kids-room/ptz`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...cameraHeaders },
+    body: JSON.stringify({ direction: 'ROTATE360' }),
+  });
+  const invalidBody = (await invalid.json()) as { code: string };
+  assert.equal(invalid.status, 400);
+  assert.equal(invalidBody.code, 'invalid_camera_direction');
+});
+
 test('camera routes require the configured Levy Home camera credential', async () => {
   const response = await fetch(`${routes.baseURL()}/api/camera/kids-room`);
   const body = (await response.json()) as { code: string };

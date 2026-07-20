@@ -1,5 +1,7 @@
 import Foundation
 
+struct EmptyAPIResponse: Decodable {}
+
 final class APIClient {
     enum HTTPMethod: String {
         case get = "GET"
@@ -173,6 +175,10 @@ final class APIClient {
             throw APIError.httpStatus(httpResponse.statusCode)
         }
 
+        if httpResponse.statusCode == 204, Response.self == EmptyAPIResponse.self {
+            return EmptyAPIResponse() as! Response
+        }
+
         do {
             let decodedResponse = try decoder.decode(Response.self, from: data)
             appLogStore?.record(
@@ -193,7 +199,7 @@ final class APIClient {
         }
     }
 
-    private func makeURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
+    func makeURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
         guard
             var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false),
             let scheme = components.scheme?.lowercased(),

@@ -1,5 +1,5 @@
 import type { AppConfig } from '../../config.js';
-import type { CameraStatus } from '../../contracts.js';
+import type { CameraPanTiltDirection, CameraStatus } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import { HomeAssistantRestClient } from './restClient.js';
 
@@ -57,6 +57,13 @@ export class LiveCameraFacade {
     return this.restClient.requestRaw(
       `/api/camera_proxy_stream/${encodeURIComponent(this.config.homeAssistant.camera.entityId)}`,
     );
+  }
+
+  async move(direction: CameraPanTiltDirection): Promise<void> {
+    await this.callService('eufy_security', 'ptz', {
+      entity_id: this.config.homeAssistant.camera.entityId,
+      direction,
+    });
   }
 
   async setSpeakerVolume(value: number): Promise<CameraStatus> {

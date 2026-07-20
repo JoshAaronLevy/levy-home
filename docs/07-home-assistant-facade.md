@@ -56,6 +56,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `POST` | `/api/camera/kids-room/sessions` | Starts or reuses a short-lived camera session and returns an opaque, relative brokered stream URL. |
 | `DELETE` | `/api/camera/kids-room/sessions/:sessionId` | Stops the active camera session. |
 | `GET` | `/api/camera/kids-room/sessions/:sessionId/stream` | Brokered MJPEG response for the active short-lived session. |
+| `POST` | `/api/camera/kids-room/ptz` | Moves the configured camera. JSON body is `{ "direction": "UP"|"DOWN"|"LEFT"|"RIGHT" }`. |
 | `PUT` | `/api/camera/kids-room/speaker-volume` | Sets only the configured camera speaker volume; JSON body is `{ "value": 0..100 }`. |
 | `POST` | `/api/devices/register` | Provider-aware push-device registration for native APNs tokens and legacy Expo push tokens. |
 | `GET` | `/api/notification-preferences` | Notification preferences, optionally scoped by `deviceId` or provider-aware device token query params. |

@@ -12,3 +12,5 @@ export type CameraSession = {
   streamURL: string;
   expiresAt: string;
 };
+
+export type CameraPanTiltDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';

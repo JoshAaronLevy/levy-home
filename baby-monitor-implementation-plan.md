@@ -286,6 +286,25 @@ video and controls.
 **Exit criteria:** portrait video, error/retry, start/stop, and all four PTZ
 directions work against the actual camera without exposing HA secrets.
 
+#### Stage 3 implementation record (2026-07-20)
+
+- Replaced the Camera-tab placeholder with the approved portrait viewer: a
+  rounded Kids Room video card, connection/unavailable/retry states, a
+  prominent accessible four-direction PTZ pad, and the speaker/talk controls
+  reserved for their later functional stages.
+- Implemented the current video-only transport faithfully. The iOS app starts
+  an authenticated brokered session, decodes the MJPEG response into rendered
+  JPEG frames, and stops the session when the tab disappears or the app leaves
+  the active scene. It does not claim AVPlayer or audio support.
+- Added a server-allowlisted `POST /api/camera/kids-room/ptz` route that accepts
+  only `UP`, `DOWN`, `LEFT`, and `RIGHT`; Home Assistant entity/service details
+  remain server-side.
+- Added the camera API-only credential build setting. It must be supplied for
+  the eventual physical-device build and must not be the Home Assistant token.
+- Source/build and mock-route proof is complete. Deployment, real MJPEG
+  playback, and physical camera movement remain required before the exit
+  criteria can be claimed.
+
 ### Stage 4 — Camera speaker volume and cry-sensitivity popover
 
 **Goal:** make the speaker control useful without overstating what it controls.
