@@ -355,6 +355,8 @@ intentionally not shown.
 
 ### Stage 5 — Two-way talk
 
+#### Deferred to [`stretch-goals.md`](stretch-goals.md) until a secure, physical-device talkback transport is proven.
+
 **Goal:** add a trustworthy, clearly active talk state only after the complete
 transport is proven.
 
