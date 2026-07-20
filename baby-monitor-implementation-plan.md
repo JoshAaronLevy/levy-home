@@ -302,8 +302,8 @@ directions work against the actual camera without exposing HA secrets.
 3. If we add a local listening-volume control later, keep it separate from the
    camera speaker setting and label it **Phone playback volume**.
 4. Add the five-step cry-sensitivity control only after Stage 0 proves the
-   upstream mapping. Use discrete, labelled choices in this exact order:
-   `Lowest`, `Low`, `Medium`, `High`, `Highest`.
+   upstream mapping. Use discrete, labeled choices in this exact order:
+   `Lowest`, `Low`, `Medium`, `High`, `Highest`. Only labels for lowest and Highest are needed. The intermediate ones do not need labels. They can just have the icons along the slider indicating the level selected. NOTE: To be clear, this should look like a slider but with distinctive stops for each level. The user can slide to the desired level and it should stop at the closest level. The user should not be able to select a value between the levels. There's no need to show text for the current selected level. They should be able to just tell based on where the active point of the slider is.
 5. Persist/show the confirmed setting only if the backend can read it back from
    the camera or has an intentional durable preference model. Handle a failed
    set by reverting the selection and explaining that the camera setting was
