@@ -316,6 +316,7 @@ final class ModelDecodingTests: XCTestCase {
                 .garageAfterHours,
                 .garageStillOpenAt10PM,
                 .partnerPresence,
+                .doorbell,
                 .weatherAlerts,
                 .lightingAutomation
             ]

@@ -390,6 +390,9 @@ export function notificationCategoryForEvent(
     garage_still_open_at_10pm: 'garage_still_open_at_10pm',
     partner_left_home: 'partner_presence',
     partner_arrived_home: 'partner_presence',
+    doorbell_pressed: 'doorbell',
+    doorbell_person_detected: 'doorbell',
+    doorbell_motion_detected: 'doorbell',
     study_lights_on: 'lighting_automation',
   };
   const category = categoryByEventType[payload.type];

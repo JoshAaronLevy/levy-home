@@ -90,6 +90,38 @@ test('notification service sends partner presence event pushes through partner p
   assert.deepEqual(pushSender.requests[0].data, { category: 'partner_presence' });
 });
 
+test('notification service sends doorbell event pushes through the doorbell preference', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const push = await notificationService.sendEventPush({
+    type: 'doorbell_person_detected',
+    entityId: 'binary_sensor.doorbell_person_detected',
+    category: 'doorbell',
+    severity: 'high',
+    source: 'home_assistant',
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].title, 'Person detected');
+  assert.deepEqual(pushSender.requests[0].data, { category: 'doorbell' });
+});
+
 test('notification service sends partner presence pushes only to the metadata recipient', async () => {
   const deviceRegistry = createInMemoryDeviceRegistry();
   const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);

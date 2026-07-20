@@ -49,6 +49,7 @@ struct LevyHomeApp: App {
                 .task(id: "\(notificationRegistrationDeviceName ?? ""):\(pushRegistrationViewModel.registeredDeviceID ?? "")") {
                     pushRegistrationViewModel.updateDeviceName(notificationRegistrationDeviceName)
                     await pushRegistrationViewModel.prepareDeliveryIfNeeded()
+                    await scheduleTomorrowPreviewIfPossible()
                     shoppingLiveActivityCoordinator.configureRemotePushRegistration(
                         service: appEnvironment.apiClient,
                         pushDeviceId: pushRegistrationViewModel.registeredDeviceID,
@@ -63,5 +64,34 @@ struct LevyHomeApp: App {
         let trimmedName = currentResidentName.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return trimmedName.isEmpty ? nil : trimmedName
+    }
+
+    @MainActor
+    private func scheduleTomorrowPreviewIfPossible() async {
+        let calendar = Calendar.current
+        guard let firstDeliveryDate = NotificationService.nextTomorrowPreviewDeliveryDate(calendar: calendar) else {
+            return
+        }
+
+        let previews = (0..<14).compactMap { offset -> (eventCount: Int, deliveryDate: Date)? in
+            guard
+                let deliveryDate = calendar.date(byAdding: .day, value: offset, to: firstDeliveryDate),
+                let tomorrow = calendar.date(byAdding: .day, value: 1, to: deliveryDate),
+                let eventCount = FamilyCalendarService.shared.familyEventCount(on: tomorrow)
+            else {
+                return nil
+            }
+
+            return (eventCount: eventCount, deliveryDate: deliveryDate)
+        }
+
+        guard !previews.isEmpty else {
+            return
+        }
+
+        await NotificationService.shared.scheduleTomorrowPreviews(
+            previews,
+            calendar: calendar
+        )
     }
 }

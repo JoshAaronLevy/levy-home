@@ -35,6 +35,36 @@ final class FamilyCalendarService {
         }
     }
 
+    /// Reads a local calendar day without prompting for permission, so background
+    /// notification scheduling never unexpectedly presents the Calendar dialog.
+    func familyEventCount(on date: Date) -> Int? {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+            return nil
+        }
+
+        let familyCalendars = eventStore.calendars(for: .event).filter { calendar in
+            calendar.title.trimmingCharacters(in: .whitespacesAndNewlines) == familyCalendarName
+        }
+
+        let startOfDay = calendar.startOfDay(for: date)
+        guard
+            !familyCalendars.isEmpty,
+            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)
+        else {
+            return nil
+        }
+
+        let predicate = eventStore.predicateForEvents(
+            withStart: startOfDay,
+            end: endOfDay,
+            calendars: familyCalendars
+        )
+
+        return eventStore.events(matching: predicate)
+            .filter { !$0.isDetached }
+            .count
+    }
+
     private func requestFullAccess() async throws -> Bool {
         try await withCheckedThrowingContinuation { continuation in
             eventStore.requestFullAccessToEvents { granted, error in

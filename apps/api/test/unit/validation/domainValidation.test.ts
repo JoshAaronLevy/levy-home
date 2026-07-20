@@ -151,14 +151,17 @@ test('notification validators parse preference updates, queries, and test pushes
     title: 'Levy Home test',
     body: 'This is a test notification from Levy Home.',
   });
-  assertHTTPError(
-    () => validateNotificationPreferencesBody({
+  assert.deepEqual(
+    validateNotificationPreferencesBody({
       token: 'apns-token',
       provider: 'apns',
       environment: 'sandbox',
       preferences: [{ category: 'doorbell', isEnabled: true }],
     }),
-    'unsupported_notification_preference',
+    {
+      locator: { token: 'apns-token', provider: 'apns', environment: 'sandbox' },
+      preferences: [{ category: 'doorbell', isEnabled: true }],
+    },
   );
 });
 

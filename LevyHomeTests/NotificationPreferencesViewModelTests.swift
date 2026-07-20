@@ -35,6 +35,7 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
                 .garageAfterHours,
                 .garageStillOpenAt10PM,
                 .partnerPresence,
+                .doorbell,
                 .weatherAlerts,
                 .lightingAutomation
             ]

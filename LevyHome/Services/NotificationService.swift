@@ -151,6 +151,12 @@ enum NotificationRegistrationError: LocalizedError {
 final class NotificationService: NSObject, NotificationServicing, UNUserNotificationCenterDelegate {
     static let shared = NotificationService()
 
+    private enum TomorrowPreview {
+        static let identifierPrefix = "tomorrowPreview."
+        static let hour = 22
+        static let minute = 0
+    }
+
     private let notificationCenter: UNUserNotificationCenter
     private let stateStore: PushRegistrationStateStoring
     private var deviceToken: String?
@@ -231,6 +237,71 @@ final class NotificationService: NSObject, NotificationServicing, UNUserNotifica
         registrationContinuation = nil
     }
 
+    /// Schedules a short rolling window of local 10 PM previews. Event counts are
+    /// intentionally computed on this phone and never leave EventKit.
+    func scheduleTomorrowPreviews(
+        _ previews: [(eventCount: Int, deliveryDate: Date)],
+        calendar: Calendar = .current
+    ) async {
+        let settings = await notificationCenter.notificationSettings()
+        guard PushPermissionStatus(settings.authorizationStatus).allowsNotifications else {
+            return
+        }
+
+        let pendingRequests = await notificationCenter.pendingNotificationRequests()
+        let existingPreviewIdentifiers = pendingRequests
+            .map(\.identifier)
+            .filter { $0.hasPrefix(TomorrowPreview.identifierPrefix) }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: existingPreviewIdentifiers)
+
+        do {
+            for preview in previews {
+                let content = UNMutableNotificationContent()
+                content.title = "Tomorrow"
+                content.body = Self.tomorrowPreviewBody(eventCount: preview.eventCount)
+                content.sound = .default
+                content.userInfo = [
+                    "levyHome": [
+                        "destination": "todo",
+                        "notificationKind": "tomorrow_preview"
+                    ]
+                ]
+
+                let components = calendar.dateComponents(
+                    [.calendar, .timeZone, .year, .month, .day, .hour, .minute],
+                    from: preview.deliveryDate
+                )
+                let request = UNNotificationRequest(
+                    identifier: Self.tomorrowPreviewIdentifier(for: preview.deliveryDate),
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                )
+                try await notificationCenter.add(request)
+            }
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    static func nextTomorrowPreviewDeliveryDate(now: Date = Date(), calendar: Calendar = .current) -> Date? {
+        calendar.nextDate(
+            after: now,
+            matching: DateComponents(hour: TomorrowPreview.hour, minute: TomorrowPreview.minute),
+            matchingPolicy: .nextTime,
+            repeatedTimePolicy: .first,
+            direction: .forward
+        )
+    }
+
+    static func tomorrowPreviewBody(eventCount: Int) -> String {
+        let eventDescription = eventCount == 1 ? "1 event" : "\(eventCount) events"
+        return "You have \(eventDescription) tomorrow."
+    }
+
+    private static func tomorrowPreviewIdentifier(for deliveryDate: Date) -> String {
+        "\(TomorrowPreview.identifierPrefix)\(Int(deliveryDate.timeIntervalSince1970))"
+    }
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -250,14 +321,20 @@ final class NotificationService: NSObject, NotificationServicing, UNUserNotifica
     ) {
         defer { completionHandler() }
 
-        guard
-            let levyHome = response.notification.request.content.userInfo["levyHome"] as? [String: Any],
-            levyHome["listType"] as? String == "shopping"
-        else {
+        guard let levyHome = response.notification.request.content.userInfo["levyHome"] as? [String: Any] else {
             return
         }
 
-        NotificationCenter.default.post(name: .levyHomeOpenShopping, object: nil)
+        switch levyHome["destination"] as? String ?? levyHome["listType"] as? String {
+        case "shopping":
+            AppNavigationDestination.savePendingDestination("shopping")
+            NotificationCenter.default.post(name: .levyHomeOpenShopping, object: nil)
+        case "todo":
+            AppNavigationDestination.savePendingDestination("todo")
+            NotificationCenter.default.post(name: .levyHomeOpenToDo, object: nil)
+        default:
+            return
+        }
     }
 
     private var availability: PushRegistrationAvailability {

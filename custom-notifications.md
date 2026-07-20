@@ -107,3 +107,143 @@ The recommended production version is a hybrid: per-device preferences and sched
 - A disabled section never appears as empty or misleading content.
 - The app can show why a briefing was skipped or degraded in developer logs.
 - Physical phones prove delivery at each configured time through the real APNs path.
+
+## Notification 2: Nightly Tomorrow Preview
+
+**Status:** Proposed
+
+### Goal
+
+Send each household member an optional evening notification that makes the next day easier to anticipate. The default message combines tomorrow's calendar and forecast, for example:
+
+```text
+Tomorrow: 2 calendar events. High of 92°, with a chance of afternoon rain.
+```
+
+Like the morning briefing, this must be independently enabled, scheduled, and configured on each phone. One person can receive it at 8:00 PM while another turns it off or receives it later.
+
+### User Experience
+
+Each phone has a `Tomorrow preview` settings surface with:
+
+- An enable/disable switch.
+- A local delivery time and IANA time zone.
+- Calendar-summary and weather-forecast switches.
+- A preview/test action that renders the next notification.
+- Clear notification and calendar-permission states.
+
+The calendar portion should give a concise count and optionally the next few event names/times. The weather portion should prioritize the expected high/low and noteworthy conditions, such as rain, snow, high wind, or extreme heat. Either section can be used alone; unavailable or disabled sections are omitted cleanly.
+
+### Current Context
+
+- This uses the same APNs registration, per-device preferences, EventKit calendar access, and weather services as the Custom Morning Briefing.
+- The next-day calendar digest is device-owned: the backend should receive only the minimal, consented summary required to compose the notification.
+- A fresh next-day forecast should be generated near delivery time, not copied from an earlier morning forecast.
+
+### Feasibility
+
+**Yes, this can be done.** It is largely the same backend and privacy problem as the morning briefing, but the notification composer needs a tomorrow-specific date window and forecast selection. The best production design is the same hybrid approach: device-scoped preferences and a small EventKit digest from the phone, with backend scheduling and APNs delivery.
+
+### High-Level Implementation
+
+1. Add a device-scoped `tomorrow_preview` profile: enabled state, local time zone/time, enabled sections, and delivery/deduplication metadata.
+2. Extend the iOS settings and EventKit digest generation to provide tomorrow's selected calendar summary.
+3. Add a backend message builder that evaluates tomorrow in the receiving device's local time zone and fetches a forecast for that calendar day.
+4. Schedule, deduplicate, send, and log it through the same backend notification path as the morning briefing.
+5. Add preview/test coverage and degraded-content rules for stale calendar data, denied permission, and weather-provider failures.
+
+### Complexity
+
+| Area | Complexity | Why |
+| --- | --- | --- |
+| Settings and preview UI | Low to Medium | Mirrors the Morning Briefing controls. |
+| Tomorrow calendar and weather composition | Medium | Must calculate "tomorrow" in each device's time zone and keep concise, useful wording. |
+| Reliable scheduled APNs delivery | Medium to High | Reuses the same scheduler, deduplication, retry, and logging needs as the morning briefing. |
+| Privacy and stale-data handling | Medium | Calendar content remains consented, minimal, and honest about availability. |
+| Overall | **Medium to High.** | Best implemented after, or jointly with, the Morning Briefing's shared scheduling and digest foundation. |
+
+### Dependencies And Decisions For The Future Plan
+
+- Confirm whether the calendar section should show only an event count or include the first few events.
+- Set a maximum number of events and message length.
+- Define which weather conditions warrant an explicit alert-style mention.
+- Decide whether it should be a separate notification profile or share controls with the Morning Briefing while retaining independent schedules.
+
+### Acceptance Criteria
+
+- Each phone can independently configure or disable the Tomorrow Preview.
+- Calendar-only, weather-only, and combined previews produce useful copy.
+- The device receives at most one preview for a given tomorrow/local-date combination.
+- The message identifies the next day correctly across time zones and daylight-saving changes.
+- Missing calendar or weather data degrades cleanly and is visible in developer logs.
+
+## Notification 3: Custom Weekly Briefing
+
+**Status:** Proposed
+
+### Goal
+
+Send an optional, customizable weekly household briefing at a time and on a day each person chooses. It should provide a calm overview of the coming week without becoming another stream of alerts.
+
+### User Experience
+
+Each phone has a `Weekly briefing` settings surface with:
+
+- An enable/disable switch.
+- A preferred day of week, local delivery time, and IANA time zone.
+- Independent switches for selected content sections, initially including the upcoming calendar, weekly weather outlook, household to-dos, and shopping-list summary.
+- Per-section detail controls where needed, such as the maximum number of calendar events or whether to include completed shopping items.
+- A preview/test action and clear permission/unavailable states.
+
+Example copy:
+
+```text
+This week: 5 calendar events, warm through Thursday, rain expected Friday. You have 3 shared to-dos and 6 shopping items still needed.
+```
+
+The final message should include only enabled and available sections, and it should remain short enough to read from a notification.
+
+### Current Context
+
+- Calendar data is device-owned through EventKit; shared to-dos and shopping data are already Levy Home domain data.
+- Weather, notification preferences, APNs delivery, and per-device registration already provide a foundation, but no general weekly scheduler or briefing profile exists yet.
+- The weekly message must be generated in the recipient's local time zone and based on their selected content rather than a one-size-fits-all household summary.
+
+### Feasibility
+
+**Yes, this can be done.** The shared-list portions are straightforward once a scheduler exists. Calendar content carries the same local permission and digest constraints as the daily briefings. A weekly forecast is feasible but should be treated as a broad outlook, not precise daily promises.
+
+### High-Level Implementation
+
+1. Define a device-scoped `weekly_briefing` preference profile with schedule, time zone, enabled sections, section detail limits, and delivery metadata.
+2. Add iOS settings, permission handling, and a minimal upcoming-week calendar digest when calendar content is enabled.
+3. Add a backend weekly scheduler and a section-based message builder that can fetch weather and shared-list summaries at send time.
+4. Enforce per-device/week deduplication, retries, quiet behavior, and detailed delivery/skip logs.
+5. Provide a preview/test path that runs the same composition logic as scheduled delivery.
+
+### Complexity
+
+| Area | Complexity | Why |
+| --- | --- | --- |
+| Settings and independent schedules | Medium | Adds day-of-week, section selection, and detail controls per device. |
+| Shared-list summaries | Low to Medium | Data is already backend-owned but needs concise, meaningful aggregation. |
+| Calendar and weekly weather outlook | Medium to High | Requires the same privacy-safe calendar digest plus forecast interpretation. |
+| Scheduler, deduplication, and logging | Medium to High | Must work reliably through deploys, time zones, and daylight-saving changes. |
+| Overall | **High for the full customizable version; Medium for a calendar-and-weather-only first version.** | It is feasible and should reuse a general briefing/scheduling foundation rather than introducing a third independent scheduler. |
+
+### Dependencies And Decisions For The Future Plan
+
+- Choose the initial content sections and which are truly useful at weekly cadence.
+- Decide whether the weekly briefing is purely individual or can include selected shared-household information.
+- Set a concise message-length budget and per-section limits.
+- Define behavior when an enabled section has no content: omit it, or show an intentionally reassuring zero-state.
+- Decide whether all daily/weekly briefings should share one preferences model and scheduler engine.
+
+### Acceptance Criteria
+
+- Each household member can independently configure, preview, or disable the weekly briefing.
+- The selected local day and time are honored with no duplicate weekly delivery.
+- Only enabled, available sections appear in the notification.
+- Calendar text leaves a phone only after that phone opts in and grants the required access.
+- Shared-list information is summarized rather than sending a noisy item-by-item recap.
+- Real-device tests prove scheduled APNs delivery and useful degraded behavior when a provider or permission is unavailable.

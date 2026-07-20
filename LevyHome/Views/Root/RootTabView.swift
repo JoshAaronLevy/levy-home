@@ -44,8 +44,25 @@ struct RootTabView: View {
                 selectedTab = .list
             }
         }
+        .onAppear {
+            openPendingDestination()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .levyHomeOpenShopping)) { _ in
+            openPendingDestination()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .levyHomeOpenToDo)) { _ in
+            openPendingDestination()
+        }
+    }
+
+    private func openPendingDestination() {
+        switch AppNavigationDestination.consumePendingDestination() {
+        case "shopping":
             selectedTab = .list
+        case "todo":
+            selectedTab = .todo
+        default:
+            return
         }
     }
 }

@@ -66,6 +66,7 @@ export type NotificationPreferenceCategory =
   | 'garage_after_hours'
   | 'garage_still_open_at_10pm'
   | 'partner_presence'
+  | 'doorbell'
   | 'weather_alerts'
   | 'lighting_automation'
   | 'shopping_list'
@@ -132,6 +133,12 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     isEnabled: true,
     title: 'Partner presence',
     detail: 'Notify when your partner leaves or arrives home.',
+  },
+  {
+    category: 'doorbell',
+    isEnabled: true,
+    title: 'Doorbell',
+    detail: 'Notify when the front door detects motion, a person, or a doorbell press.',
   },
   {
     category: 'weather_alerts',

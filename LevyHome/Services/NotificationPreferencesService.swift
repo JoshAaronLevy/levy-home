@@ -110,6 +110,12 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
             detail: "Notify when your partner leaves or arrives home."
         ),
         NotificationPreference(
+            category: .doorbell,
+            isEnabled: true,
+            title: "Doorbell",
+            detail: "Notify when the front door detects motion, a person, or a doorbell press."
+        ),
+        NotificationPreference(
             category: .weatherAlerts,
             isEnabled: true,
             title: "Weather alerts",
