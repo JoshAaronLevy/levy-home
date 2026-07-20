@@ -9,24 +9,42 @@ struct CameraView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: AppSpacing.xLarge) {
-                AppScreenHeader(title: "Camera")
+        ZStack {
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: AppSpacing.xLarge) {
+                    AppScreenHeader(title: "Camera")
 
-                videoCard
+                    videoCard
 
-                HStack(alignment: .center, spacing: AppSpacing.xLarge) {
-                    panTiltPad
-                    secondaryControls
+                    HStack(alignment: .center, spacing: AppSpacing.xLarge) {
+                        panTiltPad
+                        secondaryControls
+                    }
+
+                    if let errorMessage = viewModel.errorMessage {
+                        errorCard(errorMessage)
+                    }
                 }
-
-                if let errorMessage = viewModel.errorMessage {
-                    errorCard(errorMessage)
-                }
+                .padding(.horizontal, AppSpacing.screen)
+                .padding(.top, AppSpacing.large)
+                .padding(.bottom, AppSpacing.xLarge * 3)
             }
-            .padding(.horizontal, AppSpacing.screen)
-            .padding(.top, AppSpacing.large)
-            .padding(.bottom, AppSpacing.xLarge * 3)
+
+            if viewModel.audioMenuState == .visible {
+                Color.black.opacity(0.22)
+                    .ignoresSafeArea()
+                    .onTapGesture { viewModel.closeSpeakerControls() }
+
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        speakerVolumePopover
+                    }
+                }
+                .padding(.trailing, AppSpacing.screen)
+                .padding(.bottom, 128)
+            }
         }
         .appScreenChrome()
         .task { await viewModel.start() }
@@ -153,10 +171,101 @@ struct CameraView: View {
 
     private var secondaryControls: some View {
         VStack(spacing: AppSpacing.large) {
-            cameraControlButton(systemImage: "speaker.wave.2.fill", label: "Camera speaker controls")
+            Button {
+                Task { await viewModel.openSpeakerControls() }
+            } label: {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(AppColors.text)
+                    .frame(width: 58, height: 58)
+                    .background(AppColors.insetPanelBackground, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Camera speaker controls")
+            .accessibilityHint("Opens camera speaker volume controls")
             cameraControlButton(systemImage: "mic.fill", label: "Two-way talk")
         }
         .frame(width: 82)
+    }
+
+    private var speakerVolumePopover: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.large) {
+            HStack(alignment: .top, spacing: AppSpacing.small) {
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text("Camera speaker volume")
+                        .font(.headline)
+                        .foregroundStyle(AppColors.text)
+                    Text("Controls the camera speaker, not phone playback or microphone sensitivity.")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    viewModel.closeSpeakerControls()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppColors.mutedText)
+                        .frame(width: 28, height: 28)
+                        .background(AppColors.insetPanelBackground, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close camera speaker controls")
+            }
+
+            if viewModel.isLoadingSpeakerVolume {
+                HStack(spacing: AppSpacing.small) {
+                    ProgressView()
+                    Text("Reading camera speaker volume…")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+            } else {
+                Slider(
+                    value: Binding(
+                        get: { Double(viewModel.speakerVolumeDraft) },
+                        set: { viewModel.speakerVolumeDraft = Int($0.rounded()) }
+                    ),
+                    in: 0...100,
+                    step: 1,
+                    onEditingChanged: { isEditing in
+                        if !isEditing {
+                            Task { await viewModel.applySpeakerVolume() }
+                        }
+                    }
+                )
+                .tint(AppColors.accent)
+                .disabled(viewModel.isSavingSpeakerVolume)
+                .accessibilityLabel("Camera speaker volume")
+                .accessibilityValue("\(viewModel.speakerVolumeDraft) percent")
+                .accessibilityHint("Controls the camera speaker. It does not control phone playback or microphone sensitivity.")
+
+                HStack {
+                    Text("0")
+                    Spacer()
+                    if viewModel.isSavingSpeakerVolume {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("\(viewModel.speakerVolumeDraft)%")
+                    }
+                    Spacer()
+                    Text("100")
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppColors.mutedText)
+            }
+        }
+        .frame(width: 292)
+        .padding(AppSpacing.large)
+        .background(AppColors.panelBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+        .shadow(color: AppColors.surfaceShadow.opacity(0.55), radius: 18, y: 8)
+        .accessibilityElement(children: .contain)
     }
 
     private func cameraControlButton(systemImage: String, label: String) -> some View {

@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
 
-final class CameraService: CameraSessionServicing, CameraPanTiltControlling {
+final class CameraService: CameraSessionServicing, CameraPanTiltControlling, CameraAudioControlling {
     private let apiClient: APIClient
     private let cameraAccessToken: String?
     private let streamSession: URLSession
@@ -41,6 +41,21 @@ final class CameraService: CameraSessionServicing, CameraPanTiltControlling {
     func moveCamera(_ direction: CameraPanTiltDirection) async throws {
         try await apiClient.moveCamera(direction, cameraAccessToken: try requiredAccessToken())
     }
+
+    func loadCameraSpeakerVolume() async throws -> Int {
+        try await apiClient.fetchCameraStatus(cameraAccessToken: try requiredAccessToken()).camera.speakerVolume
+    }
+
+    func setCameraSpeakerVolume(_ value: Int) async throws -> Int {
+        let response = try await apiClient.setCameraSpeakerVolume(value, cameraAccessToken: try requiredAccessToken())
+        return response.camera.speakerVolume
+    }
+
+    func startTalk() async throws {
+        throw CameraServiceError.talkbackUnavailable
+    }
+
+    func stopTalk() async throws {}
 
     func streamFrames() throws -> AsyncThrowingStream<UIImage, Error> {
         guard let activeSession else {
@@ -109,6 +124,7 @@ enum CameraServiceError: LocalizedError {
     case noActiveSession
     case notConfigured
     case streamUnavailable
+    case talkbackUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -118,6 +134,8 @@ enum CameraServiceError: LocalizedError {
             "Camera access has not been configured for this build."
         case .streamUnavailable:
             "The camera stream is unavailable."
+        case .talkbackUnavailable:
+            "Two-way talk is not configured yet."
         }
     }
 }

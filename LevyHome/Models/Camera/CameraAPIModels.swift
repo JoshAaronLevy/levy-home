@@ -27,3 +27,12 @@ struct CameraSession: Decodable, Equatable {
 struct CameraPanTiltRequest: Encodable, Equatable {
     let direction: String
 }
+
+struct CameraSpeakerVolumeRequest: Encodable, Equatable {
+    let value: Int
+}
+
+struct CameraSpeakerVolumeResponse: Decodable {
+    let ok: Bool
+    let camera: CameraStatus
+}

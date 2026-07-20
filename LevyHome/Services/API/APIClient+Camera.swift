@@ -33,6 +33,15 @@ extension APIClient {
         )
     }
 
+    func setCameraSpeakerVolume(_ value: Int, cameraAccessToken: String) async throws -> CameraSpeakerVolumeResponse {
+        try await send(
+            path: "/api/camera/kids-room/speaker-volume",
+            method: .put,
+            body: CameraSpeakerVolumeRequest(value: value),
+            additionalHeaders: cameraHeaders(cameraAccessToken)
+        )
+    }
+
     func cameraStreamRequest(path: String, cameraAccessToken: String) throws -> URLRequest {
         let url = try makeURL(path: path, queryItems: [])
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)

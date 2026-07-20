@@ -6,6 +6,11 @@ final class CameraViewModel: ObservableObject {
     @Published private(set) var latestFrame: UIImage?
     @Published private(set) var movingDirection: CameraPanTiltDirection?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var audioMenuState: CameraAudioMenuState = .hidden
+    @Published private(set) var confirmedSpeakerVolume = 10
+    @Published var speakerVolumeDraft = 10
+    @Published private(set) var isLoadingSpeakerVolume = false
+    @Published private(set) var isSavingSpeakerVolume = false
 
     private let service: CameraService
     private var streamTask: Task<Void, Never>?
@@ -63,6 +68,43 @@ final class CameraViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func openSpeakerControls() async {
+        audioMenuState = .visible
+        isLoadingSpeakerVolume = true
+        errorMessage = nil
+
+        do {
+            let value = try await service.loadCameraSpeakerVolume()
+            confirmedSpeakerVolume = value
+            speakerVolumeDraft = value
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoadingSpeakerVolume = false
+    }
+
+    func closeSpeakerControls() {
+        speakerVolumeDraft = confirmedSpeakerVolume
+        audioMenuState = .hidden
+    }
+
+    func applySpeakerVolume() async {
+        guard !isSavingSpeakerVolume, speakerVolumeDraft != confirmedSpeakerVolume else { return }
+
+        isSavingSpeakerVolume = true
+        errorMessage = nil
+        do {
+            let confirmedValue = try await service.setCameraSpeakerVolume(speakerVolumeDraft)
+            confirmedSpeakerVolume = confirmedValue
+            speakerVolumeDraft = confirmedValue
+        } catch {
+            speakerVolumeDraft = confirmedSpeakerVolume
+            errorMessage = "Camera speaker volume was not updated. \(error.localizedDescription)"
+        }
+        isSavingSpeakerVolume = false
     }
 
     private func startFrameStream() {

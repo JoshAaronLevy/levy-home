@@ -41,7 +41,8 @@ protocol CameraPanTiltControlling {
 }
 
 protocol CameraAudioControlling {
-    func setCameraSpeakerVolume(_ value: Int) async throws
+    func loadCameraSpeakerVolume() async throws -> Int
+    func setCameraSpeakerVolume(_ value: Int) async throws -> Int
     func startTalk() async throws
     func stopTalk() async throws
 }

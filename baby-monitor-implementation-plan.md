@@ -335,6 +335,24 @@ directions work against the actual camera without exposing HA secrets.
 popover dismisses correctly; cry sensitivity is either end-to-end verified or
 intentionally not shown.
 
+#### Stage 4 implementation record (2026-07-20)
+
+- Added an anchored Camera speaker volume popover above the speaker control.
+  Its dimmed outside area and close button dismiss it; slider interaction does
+  not dismiss the menu.
+- The popover reads the current value when opened, applies only final slider
+  changes through the typed `0...100` backend route, then uses the returned
+  camera value as the confirmed UI value. Failed updates revert to the last
+  confirmed value and show a clear message.
+- The copy and accessibility labels distinguish the camera speaker from phone
+  playback volume and microphone sensitivity.
+- Cry sensitivity is intentionally omitted: no verified Eufy/Home Assistant
+  read/write mapping exists, so a five-step local-only slider would be
+  misleading.
+- Source, mock-route, and compile proof is complete. A deployed API and
+  physical-camera read/write check remain required before the exit criteria can
+  be claimed.
+
 ### Stage 5 — Two-way talk
 
 **Goal:** add a trustworthy, clearly active talk state only after the complete
