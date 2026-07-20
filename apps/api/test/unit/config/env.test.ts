@@ -29,6 +29,32 @@ test('readConfig defaults Home Assistant light targets to empty instead of demo 
   assert.deepEqual(config.homeAssistant.lightEntities, []);
 });
 
+test('readConfig uses only the curated Kids Room camera and validates its entity types', () => {
+  const defaults = readConfig({});
+  assert.deepEqual(defaults.homeAssistant.camera, {
+    id: 'kids_room',
+    displayName: 'Kids Room',
+    entityId: 'camera.kids_room',
+    speakerVolumeEntityId: 'number.kids_room_speaker_volume',
+  });
+
+  const configured = readConfig({
+    HOME_ASSISTANT_KIDS_ROOM_CAMERA_ENTITY_ID: 'camera.nursery',
+    HOME_ASSISTANT_KIDS_ROOM_SPEAKER_VOLUME_ENTITY_ID: 'number.nursery_speaker_volume',
+  });
+  assert.equal(configured.homeAssistant.camera.entityId, 'camera.nursery');
+  assert.equal(configured.homeAssistant.camera.speakerVolumeEntityId, 'number.nursery_speaker_volume');
+
+  assert.throws(
+    () => readConfig({ HOME_ASSISTANT_KIDS_ROOM_CAMERA_ENTITY_ID: 'light.nursery' }),
+    /Kids Room camera configuration/,
+  );
+  assert.throws(
+    () => readConfig({ HOME_ASSISTANT_MODE: 'live' }),
+    /LEVY_HOME_CAMERA_ACCESS_TOKEN is required/,
+  );
+});
+
 test('readConfig parses Kroger API diagnostic configuration', () => {
   const config = readConfig({
     KROGER_CLIENT_ID: 'client-id',

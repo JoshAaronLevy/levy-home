@@ -70,7 +70,7 @@ private struct PreferencesContentView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: AppSpacing.large) {
-                AppScreenHeader(title: "Preferences")
+                AppScreenHeader(title: "Settings")
 
                 NotificationDeliveryStatusView(
                     viewModel: pushRegistrationViewModel,
@@ -191,7 +191,7 @@ private struct ReleaseNotesView: View {
         "Add one Shopping or To Do item with Siri while Levy Home is closed.",
         "Use Levy Home add-item shortcuts from Siri, Spotlight, or Shortcuts.",
         "Keep both phones’ shared Shopping and To Do lists current after a Siri change.",
-        "Review the latest changes directly from Preferences."
+        "Review the latest changes directly from Settings."
     ]
 
     var body: some View {

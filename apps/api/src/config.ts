@@ -18,6 +18,14 @@ export type CuratedLightEntity = Pick<LightGroupStatus, 'id' | 'name'> & {
   entityId: string;
 };
 
+export type CuratedCamera = {
+  id: 'kids_room';
+  displayName: string;
+  entityId: string;
+  speakerVolumeEntityId: string;
+  accessToken?: string;
+};
+
 export type TrackedPhoneEntity = {
   entityId: string;
   person: string;
@@ -73,6 +81,7 @@ export type AppConfig = {
     allLightsEntityId?: string;
     lightGroups: CuratedLightGroup[];
     lightEntities: CuratedLightEntity[];
+    camera: CuratedCamera;
     mockTotalLightCount: number;
     activity: {
       isEnabled: boolean;
@@ -85,6 +94,7 @@ export type AppConfig = {
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const privateKey = loadApnsPrivateKey(env);
+  const homeAssistantMode = readHomeAssistantMode(env.HOME_ASSISTANT_MODE);
 
   return {
     port: readNumber(env.PORT, 4000),
@@ -126,13 +136,14 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       defaultEnvironment: readAPNsDefaultEnvironment(env.APNS_ENVIRONMENT),
     },
     homeAssistant: {
-      mode: readHomeAssistantMode(env.HOME_ASSISTANT_MODE),
+      mode: homeAssistantMode,
       baseURL: readOptionalString(env.HOME_ASSISTANT_BASE_URL),
       token: readOptionalString(env.HOME_ASSISTANT_TOKEN),
       garageCoverEntityId: readOptionalString(env.HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID) ?? 'cover.main_garage_door',
       allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID),
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
       lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
+      camera: readCameraConfig(env, homeAssistantMode === 'live'),
       mockTotalLightCount: readNumber(env.MOCK_TOTAL_LIGHT_COUNT, 12),
       activity: {
         isEnabled: readBoolean(env.HOME_ASSISTANT_ACTIVITY_ENABLED, false, 'HOME_ASSISTANT_ACTIVITY_ENABLED'),
@@ -141,6 +152,29 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         trackedPhoneEntityPatterns: readTrackedPhoneEntityPatterns(env.HOME_ASSISTANT_PHONE_ENTITY_PATTERNS),
       },
     },
+  };
+}
+
+function readCameraConfig(env: NodeJS.ProcessEnv, requiresAccessToken: boolean): CuratedCamera {
+  const entityId = readOptionalString(env.HOME_ASSISTANT_KIDS_ROOM_CAMERA_ENTITY_ID) ?? 'camera.kids_room';
+  const speakerVolumeEntityId =
+    readOptionalString(env.HOME_ASSISTANT_KIDS_ROOM_SPEAKER_VOLUME_ENTITY_ID) ?? 'number.kids_room_speaker_volume';
+  const accessToken = readOptionalString(env.LEVY_HOME_CAMERA_ACCESS_TOKEN);
+
+  if (!entityId.startsWith('camera.') || !speakerVolumeEntityId.startsWith('number.')) {
+    throw new Error('Kids Room camera configuration must use a camera entity and speaker-volume number entity.');
+  }
+
+  if (requiresAccessToken && !accessToken) {
+    throw new Error('LEVY_HOME_CAMERA_ACCESS_TOKEN is required when HOME_ASSISTANT_MODE=live.');
+  }
+
+  return {
+    id: 'kids_room',
+    displayName: 'Kids Room',
+    entityId,
+    speakerVolumeEntityId,
+    ...(accessToken ? { accessToken } : {}),
   };
 }
 

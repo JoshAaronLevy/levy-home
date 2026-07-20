@@ -29,6 +29,9 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Optional server-side all-lights entity/group. Leave blank when curated light entities are the source of truth. |
 | `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. Used when `HOME_ASSISTANT_LIGHT_ENTITIES` is blank. |
 | `HOME_ASSISTANT_LIGHT_ENTITIES` | Curated individual light entities in `entity_id:Display name` comma-separated format. When set, these are used instead of `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and light groups. |
+| `HOME_ASSISTANT_KIDS_ROOM_CAMERA_ENTITY_ID` | Server-side allowlisted camera entity. Defaults to `camera.kids_room`; it must remain a `camera.*` entity. |
+| `HOME_ASSISTANT_KIDS_ROOM_SPEAKER_VOLUME_ENTITY_ID` | Server-side allowlisted camera-speaker `number.*` entity. Defaults to `number.kids_room_speaker_volume`. |
+| `LEVY_HOME_CAMERA_ACCESS_TOKEN` | Required in live mode. Levy Home API-only bearer credential for camera routes; it is not the Home Assistant token and must not be logged or committed. |
 | `MOCK_TOTAL_LIGHT_COUNT` | Mock-mode total light count. |
 | `APNS_KEY_ID` | Apple APNs Auth Key ID. Required only for APNs sending. |
 | `APNS_TEAM_ID` | Apple Developer Team ID for APNs JWT auth. Required only for APNs sending. |
@@ -49,6 +52,11 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `POST` | `/api/home/actions/close-garage` | Explicit close-garage action. |
 | `POST` | `/api/home/actions/lights-off` | Explicit all-lights-off action. |
 | `POST` | `/api/home/actions/light-groups/:groupId/off` | Explicit curated light-group off action. |
+| `GET` | `/api/camera/kids-room` | Curated Kids Room camera availability, stream state, and camera-speaker volume. |
+| `POST` | `/api/camera/kids-room/sessions` | Starts or reuses a short-lived camera session and returns an opaque, relative brokered stream URL. |
+| `DELETE` | `/api/camera/kids-room/sessions/:sessionId` | Stops the active camera session. |
+| `GET` | `/api/camera/kids-room/sessions/:sessionId/stream` | Brokered MJPEG response for the active short-lived session. |
+| `PUT` | `/api/camera/kids-room/speaker-volume` | Sets only the configured camera speaker volume; JSON body is `{ "value": 0..100 }`. |
 | `POST` | `/api/devices/register` | Provider-aware push-device registration for native APNs tokens and legacy Expo push tokens. |
 | `GET` | `/api/notification-preferences` | Notification preferences, optionally scoped by `deviceId` or provider-aware device token query params. |
 | `PUT` | `/api/notification-preferences` | Sync per-device notification preferences by registered `deviceId` or provider-aware token. |
@@ -58,6 +66,14 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `GET` | `/api/events` | Recent event timeline. Supports optional `limit`, legacy `since`, and explicit `start`/`end` query params. |
 
 The API rejects arbitrary Home Assistant service/entity payloads from the app. Do not send fields such as `domain`, `service`, `entity_id`, or `target` to `/api/home/actions`.
+
+Camera routes are deliberately limited to the configured Kids Room camera and
+require the `Authorization: Bearer <LEVY_HOME_CAMERA_ACCESS_TOKEN>` header in
+live mode. The session URL is an opaque, five-minute, in-memory capability and
+is relative to the Levy Home API; the app never receives a Home Assistant URL,
+token, RTSP address, or Eufy credential. Stream connection closure attempts to
+stop the session. Camera speaker volume is separate from iPhone playback volume
+and cry sensitivity.
 
 Device registration is provider-aware:
 

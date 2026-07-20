@@ -41,6 +41,13 @@ const baseConfig: AppConfig = {
     allLightsEntityId: 'light.all_lights',
     lightGroups: [],
     lightEntities: [],
+    camera: {
+      id: 'kids_room',
+      displayName: 'Kids Room',
+      entityId: 'camera.kids_room',
+      speakerVolumeEntityId: 'number.kids_room_speaker_volume',
+      accessToken: 'test-camera-access-token',
+    },
     mockTotalLightCount: 12,
     activity: {
       isEnabled: true,

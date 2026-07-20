@@ -11,6 +11,16 @@ export class HomeAssistantRestClient {
   }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const response = await this.requestRaw(path, init);
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return (await response.json()) as T;
+  }
+
+  async requestRaw(path: string, init: RequestInit = {}): Promise<Response> {
     const url = new URL(path, this.baseURL);
     const response = await fetch(url, {
       ...init,
@@ -29,10 +39,6 @@ export class HomeAssistantRestClient {
       );
     }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return (await response.json()) as T;
+    return response;
   }
 }

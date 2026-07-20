@@ -21,6 +21,8 @@ import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
 import type { UserStore } from '../repositories/userRepository.js';
 import type { DoorbellImageService } from '../services/doorbell/doorbellImageService.js';
+import type { CameraService } from '../services/camera/cameraService.js';
+import { createCameraRoutes } from './cameraRoutes.js';
 import { createActivityRoutes } from './activityRoutes.js';
 import { createDebugRoutes } from './debugRoutes.js';
 import { createDeviceRoutes } from './deviceRoutes.js';
@@ -36,6 +38,7 @@ import { createUserRoutes } from './userRoutes.js';
 
 export type AppRouteDependencies = {
   activityEventService: ActivityEventService;
+  cameraService: CameraService;
   activityStore: RecentActivityStore;
   config: AppConfig;
   doorbellImageService: DoorbellImageService;
@@ -64,6 +67,7 @@ export function registerRoutes(app: Express, deps: AppRouteDependencies): void {
   app.use(createDeviceRoutes(deps));
   app.use(createNotificationPreferenceRoutes(deps));
   app.use(createDebugRoutes(deps));
+  app.use(createCameraRoutes(deps.cameraService, deps.config.homeAssistant.camera.accessToken));
   app.use(createHomeRoutes(deps));
   app.use(createUserRoutes(deps));
   app.use(createToDoLocationRoutes(deps));

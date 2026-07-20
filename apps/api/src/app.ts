@@ -21,6 +21,7 @@ import {
   type DatabaseTransactionRunner,
 } from './db/client.js';
 import { createHomeAssistantFacade } from './integrations/homeAssistant/facade.js';
+import { createCameraFacade } from './integrations/homeAssistant/cameraFacade.js';
 import { HomeService } from './homeService.js';
 import { HTTPError } from './http/errors.js';
 import { noStoreCacheControl } from './http/middleware/cacheControl.js';
@@ -73,6 +74,7 @@ import {
   type WeatherAlertService,
 } from './services/weather/weatherAlertService.js';
 import { createDoorbellImageService } from './services/doorbell/doorbellImageService.js';
+import { CameraService } from './services/camera/cameraService.js';
 import {
   createShoppingListRealtimeHub,
   type ShoppingListRealtimeBroadcaster,
@@ -125,6 +127,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       ? createPostgresNotificationPreferenceStore(deviceRegistry)
       : createInMemoryNotificationPreferenceStore(deviceRegistry));
   const homeAssistant = createHomeAssistantFacade(config);
+  const cameraService = new CameraService(createCameraFacade(config));
   const homeService = new HomeService(config, homeAssistant, () => activityStore.list(100));
   const pushSender = options.pushSender ?? createAPNsPushSender(config);
   const notificationService = createNotificationService({
@@ -220,6 +223,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   registerRoutes(app, {
     activityStore,
     activityEventService,
+    cameraService,
     config,
     doorbellImageService,
     deviceRegistry,

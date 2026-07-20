@@ -1,4 +1,5 @@
 export * from './activity.js';
+export * from './camera.js';
 export * from './home.js';
 export * from './notifications.js';
 export * from './shopping.js';

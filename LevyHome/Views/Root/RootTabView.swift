@@ -9,7 +9,7 @@ struct RootTabView: View {
                 HomeView(isSelected: selectedTab == .home)
             }
             .tabItem {
-                Label("Home", systemImage: "house")
+                Label(RootTab.home.title, systemImage: RootTab.home.systemImage)
             }
             .tag(RootTab.home)
 
@@ -17,7 +17,7 @@ struct RootTabView: View {
                 ShoppingListView(isSelected: selectedTab == .list)
             }
             .tabItem {
-                Label("List", systemImage: "cart")
+                Label(RootTab.list.title, systemImage: RootTab.list.systemImage)
             }
             .tag(RootTab.list)
 
@@ -25,17 +25,25 @@ struct RootTabView: View {
                 ToDoView(isSelected: selectedTab == .todo)
             }
             .tabItem {
-                Label("To Do", systemImage: "checkmark.circle")
+                Label(RootTab.todo.title, systemImage: RootTab.todo.systemImage)
             }
             .tag(RootTab.todo)
+
+            NavigationStack {
+                CameraView()
+            }
+            .tabItem {
+                Label(RootTab.camera.title, systemImage: RootTab.camera.systemImage)
+            }
+            .tag(RootTab.camera)
 
             NavigationStack {
                 PreferencesView()
             }
             .tabItem {
-                Label("Preferences", systemImage: "gearshape")
+                Label(RootTab.settings.title, systemImage: RootTab.settings.systemImage)
             }
-            .tag(RootTab.preferences)
+            .tag(RootTab.settings)
         }
         .onOpenURL { url in
             guard url.scheme?.lowercased() == "levyhome" else { return }
@@ -67,11 +75,42 @@ struct RootTabView: View {
     }
 }
 
-enum RootTab: Hashable {
+enum RootTab: Hashable, CaseIterable {
     case home
     case list
     case todo
-    case preferences
+    case camera
+    case settings
+
+    var title: String {
+        switch self {
+        case .home:
+            "Home"
+        case .list:
+            "List"
+        case .todo:
+            "To Do"
+        case .camera:
+            "Camera"
+        case .settings:
+            "Settings"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .home:
+            "house"
+        case .list:
+            "cart"
+        case .todo:
+            "checkmark.circle"
+        case .camera:
+            "video"
+        case .settings:
+            "gearshape"
+        }
+    }
 }
 
 #Preview {

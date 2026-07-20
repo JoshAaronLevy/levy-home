@@ -98,6 +98,9 @@
 		A90000000000000000000003 /* NotificationDeliveryStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000013 /* NotificationDeliveryStatusView.swift */; };
 		A90000000000000000000004 /* NotificationPreferencesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */; };
 		AA0000000000000000000001 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* PreferencesView.swift */; };
+		B50000000000000000000001 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000011 /* CameraView.swift */; };
+		B50000000000000000000002 /* CameraControlState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000012 /* CameraControlState.swift */; };
+		B50000000000000000000003 /* RootTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000013 /* RootTabTests.swift */; };
 		B10000000000000000000001 /* HomeStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* HomeStatusService.swift */; };
 		B10000000000000000000002 /* HomeOverviewViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* HomeOverviewViewModel.swift */; };
 		B10000000000000000000003 /* HomeOverviewViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* HomeOverviewViewModelTests.swift */; };
@@ -339,6 +342,9 @@
 		A90000000000000000000013 /* NotificationDeliveryStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDeliveryStatusView.swift; sourceTree = "<group>"; };
 		A90000000000000000000014 /* NotificationPreferencesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferencesViewModelTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000000011 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
+		B50000000000000000000011 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
+		B50000000000000000000012 /* CameraControlState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraControlState.swift; sourceTree = "<group>"; };
+		B50000000000000000000013 /* RootTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* HomeStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatusService.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* HomeOverviewViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* HomeOverviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeOverviewViewModelTests.swift; sourceTree = "<group>"; };
@@ -555,6 +561,7 @@
 				A10000000000000000000039 /* Notifications */,
 				E10000000000000000000021 /* Shopping */,
 				E00000000000000000000021 /* ToDo */,
+				B50000000000000000000021 /* Camera */,
 				AA0000000000000000000021 /* Preferences */,
 				C10000000000000000000021 /* DeveloperTools */,
 				A20000000000000000000022 /* Shared */,
@@ -641,6 +648,14 @@
 			path = Activity;
 			sourceTree = "<group>";
 		};
+		B50000000000000000000021 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				B50000000000000000000011 /* CameraView.swift */,
+			);
+			path = Camera;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000039 /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
@@ -695,6 +710,7 @@
 			children = (
 				F40000000000000000000041 /* Home */,
 				B40000000000000000000031 /* Shopping */,
+				B50000000000000000000022 /* Camera */,
 				A40000000000000000000011 /* EventType.swift */,
 				A40000000000000000000012 /* EventSeverity.swift */,
 				A40000000000000000000013 /* LevyHomeEvent.swift */,
@@ -710,6 +726,14 @@
 				E00000000000000000000023 /* ToDo */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		B50000000000000000000022 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				B50000000000000000000012 /* CameraControlState.swift */,
+			);
+			path = Camera;
 			sourceTree = "<group>";
 		};
 		F80000000000000000000040 /* API */ = {
@@ -770,6 +794,7 @@
 				D10000000000000000000015 /* ThemePreferenceViewModelTests.swift */,
 				C10000000000000000000015 /* PushRegistrationViewModelTests.swift */,
 				B40000000000000000000016 /* ShoppingLiveActivityCoordinatorTests.swift */,
+				B50000000000000000000013 /* RootTabTests.swift */,
 				970000000000000000000020 /* Siri */,
 			);
 			path = LevyHomeTests;
@@ -1332,6 +1357,8 @@
 				C10000000000000000000003 /* PushRegistrationViewModel.swift in Sources */,
 				C10000000000000000000004 /* DebugView.swift in Sources */,
 				AA0000000000000000000001 /* PreferencesView.swift in Sources */,
+				B50000000000000000000001 /* CameraView.swift in Sources */,
+				B50000000000000000000002 /* CameraControlState.swift in Sources */,
 				910000000000000000000002 /* SiriAuthorizationService.swift in Sources */,
 				980000000000000000000005 /* SiriListKind.swift in Sources */,
 				980000000000000000000006 /* SiriListCommandResult.swift in Sources */,
@@ -1407,6 +1434,7 @@
 				980000000000000000000012 /* SiriExtensionConfigurationTests.swift in Sources */,
 				980000000000000000000038 /* SiriListCommandServiceTests.swift in Sources */,
 				980000000000000000000039 /* SiriIntentResolverTests.swift in Sources */,
+				B50000000000000000000003 /* RootTabTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
