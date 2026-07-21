@@ -60,9 +60,7 @@ export class LiveCameraFacade {
   }
 
   async move(direction: CameraPanTiltDirection): Promise<void> {
-    await this.callService('eufy_security', ptzServiceFor(direction), {
-      entity_id: this.config.homeAssistant.camera.entityId,
-    });
+    await this.callCameraPTZAction(ptzServiceFor(direction));
   }
 
   async setSpeakerVolume(value: number): Promise<CameraStatus> {
@@ -85,6 +83,77 @@ export class LiveCameraFacade {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+
+  private async callCameraPTZAction(service: 'ptz_up' | 'ptz_down' | 'ptz_left' | 'ptz_right'): Promise<void> {
+    const webSocketURL = homeAssistantWebSocketURL(this.config.homeAssistant.baseURL);
+    const WebSocketImpl = globalThis.WebSocket;
+
+    if (!webSocketURL || !WebSocketImpl) {
+      throw new HTTPError(503, 'Home Assistant camera actions are unavailable.', 'home_assistant_action_unavailable');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const socket = new WebSocketImpl(webSocketURL);
+      const timeout = setTimeout(() => finish(new HTTPError(
+        504,
+        'Home Assistant camera action timed out.',
+        'home_assistant_action_timeout',
+      )), 10_000);
+      let settled = false;
+
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        socket.close();
+        error ? reject(error) : resolve();
+      };
+
+      socket.addEventListener('message', (event) => {
+        const message = parseWebSocketMessage(event.data);
+
+        if (!message) {
+          finish(new HTTPError(502, 'Home Assistant returned an invalid camera action response.', 'home_assistant_action_invalid'));
+          return;
+        }
+
+        if (message.type === 'auth_required') {
+          socket.send(JSON.stringify({ type: 'auth', access_token: this.config.homeAssistant.token }));
+          return;
+        }
+
+        if (message.type === 'auth_ok') {
+          socket.send(JSON.stringify({
+            id: 1,
+            type: 'call_service',
+            domain: 'eufy_security',
+            service,
+            target: { entity_id: this.config.homeAssistant.camera.entityId },
+          }));
+          return;
+        }
+
+        if (message.type === 'result' && message.id === 1) {
+          finish(message.success === false
+            ? new HTTPError(502, 'Home Assistant rejected the camera action.', 'home_assistant_action_failed')
+            : undefined);
+          return;
+        }
+
+        if (message.type === 'auth_invalid') {
+          finish(new HTTPError(502, 'Home Assistant rejected the camera action credentials.', 'home_assistant_action_auth_failed'));
+        }
+      });
+      socket.addEventListener('error', () => {
+        finish(new HTTPError(502, 'Home Assistant camera action connection failed.', 'home_assistant_action_connection_failed'));
+      });
+      socket.addEventListener('close', () => {
+        if (!settled) {
+          finish(new HTTPError(502, 'Home Assistant closed the camera action connection.', 'home_assistant_action_connection_closed'));
+        }
+      });
+    });
+  }
 }
 
 function ptzServiceFor(direction: CameraPanTiltDirection): 'ptz_up' | 'ptz_down' | 'ptz_left' | 'ptz_right' {
@@ -93,5 +162,31 @@ function ptzServiceFor(direction: CameraPanTiltDirection): 'ptz_up' | 'ptz_down'
   case 'DOWN': return 'ptz_down';
   case 'LEFT': return 'ptz_left';
   case 'RIGHT': return 'ptz_right';
+  }
+}
+
+function homeAssistantWebSocketURL(baseURL: string | undefined): string | undefined {
+  if (!baseURL) return undefined;
+
+  const url = new URL('/api/websocket', baseURL);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.toString();
+}
+
+function parseWebSocketMessage(data: unknown): {
+  type?: string;
+  id?: number;
+  success?: boolean;
+} | undefined {
+  const text = typeof data === 'string' ? data : data instanceof Buffer ? data.toString('utf8') : undefined;
+  if (!text) return undefined;
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? parsed as { type?: string; id?: number; success?: boolean }
+      : undefined;
+  } catch {
+    return undefined;
   }
 }

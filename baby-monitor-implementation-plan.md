@@ -501,6 +501,13 @@ Assistant secrets.
   four approved directions to the corresponding dedicated Eufy services
   (`ptz_up`, `ptz_down`, `ptz_left`, and `ptz_right`) rather than the generic
   queued `ptz` action. This requires deployed-backend and physical-camera proof.
+- The dedicated REST service mapping remained delayed in the physical app even
+  after deployment. Home Assistant's manual Actions screen invokes services
+  through its authenticated WebSocket `call_service` protocol, unlike the
+  backend REST client. Camera PTZ now uses a short-lived server-side Home
+  Assistant WebSocket action with the same `target.entity_id` shape as the
+  manual action. A live read-only WebSocket handshake succeeded; all 156 backend
+  tests pass. This remains the next physical-camera proof step after deployment.
 
 ## Suggested implementation order for future prompts
 
