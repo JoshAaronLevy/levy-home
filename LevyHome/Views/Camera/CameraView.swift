@@ -21,6 +21,7 @@ struct CameraView: View {
                         panTiltPad
                         secondaryControls
                     }
+                    .frame(maxWidth: .infinity)
 
                     if let errorMessage = viewModel.errorMessage {
                         errorCard(errorMessage)
@@ -69,54 +70,57 @@ struct CameraView: View {
     }
 
     private var videoCard: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
-                .fill(Color.black)
+        RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
+            .fill(Color.black)
+            .aspectRatio(4 / 3, contentMode: .fit)
+            .overlay {
+                GeometryReader { geometry in
+                    ZStack {
+                        if let frame = viewModel.latestFrame {
+                            Image(uiImage: frame)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .clipped()
+                        } else {
+                            videoStateContent
+                        }
 
-            if let frame = viewModel.latestFrame {
-                Image(uiImage: frame)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-            } else {
-                videoStateContent
-            }
-
-            VStack {
-                HStack {
-                    Label(statusLabel, systemImage: statusImage)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, AppSpacing.medium)
-                        .padding(.vertical, AppSpacing.small)
-                        .background(.black.opacity(0.48), in: Capsule())
-                    Spacer()
-                    Button {
-                        isFullscreen = true
-                    } label: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(AppColors.text)
-                            .frame(width: 50, height: 50)
-                            .background(.white.opacity(0.92), in: Circle())
-                            .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+                        VStack {
+                            HStack {
+                                Label(statusLabel, systemImage: statusImage)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, AppSpacing.medium)
+                                    .padding(.vertical, AppSpacing.small)
+                                    .background(.black.opacity(0.48), in: Capsule())
+                                Spacer()
+                                Button {
+                                    isFullscreen = true
+                                } label: {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundStyle(AppColors.text)
+                                        .frame(width: 50, height: 50)
+                                        .background(.white.opacity(0.92), in: Circle())
+                                        .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Open fullscreen camera")
+                            }
+                            Spacer()
+                            HStack {
+                                Text("Kids Room")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .shadow(radius: 4)
+                                Spacer()
+                            }
+                        }
+                        .padding(AppSpacing.large)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Open fullscreen camera")
-                }
-                Spacer()
-                HStack {
-                    Text("Kids Room")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .shadow(radius: 4)
-                    Spacer()
                 }
             }
-            .padding(AppSpacing.large)
-        }
-        .aspectRatio(4 / 3, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
@@ -156,7 +160,6 @@ struct CameraView: View {
 
     private var panTiltPad: some View {
         ZStack {
-            directionalControlLinks
             portraitPTZButton(.up, systemImage: "chevron.up")
                 .offset(y: -72)
             portraitPTZButton(.left, systemImage: "chevron.left")
@@ -169,21 +172,6 @@ struct CameraView: View {
         .frame(width: 236, height: 236)
     }
 
-    private var directionalControlLinks: some View {
-        Path { path in
-            let center = CGPoint(x: 118, y: 118)
-            path.move(to: center)
-            path.addLine(to: CGPoint(x: 118, y: 46))
-            path.move(to: center)
-            path.addLine(to: CGPoint(x: 46, y: 118))
-            path.move(to: center)
-            path.addLine(to: CGPoint(x: 190, y: 118))
-            path.move(to: center)
-            path.addLine(to: CGPoint(x: 118, y: 190))
-        }
-        .stroke(AppColors.warningSoft, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-    }
-
     private func portraitPTZButton(_ direction: CameraPanTiltDirection, systemImage: String) -> some View {
         Button {
             Task { await viewModel.move(direction) }
@@ -194,7 +182,7 @@ struct CameraView: View {
                 .frame(width: 86, height: 86)
                 .background(AppColors.panelBackground, in: Circle())
                 .overlay {
-                    Circle().stroke(AppColors.warning, lineWidth: 3)
+                    Circle().stroke(cameraControlGold, lineWidth: 3)
                 }
                 .shadow(color: AppColors.surfaceShadow, radius: 10, y: 5)
         }
@@ -223,6 +211,10 @@ struct CameraView: View {
             cameraControlButton(systemImage: "mic.fill", label: "Two-way talk")
         }
         .frame(width: 76)
+    }
+
+    private var cameraControlGold: Color {
+        Color(red: 0.80, green: 0.59, blue: 0.13)
     }
 
     private func cameraControlButton(systemImage: String, label: String) -> some View {
