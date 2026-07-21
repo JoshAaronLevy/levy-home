@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 import type { AppConfig } from '../../../../src/config.js';
 import { createHomeAssistantFacade } from '../../../../src/integrations/homeAssistant/facade.js';
+import { LiveCameraFacade } from '../../../../src/integrations/homeAssistant/liveCameraFacade.js';
 
 test('live Home Assistant facade opens and closes the configured garage cover', async () => {
   const serviceCalls: Array<{ path: string; body: unknown }> = [];
@@ -471,6 +472,34 @@ test('live Home Assistant facade returns per-person device tracker presence', as
         isStale: false,
       },
     ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test('live camera facade builds its MJPEG response from uncached latest snapshots', async () => {
+  const requestedURLs: string[] = [];
+  const server = await startHomeAssistantServer((req, res) => {
+    requestedURLs.push(req.url ?? '');
+    res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+    res.end(Buffer.from([0xff, 0xd8, requestedURLs.length, 0xff, 0xd9]));
+  });
+
+  try {
+    const facade = new LiveCameraFacade(liveConfig(server.baseURL));
+    const response = await facade.openStream();
+    const reader = response.body!.getReader();
+
+    await reader.read();
+    await reader.read();
+    await reader.cancel();
+
+    assert.equal(requestedURLs.length, 2);
+    for (const requestedURL of requestedURLs) {
+      const url = new URL(requestedURL, server.baseURL);
+      assert.equal(url.pathname, '/api/camera_proxy/camera.kids_room');
+      assert.ok(url.searchParams.has('ts'));
+    }
   } finally {
     await server.close();
   }

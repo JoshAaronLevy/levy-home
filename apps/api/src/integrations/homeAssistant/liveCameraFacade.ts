@@ -2,6 +2,7 @@ import type { AppConfig } from '../../config.js';
 import type { CameraPanTiltDirection, CameraStatus } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import { logger } from '../../observability/logger.js';
+import { createLatestSnapshotMJPEGResponse } from '../../services/camera/latestSnapshotMJPEGStream.js';
 import { HomeAssistantRestClient } from './restClient.js';
 
 type HomeAssistantStateResponse = {
@@ -55,9 +56,28 @@ export class LiveCameraFacade {
   }
 
   async openStream(): Promise<Response> {
-    return this.restClient.requestRaw(
-      `/api/camera_proxy_stream/${encodeURIComponent(this.config.homeAssistant.camera.entityId)}`,
-    );
+    return createLatestSnapshotMJPEGResponse(async (signal) => {
+      const response = await this.restClient.requestRaw(
+        `/api/camera_proxy/${encodeURIComponent(this.config.homeAssistant.camera.entityId)}?ts=${Date.now()}`,
+        {
+          signal,
+          headers: {
+            Accept: 'image/jpeg',
+            'Cache-Control': 'no-cache',
+          },
+        },
+      );
+      const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim();
+
+      if (contentType !== 'image/jpeg') {
+        throw new HTTPError(502, 'Home Assistant returned an invalid camera snapshot.', 'camera_snapshot_invalid');
+      }
+
+      return {
+        bytes: new Uint8Array(await response.arrayBuffer()),
+        contentType,
+      };
+    });
   }
 
   async move(direction: CameraPanTiltDirection): Promise<void> {

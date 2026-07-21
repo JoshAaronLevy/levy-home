@@ -36,13 +36,19 @@ export function createCameraRoutes(cameraService: CameraService, accessToken?: s
     res.status(upstream.status);
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'no-store, private');
+    let responseClosed = false;
     res.on('close', () => {
+      responseClosed = true;
       void cameraService.stopSession(sessionId).catch(() => undefined);
     });
 
     for await (const chunk of upstream.body) {
+      if (responseClosed) break;
       if (!res.write(chunk)) {
-        await new Promise<void>((resolve) => res.once('drain', resolve));
+        await new Promise<void>((resolve) => {
+          res.once('drain', resolve);
+          res.once('close', resolve);
+        });
       }
     }
 
