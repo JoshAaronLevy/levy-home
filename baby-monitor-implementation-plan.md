@@ -494,6 +494,13 @@ Assistant secrets.
 - Backend typecheck/tests and an iOS `build-for-testing` compile pass after
   these repairs succeeded. Fresh deployed-backend and physical-iPhone proof are
   still required before release approval.
+- During physical testing, generic `eufy_security.ptz` commands were delayed by
+  roughly a minute while the P2P viewer was active. The Render-to-Home
+  Assistant camera-speaker control path completed in 1.21 seconds, while a
+  manual `eufy_security.ptz_up` action was immediate. The backend now maps the
+  four approved directions to the corresponding dedicated Eufy services
+  (`ptz_up`, `ptz_down`, `ptz_left`, and `ptz_right`) rather than the generic
+  queued `ptz` action. This requires deployed-backend and physical-camera proof.
 
 ## Suggested implementation order for future prompts
 

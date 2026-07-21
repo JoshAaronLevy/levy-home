@@ -60,9 +60,8 @@ export class LiveCameraFacade {
   }
 
   async move(direction: CameraPanTiltDirection): Promise<void> {
-    await this.callService('eufy_security', 'ptz', {
+    await this.callService('eufy_security', ptzServiceFor(direction), {
       entity_id: this.config.homeAssistant.camera.entityId,
-      direction,
     });
   }
 
@@ -85,5 +84,14 @@ export class LiveCameraFacade {
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+}
+
+function ptzServiceFor(direction: CameraPanTiltDirection): 'ptz_up' | 'ptz_down' | 'ptz_left' | 'ptz_right' {
+  switch (direction) {
+  case 'UP': return 'ptz_up';
+  case 'DOWN': return 'ptz_down';
+  case 'LEFT': return 'ptz_left';
+  case 'RIGHT': return 'ptz_right';
   }
 }

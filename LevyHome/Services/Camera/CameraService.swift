@@ -68,33 +68,23 @@ final class CameraService: CameraSessionServicing, CameraPanTiltControlling, Cam
         }
 
         let request = try apiClient.cameraStreamRequest(path: activeSession.streamURL, cameraAccessToken: requiredAccessToken())
-        let session = streamSession
+        let configuration = streamSession.configuration
 
         return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
-            let task = Task.detached(priority: .userInitiated) {
-                do {
-                    let (bytes, response) = try await session.bytes(for: request)
-                    guard let httpResponse = response as? HTTPURLResponse, 200...299 ~= httpResponse.statusCode else {
-                        throw CameraServiceError.streamUnavailable
-                    }
+            let queue = OperationQueue()
+            queue.name = "com.levyhome.camera.mjpeg"
+            queue.qualityOfService = .userInitiated
+            queue.maxConcurrentOperationCount = 1
 
-                    var decoder = MJPEGFrameDecoder()
+            let delegate = MJPEGStreamDelegate(continuation: continuation)
+            let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: queue)
+            let task = session.dataTask(with: request)
+            task.resume()
 
-                    for try await byte in bytes {
-                        if let frame = decoder.append(byte) {
-                            continuation.yield(frame)
-                        }
-                    }
-
-                    continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+            continuation.onTermination = { _ in
+                task.cancel()
+                session.invalidateAndCancel()
             }
-
-            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -140,6 +130,56 @@ private struct MJPEGFrameDecoder {
         }
 
         return nil
+    }
+}
+
+private final class MJPEGStreamDelegate: NSObject, URLSessionDataDelegate {
+    private let continuation: AsyncThrowingStream<UIImage, Error>.Continuation
+    private var decoder = MJPEGFrameDecoder()
+    private var acceptedResponse = false
+
+    init(continuation: AsyncThrowingStream<UIImage, Error>.Continuation) {
+        self.continuation = continuation
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
+        guard let httpResponse = response as? HTTPURLResponse, 200...299 ~= httpResponse.statusCode else {
+            continuation.finish(throwing: CameraServiceError.streamUnavailable)
+            completionHandler(.cancel)
+            return
+        }
+
+        acceptedResponse = true
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard acceptedResponse else { return }
+
+        for byte in data {
+            if let frame = decoder.append(byte) {
+                continuation.yield(frame)
+            }
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        if let error, !error.isTaskCancellation {
+            continuation.finish(throwing: error)
+        } else {
+            continuation.finish()
+        }
+
+        session.finishTasksAndInvalidate()
     }
 }
 
