@@ -3,16 +3,31 @@ import crypto from 'node:crypto';
 import type { CameraFacade } from '../../integrations/homeAssistant/cameraFacade.js';
 import type { CameraPanTiltDirection, CameraSession, CameraStatus } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
+import { logger } from '../../observability/logger.js';
 
 const SESSION_TTL_MS = 5 * 60 * 1000;
+const STREAM_RECONCILIATION_ATTEMPTS = 30;
+const STREAM_RECONCILIATION_INTERVAL_MS = 1_000;
 
 type ActiveCameraSession = CameraSession & { expiresAtMs: number };
+type CameraServiceOptions = {
+  reconciliationAttempts?: number;
+  reconciliationIntervalMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
+};
 
 export class CameraService {
   private activeSession: ActiveCameraSession | undefined;
   private startInFlight: Promise<CameraSession> | undefined;
+  private readonly reconciliationAttempts: number;
+  private readonly reconciliationIntervalMs: number;
+  private readonly sleep: (milliseconds: number) => Promise<void>;
 
-  constructor(private readonly facade: CameraFacade) {}
+  constructor(private readonly facade: CameraFacade, options: CameraServiceOptions = {}) {
+    this.reconciliationAttempts = options.reconciliationAttempts ?? STREAM_RECONCILIATION_ATTEMPTS;
+    this.reconciliationIntervalMs = options.reconciliationIntervalMs ?? STREAM_RECONCILIATION_INTERVAL_MS;
+    this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  }
 
   async getStatus(): Promise<CameraStatus> {
     await this.stopExpiredSession();
@@ -75,7 +90,22 @@ export class CameraService {
       throw new HTTPError(503, 'Kids Room camera is unavailable.', 'camera_unavailable');
     }
 
-    await this.facade.startStream();
+    if (!status.isStreaming) {
+      try {
+        await this.facade.startStream();
+      } catch (error) {
+        logger.warn('Camera stream start returned an error; reconciling Home Assistant state.', {
+          error: error instanceof Error ? error.message : 'Unknown camera stream start error.',
+        });
+
+        if (!await this.waitForStreamingState()) {
+          throw error;
+        }
+
+        logger.info('Camera stream became active after the start error.');
+      }
+    }
+
     const expiresAtMs = Date.now() + SESSION_TTL_MS;
     this.activeSession = {
       id: crypto.randomUUID(),
@@ -86,6 +116,22 @@ export class CameraService {
     this.activeSession.streamURL = `/api/camera/kids-room/sessions/${this.activeSession.id}/stream`;
 
     return toCameraSession(this.activeSession);
+  }
+
+  private async waitForStreamingState(): Promise<boolean> {
+    for (let attempt = 0; attempt < this.reconciliationAttempts; attempt += 1) {
+      await this.sleep(this.reconciliationIntervalMs);
+
+      try {
+        if ((await this.facade.getStatus()).isStreaming) {
+          return true;
+        }
+      } catch {
+        // Home Assistant can be briefly unavailable while Eufy changes P2P state.
+      }
+    }
+
+    return false;
   }
 
   private async stopExpiredSession(): Promise<void> {

@@ -1,5 +1,16 @@
 import SwiftUI
 
+protocol CameraViewModelServicing: AnyObject {
+    func startSession() async throws -> CameraSessionState
+    func stopSession() async throws
+    func moveCamera(_ direction: CameraPanTiltDirection) async throws
+    func loadCameraSpeakerVolume() async throws -> Int
+    func setCameraSpeakerVolume(_ value: Int) async throws -> Int
+    func streamFrames() throws -> AsyncThrowingStream<UIImage, Error>
+}
+
+extension CameraService: CameraViewModelServicing {}
+
 @MainActor
 final class CameraViewModel: ObservableObject {
     @Published private(set) var sessionState: CameraSessionState = .placeholder
@@ -12,18 +23,31 @@ final class CameraViewModel: ObservableObject {
     @Published private(set) var isLoadingSpeakerVolume = false
     @Published private(set) var isSavingSpeakerVolume = false
 
-    private let service: CameraService
+    private let service: any CameraViewModelServicing
+    private let frameInactivityTimeout: TimeInterval
+    private let frameWatchdogInterval: Duration
+    private let now: () -> Date
     private var streamTask: Task<Void, Never>?
-    private var streamStartupTask: Task<Void, Never>?
+    private var streamWatchdogTask: Task<Void, Never>?
     private var queuedDirection: CameraPanTiltDirection?
+    private var lastFrameReceivedAt: Date?
+    private var automaticRecoveryAttempts = 0
 
-    init(service: CameraService) {
+    init(
+        service: any CameraViewModelServicing,
+        frameInactivityTimeout: TimeInterval = 12,
+        frameWatchdogInterval: Duration = .seconds(2),
+        now: @escaping () -> Date = Date.init
+    ) {
         self.service = service
+        self.frameInactivityTimeout = frameInactivityTimeout
+        self.frameWatchdogInterval = frameWatchdogInterval
+        self.now = now
     }
 
     deinit {
         streamTask?.cancel()
-        streamStartupTask?.cancel()
+        streamWatchdogTask?.cancel()
     }
 
     func start() async {
@@ -48,9 +72,11 @@ final class CameraViewModel: ObservableObject {
     func stop() async {
         streamTask?.cancel()
         streamTask = nil
-        streamStartupTask?.cancel()
-        streamStartupTask = nil
+        streamWatchdogTask?.cancel()
+        streamWatchdogTask = nil
         queuedDirection = nil
+        lastFrameReceivedAt = nil
+        automaticRecoveryAttempts = 0
         latestFrame = nil
         do {
             try await service.stopSession()
@@ -126,31 +152,77 @@ final class CameraViewModel: ObservableObject {
 
     private func startFrameStream() {
         streamTask?.cancel()
-        streamStartupTask?.cancel()
+        streamWatchdogTask?.cancel()
+        lastFrameReceivedAt = now()
         streamTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let frames = try service.streamFrames()
                 for try await frame in frames {
                     guard !Task.isCancelled else { return }
+                    lastFrameReceivedAt = now()
                     latestFrame = frame
                 }
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
+                streamWatchdogTask?.cancel()
+                latestFrame = nil
                 sessionState = .unavailable(message: error.localizedDescription)
                 errorMessage = error.localizedDescription
             }
         }
 
-        streamStartupTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(12))
-            guard let self, !Task.isCancelled, self.latestFrame == nil, self.sessionState == .live else { return }
+        streamWatchdogTask = Task { [weak self] in
+            guard let self else { return }
 
-            streamTask?.cancel()
-            sessionState = .unavailable(message: "Live video frames did not arrive. Try Again.")
-            errorMessage = "The camera connected but did not deliver video frames. Try Again."
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: frameWatchdogInterval)
+                } catch {
+                    return
+                }
+
+                guard
+                    !Task.isCancelled,
+                    sessionState == .live,
+                    let lastFrameReceivedAt,
+                    now().timeIntervalSince(lastFrameReceivedAt) >= frameInactivityTimeout
+                else {
+                    continue
+                }
+
+                await recoverStalledStream()
+                return
+            }
+        }
+    }
+
+    private func recoverStalledStream() async {
+        streamTask?.cancel()
+        streamTask = nil
+        latestFrame = nil
+        lastFrameReceivedAt = nil
+
+        guard automaticRecoveryAttempts == 0 else {
+            let message = "Live video stopped updating. Try Again."
+            sessionState = .unavailable(message: message)
+            errorMessage = message
+            return
+        }
+
+        automaticRecoveryAttempts += 1
+        sessionState = .connecting
+        errorMessage = nil
+
+        do {
+            try await service.stopSession()
+            sessionState = try await service.startSession()
+            startFrameStream()
+        } catch {
+            sessionState = .unavailable(message: error.localizedDescription)
+            errorMessage = error.localizedDescription
         }
     }
 

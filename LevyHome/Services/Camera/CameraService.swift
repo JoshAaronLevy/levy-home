@@ -10,11 +10,20 @@ final class CameraService: CameraSessionServicing, CameraPanTiltControlling, Cam
     init(
         apiClient: APIClient,
         cameraAccessToken: String?,
-        streamSession: URLSession = .shared
+        streamSession: URLSession = .shared,
+        appLogStore: APIClientLogging? = nil
     ) {
         self.apiClient = apiClient
         self.cameraAccessToken = cameraAccessToken
         self.streamSession = streamSession
+
+        let tokenIsAvailable = CameraAccessConfigurationDiagnostics.ValueState(cameraAccessToken) == .populated
+        appLogStore?.record(
+            level: tokenIsAvailable ? .success : .warning,
+            category: "Camera",
+            title: "Camera service initialized",
+            detail: "Camera access: \(tokenIsAvailable ? "available" : "unavailable")."
+        )
     }
 
     func loadSessionState() async throws -> CameraSessionState {

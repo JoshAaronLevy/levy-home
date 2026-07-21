@@ -31,10 +31,7 @@ struct RootTabView: View {
             .tag(RootTab.todo)
 
             NavigationStack {
-                CameraView(cameraService: CameraService(
-                    apiClient: appEnvironment.apiClient,
-                    cameraAccessToken: appEnvironment.config.cameraAccessToken
-                ))
+                CameraView(cameraService: appEnvironment.cameraService)
             }
             .tabItem {
                 Label(RootTab.camera.title, systemImage: RootTab.camera.systemImage)

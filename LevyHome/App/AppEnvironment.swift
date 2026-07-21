@@ -4,6 +4,7 @@ struct AppEnvironment {
     let config: AppConfig
     let appLogStore: AppLogStore
     let apiClient: APIClient
+    let cameraService: CameraService
     let homeStatusService: HomeStatusServicing
     let homeWeatherService: HomeWeatherServicing
     let quickActionService: QuickActionServicing
@@ -15,6 +16,7 @@ struct AppEnvironment {
         config: AppConfig,
         appLogStore: AppLogStore? = nil,
         apiClient: APIClient? = nil,
+        cameraService: CameraService? = nil,
         homeStatusService: HomeStatusServicing? = nil,
         homeWeatherService: HomeWeatherServicing? = nil,
         quickActionService: QuickActionServicing? = nil,
@@ -27,6 +29,11 @@ struct AppEnvironment {
         let resolvedAPIClient = apiClient ?? APIClient(baseURL: config.apiBaseURL, appLogStore: resolvedLogStore)
         self.appLogStore = resolvedLogStore
         self.apiClient = resolvedAPIClient
+        self.cameraService = cameraService ?? CameraService(
+            apiClient: resolvedAPIClient,
+            cameraAccessToken: config.cameraAccessToken,
+            appLogStore: resolvedLogStore
+        )
         self.homeStatusService = homeStatusService ?? HomeStatusService(apiClient: resolvedAPIClient)
         self.homeWeatherService = homeWeatherService ?? HomeWeatherService(appLogStore: resolvedLogStore)
         self.quickActionService = quickActionService ?? QuickActionService(
@@ -48,14 +55,27 @@ struct AppEnvironment {
         bundle: Bundle = .main,
         processInfo: ProcessInfo = .processInfo
     ) -> AppEnvironment {
+        let processEnvironmentValue = processInfo.environment["LEVY_HOME_CAMERA_ACCESS_TOKEN"]
+        let bundleInfoValue = bundle.object(forInfoDictionaryKey: "LevyHomeCameraAccessToken") as? String
         let config = AppConfig(
             bundle: bundle,
             processInfo: processInfo
         )
-
-        return AppEnvironment(
-            config: config
+        let environment = AppEnvironment(config: config)
+        let diagnostics = CameraAccessConfigurationDiagnostics(
+            processEnvironmentValue: processEnvironmentValue,
+            bundleInfoValue: bundleInfoValue,
+            resolvedToken: config.cameraAccessToken
         )
+
+        environment.appLogStore.record(
+            level: diagnostics.resolvedTokenIsAvailable ? .success : .warning,
+            category: "Camera",
+            title: "Camera configuration resolved",
+            detail: diagnostics.logDetail
+        )
+
+        return environment
     }
 }
 
