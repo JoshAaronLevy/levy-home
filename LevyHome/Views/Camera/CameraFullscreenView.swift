@@ -48,7 +48,7 @@ struct CameraFullscreenView: View {
         VStack {
             HStack {
                 Spacer()
-                Button(action: onClose) {
+                Button(action: closeFullscreen) {
                     Image(systemName: "xmark")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(.white)
@@ -131,5 +131,10 @@ struct CameraFullscreenView: View {
         case .unavailable: "Camera unavailable"
         case .placeholder, .live: "Waiting for video…"
         }
+    }
+
+    private func closeFullscreen() {
+        CameraOrientation.lockPortrait()
+        onClose()
     }
 }

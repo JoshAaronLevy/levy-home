@@ -37,7 +37,9 @@ export class CameraService {
 
   async stopSession(sessionId: string): Promise<void> {
     if (!this.activeSession || this.activeSession.id !== sessionId) {
-      throw new HTTPError(404, 'Camera session was not found.', 'camera_session_not_found');
+      // Closing the brokered MJPEG response can race this explicit cleanup.
+      // Stopping an already-ended session is therefore intentionally idempotent.
+      return;
     }
 
     this.activeSession = undefined;

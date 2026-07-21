@@ -474,6 +474,27 @@ Assistant secrets.
   pending until the final phone-testing pass; therefore Stage 7 exit criteria
   and release approval are not yet claimed.
 
+#### Post-device-test repair record (2026-07-20)
+
+- Physical testing exposed a black iOS viewer despite a healthy brokered MJPEG
+  response, stale-session `DELETE` errors after stream closure, and unreliable
+  portrait restoration after fullscreen. A direct deployed-stream check received
+  45 JPEG frame starts in 15 seconds, isolating the black view to the iOS
+  consumer rather than Render, Home Assistant, or the camera wake state.
+- Moved MJPEG byte parsing and JPEG creation off the main-actor view model,
+  retained only the newest pending frame, and added a visible 12-second
+  no-frame failure state. Returning from background now starts a fresh session.
+- Made server and iOS cleanup idempotent when the broker has already closed a
+  session, preventing a harmless `DELETE` 404 from becoming a camera error.
+- Updated fullscreen orientation requests to refresh UIKit's supported
+  orientations and request portrait before dismissing. The portrait PTZ design
+  now follows `Camera-Tab-Mockup-Portrait.png`: four large gold-rimmed circular
+  controls, subtle connector lines, lighter secondary controls, and a visible
+  fullscreen affordance.
+- Backend typecheck/tests and an iOS `build-for-testing` compile pass after
+  these repairs succeeded. Fresh deployed-backend and physical-iPhone proof are
+  still required before release approval.
+
 ## Suggested implementation order for future prompts
 
 Start with **Stage 0**, then implement one numbered stage per prompt. For any

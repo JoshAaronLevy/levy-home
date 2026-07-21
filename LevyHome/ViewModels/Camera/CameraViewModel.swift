@@ -14,6 +14,7 @@ final class CameraViewModel: ObservableObject {
 
     private let service: CameraService
     private var streamTask: Task<Void, Never>?
+    private var streamStartupTask: Task<Void, Never>?
 
     init(service: CameraService) {
         self.service = service
@@ -21,10 +22,11 @@ final class CameraViewModel: ObservableObject {
 
     deinit {
         streamTask?.cancel()
+        streamStartupTask?.cancel()
     }
 
     func start() async {
-        guard sessionState != .connecting else { return }
+        guard sessionState == .placeholder || isUnavailable else { return }
 
         sessionState = .connecting
         errorMessage = nil
@@ -45,14 +47,13 @@ final class CameraViewModel: ObservableObject {
     func stop() async {
         streamTask?.cancel()
         streamTask = nil
+        streamStartupTask?.cancel()
+        streamStartupTask = nil
         latestFrame = nil
         do {
             try await service.stopSession()
         } catch {
             errorMessage = error.localizedDescription
-        }
-        if case .unavailable = sessionState {
-            return
         }
         sessionState = .placeholder
     }
@@ -109,6 +110,7 @@ final class CameraViewModel: ObservableObject {
 
     private func startFrameStream() {
         streamTask?.cancel()
+        streamStartupTask?.cancel()
         streamTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -125,5 +127,21 @@ final class CameraViewModel: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
+
+        streamStartupTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(12))
+            guard let self, !Task.isCancelled, self.latestFrame == nil, self.sessionState == .live else { return }
+
+            streamTask?.cancel()
+            sessionState = .unavailable(message: "Live video frames did not arrive. Try Again.")
+            errorMessage = "The camera connected but did not deliver video frames. Try Again."
+        }
+    }
+
+    private var isUnavailable: Bool {
+        if case .unavailable = sessionState {
+            return true
+        }
+        return false
     }
 }

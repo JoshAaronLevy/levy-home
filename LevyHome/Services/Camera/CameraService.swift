@@ -35,7 +35,12 @@ final class CameraService: CameraSessionServicing, CameraPanTiltControlling, Cam
     func stopSession() async throws {
         guard let activeSession else { return }
         defer { self.activeSession = nil }
-        _ = try await apiClient.stopCameraSession(id: activeSession.id, cameraAccessToken: try requiredAccessToken())
+        do {
+            _ = try await apiClient.stopCameraSession(id: activeSession.id, cameraAccessToken: try requiredAccessToken())
+        } catch APIError.server(statusCode: 404, message: _) {
+            // The broker closes a session as soon as its stream connection ends.
+            // A second cleanup request is still a successful local stop.
+        }
     }
 
     func moveCamera(_ direction: CameraPanTiltDirection) async throws {
@@ -65,38 +70,20 @@ final class CameraService: CameraSessionServicing, CameraPanTiltControlling, Cam
         let request = try apiClient.cameraStreamRequest(path: activeSession.streamURL, cameraAccessToken: requiredAccessToken())
         let session = streamSession
 
-        return AsyncThrowingStream { continuation in
-            let task = Task {
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            let task = Task.detached(priority: .userInitiated) {
                 do {
                     let (bytes, response) = try await session.bytes(for: request)
                     guard let httpResponse = response as? HTTPURLResponse, 200...299 ~= httpResponse.statusCode else {
                         throw CameraServiceError.streamUnavailable
                     }
 
-                    var frameData = Data()
-                    var isCollectingFrame = false
-                    var previousByte: UInt8?
+                    var decoder = MJPEGFrameDecoder()
 
                     for try await byte in bytes {
-                        if previousByte == 0xFF, byte == 0xD8 {
-                            frameData = Data([0xFF, 0xD8])
-                            isCollectingFrame = true
-                        } else if isCollectingFrame {
-                            frameData.append(byte)
+                        if let frame = decoder.append(byte) {
+                            continuation.yield(frame)
                         }
-
-                        if isCollectingFrame, previousByte == 0xFF, byte == 0xD9 {
-                            if let image = UIImage(data: frameData) {
-                                continuation.yield(image)
-                            }
-                            frameData.removeAll(keepingCapacity: true)
-                            isCollectingFrame = false
-                        } else if frameData.count > 8_000_000 {
-                            frameData.removeAll(keepingCapacity: true)
-                            isCollectingFrame = false
-                        }
-
-                        previousByte = byte
                     }
 
                     continuation.finish()
@@ -117,6 +104,42 @@ final class CameraService: CameraSessionServicing, CameraPanTiltControlling, Cam
         }
 
         return cameraAccessToken
+    }
+}
+
+private struct MJPEGFrameDecoder {
+    private static let maximumFrameSize = 8_000_000
+
+    private var frameData = Data()
+    private var isCollectingFrame = false
+    private var previousByte: UInt8?
+
+    mutating func append(_ byte: UInt8) -> UIImage? {
+        defer { previousByte = byte }
+
+        if previousByte == 0xFF, byte == 0xD8 {
+            frameData = Data([0xFF, 0xD8])
+            isCollectingFrame = true
+            return nil
+        }
+
+        guard isCollectingFrame else { return nil }
+        frameData.append(byte)
+
+        if previousByte == 0xFF, byte == 0xD9 {
+            defer {
+                frameData.removeAll(keepingCapacity: true)
+                isCollectingFrame = false
+            }
+            return UIImage(data: frameData)
+        }
+
+        if frameData.count > Self.maximumFrameSize {
+            frameData.removeAll(keepingCapacity: true)
+            isCollectingFrame = false
+        }
+
+        return nil
     }
 }
 

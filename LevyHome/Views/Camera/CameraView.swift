@@ -55,7 +55,9 @@ struct CameraView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase != .active {
+            if newPhase == .active {
+                Task { await viewModel.start() }
+            } else {
                 Task { await viewModel.stop() }
             }
         }
@@ -90,6 +92,18 @@ struct CameraView: View {
                         .padding(.vertical, AppSpacing.small)
                         .background(.black.opacity(0.48), in: Capsule())
                     Spacer()
+                    Button {
+                        isFullscreen = true
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(AppColors.text)
+                            .frame(width: 50, height: 50)
+                            .background(.white.opacity(0.92), in: Circle())
+                            .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open fullscreen camera")
                 }
                 Spacer()
                 HStack {
@@ -141,39 +155,48 @@ struct CameraView: View {
     }
 
     private var panTiltPad: some View {
-        VStack(spacing: AppSpacing.small) {
-            ptzButton(.up, systemImage: "chevron.up")
-            HStack(spacing: AppSpacing.small) {
-                ptzButton(.left, systemImage: "chevron.left")
-                Circle()
-                    .fill(AppColors.accentSoft)
-                    .frame(width: 58, height: 58)
-                    .overlay(Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(AppColors.accent))
-                    .accessibilityHidden(true)
-                ptzButton(.right, systemImage: "chevron.right")
-            }
-            ptzButton(.down, systemImage: "chevron.down")
+        ZStack {
+            directionalControlLinks
+            portraitPTZButton(.up, systemImage: "chevron.up")
+                .offset(y: -72)
+            portraitPTZButton(.left, systemImage: "chevron.left")
+                .offset(x: -72)
+            portraitPTZButton(.right, systemImage: "chevron.right")
+                .offset(x: 72)
+            portraitPTZButton(.down, systemImage: "chevron.down")
+                .offset(y: 72)
         }
-        .frame(maxWidth: .infinity)
-        .padding(AppSpacing.large)
-        .background(AppColors.panelBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
-                .stroke(AppColors.panelBorder, lineWidth: 1)
-        }
+        .frame(width: 236, height: 236)
     }
 
-    private func ptzButton(_ direction: CameraPanTiltDirection, systemImage: String) -> some View {
+    private var directionalControlLinks: some View {
+        Path { path in
+            let center = CGPoint(x: 118, y: 118)
+            path.move(to: center)
+            path.addLine(to: CGPoint(x: 118, y: 46))
+            path.move(to: center)
+            path.addLine(to: CGPoint(x: 46, y: 118))
+            path.move(to: center)
+            path.addLine(to: CGPoint(x: 190, y: 118))
+            path.move(to: center)
+            path.addLine(to: CGPoint(x: 118, y: 190))
+        }
+        .stroke(AppColors.warningSoft, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+    }
+
+    private func portraitPTZButton(_ direction: CameraPanTiltDirection, systemImage: String) -> some View {
         Button {
             Task { await viewModel.move(direction) }
         } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 31, weight: .medium))
                 .foregroundStyle(AppColors.text)
-                .frame(width: 58, height: 58)
-                .background(AppColors.insetPanelBackground, in: Circle())
+                .frame(width: 86, height: 86)
+                .background(AppColors.panelBackground, in: Circle())
+                .overlay {
+                    Circle().stroke(AppColors.warning, lineWidth: 3)
+                }
+                .shadow(color: AppColors.surfaceShadow, radius: 10, y: 5)
         }
         .buttonStyle(.plain)
         .disabled(viewModel.movingDirection != nil || viewModel.sessionState != .live)
@@ -182,110 +205,34 @@ struct CameraView: View {
     }
 
     private var secondaryControls: some View {
-        VStack(spacing: AppSpacing.large) {
+        VStack(spacing: 20) {
             Button {
                 Task { await viewModel.openSpeakerControls() }
             } label: {
                 Image(systemName: "speaker.wave.2.fill")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 27, weight: .medium))
                     .foregroundStyle(AppColors.text)
-                    .frame(width: 58, height: 58)
-                    .background(AppColors.insetPanelBackground, in: Circle())
+                    .frame(width: 72, height: 72)
+                    .background(AppColors.panelBackground, in: Circle())
+                    .overlay { Circle().stroke(.white.opacity(0.9), lineWidth: 2) }
+                    .shadow(color: AppColors.surfaceShadow, radius: 10, y: 5)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Camera speaker controls")
             .accessibilityHint("Opens camera speaker volume controls")
             cameraControlButton(systemImage: "mic.fill", label: "Two-way talk")
         }
-        .frame(width: 82)
-    }
-
-    private var speakerVolumePopover: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.large) {
-            HStack(alignment: .top, spacing: AppSpacing.small) {
-                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                    Text("Camera speaker volume")
-                        .font(.headline)
-                        .foregroundStyle(AppColors.text)
-                    Text("Controls the camera speaker, not phone playback or microphone sensitivity.")
-                        .font(.caption)
-                        .foregroundStyle(AppColors.mutedText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Button {
-                    viewModel.closeSpeakerControls()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppColors.mutedText)
-                        .frame(width: 28, height: 28)
-                        .background(AppColors.insetPanelBackground, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close camera speaker controls")
-            }
-
-            if viewModel.isLoadingSpeakerVolume {
-                HStack(spacing: AppSpacing.small) {
-                    ProgressView()
-                    Text("Reading camera speaker volume…")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.mutedText)
-                }
-            } else {
-                Slider(
-                    value: Binding(
-                        get: { Double(viewModel.speakerVolumeDraft) },
-                        set: { viewModel.speakerVolumeDraft = Int($0.rounded()) }
-                    ),
-                    in: 0...100,
-                    step: 1,
-                    onEditingChanged: { isEditing in
-                        if !isEditing {
-                            Task { await viewModel.applySpeakerVolume() }
-                        }
-                    }
-                )
-                .tint(AppColors.accent)
-                .disabled(viewModel.isSavingSpeakerVolume)
-                .accessibilityLabel("Camera speaker volume")
-                .accessibilityValue("\(viewModel.speakerVolumeDraft) percent")
-                .accessibilityHint("Controls the camera speaker. It does not control phone playback or microphone sensitivity.")
-
-                HStack {
-                    Text("0")
-                    Spacer()
-                    if viewModel.isSavingSpeakerVolume {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("\(viewModel.speakerVolumeDraft)%")
-                    }
-                    Spacer()
-                    Text("100")
-                }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(AppColors.mutedText)
-            }
-        }
-        .frame(width: 292)
-        .padding(AppSpacing.large)
-        .background(AppColors.panelBackground, in: RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.panel, style: .continuous)
-                .stroke(AppColors.panelBorder, lineWidth: 1)
-        }
-        .shadow(color: AppColors.surfaceShadow.opacity(0.55), radius: 18, y: 8)
-        .accessibilityElement(children: .contain)
+        .frame(width: 76)
     }
 
     private func cameraControlButton(systemImage: String, label: String) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 22, weight: .semibold))
+            .font(.system(size: 27, weight: .medium))
             .foregroundStyle(AppColors.mutedText)
-            .frame(width: 58, height: 58)
-            .background(AppColors.insetPanelBackground, in: Circle())
+            .frame(width: 72, height: 72)
+            .background(AppColors.panelBackground, in: Circle())
+            .overlay { Circle().stroke(.white.opacity(0.9), lineWidth: 2) }
+            .shadow(color: AppColors.surfaceShadow, radius: 10, y: 5)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(label)
             .accessibilityHint("Available in a later camera stage")

@@ -49,7 +49,7 @@ test('camera routes expose only the curated Kids Room camera and broker its mock
   assert.equal(await stream.text(), 'mock-mjpeg-stream');
 });
 
-test('camera session stop requires the opaque active session ID', async () => {
+test('camera session cleanup is idempotent while stream access still requires the opaque active session ID', async () => {
   const createdResponse = await fetch(`${routes.baseURL()}/api/camera/kids-room/sessions`, {
     method: 'POST',
     headers: cameraHeaders,
@@ -61,15 +61,19 @@ test('camera session stop requires the opaque active session ID', async () => {
     method: 'DELETE',
     headers: cameraHeaders,
   });
-  const wrongStopBody = (await wrongStop.json()) as { code: string };
-  assert.equal(wrongStop.status, 404);
-  assert.equal(wrongStopBody.code, 'camera_session_not_found');
+  assert.equal(wrongStop.status, 204);
 
   const stopped = await fetch(`${routes.baseURL()}/api/camera/kids-room/sessions/${sessionId}`, {
     method: 'DELETE',
     headers: cameraHeaders,
   });
   assert.equal(stopped.status, 204);
+
+  const repeatedStop = await fetch(`${routes.baseURL()}/api/camera/kids-room/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: cameraHeaders,
+  });
+  assert.equal(repeatedStop.status, 204);
 
   const expiredStream = await fetch(`${routes.baseURL()}/api/camera/kids-room/sessions/${sessionId}/stream`, {
     headers: cameraHeaders,
