@@ -1,6 +1,7 @@
 import type { AppConfig } from '../../config.js';
 import type { CameraPanTiltDirection, CameraStatus } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
+import { logger } from '../../observability/logger.js';
 import { HomeAssistantRestClient } from './restClient.js';
 
 type HomeAssistantStateResponse = {
@@ -92,6 +93,9 @@ export class LiveCameraFacade {
       throw new HTTPError(503, 'Home Assistant camera actions are unavailable.', 'home_assistant_action_unavailable');
     }
 
+    const startedAt = Date.now();
+    logger.info('Camera PTZ action requested.', { service });
+
     await new Promise<void>((resolve, reject) => {
       const socket = new WebSocketImpl(webSocketURL);
       const timeout = setTimeout(() => finish(new HTTPError(
@@ -123,6 +127,10 @@ export class LiveCameraFacade {
         }
 
         if (message.type === 'auth_ok') {
+          logger.info('Camera PTZ action dispatched to Home Assistant.', {
+            service,
+            elapsedMs: Date.now() - startedAt,
+          });
           socket.send(JSON.stringify({
             id: 1,
             type: 'call_service',
@@ -134,6 +142,11 @@ export class LiveCameraFacade {
         }
 
         if (message.type === 'result' && message.id === 1) {
+          logger.info('Camera PTZ action completed by Home Assistant.', {
+            service,
+            elapsedMs: Date.now() - startedAt,
+            success: message.success !== false,
+          });
           finish(message.success === false
             ? new HTTPError(502, 'Home Assistant rejected the camera action.', 'home_assistant_action_failed')
             : undefined);

@@ -15,6 +15,7 @@ final class CameraViewModel: ObservableObject {
     private let service: CameraService
     private var streamTask: Task<Void, Never>?
     private var streamStartupTask: Task<Void, Never>?
+    private var queuedDirection: CameraPanTiltDirection?
 
     init(service: CameraService) {
         self.service = service
@@ -49,6 +50,7 @@ final class CameraViewModel: ObservableObject {
         streamTask = nil
         streamStartupTask?.cancel()
         streamStartupTask = nil
+        queuedDirection = nil
         latestFrame = nil
         do {
             try await service.stopSession()
@@ -59,15 +61,29 @@ final class CameraViewModel: ObservableObject {
     }
 
     func move(_ direction: CameraPanTiltDirection) async {
-        guard movingDirection == nil else { return }
-        movingDirection = direction
-        errorMessage = nil
-        defer { movingDirection = nil }
+        if movingDirection != nil {
+            // Keep only the latest requested direction; repeated taps should not
+            // disappear while Home Assistant finishes the current movement.
+            queuedDirection = direction
+            return
+        }
 
-        do {
-            try await service.moveCamera(direction)
-        } catch {
-            errorMessage = error.localizedDescription
+        var nextDirection: CameraPanTiltDirection? = direction
+
+        while let currentDirection = nextDirection {
+            movingDirection = currentDirection
+            errorMessage = nil
+
+            do {
+                try await service.moveCamera(currentDirection)
+            } catch {
+                errorMessage = error.localizedDescription
+                queuedDirection = nil
+            }
+
+            movingDirection = nil
+            nextDirection = queuedDirection
+            queuedDirection = nil
         }
     }
 
