@@ -35,14 +35,16 @@ final class APIClient {
         path: String,
         method: HTTPMethod = .get,
         queryItems: [URLQueryItem] = [],
-        additionalHeaders: [String: String] = [:]
+        additionalHeaders: [String: String] = [:],
+        additionalAcceptedStatusCodes: Set<Int> = []
     ) async throws -> Response {
         try await send(
             path: path,
             method: method,
             queryItems: queryItems,
             bodyData: nil,
-            additionalHeaders: additionalHeaders
+            additionalHeaders: additionalHeaders,
+            additionalAcceptedStatusCodes: additionalAcceptedStatusCodes
         )
     }
 
@@ -51,7 +53,8 @@ final class APIClient {
         method: HTTPMethod,
         queryItems: [URLQueryItem] = [],
         body: Body,
-        additionalHeaders: [String: String] = [:]
+        additionalHeaders: [String: String] = [:],
+        additionalAcceptedStatusCodes: Set<Int> = []
     ) async throws -> Response {
         let bodyData: Data
 
@@ -72,7 +75,8 @@ final class APIClient {
             method: method,
             queryItems: queryItems,
             bodyData: bodyData,
-            additionalHeaders: additionalHeaders
+            additionalHeaders: additionalHeaders,
+            additionalAcceptedStatusCodes: additionalAcceptedStatusCodes
         )
     }
 
@@ -81,7 +85,8 @@ final class APIClient {
         method: HTTPMethod,
         queryItems: [URLQueryItem],
         bodyData: Data?,
-        additionalHeaders: [String: String]
+        additionalHeaders: [String: String],
+        additionalAcceptedStatusCodes: Set<Int> = []
     ) async throws -> Response {
         let url: URL
 
@@ -154,7 +159,7 @@ final class APIClient {
             throw APIError.transport("The API returned a non-HTTP response.")
         }
 
-        guard 200...299 ~= httpResponse.statusCode else {
+        guard 200...299 ~= httpResponse.statusCode || additionalAcceptedStatusCodes.contains(httpResponse.statusCode) else {
             if let errorResponse = try? decoder.decode(APIErrorResponse.self, from: data),
                !errorResponse.error.isEmpty {
                 appLogStore?.record(

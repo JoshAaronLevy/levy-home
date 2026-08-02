@@ -274,6 +274,89 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(capturedRequests[12].jsonBody["title"] as? String, "Test")
     }
 
+    func testShoppingStockPriceCheckMethodsUseOnlyThePublicJobEndpoints() async throws {
+        MockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api-base/api/shopping-list/ai/stock-price-checks"):
+                return Self.response(for: request, statusCode: 202, json: Self.shoppingStockPriceCheckSummaryJSON)
+            case ("GET", "/api-base/api/shopping-list/ai/stock-price-checks/job-1"):
+                return Self.response(for: request, json: Self.shoppingStockPriceCheckSummaryJSON)
+            case ("GET", "/api-base/api/shopping-list/ai/readiness"):
+                return Self.response(for: request, json: Self.shoppingStockPriceCheckReadinessJSON)
+            default:
+                return Self.response(for: request, statusCode: 404, json: #"{"error":"Unhandled test path"}"#)
+            }
+        }
+
+        let mutationId = "eb5d5b3e-ef2a-42ef-8630-13765c5c1d2e"
+        let start = try await client.startShoppingStockPriceCheck(
+            StartShoppingStockPriceCheckRequest(actor: "Josh", mutationId: mutationId)
+        )
+        let status = try await client.fetchShoppingStockPriceCheck(id: "job-1")
+        let readiness = try await client.fetchShoppingStockPriceCheckReadiness()
+
+        guard case .accepted(let startedJob) = start else {
+            return XCTFail("Expected an accepted stock and price check job.")
+        }
+        XCTAssertEqual(startedJob.id, "job-1")
+        XCTAssertEqual(status.status, .running)
+        XCTAssertTrue(readiness.enabled)
+        XCTAssertEqual(capturedRequests.map { $0.url?.path }, [
+            "/api-base/api/shopping-list/ai/stock-price-checks",
+            "/api-base/api/shopping-list/ai/stock-price-checks/job-1",
+            "/api-base/api/shopping-list/ai/readiness"
+        ])
+        XCTAssertEqual(capturedRequests[0].httpMethod, "POST")
+        XCTAssertEqual(capturedRequests[0].jsonBody["actor"] as? String, "Josh")
+        XCTAssertEqual(capturedRequests[0].jsonBody["mutationId"] as? String, mutationId)
+        XCTAssertEqual(capturedRequests[0].value(forHTTPHeaderField: "X-Levy-Home-Mutation-ID"), mutationId)
+        XCTAssertNil(capturedRequests[1].httpBody)
+        XCTAssertNil(capturedRequests[2].httpBody)
+    }
+
+    func testShoppingStockPriceCheckStartSurfacesThe409ActiveJob() async throws {
+        MockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+            return Self.response(
+                for: request,
+                statusCode: 409,
+                json: """
+                {
+                  "error": "A stock and price check is already in progress.",
+                  "code": "shopping_stock_price_check_active",
+                  "activeJob": \(Self.shoppingStockPriceCheckSummaryJSON)
+                }
+                """
+            )
+        }
+
+        let result = try await client.startShoppingStockPriceCheck(
+            StartShoppingStockPriceCheckRequest(actor: "Mallory", mutationId: "c1604b58-9b97-4b38-865b-824c3f7dfc92")
+        )
+
+        guard case .active(let job) = result else {
+            return XCTFail("Expected the active public job from HTTP 409.")
+        }
+        XCTAssertEqual(job.id, "job-1")
+        XCTAssertEqual(capturedRequests.first?.httpMethod, "POST")
+    }
+
+    func testShoppingStockPriceCheckMethodsMapMalformedPublicResponsesToDecodingErrors() async {
+        MockURLProtocol.requestHandler = { request in
+            Self.response(for: request, json: #"{"ok":true,"id":"job-1"}"#)
+        }
+
+        await XCTAssertThrowsAPIError(try await client.fetchShoppingStockPriceCheck(id: "job-1")) { error in
+            guard case .decoding = error else {
+                return false
+            }
+
+            return true
+        }
+    }
+
     func testDecodesServerErrorEnvelope() async {
         MockURLProtocol.requestHandler = { request in
             Self.response(
@@ -758,6 +841,48 @@ final class APIClientTests: XCTestCase {
           "registeredDeviceCount": 1,
           "recentEventCount": 2,
           "uptimeSeconds": 12.5
+        }
+        """
+    }
+
+    private static var shoppingStockPriceCheckSummaryJSON: String {
+        """
+        {
+          "ok": true,
+          "id": "job-1",
+          "status": "running",
+          "phase": "checking_stores",
+          "requestedItemCount": 4,
+          "processedItemCount": 1,
+          "updatedItemCount": 1,
+          "unmatchedItemCount": 0,
+          "failedItemCount": 0,
+          "skippedStaleItemCount": 0,
+          "submittedAt": "2026-08-02T12:00:00.000Z",
+          "startedAt": "2026-08-02T12:00:01.000Z",
+          "finishedAt": null,
+          "failureCode": null,
+          "message": null
+        }
+        """
+    }
+
+    private static var shoppingStockPriceCheckReadinessJSON: String {
+        """
+        {
+          "ok": true,
+          "enabled": true,
+          "checks": {
+            "persistence": { "ok": true, "configured": true, "code": null },
+            "fixedStoreScope": {
+              "ok": true,
+              "targetHighlandsRanch": true,
+              "kingSoopersWildcatReserve": true,
+              "allowedHosts": true,
+              "allowedMethods": true
+            },
+            "codexRuntime": { "ok": true, "enabled": true, "code": null }
+          }
         }
         """
     }

@@ -544,6 +544,80 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(preferences[1]["isEnabled"] as? Bool, false)
     }
 
+    func testStockPriceModelsPreserveUnknownEnumsAndDropInternalResponseFields() throws {
+        let summary = try decode(
+            ShoppingStockPriceCheckSummary.self,
+            from: """
+            {
+              "ok": true,
+              "id": "job-1",
+              "status": "future_status",
+              "phase": "future_phase",
+              "requestedItemCount": 2,
+              "processedItemCount": 1,
+              "updatedItemCount": 1,
+              "unmatchedItemCount": 0,
+              "failedItemCount": 0,
+              "skippedStaleItemCount": 0,
+              "submittedAt": "2026-08-02T12:00:00.000Z",
+              "startedAt": null,
+              "finishedAt": null,
+              "threadId": "private-thread",
+              "prompt": "private prompt",
+              "rawOutput": "private rendered-page output",
+              "filesystemPath": "/tmp/private"
+            }
+            """
+        )
+        let listing = try decode(
+            ShoppingStoreListingAvailability.self,
+            from: """
+            {
+              "status": "future_availability",
+              "matchStatus": "future_match_status"
+            }
+            """
+        )
+
+        XCTAssertEqual(summary.status, .unknown("future_status"))
+        XCTAssertEqual(summary.phase, .unknown("future_phase"))
+        XCTAssertEqual(listing.normalizedStatus, .unknown("future_availability"))
+        XCTAssertEqual(listing.normalizedMatchStatus, .unknown("future_match_status"))
+
+        let encodedSummary = String(decoding: try encoder.encode(summary), as: UTF8.self)
+        XCTAssertFalse(encodedSummary.contains("threadId"))
+        XCTAssertFalse(encodedSummary.contains("prompt"))
+        XCTAssertFalse(encodedSummary.contains("rawOutput"))
+        XCTAssertFalse(encodedSummary.contains("filesystemPath"))
+    }
+
+    func testDecodesStockPriceCheckReadinessWithoutRuntimeDiagnostics() throws {
+        let readiness = try decode(
+            ShoppingStockPriceCheckReadiness.self,
+            from: """
+            {
+              "ok": true,
+              "enabled": false,
+              "checks": {
+                "persistence": { "ok": true, "configured": true },
+                "fixedStoreScope": {
+                  "ok": true,
+                  "targetHighlandsRanch": true,
+                  "kingSoopersWildcatReserve": true,
+                  "allowedHosts": true,
+                  "allowedMethods": true
+                },
+                "codexRuntime": { "ok": false, "enabled": false, "code": "site_scope_unavailable" }
+              }
+            }
+            """
+        )
+
+        XCTAssertTrue(readiness.checks.fixedStoreScope.targetHighlandsRanch)
+        XCTAssertFalse(readiness.enabled)
+        XCTAssertEqual(readiness.checks.codexRuntime.code, "site_scope_unavailable")
+    }
+
     private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
         try decoder.decode(T.self, from: Data(json.utf8))
     }

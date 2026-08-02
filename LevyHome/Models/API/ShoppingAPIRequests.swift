@@ -1,10 +1,10 @@
 import Foundation
 
 struct StartShoppingStockPriceCheckRequest: Encodable, Equatable {
-    let actor: String?
+    let actor: String
     let mutationId: String
 
-    init(actor: String? = nil, mutationId: String = UUID().uuidString) {
+    init(actor: String, mutationId: String = UUID().uuidString) {
         self.actor = actor
         self.mutationId = mutationId
     }

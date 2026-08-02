@@ -223,15 +223,89 @@ struct ShoppingStoreListingAvailability: Codable, Equatable {
     }
 
     var normalizedStatus: ShoppingStockAvailabilityStatus {
-        ShoppingStockAvailabilityStatus(rawValue: status ?? "") ?? .unknown
+        ShoppingStockAvailabilityStatus(apiValue: status)
+    }
+
+    var normalizedMatchStatus: ShoppingStockPriceCheckMatchStatus {
+        ShoppingStockPriceCheckMatchStatus(apiValue: matchStatus)
     }
 }
 
-enum ShoppingStockAvailabilityStatus: String, Codable, Equatable {
-    case inStock = "in_stock"
-    case lowStock = "low_stock"
-    case outOfStock = "out_of_stock"
-    case unknown
+enum ShoppingStockAvailabilityStatus: Codable, Equatable {
+    case inStock
+    case lowStock
+    case outOfStock
+    case unknown(String)
+
+    init(apiValue: String?) {
+        switch apiValue {
+        case "in_stock": self = .inStock
+        case "low_stock": self = .lowStock
+        case "out_of_stock": self = .outOfStock
+        default: self = .unknown(apiValue ?? "unknown")
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        self.init(apiValue: try decoder.singleValueContainer().decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(apiValue)
+    }
+
+    var apiValue: String {
+        switch self {
+        case .inStock: return "in_stock"
+        case .lowStock: return "low_stock"
+        case .outOfStock: return "out_of_stock"
+        case .unknown(let value): return value
+        }
+    }
+}
+
+enum ShoppingStockPriceCheckMatchStatus: Codable, Equatable {
+    case matched
+    case noMatch
+    case ambiguous
+    case websiteError
+    case storeUnconfirmed
+    case domainScopeFailure
+    case unknown(String)
+
+    init(apiValue: String?) {
+        switch apiValue {
+        case "matched": self = .matched
+        case "no_match": self = .noMatch
+        case "ambiguous": self = .ambiguous
+        case "website_error": self = .websiteError
+        case "store_unconfirmed": self = .storeUnconfirmed
+        case "domain_scope_failure": self = .domainScopeFailure
+        default: self = .unknown(apiValue ?? "unknown")
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        self.init(apiValue: try decoder.singleValueContainer().decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(apiValue)
+    }
+
+    var apiValue: String {
+        switch self {
+        case .matched: return "matched"
+        case .noMatch: return "no_match"
+        case .ambiguous: return "ambiguous"
+        case .websiteError: return "website_error"
+        case .storeUnconfirmed: return "store_unconfirmed"
+        case .domainScopeFailure: return "domain_scope_failure"
+        case .unknown(let value): return value
+        }
+    }
 }
 
 enum ShoppingStockPriceCheckStatus: Equatable, Codable {
@@ -320,6 +394,64 @@ struct ShoppingStockPriceCheckSummary: Codable, Equatable {
     let finishedAt: String?
     let failureCode: String?
     let message: String?
+}
+
+enum ShoppingStockPriceCheckStartResult: Equatable {
+    case accepted(ShoppingStockPriceCheckSummary)
+    case active(ShoppingStockPriceCheckSummary)
+
+    var job: ShoppingStockPriceCheckSummary {
+        switch self {
+        case .accepted(let job), .active(let job): return job
+        }
+    }
+}
+
+extension ShoppingStockPriceCheckStartResult: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case activeJob
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let activeJob = try container.decodeIfPresent(ShoppingStockPriceCheckSummary.self, forKey: .activeJob) {
+            self = .active(activeJob)
+        } else {
+            self = .accepted(try ShoppingStockPriceCheckSummary(from: decoder))
+        }
+    }
+}
+
+struct ShoppingStockPriceCheckReadiness: Decodable, Equatable {
+    let ok: Bool
+    let enabled: Bool
+    let checks: Checks
+
+    struct Checks: Decodable, Equatable {
+        let persistence: Persistence
+        let fixedStoreScope: FixedStoreScope
+        let codexRuntime: CodexRuntime
+    }
+
+    struct Persistence: Decodable, Equatable {
+        let ok: Bool
+        let configured: Bool
+        let code: String?
+    }
+
+    struct FixedStoreScope: Decodable, Equatable {
+        let ok: Bool
+        let targetHighlandsRanch: Bool
+        let kingSoopersWildcatReserve: Bool
+        let allowedHosts: Bool
+        let allowedMethods: Bool
+    }
+
+    struct CodexRuntime: Decodable, Equatable {
+        let ok: Bool
+        let enabled: Bool
+        let code: String?
+    }
 }
 
 struct ShoppingListItemLookupResponse: Codable, Equatable {

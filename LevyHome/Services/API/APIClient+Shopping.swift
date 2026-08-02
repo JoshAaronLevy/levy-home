@@ -8,7 +8,41 @@ protocol ShoppingLiveActivityRegistrationServicing {
 
 extension APIClient: ShoppingLiveActivityRegistrationServicing {}
 
+protocol ShoppingStockPriceCheckServicing {
+    func startShoppingStockPriceCheck(
+        _ request: StartShoppingStockPriceCheckRequest
+    ) async throws -> ShoppingStockPriceCheckStartResult
+    func fetchShoppingStockPriceCheck(
+        id jobId: String
+    ) async throws -> ShoppingStockPriceCheckSummary
+    func fetchShoppingStockPriceCheckReadiness() async throws -> ShoppingStockPriceCheckReadiness
+}
+
+extension APIClient: ShoppingStockPriceCheckServicing {}
+
 extension APIClient {
+    func startShoppingStockPriceCheck(
+        _ request: StartShoppingStockPriceCheckRequest
+    ) async throws -> ShoppingStockPriceCheckStartResult {
+        try await send(
+            path: "/api/shopping-list/ai/stock-price-checks",
+            method: .post,
+            body: request,
+            additionalHeaders: Self.mutationHeaders(for: request.mutationId),
+            additionalAcceptedStatusCodes: [409]
+        )
+    }
+
+    func fetchShoppingStockPriceCheck(
+        id jobId: String
+    ) async throws -> ShoppingStockPriceCheckSummary {
+        try await send(path: "/api/shopping-list/ai/stock-price-checks/\(jobId)")
+    }
+
+    func fetchShoppingStockPriceCheckReadiness() async throws -> ShoppingStockPriceCheckReadiness {
+        try await send(path: "/api/shopping-list/ai/readiness")
+    }
+
     func sendShoppingLiveActivityDebugDelivery(
         event: ShoppingLiveActivityDebugEvent,
         excludeResident: String?
