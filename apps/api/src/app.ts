@@ -31,6 +31,10 @@ import { logger, type Logger, safeErrorMessage } from './observability/logger.js
 import { registerRoutes } from './routes/index.js';
 import type { NotificationPersistenceMode } from './routes/healthRoutes.js';
 import { createPostgresShoppingListStore, type ShoppingListStore } from './repositories/shoppingListRepository.js';
+import {
+  createPostgresShoppingStockPriceCheckStore,
+  type ShoppingStockPriceCheckStore,
+} from './repositories/shoppingStockPriceCheckRepository.js';
 import { createPostgresShoppingTripStore, type ShoppingTripStore } from './repositories/shoppingTripRepository.js';
 import {
   createPostgresShoppingLiveActivityStore,
@@ -59,6 +63,16 @@ import {
 } from './services/notifications/notificationPreferenceStore.js';
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
+import {
+  CodexShoppingWebsiteResearcher,
+} from './services/shopping/codexShoppingWebsiteResearcher.js';
+import type { RetailerWebsiteResearcher } from './services/shopping/retailerWebsiteResearcher.js';
+import {
+  createShoppingStockPriceCheckReadiness,
+  type ShoppingStockPriceCheckReadiness,
+} from './services/shopping/stockPriceCheckReadiness.js';
+import { createStockPriceCheckRunner, type StockPriceCheckRunner } from './services/shopping/stockPriceCheckRunner.js';
+import { createStockPriceCheckService, type StockPriceCheckService } from './services/shopping/stockPriceCheckService.js';
 import { createShoppingTripService, type ShoppingTripService } from './services/shopping/shoppingTripService.js';
 import {
   createShoppingLiveActivityDeliveryService,
@@ -97,6 +111,11 @@ export type CreateAppOptions = {
   shoppingTripSummaryStore?: ShoppingTripSummaryStore;
   shoppingTripSummaryDeliveryService?: ShoppingTripSummaryDeliveryService;
   shoppingListRealtime?: ShoppingListRealtimeBroadcaster;
+  shoppingStockPriceCheckStore?: ShoppingStockPriceCheckStore;
+  retailerWebsiteResearcher?: RetailerWebsiteResearcher;
+  stockPriceCheckService?: StockPriceCheckService;
+  stockPriceCheckRunner?: StockPriceCheckRunner;
+  shoppingStockPriceCheckReadiness?: ShoppingStockPriceCheckReadiness;
   toDoListRealtime?: ToDoListRealtimeHub;
   userStore?: UserStore;
   toDoLocationStore?: ToDoLocationStore;
@@ -192,6 +211,27 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       : {}),
     shoppingLiveActivityDeliveryService,
   });
+  const shoppingStockPriceCheckStore = options.shoppingStockPriceCheckStore ?? (
+    isDatabaseConfigured() ? createPostgresShoppingStockPriceCheckStore() : undefined
+  );
+  const retailerWebsiteResearcher = options.retailerWebsiteResearcher ?? new CodexShoppingWebsiteResearcher();
+  const stockPriceCheckService = options.stockPriceCheckService ?? (shoppingStockPriceCheckStore
+    ? createStockPriceCheckService({
+      stockPriceCheckStore: shoppingStockPriceCheckStore,
+      shoppingListMutationService,
+      retailerWebsiteResearcher,
+      logger: appLogger,
+    })
+    : undefined);
+  const stockPriceCheckRunner = options.stockPriceCheckRunner ?? (stockPriceCheckService
+    ? createStockPriceCheckRunner({
+      stockPriceCheckService,
+      logger: appLogger,
+      fetchActiveRun: () => shoppingStockPriceCheckStore?.fetchActiveRun() ?? Promise.resolve(null),
+    })
+    : undefined);
+  const shoppingStockPriceCheckReadiness = options.shoppingStockPriceCheckReadiness ??
+    createShoppingStockPriceCheckReadiness({ shoppingStockPriceCheckStore });
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
   const toDoListStore = options.toDoListStore ?? createPostgresToDoListStore();
@@ -219,6 +259,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.set('weatherAlertService', weatherAlertService);
   app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);
   app.set('shoppingTripSummaryDeliveryService', shoppingTripSummaryDeliveryService);
+  app.set('stockPriceCheckRunner', stockPriceCheckRunner);
 
   registerRoutes(app, {
     activityStore,
@@ -231,6 +272,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     homeService,
     krogerProductDiagnosticRunner,
     krogerProductSearchRunner,
+    logger: appLogger,
     notificationPersistenceMode,
     notificationPreferenceStore,
     notificationService,
@@ -238,6 +280,9 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     shoppingLiveActivityStore,
     shoppingListMutationService,
     shoppingListStore,
+    shoppingStockPriceCheckReadiness,
+    shoppingStockPriceCheckStore,
+    stockPriceCheckRunner,
     shoppingTripService,
     shoppingTripStore,
     toDoLocationStore,
@@ -245,6 +290,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     toDoListStore,
     userStore,
   });
+
+  // Durable state, rather than an HTTP request-held promise, controls restart
+  // recovery. The runner itself de-duplicates in-process schedules.
+  stockPriceCheckRunner?.recover();
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof DatabaseConfigurationError) {

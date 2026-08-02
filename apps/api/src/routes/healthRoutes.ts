@@ -6,6 +6,7 @@ import { asyncHandler } from '../http/asyncHandler.js';
 import { safeErrorMessage } from '../observability/logger.js';
 import type { DeviceRegistry } from '../services/notifications/deviceRegistry.js';
 import type { ShoppingLiveActivityStore } from '../repositories/shoppingLiveActivityRepository.js';
+import type { ShoppingStockPriceCheckReadiness } from '../services/shopping/stockPriceCheckReadiness.js';
 
 export type NotificationPersistenceMode = 'memory' | 'postgres';
 
@@ -15,6 +16,7 @@ export type HealthRouteDependencies = {
   deviceRegistry: Pick<DeviceRegistry, 'count'>;
   notificationPersistenceMode: NotificationPersistenceMode;
   shoppingLiveActivityStore?: Pick<ShoppingLiveActivityStore, 'getDiagnostics'>;
+  shoppingStockPriceCheckReadiness?: ShoppingStockPriceCheckReadiness;
 };
 
 export function createHealthRoutes(deps: HealthRouteDependencies): Router {
@@ -58,6 +60,9 @@ async function readinessStatus(deps: HealthRouteDependencies) {
   const homeAssistant = homeAssistantReadiness(deps.config);
   const apns = apnsReadiness(deps.config);
   const shoppingLiveActivities = await shoppingLiveActivityReadiness(deps);
+  const shoppingStockPriceChecks = deps.shoppingStockPriceCheckReadiness
+    ? await deps.shoppingStockPriceCheckReadiness.getReadiness()
+    : { ok: true, enabled: false, mode: 'not_configured' };
   const checks = {
     process: { ok: true },
     activity: {
@@ -69,6 +74,7 @@ async function readinessStatus(deps: HealthRouteDependencies) {
     homeAssistant,
     apns,
     shoppingLiveActivities,
+    shoppingStockPriceChecks,
   };
   const ok = Object.values(checks).every((check) => check.ok);
 

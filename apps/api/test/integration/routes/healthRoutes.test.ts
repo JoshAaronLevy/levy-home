@@ -38,6 +38,8 @@ test('GET /ready returns dependency readiness without requiring optional APNs cr
   assert.equal(response.checks.homeAssistant.mode, 'mock');
   assert.equal(response.checks.apns.configured, false);
   assert.equal(response.checks.apns.required, false);
+  assert.equal(response.checks.shoppingStockPriceChecks.enabled, false);
+  assert.equal(response.checks.shoppingStockPriceChecks.checks.codexRuntime.code, 'site_scope_unavailable');
 });
 
 test('GET /health remains live when notification persistence count is unavailable', async () => {

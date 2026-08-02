@@ -16,12 +16,16 @@ import type { ShoppingLiveActivityDeliveryService } from '../services/shopping/s
 import type { ShoppingListStore } from '../repositories/shoppingListRepository.js';
 import type { ShoppingTripStore } from '../repositories/shoppingTripRepository.js';
 import type { ShoppingLiveActivityStore } from '../repositories/shoppingLiveActivityRepository.js';
+import type { ShoppingStockPriceCheckStore } from '../repositories/shoppingStockPriceCheckRepository.js';
 import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
 import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
 import type { UserStore } from '../repositories/userRepository.js';
 import type { DoorbellImageService } from '../services/doorbell/doorbellImageService.js';
 import type { CameraService } from '../services/camera/cameraService.js';
+import type { ShoppingStockPriceCheckReadiness } from '../services/shopping/stockPriceCheckReadiness.js';
+import type { StockPriceCheckRunner } from '../services/shopping/stockPriceCheckRunner.js';
+import type { Logger } from '../observability/logger.js';
 import { createCameraRoutes } from './cameraRoutes.js';
 import { createActivityRoutes } from './activityRoutes.js';
 import { createDebugRoutes } from './debugRoutes.js';
@@ -47,6 +51,7 @@ export type AppRouteDependencies = {
   homeService: HomeService;
   krogerProductDiagnosticRunner: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner: (query?: string) => Promise<KrogerProductSearchResponse>;
+  logger: Pick<Logger, 'info'>;
   notificationPersistenceMode: NotificationPersistenceMode;
   notificationPreferenceStore: NotificationPreferenceStore;
   notificationService: NotificationService;
@@ -55,6 +60,9 @@ export type AppRouteDependencies = {
   shoppingTripService?: ShoppingTripService;
   shoppingLiveActivityDeliveryService?: ShoppingLiveActivityDeliveryService;
   shoppingLiveActivityStore?: ShoppingLiveActivityStore;
+  shoppingStockPriceCheckStore?: ShoppingStockPriceCheckStore;
+  shoppingStockPriceCheckReadiness: ShoppingStockPriceCheckReadiness;
+  stockPriceCheckRunner?: StockPriceCheckRunner;
   shoppingTripStore?: ShoppingTripStore;
   toDoLocationStore: ToDoLocationStore;
   toDoListMutationService: ToDoListMutationService;
