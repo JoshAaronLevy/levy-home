@@ -40,14 +40,16 @@ export type ShoppingItemStoreListingPrice = {
 };
 
 export type ShoppingItemStoreListingAvailability = {
-  status?: string;
+  status?: ShoppingStockAvailabilityStatus;
   checkedAt?: string;
+  matchStatus?: ShoppingStockPriceCheckMatchStatus;
 };
 
 export type ShoppingItemStoreListing = {
   storeId?: number;
   storeName?: string;
   source?: string;
+  selectedStoreAddress?: string;
   krogerLocationId?: string;
   product?: ShoppingItemStoreListingProduct;
   aisle?: ShoppingItemStoreListingAisle;
@@ -156,4 +158,115 @@ export type DeleteShoppingListItemResponse = {
   mutationId: string;
   generatedAt: string;
   push?: EventPushStatus;
+};
+
+/** The only availability values the website-research workflow may persist. */
+export type ShoppingStockAvailabilityStatus =
+  | 'in_stock'
+  | 'low_stock'
+  | 'out_of_stock'
+  | 'unknown';
+
+export type ShoppingStockPriceCheckMatchStatus =
+  | 'matched'
+  | 'no_match'
+  | 'ambiguous'
+  | 'website_error'
+  | 'store_unconfirmed'
+  | 'domain_scope_failure';
+
+export type ShoppingStockPriceCheckStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'completed_with_issues'
+  | 'failed';
+
+export type ShoppingStockPriceCheckPhase =
+  | 'preparing'
+  | 'checking_stores'
+  | 'matching_products'
+  | 'applying_updates'
+  | 'finished';
+
+export type ShoppingWebsiteObservedProduct = {
+  productId?: string;
+  upc?: string;
+  brand?: string;
+  name?: string;
+  image?: string;
+};
+
+export type ShoppingWebsiteSelectedStoreEvidence = {
+  storeId: number;
+  storeName: string;
+  source: 'target.com' | 'kingsoopers.com';
+  selectedStoreAddress: string;
+  /** An allowlisted rendered-page URL with sensitive query data removed. */
+  pageURL?: string;
+  confirmed: boolean;
+};
+
+export type ShoppingStockPriceCheckStoreOutcome = {
+  store: ShoppingWebsiteSelectedStoreEvidence;
+  availability: ShoppingStockAvailabilityStatus;
+  matchStatus: ShoppingStockPriceCheckMatchStatus;
+  product?: ShoppingWebsiteObservedProduct;
+  aisle?: ShoppingItemStoreListingAisle;
+  price?: ShoppingItemStoreListingPrice;
+  checkedAt?: string;
+  failureCode?: string;
+};
+
+export type ShoppingStockPriceCheckItemOutcomeStatus =
+  | 'pending'
+  | 'updated'
+  | 'unmatched'
+  | 'failed'
+  | 'skipped_stale';
+
+export type ShoppingStockPriceCheckItemSnapshot = {
+  itemId: number;
+  itemVersion: number;
+  name: string;
+  brand?: string;
+  quantity: number;
+  notes?: string;
+  categoryId: number | null;
+  image?: string;
+  storeListings: ShoppingItemStoreListing[];
+};
+
+export type ShoppingStockPriceCheckItemOutcome = {
+  id: string;
+  runId: string;
+  item: ShoppingStockPriceCheckItemSnapshot;
+  status: ShoppingStockPriceCheckItemOutcomeStatus;
+  storeOutcomes: ShoppingStockPriceCheckStoreOutcome[];
+  failureCode?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ShoppingStockPriceCheckSummary = {
+  ok: true;
+  id: string;
+  status: ShoppingStockPriceCheckStatus;
+  phase: ShoppingStockPriceCheckPhase;
+  requestedItemCount: number;
+  processedItemCount: number;
+  updatedItemCount: number;
+  unmatchedItemCount: number;
+  failedItemCount: number;
+  skippedStaleItemCount: number;
+  submittedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  failureCode?: string;
+  message?: string;
+};
+
+export type StartShoppingStockPriceCheckRequest = {
+  actor?: string;
+  mutationId: string;
 };

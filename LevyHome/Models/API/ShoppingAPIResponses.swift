@@ -126,6 +126,7 @@ struct ShoppingItemStoreListing: Codable, Equatable, Identifiable {
     let storeId: Int?
     let storeName: String?
     let source: String?
+    let selectedStoreAddress: String?
     let krogerLocationId: String?
     let product: ShoppingStoreListingProduct?
     let aisle: ShoppingStoreListingAisle?
@@ -162,6 +163,7 @@ struct ShoppingItemStoreListing: Codable, Equatable, Identifiable {
         storeId: Int? = nil,
         storeName: String? = nil,
         source: String? = nil,
+        selectedStoreAddress: String? = nil,
         krogerLocationId: String? = nil,
         product: ShoppingStoreListingProduct? = nil,
         aisle: ShoppingStoreListingAisle? = nil,
@@ -174,6 +176,7 @@ struct ShoppingItemStoreListing: Codable, Equatable, Identifiable {
         self.storeId = storeId
         self.storeName = storeName
         self.source = source
+        self.selectedStoreAddress = selectedStoreAddress
         self.krogerLocationId = krogerLocationId
         self.product = product
         self.aisle = aisle
@@ -211,6 +214,112 @@ struct ShoppingStoreListingPrice: Codable, Equatable {
 struct ShoppingStoreListingAvailability: Codable, Equatable {
     let status: String?
     let checkedAt: String?
+    let matchStatus: String?
+
+    init(status: String? = nil, checkedAt: String? = nil, matchStatus: String? = nil) {
+        self.status = status
+        self.checkedAt = checkedAt
+        self.matchStatus = matchStatus
+    }
+
+    var normalizedStatus: ShoppingStockAvailabilityStatus {
+        ShoppingStockAvailabilityStatus(rawValue: status ?? "") ?? .unknown
+    }
+}
+
+enum ShoppingStockAvailabilityStatus: String, Codable, Equatable {
+    case inStock = "in_stock"
+    case lowStock = "low_stock"
+    case outOfStock = "out_of_stock"
+    case unknown
+}
+
+enum ShoppingStockPriceCheckStatus: Equatable, Codable {
+    case queued
+    case running
+    case completed
+    case completedWithIssues
+    case failed
+    case unknown(String)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "queued": self = .queued
+        case "running": self = .running
+        case "completed": self = .completed
+        case "completed_with_issues": self = .completedWithIssues
+        case "failed": self = .failed
+        default: self = .unknown(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        let value: String
+        switch self {
+        case .queued: value = "queued"
+        case .running: value = "running"
+        case .completed: value = "completed"
+        case .completedWithIssues: value = "completed_with_issues"
+        case .failed: value = "failed"
+        case .unknown(let unknown): value = unknown
+        }
+        try container.encode(value)
+    }
+}
+
+enum ShoppingStockPriceCheckPhase: Equatable, Codable {
+    case preparing
+    case checkingStores
+    case matchingProducts
+    case applyingUpdates
+    case finished
+    case unknown(String)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "preparing": self = .preparing
+        case "checking_stores": self = .checkingStores
+        case "matching_products": self = .matchingProducts
+        case "applying_updates": self = .applyingUpdates
+        case "finished": self = .finished
+        default: self = .unknown(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        let value: String
+        switch self {
+        case .preparing: value = "preparing"
+        case .checkingStores: value = "checking_stores"
+        case .matchingProducts: value = "matching_products"
+        case .applyingUpdates: value = "applying_updates"
+        case .finished: value = "finished"
+        case .unknown(let unknown): value = unknown
+        }
+        try container.encode(value)
+    }
+}
+
+struct ShoppingStockPriceCheckSummary: Codable, Equatable {
+    let ok: Bool
+    let id: String
+    let status: ShoppingStockPriceCheckStatus
+    let phase: ShoppingStockPriceCheckPhase
+    let requestedItemCount: Int
+    let processedItemCount: Int
+    let updatedItemCount: Int
+    let unmatchedItemCount: Int
+    let failedItemCount: Int
+    let skippedStaleItemCount: Int
+    let submittedAt: String
+    let startedAt: String?
+    let finishedAt: String?
+    let failureCode: String?
+    let message: String?
 }
 
 struct ShoppingListItemLookupResponse: Codable, Equatable {
