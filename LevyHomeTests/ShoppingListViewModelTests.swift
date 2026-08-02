@@ -808,6 +808,154 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.id), [12, 11, 10])
     }
 
+    func testStoreListingPresentationPrefersFreshVerifiedListingsWithoutDuplicateStores() {
+        let manualTarget = Self.listing(
+            storeId: 1,
+            storeName: "Target",
+            source: "manual",
+            price: ShoppingStoreListingPrice(regular: 8.99, promo: nil)
+        )
+        let olderVerifiedTarget = Self.listing(
+            storeId: 1,
+            storeName: "Target",
+            source: "target.com",
+            address: "1365 Sgt Jon Stiles Dr, Highlands Ranch, CO",
+            price: ShoppingStoreListingPrice(regular: 5.49, promo: 4.99),
+            availability: ShoppingStoreListingAvailability(status: "in_stock", checkedAt: "2026-08-02T15:00:00Z")
+        )
+        let freshestVerifiedTarget = Self.listing(
+            storeId: 1,
+            storeName: "Target",
+            source: "target.com",
+            address: "1365 Sgt Jon Stiles Dr, Highlands Ranch, CO",
+            price: ShoppingStoreListingPrice(regular: 4.29, promo: 3.79),
+            availability: ShoppingStoreListingAvailability(status: "low_stock", checkedAt: "2026-08-02T16:00:00Z")
+        )
+        let manualKingSoopers = Self.listing(
+            storeId: 2,
+            storeName: "King Soopers",
+            source: "manual",
+            price: ShoppingStoreListingPrice(regular: 6.49, promo: nil)
+        )
+        let verifiedKingSoopers = Self.listing(
+            storeId: 2,
+            storeName: "King Soopers",
+            source: "kingsoopers.com",
+            address: "2205 W Wildcat Reserve Pkwy, Highlands Ranch, CO",
+            price: ShoppingStoreListingPrice(regular: 3.99, promo: nil),
+            availability: ShoppingStoreListingAvailability(status: "out_of_stock", checkedAt: "2026-08-02T16:05:00Z")
+        )
+
+        let displayed = ShoppingStoreListingPresentation.coalescedListings(from: [
+            manualTarget,
+            olderVerifiedTarget,
+            freshestVerifiedTarget,
+            manualKingSoopers,
+            verifiedKingSoopers,
+        ])
+
+        XCTAssertEqual(displayed.count, 2)
+        XCTAssertEqual(displayed.map { ShoppingStoreListingPresentation.storeName(for: $0) }, ["Target", "King Soopers"])
+        XCTAssertEqual(ShoppingStoreListingPresentation.priceText(for: displayed[0]), "$3.79")
+        XCTAssertEqual(ShoppingStoreListingPresentation.priceText(for: displayed[1]), "$3.99")
+        XCTAssertEqual(ShoppingStoreListingPresentation.availabilityLabel(for: displayed[0]), "Low stock")
+        XCTAssertEqual(ShoppingStoreListingPresentation.availabilityLabel(for: displayed[1]), "Out of stock")
+    }
+
+    func testStoreListingPresentationUsesAllNormalizedAvailabilityTones() {
+        let listings: [(ShoppingItemStoreListing, StatusBadgeTone)] = [
+            (Self.listing(availability: ShoppingStoreListingAvailability(status: "in_stock")), .success),
+            (Self.listing(availability: ShoppingStoreListingAvailability(status: "low_stock")), .warning),
+            (Self.listing(availability: ShoppingStoreListingAvailability(status: "out_of_stock")), .critical),
+            (Self.listing(availability: ShoppingStoreListingAvailability(status: "unknown")), .neutral),
+        ]
+
+        for (listing, expectedTone) in listings {
+            XCTAssertEqual(ShoppingStoreListingPresentation.availabilityTone(for: listing), expectedTone)
+        }
+
+        let legacyInventoryOnly = Self.listing(
+            availability: nil,
+            inventory: ["stockLevel": .string("LOW")]
+        )
+        XCTAssertEqual(ShoppingStoreListingPresentation.availabilityTone(for: legacyInventoryOnly), .neutral)
+        XCTAssertEqual(ShoppingStoreListingPresentation.availabilityLabel(for: legacyInventoryOnly), "Availability unknown")
+    }
+
+    func testStoreListingPresentationLeavesMissingValuesUnavailableAndDescribesFreshnessAccessibly() {
+        let missing = Self.listing(
+            availability: ShoppingStoreListingAvailability(status: "unknown")
+        )
+        XCTAssertNil(ShoppingStoreListingPresentation.priceText(for: missing))
+        XCTAssertNil(ShoppingStoreListingPresentation.locationText(for: missing))
+        XCTAssertNil(ShoppingStoreListingPresentation.freshnessText(for: missing, now: Date(timeIntervalSince1970: 1_000)))
+        XCTAssertEqual(
+            ShoppingStoreListingPresentation.accessibilityLabel(for: missing, now: Date(timeIntervalSince1970: 1_000)),
+            "Target, Availability unknown, freshness unavailable"
+        )
+
+        let stale = Self.listing(
+            aisle: ShoppingStoreListingAisle(display: nil, description: "Aisle 12", number: nil, shelfNumber: nil, raw: nil),
+            price: ShoppingStoreListingPrice(regular: 7.99, promo: nil),
+            availability: ShoppingStoreListingAvailability(status: "in_stock", checkedAt: "2026-07-30T16:00:00Z")
+        )
+        let now = ISO8601DateFormatter().date(from: "2026-08-02T16:00:00Z")!
+        XCTAssertEqual(ShoppingStoreListingPresentation.locationText(for: stale), "Aisle 12")
+        XCTAssertEqual(ShoppingStoreListingPresentation.freshnessText(for: stale, now: now), "Last checked 3d ago")
+        XCTAssertEqual(
+            ShoppingStoreListingPresentation.accessibilityLabel(for: stale, now: now),
+            "Target, In stock, location Aisle 12, price $7.99, Last checked 3d ago"
+        )
+    }
+
+    func testDetailedAndCompactAccessibilityLabelsIncludeVerifiedStoreDetails() {
+        let listing = Self.listing(
+            source: "target.com",
+            address: "1365 Sgt Jon Stiles Dr, Highlands Ranch, CO",
+            aisle: ShoppingStoreListingAisle(display: "A12", description: nil, number: nil, shelfNumber: nil, raw: nil),
+            price: ShoppingStoreListingPrice(regular: 4.29, promo: nil),
+            availability: ShoppingStoreListingAvailability(status: "in_stock", checkedAt: "2026-08-02T16:00:00Z")
+        )
+        let displayItem = ShoppingListDisplayItem(
+            item: ShoppingListItem(
+                id: 44,
+                name: "Coffee",
+                brand: nil,
+                quantity: 1,
+                notes: nil,
+                purchased: false,
+                created: nil,
+                updated: nil,
+                categoryId: 1,
+                storeListings: [listing]
+            ),
+            category: ShoppingCategory(id: 1, name: "Pantry")
+        )
+
+        XCTAssertTrue(displayItem.accessibilityLabel.contains("Target, In stock, location A12, price $4.29"))
+        XCTAssertTrue(displayItem.compactAccessibilityLabel.contains("Target, In stock, location A12, price $4.29"))
+    }
+
+    func testDismissingFinalStockPriceCheckSummaryClearsOnlyTheTerminalPresentation() async {
+        let completed = Self.stockPriceCheckJob(
+            status: .completed,
+            processed: 1,
+            requested: 1
+        )
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 55, name: "Coffee")],
+            start: { _ in .accepted(completed) }
+        )
+        await viewModel.loadIfNeeded()
+
+        _ = await viewModel.startStockPriceCheck()
+        XCTAssertEqual(viewModel.finalStockPriceCheckSummary?.id, completed.id)
+
+        viewModel.dismissFinalStockPriceCheckSummary()
+        XCTAssertNil(viewModel.finalStockPriceCheckSummary)
+        XCTAssertEqual(viewModel.stockPriceCheckJob?.id, completed.id)
+    }
+
     private static func response(
         items: [ShoppingListItem],
         activeTrip: ShoppingTrip? = nil
@@ -983,6 +1131,28 @@ final class ShoppingListViewModelTests: XCTestCase {
             updated: updated,
             version: version,
             categoryId: nil
+        )
+    }
+
+    private static func listing(
+        storeId: Int? = 1,
+        storeName: String? = "Target",
+        source: String? = "manual",
+        address: String? = nil,
+        aisle: ShoppingStoreListingAisle? = nil,
+        price: ShoppingStoreListingPrice? = nil,
+        availability: ShoppingStoreListingAvailability? = nil,
+        inventory: [String: JSONValue]? = nil
+    ) -> ShoppingItemStoreListing {
+        ShoppingItemStoreListing(
+            storeId: storeId,
+            storeName: storeName,
+            source: source,
+            selectedStoreAddress: address,
+            aisle: aisle,
+            price: price,
+            inventory: inventory,
+            availability: availability
         )
     }
 

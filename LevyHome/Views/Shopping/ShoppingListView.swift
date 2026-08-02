@@ -470,6 +470,7 @@ private struct ShoppingListContentView: View {
     @State private var tripDisplayMessage: String?
     @State private var isShowingEndTripConfirmation = false
     @State private var isShowingShoppingAIMenu = false
+    @State private var isShowingStockPriceCheckSummary = false
     let isSelected: Bool
 
     init(viewModel: ShoppingListViewModel, isSelected: Bool = true) {
@@ -548,6 +549,9 @@ private struct ShoppingListContentView: View {
             guard let trip = viewModel.activeTrip, isSelected else { return }
             Task { await shoppingLiveActivityCoordinator.updateTripActivity(for: trip) }
         }
+        .onChange(of: viewModel.finalStockPriceCheckSummary?.id) { _, jobID in
+            isShowingStockPriceCheckSummary = jobID != nil
+        }
         .refreshable {
             await viewModel.refresh()
         }
@@ -577,6 +581,18 @@ private struct ShoppingListContentView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingStockPriceCheckSummary, onDismiss: {
+            viewModel.dismissFinalStockPriceCheckSummary()
+        }) {
+            if let summary = viewModel.finalStockPriceCheckSummary {
+                ShoppingStockPriceCheckSummarySheet(summary: summary) {
+                    isShowingStockPriceCheckSummary = false
+                    viewModel.dismissFinalStockPriceCheckSummary()
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
         }
         .confirmationDialog(
             "End Shopping Trip?",
@@ -1054,7 +1070,10 @@ private struct ShoppingListContentView: View {
         let total = viewModel.items
             .filter { !$0.purchased }
             .reduce(0.0) { partialTotal, item in
-                guard let unitPrice = item.storeListings.compactMap(\.estimatedUnitPrice).max() else {
+                guard let unitPrice = ShoppingStoreListingPresentation
+                    .coalescedListings(from: item.storeListings)
+                    .compactMap(\.estimatedUnitPrice)
+                    .max() else {
                     return partialTotal
                 }
 
@@ -3172,34 +3191,62 @@ private struct ShoppingStoreListingSummaryRow: View {
     let listing: ShoppingItemStoreListing
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: AppSpacing.xSmall) {
-                storePill
-                pricePill
+        VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.xSmall) {
+                    storePill
+                    availabilityPill
+                    pricePill
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    HStack(spacing: AppSpacing.xSmall) {
+                        storePill
+                        availabilityPill
+                    }
+                    pricePill
+                }
             }
 
-            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
-                storePill
-                pricePill
+            if let contextText = ShoppingStoreListingPresentation.contextText(for: listing) {
+                Text(contextText)
+                    .font(.caption)
+                    .foregroundStyle(AppColors.mutedText)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ShoppingStoreListingPresentation.accessibilityLabel(for: listing))
     }
 
     private var storePill: some View {
-        Text(listing.badgeLabel)
+        Text(ShoppingStoreListingPresentation.storeName(for: listing))
             .font(.caption.weight(.semibold))
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, AppSpacing.small)
             .frame(height: 24)
-            .foregroundStyle(listing.badgeTone.foregroundColor)
-            .background(listing.badgeTone.backgroundColor)
+            .foregroundStyle(AppColors.mutedText)
+            .background(Color(uiColor: .tertiarySystemFill))
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+    }
+
+    private var availabilityPill: some View {
+        Text(ShoppingStoreListingPresentation.availabilityLabel(for: listing))
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .padding(.horizontal, AppSpacing.small)
+            .frame(height: 24)
+            .foregroundStyle(ShoppingStoreListingPresentation.availabilityTone(for: listing).foregroundColor)
+            .background(ShoppingStoreListingPresentation.availabilityTone(for: listing).backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
     }
 
     @ViewBuilder
     private var pricePill: some View {
-        if let priceText = listing.price?.displayText {
+        if let priceText = ShoppingStoreListingPresentation.priceText(for: listing) {
             Text(priceText)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
@@ -3210,6 +3257,114 @@ private struct ShoppingStoreListingSummaryRow: View {
                 .background(Color(uiColor: .tertiarySystemFill))
                 .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
         }
+    }
+}
+
+private struct ShoppingStockPriceCheckSummarySheet: View {
+    let summary: ShoppingStockPriceCheckSummary
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.large) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                Image(systemName: statusSystemImage)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(statusTone.foregroundColor)
+                    .frame(width: 38, height: 38)
+                    .background(statusTone.backgroundColor, in: Circle())
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(title)
+                        .font(.title3.weight(.bold))
+
+                    Text("Review the availability, location, and price details on the affected shopping-list entries before you shop.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(spacing: AppSpacing.small) {
+                ShoppingStockPriceCheckCount(label: "Updated", count: summary.updatedItemCount, tone: .success)
+                ShoppingStockPriceCheckCount(label: "Needs review", count: summary.unmatchedItemCount, tone: .warning)
+                ShoppingStockPriceCheckCount(label: "Failed", count: summary.failedItemCount, tone: .critical)
+            }
+
+            if summary.skippedStaleItemCount > 0 {
+                ShoppingStockPriceCheckCount(
+                    label: "Skipped stale",
+                    count: summary.skippedStaleItemCount,
+                    tone: .neutral
+                )
+            }
+
+            PrimaryActionButton(title: "Done", systemImage: "checkmark", action: onDismiss)
+        }
+        .padding(AppSpacing.screen)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var title: String {
+        switch summary.status {
+        case .completed:
+            return "Stock & Price Check Complete"
+        case .completedWithIssues:
+            return "Stock & Price Check Needs Review"
+        case .failed:
+            return "Stock & Price Check Did Not Finish"
+        case .queued, .running, .unknown:
+            return "Stock & Price Check Update"
+        }
+    }
+
+    private var statusSystemImage: String {
+        switch summary.status {
+        case .completed:
+            return "checkmark.circle"
+        case .completedWithIssues:
+            return "exclamationmark.circle"
+        case .failed:
+            return "xmark.octagon"
+        case .queued, .running, .unknown:
+            return "info.circle"
+        }
+    }
+
+    private var statusTone: StatusBadgeTone {
+        switch summary.status {
+        case .completed:
+            return .success
+        case .completedWithIssues:
+            return .warning
+        case .failed:
+            return .critical
+        case .queued, .running, .unknown:
+            return .neutral
+        }
+    }
+}
+
+private struct ShoppingStockPriceCheckCount: View {
+    let label: String
+    let count: Int
+    let tone: StatusBadgeTone
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+            Text("\(count)")
+                .font(.title3.weight(.bold))
+                .monospacedDigit()
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(tone.foregroundColor)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .padding(AppSpacing.small)
+        .background(tone.backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(count)")
     }
 }
 
@@ -3248,7 +3403,7 @@ struct ShoppingListDisplayItem: Identifiable, Comparable {
     var id: Int { item.id }
 
     var storeListings: [ShoppingItemStoreListing] {
-        item.storeListings
+        ShoppingStoreListingPresentation.coalescedListings(from: item.storeListings)
     }
 
     var detailText: String? {
@@ -3267,15 +3422,21 @@ struct ShoppingListDisplayItem: Identifiable, Comparable {
 
     var accessibilityLabel: String {
         let state = item.purchased ? "picked up" : "needed"
-        let storeNames = storeListings.map(\.badgeLabel).joined(separator: ", ")
-        let storesText = storeNames.isEmpty ? "" : ", stores \(storeNames)"
+        let storeDetails = storeListings
+            .map { ShoppingStoreListingPresentation.accessibilityLabel(for: $0) }
+            .joined(separator: "; ")
+        let storesText = storeDetails.isEmpty ? "" : ", \(storeDetails)"
 
         return "\(item.name), quantity \(item.quantity), \(category.name), \(state)\(storesText)"
     }
 
     var compactAccessibilityLabel: String {
         let state = item.purchased ? "picked up" : "needed"
-        return "\(item.name), quantity \(item.quantity), \(state)"
+        let storeDetails = storeListings
+            .map { ShoppingStoreListingPresentation.accessibilityLabel(for: $0) }
+            .joined(separator: "; ")
+        let storesText = storeDetails.isEmpty ? "" : ", \(storeDetails)"
+        return "\(item.name), quantity \(item.quantity), \(state)\(storesText)"
     }
 
     func matches(_ searchText: String) -> Bool {
@@ -3362,55 +3523,214 @@ private extension KrogerProduct {
     }
 }
 
+struct ShoppingStoreListingPresentation {
+    private enum CanonicalStore: Hashable {
+        case target
+        case kingSoopers
+        case other(String)
+    }
+
+    private static let targetAddressFragment = "1365 sgt jon stiles dr"
+    private static let kingSoopersAddressFragment = "2205 w wildcat reserve pkwy"
+
+    static func coalescedListings(from listings: [ShoppingItemStoreListing]) -> [ShoppingItemStoreListing] {
+        let indexed = Array(listings.enumerated())
+        let grouped = Dictionary(grouping: indexed) { canonicalStore(for: $0.element) }
+
+        return grouped
+            .sorted { first, second in
+                first.value.map(\.offset).min() ?? 0 < second.value.map(\.offset).min() ?? 0
+            }
+            .compactMap { _, candidates in
+                preferredListing(from: candidates.map(\.element))
+            }
+    }
+
+    static func storeName(for listing: ShoppingItemStoreListing) -> String {
+        switch canonicalStore(for: listing) {
+        case .target:
+            return "Target"
+        case .kingSoopers:
+            return "King Soopers"
+        case .other:
+            return trimmedNonEmpty(listing.storeName) ?? "Store"
+        }
+    }
+
+    static func availabilityLabel(for listing: ShoppingItemStoreListing) -> String {
+        switch listing.availability?.normalizedStatus ?? .unknown("unknown") {
+        case .inStock:
+            return "In stock"
+        case .lowStock:
+            return "Low stock"
+        case .outOfStock:
+            return "Out of stock"
+        case .unknown:
+            return "Availability unknown"
+        }
+    }
+
+    static func availabilityTone(for listing: ShoppingItemStoreListing) -> StatusBadgeTone {
+        switch listing.availability?.normalizedStatus ?? .unknown("unknown") {
+        case .inStock:
+            return .success
+        case .lowStock:
+            return .warning
+        case .outOfStock:
+            return .critical
+        case .unknown:
+            return .neutral
+        }
+    }
+
+    static func priceText(for listing: ShoppingItemStoreListing) -> String? {
+        estimatedUnitPrice(for: listing)?.formatted(.currency(code: "USD"))
+    }
+
+    static func locationText(for listing: ShoppingItemStoreListing) -> String? {
+        trimmedNonEmpty(listing.aisle?.display) ?? trimmedNonEmpty(listing.aisle?.description)
+    }
+
+    static func freshnessText(for listing: ShoppingItemStoreListing, now: Date = .now) -> String? {
+        guard let checkedAt = checkedAtDate(for: listing) else {
+            return nil
+        }
+
+        let seconds = now.timeIntervalSince(checkedAt)
+
+        guard seconds >= 0 else {
+            return "Checked just now"
+        }
+
+        if seconds < 60 {
+            return "Checked just now"
+        }
+
+        if seconds < 3_600 {
+            return "Checked \(Int(seconds / 60))m ago"
+        }
+
+        if seconds < 86_400 {
+            return "Checked \(Int(seconds / 3_600))h ago"
+        }
+
+        return "Last checked \(Int(seconds / 86_400))d ago"
+    }
+
+    static func contextText(for listing: ShoppingItemStoreListing, now: Date = .now) -> String? {
+        [
+            locationText(for: listing).map { "Location: \($0)" },
+            freshnessText(for: listing, now: now),
+        ]
+        .compactMap { $0 }
+        .joined(separator: " • ")
+        .nilIfEmpty
+    }
+
+    static func accessibilityLabel(for listing: ShoppingItemStoreListing, now: Date = .now) -> String {
+        var details = [storeName(for: listing), availabilityLabel(for: listing)]
+
+        if let location = locationText(for: listing) {
+            details.append("location \(location)")
+        }
+
+        if let price = priceText(for: listing) {
+            details.append("price \(price)")
+        }
+
+        if let freshness = freshnessText(for: listing, now: now) {
+            details.append(freshness)
+        } else {
+            details.append("freshness unavailable")
+        }
+
+        return details.joined(separator: ", ")
+    }
+
+    static func estimatedUnitPrice(for listing: ShoppingItemStoreListing) -> Double? {
+        validPrice(listing.price?.promo) ?? validPrice(listing.price?.regular)
+    }
+
+    private static func preferredListing(from candidates: [ShoppingItemStoreListing]) -> ShoppingItemStoreListing? {
+        let verifiedListings = candidates.filter(isVerifiedFixedStoreListing)
+
+        if let verifiedListing = verifiedListings.max(by: { checkedAtDate(for: $0) ?? .distantPast < checkedAtDate(for: $1) ?? .distantPast }) {
+            return verifiedListing
+        }
+
+        if let manualListing = candidates.first(where: isManualListing) {
+            return manualListing
+        }
+
+        return candidates.max(by: { checkedAtDate(for: $0) ?? .distantPast < checkedAtDate(for: $1) ?? .distantPast })
+    }
+
+    private static func canonicalStore(for listing: ShoppingItemStoreListing) -> CanonicalStore {
+        let values = [listing.storeName, listing.source, listing.krogerLocationId]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+
+        if listing.storeId == 1 || values.contains(where: { $0.contains("target") }) {
+            return .target
+        }
+
+        if listing.storeId == 2 || values.contains(where: {
+            $0.contains("king soopers") || $0.contains("kingsoopers") || $0.contains("kroger")
+        }) {
+            return .kingSoopers
+        }
+
+        return .other("\(listing.storeId.map(String.init) ?? "")\u{0}\(listing.storeName?.lowercased() ?? "")\u{0}\(listing.source?.lowercased() ?? "")")
+    }
+
+    private static func isVerifiedFixedStoreListing(_ listing: ShoppingItemStoreListing) -> Bool {
+        let source = listing.source?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let address = listing.selectedStoreAddress?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+
+        switch canonicalStore(for: listing) {
+        case .target:
+            return source == "target.com" && address.contains(targetAddressFragment)
+        case .kingSoopers:
+            return source == "kingsoopers.com" && address.contains(kingSoopersAddressFragment)
+        case .other:
+            return false
+        }
+    }
+
+    private static func isManualListing(_ listing: ShoppingItemStoreListing) -> Bool {
+        listing.source?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare("manual") == .orderedSame
+    }
+
+    private static func checkedAtDate(for listing: ShoppingItemStoreListing) -> Date? {
+        let value = listing.availability?.checkedAt ?? listing.checkedAt
+        guard let value = trimmedNonEmpty(value) else {
+            return nil
+        }
+
+        return ISO8601DateFormatter().date(from: value)
+    }
+
+    private static func validPrice(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, value >= 0 else {
+            return nil
+        }
+
+        return value
+    }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.nilIfEmpty
+    }
+}
+
 private extension ShoppingItemStoreListing {
     var estimatedUnitPrice: Double? {
-        price?.estimatedUnitPrice
-    }
-
-    var badgeLabel: String {
-        let name = storeName ?? "Store"
-
-        if let display = aisle?.display, !display.isEmpty {
-            return "\(name) - \(display)"
-        }
-
-        return name
-    }
-
-    var badgeTone: StatusBadgeTone {
-        let normalizedStatus = availability?.status?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        if normalizedStatus == "out_of_stock" || normalizedStatus == "out of stock" {
-            return .critical
-        }
-
-        if normalizedStatus == "in_stock" || normalizedStatus == "in stock" {
-            return .success
-        }
-
-        let stockLevel = inventory?["stockLevel"]?.stringValue?.lowercased()
-
-        if stockLevel == "out_of_stock"
-            || stockLevel == "out of stock"
-            || stockLevel == "temporarily_out_of_stock"
-            || stockLevel == "none" {
-            return .critical
-        }
-
-        if stockLevel == "low" || stockLevel == "limited" {
-            return .warning
-        }
-
-        if stockLevel == "high"
-            || stockLevel == "medium"
-            || stockLevel == "in_stock"
-            || stockLevel == "available" {
-            return .success
-        }
-
-        return .neutral
+        ShoppingStoreListingPresentation.estimatedUnitPrice(for: self)
     }
 
     var searchableValues: [String] {
@@ -3423,7 +3743,7 @@ private extension ShoppingItemStoreListing {
             product?.description,
             aisle?.display,
             aisle?.description,
-            price?.displayText,
+            ShoppingStoreListingPresentation.priceText(for: self),
             availability?.status,
             inventory?["stockLevel"]?.stringValue,
         ].compactMap { $0 }
@@ -3448,15 +3768,16 @@ private extension ShoppingItemStoreListing {
 
 private extension ShoppingStoreListingPrice {
     var estimatedUnitPrice: Double? {
-        promo ?? regular
-    }
-
-    var displayText: String? {
-        guard let value = estimatedUnitPrice else {
+        let candidate = promo ?? regular
+        guard let candidate, candidate.isFinite, candidate >= 0 else {
             return nil
         }
 
-        return value.formatted(.currency(code: "USD"))
+        return candidate
+    }
+
+    var displayText: String? {
+        estimatedUnitPrice?.formatted(.currency(code: "USD"))
     }
 }
 

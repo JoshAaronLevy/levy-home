@@ -491,6 +491,10 @@ final class ShoppingListViewModel: ObservableObject {
         stockPriceCheckPollingToken = nil
     }
 
+    func dismissFinalStockPriceCheckSummary() {
+        finalStockPriceCheckSummary = nil
+    }
+
     var stockPriceCheckProgressLabel: String? {
         guard let stockPriceCheckJob, isStockPriceCheckActive else {
             return nil
