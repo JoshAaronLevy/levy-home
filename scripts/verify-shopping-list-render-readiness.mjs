@@ -94,7 +94,7 @@ async function checkWebSocket() {
     (message) =>
       message.type === 'presence_changed' &&
       Array.isArray(message.viewers) &&
-      message.viewers.some((viewer) => viewer.viewerId === options.viewerId),
+      message.viewers.some((viewer) => viewer.viewerId === canonicalViewerId(options.viewerId)),
     'presence_changed including verifier',
   );
   console.log(`WebSocket presence_changed ok viewers=${describeViewers(presenceChanged.viewers)}`);
@@ -407,6 +407,13 @@ function describeViewers(viewers) {
   return viewers
     .map((viewer) => `${viewer.displayName ?? 'Unknown'}(${viewer.viewerId ?? 'unknown'})`)
     .join(', ');
+}
+
+// The API canonicalizes presence IDs before broadcasting them. Keep this
+// verifier aligned with that public realtime contract, including custom IDs
+// supplied with punctuation such as "stage-12-verifier".
+function canonicalViewerId(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 function mutationId(action) {
