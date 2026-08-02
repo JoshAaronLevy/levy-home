@@ -210,6 +210,8 @@ export type ShoppingWebsiteSelectedStoreEvidence = {
 export type ShoppingStockPriceCheckStoreOutcome = {
   store: ShoppingWebsiteSelectedStoreEvidence;
   availability: ShoppingStockAvailabilityStatus;
+  /** Bounded text visibly shown by the permitted rendered page, when supplied. */
+  observedAvailabilityText?: string;
   matchStatus: ShoppingStockPriceCheckMatchStatus;
   product?: ShoppingWebsiteObservedProduct;
   aisle?: ShoppingItemStoreListingAisle;
