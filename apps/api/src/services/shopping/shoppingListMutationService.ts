@@ -44,7 +44,21 @@ export type ShoppingListMutationService = {
     request: UpdateShoppingListItemRequest,
     mutationId: string,
   ) => Promise<ShoppingListMutationResponse>;
+  /**
+   * Internal-only writer for a durable stock-and-price check.  It deliberately
+   * cannot alter the shopper-owned fields on an item and never creates a
+   * per-item session push notification.
+   */
+  applyStockPriceCheckListings: (
+    itemId: number,
+    request: { expectedVersion: number; storeListings: NonNullable<UpdateShoppingListItemRequest['storeListings']> },
+    mutationId: string,
+  ) => Promise<StockPriceCheckListingWriteResult>;
 };
+
+export type StockPriceCheckListingWriteResult =
+  | { status: 'updated'; response: ShoppingListMutationResponse }
+  | { status: 'stale' };
 
 export function createShoppingListMutationService(options: {
   logger?: Logger;
@@ -221,11 +235,57 @@ export function createShoppingListMutationService(options: {
         throw error;
       }
     },
+    async applyStockPriceCheckListings(itemId, request, mutationId) {
+      try {
+        const committed = await commitShoppingMutation({
+          kind: 'stock_price_check',
+          itemId,
+          expectedVersion: request.expectedVersion,
+          request: {
+            storeListings: request.storeListings,
+            actor: 'AI stock check',
+          },
+        });
+        const response = shoppingListMutationResponse(committed.item, mutationId, committed.activeTrip);
+
+        auditLogger.info('Shopping stock and price listings committed.', {
+          ...itemAuditDetails(response.item, mutationId, 'AI stock check'),
+          notification: 'suppressed',
+        });
+        shoppingListRealtime?.broadcastItemUpdated(response.item, mutationId);
+        await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
+
+        return { status: 'updated', response };
+      } catch (error) {
+        if (error instanceof StockPriceCheckStaleItemError) {
+          auditLogger.info('Shopping stock and price listings skipped as stale.', {
+            mutationId,
+            itemId,
+            expectedVersion: request.expectedVersion,
+          });
+          return { status: 'stale' };
+        }
+
+        auditLogger.error('Shopping stock and price listings failed.', {
+          mutationId,
+          itemId,
+          expectedVersion: request.expectedVersion,
+          error: safeErrorMessage(error),
+        });
+        throw error;
+      }
+    },
   };
 
   async function commitShoppingMutation(input:
     | { kind: 'created'; request: CreateShoppingListItemRequest }
     | { kind: 'updated'; itemId: number; request: UpdateShoppingListItemRequest }
+    | {
+      kind: 'stock_price_check';
+      itemId: number;
+      expectedVersion: number;
+      request: Pick<UpdateShoppingListItemRequest, 'storeListings' | 'actor'>;
+    }
     | { kind: 'deleted'; itemId: number; request: DeleteShoppingListItemRequest },
   ): Promise<{ item: ShoppingListItem; activeTrip: ShoppingTripSnapshot | null; tripUpdated: boolean }> {
     if (!transactionRunner || !shoppingTripStore) {
@@ -236,6 +296,15 @@ export function createShoppingListMutationService(options: {
       if (input.kind === 'updated') {
         const item = await shoppingListStore.updateItem(input.itemId, input.request);
         if (!item) throw shoppingItemNotFoundError();
+        return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
+      }
+      if (input.kind === 'stock_price_check') {
+        const previousItem = await shoppingListStore.fetchItem(input.itemId);
+        if (!isCurrentNeededStockPriceCheckItem(previousItem, input.expectedVersion)) {
+          throw new StockPriceCheckStaleItemError();
+        }
+        const item = await shoppingListStore.updateItem(input.itemId, input.request);
+        if (!item) throw new StockPriceCheckStaleItemError();
         return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
       }
       const item = await shoppingListStore.deleteItem(input.itemId);
@@ -258,6 +327,19 @@ export function createShoppingListMutationService(options: {
       }
 
       const previousItem = await fetchShoppingListItemForUpdate(database, input.itemId);
+      if (input.kind === 'stock_price_check') {
+        if (!isCurrentNeededStockPriceCheckItem(previousItem, input.expectedVersion)) {
+          throw new StockPriceCheckStaleItemError();
+        }
+        const item = await updateShoppingListItem(database, input.itemId, input.request);
+        if (!item) throw new StockPriceCheckStaleItemError();
+        const updatedTrip = activeTrip
+          ? await applyShoppingTripItemMutation(database, activeTrip, {
+            kind: 'updated', previousItem, item, actor: input.request.actor,
+          })
+          : null;
+        return { item, activeTrip: updatedTrip, tripUpdated: Boolean(updatedTrip && updatedTrip.version !== activeTrip?.version) };
+      }
       if (!previousItem) throw shoppingItemNotFoundError();
 
       if (input.kind === 'updated') {
@@ -309,6 +391,20 @@ export function createShoppingListMutationService(options: {
       });
     }
   }
+}
+
+class StockPriceCheckStaleItemError extends Error {
+  constructor() {
+    super('Shopping item changed, was picked up, or was removed during the stock check.');
+    this.name = 'StockPriceCheckStaleItemError';
+  }
+}
+
+function isCurrentNeededStockPriceCheckItem(
+  item: ShoppingListItem | null,
+  expectedVersion: number,
+): item is ShoppingListItem {
+  return Boolean(item && item.purchased === false && item.version === expectedVersion);
 }
 
 export function readShoppingListItemId(value: unknown): number {
