@@ -168,6 +168,8 @@ Stages are intentionally sequential and numbered only. A request such as `Please
 
 **Purpose:** use Codex as the only product-research worker while enforcing the two-site, two-store boundary outside of the model prompt.
 
+**Capability-gate review:** The public TypeScript SDK controls local Codex CLI threads. Its published thread options provide sandbox, approval, network, web-search, and structured-output settings, but not a browser-only tool or a same-host API/JSON/GraphQL prohibition. The published Codex Browser capability is unavailable in the CLI/IDE. Exact-host local network rules are useful but do not make rendered-page research safe by themselves. Therefore an SDK dependency or a prompt is not Stage 4 completion: until a server-compatible browser runtime with those independently enforced controls is verified in the deployed environment, the researcher must return `site_scope_unavailable` without starting a Codex thread or visiting a retailer website.
+
 **Work:**
 
 1. Add `@openai/codex-sdk` as an API runtime dependency and create a small injected `CodexShoppingWebsiteResearcher` service. Isolate SDK-specific code so routes, repository, orchestration, and result validation can be tested with a fake researcher.

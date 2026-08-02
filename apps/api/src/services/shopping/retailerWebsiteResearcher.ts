@@ -91,6 +91,26 @@ export class RetailerWebsiteResearchValidationError extends Error {
 }
 
 /**
+ * Returns a fixed-store, no-facts failure without accepting an arbitrary URL,
+ * store, or model message. Stage 4 uses this when the runtime gate prevents a
+ * Codex turn from starting or when structured output is malformed.
+ */
+export function unavailableRetailerWebsiteResearchResult(
+  request: RetailerWebsiteResearchRequest,
+  failureCode: 'ai_unavailable' | 'site_scope_unavailable' | 'website_unavailable' | 'invalid_agent_result',
+): RetailerWebsiteResearchResult {
+  assertValidResearchRequest(request);
+  const store = retailerWebsiteStoreForKey(request.storeKey);
+
+  return {
+    store: selectedStoreEvidence(store, undefined, false),
+    availability: 'unknown',
+    matchStatus: 'website_error',
+    failureCode,
+  };
+}
+
+/**
  * Converts only bounded synthetic/rendered-page evidence into an app-safe
  * result. Invalid navigation is classified as a domain-scope failure; malformed
  * evidence is rejected rather than being guessed or persisted.
