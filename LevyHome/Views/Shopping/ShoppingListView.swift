@@ -503,6 +503,7 @@ private struct ShoppingListContentView: View {
         .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
             ShoppingAIFloatingEntry(
                 status: shoppingAIStatus,
+                isUnavailable: viewModel.isStockPriceCheckUnavailable,
                 action: {
                     isShowingShoppingAIMenu = true
                 }
@@ -802,14 +803,6 @@ private struct ShoppingListContentView: View {
                 message: "Checking stock & price…\(progress)",
                 systemImage: "arrow.triangle.2.circlepath",
                 tone: .info
-            )
-        }
-
-        if viewModel.isStockPriceCheckUnavailable {
-            return ShoppingAIStatus(
-                message: "Stock & price checks are currently unavailable.",
-                systemImage: "bolt.slash",
-                tone: .warning
             )
         }
 
@@ -1151,6 +1144,7 @@ private struct ShoppingAIStatus: Equatable {
 
 private struct ShoppingAIFloatingEntry: View {
     let status: ShoppingAIStatus?
+    let isUnavailable: Bool
     let action: () -> Void
 
     var body: some View {
@@ -1172,26 +1166,45 @@ private struct ShoppingAIFloatingEntry: View {
             }
 
             Button(action: action) {
-                VStack(spacing: 1) {
-                    Image(systemName: "sparkles")
-                        .font(.headline.weight(.bold))
+                ZStack {
+                    VStack(spacing: 1) {
+                        Image(systemName: "sparkles")
+                            .font(.headline.weight(.bold))
 
-                    Text("AI")
-                        .font(.caption2.weight(.bold))
+                        Text("AI")
+                            .font(.caption2.weight(.bold))
+                    }
+
+                    if isUnavailable {
+                        Capsule(style: .continuous)
+                            .fill(Color.white.opacity(0.92))
+                            .frame(width: 49, height: 3)
+                            .rotationEffect(.degrees(-45))
+                            .shadow(color: AppColors.accent.opacity(0.35), radius: 1)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .frame(width: 58, height: 58)
-                .foregroundStyle(Color.white)
-                .background(AppColors.accent, in: Circle())
+                .foregroundStyle(Color.white.opacity(isUnavailable ? 0.72 : 1))
+                .background(AppColors.accent.opacity(isUnavailable ? 0.45 : 1), in: Circle())
                 .overlay {
                     Circle()
-                        .stroke(AppColors.panelBackground.opacity(0.8), lineWidth: 1)
+                        .stroke(
+                            isUnavailable ? AppColors.mutedText.opacity(0.7) : AppColors.panelBackground.opacity(0.8),
+                            lineWidth: 1
+                        )
                 }
-                .shadow(color: AppColors.surfaceShadow.opacity(0.7), radius: 10, y: 5)
+                .shadow(color: AppColors.surfaceShadow.opacity(isUnavailable ? 0.35 : 0.7), radius: 10, y: 5)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Shopping AI")
-            .accessibilityValue(status?.message ?? "Ready")
-            .accessibilityHint("Opens Shopping AI actions")
+            .disabled(isUnavailable)
+            .accessibilityLabel(isUnavailable ? "Shopping AI unavailable" : "Shopping AI")
+            .accessibilityValue(isUnavailable ? "Unavailable" : (status?.message ?? "Ready"))
+            .accessibilityHint(
+                isUnavailable
+                    ? "Stock and price checking is not available yet."
+                    : "Opens Shopping AI actions"
+            )
         }
         .frame(maxWidth: 300, alignment: .trailing)
     }
