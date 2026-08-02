@@ -506,10 +506,12 @@ private struct ShoppingListContentView: View {
 
             await viewModel.loadIfNeeded()
             await recoverActiveTripDisplay()
+            viewModel.setStockPriceCheckPollingAllowed(true)
         }
         .onChange(of: isSelected) { _, selected in
             guard selected else {
                 viewModel.stopLiveUpdates()
+                viewModel.setStockPriceCheckPollingAllowed(false)
                 return
             }
             Task { await refreshForSelectedVisit() }
@@ -517,12 +519,14 @@ private struct ShoppingListContentView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, isSelected else {
                 viewModel.stopLiveUpdates()
+                viewModel.setStockPriceCheckPollingAllowed(false)
                 return
             }
             Task { await refreshForSelectedVisit() }
         }
         .onDisappear {
             viewModel.stopLiveUpdates()
+            viewModel.setStockPriceCheckPollingAllowed(false)
         }
         .onChange(of: viewModel.activeTrip?.id) { _, _ in
             guard isSelected else { return }
@@ -765,6 +769,7 @@ private struct ShoppingListContentView: View {
     }
 
     private func refreshForSelectedVisit() async {
+        viewModel.setStockPriceCheckPollingAllowed(true)
         await viewModel.refresh()
         await recoverActiveTripDisplay()
     }

@@ -29,6 +29,10 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingTripStarter = (StartShoppingTripRequest) async throws -> ShoppingTripMutationResponse
     typealias ShoppingTripEnder = (EndShoppingTripRequest) async throws -> ShoppingTripMutationResponse
     typealias ShoppingTripDisplayClaimer = (String, ClaimShoppingTripDisplayRequest) async throws -> ClaimShoppingTripDisplayResponse
+    typealias ShoppingStockPriceCheckStarter = (StartShoppingStockPriceCheckRequest) async throws -> ShoppingStockPriceCheckStartResult
+    typealias ShoppingStockPriceCheckLoader = (String) async throws -> ShoppingStockPriceCheckSummary
+    typealias ShoppingStockPriceCheckReadinessLoader = () async throws -> ShoppingStockPriceCheckReadiness
+    typealias ShoppingStockPriceCheckSleeper = (UInt64) async throws -> Void
 
     private struct ShoppingItemUpdateOutcome {
         let response: ShoppingListMutationResponse
@@ -49,6 +53,11 @@ final class ShoppingListViewModel: ObservableObject {
     @Published private(set) var isEndingTrip = false
     @Published private(set) var mutatingItemIDs: Set<Int> = []
     @Published private(set) var liveConnectionState: ShoppingListLiveConnectionState = .idle
+    @Published private(set) var stockPriceCheckJob: ShoppingStockPriceCheckSummary?
+    @Published private(set) var stockPriceCheckReadiness: ShoppingStockPriceCheckReadiness?
+    @Published private(set) var stockPriceCheckErrorMessage: String?
+    @Published private(set) var finalStockPriceCheckSummary: ShoppingStockPriceCheckSummary?
+    @Published private(set) var isStartingStockPriceCheck = false
 
     private let loadShoppingList: ShoppingListLoader
     private let lookupShoppingListItem: ShoppingListLookup
@@ -58,6 +67,10 @@ final class ShoppingListViewModel: ObservableObject {
     private let startShoppingTrip: ShoppingTripStarter
     private let endShoppingTrip: ShoppingTripEnder
     private let claimShoppingTripDisplay: ShoppingTripDisplayClaimer
+    private let startShoppingStockPriceCheck: ShoppingStockPriceCheckStarter
+    private let fetchShoppingStockPriceCheck: ShoppingStockPriceCheckLoader
+    private let fetchShoppingStockPriceCheckReadiness: ShoppingStockPriceCheckReadinessLoader
+    private let stockPriceCheckSleep: ShoppingStockPriceCheckSleeper
     private let searchKrogerProducts: KrogerProductSearch?
     private let liveService: ShoppingListLiveServicing?
     private let appLogStore: AppLogStore?
@@ -69,9 +82,38 @@ final class ShoppingListViewModel: ObservableObject {
     private var liveConnectionStateTask: Task<Void, Never>?
     private var committedStateRevision: UInt64 = 0
     private var activeTripRevision: UInt64 = 0
+    private var stockPriceCheckPollingTask: Task<Void, Never>?
+    private var stockPriceCheckPollingToken: UUID?
+    private var isStockPriceCheckPollingAllowed = false
+
+    private static let maximumStockPriceCheckPollAttempts = 30
+    private static let stockPriceCheckPollDelaysNanoseconds: [UInt64] = [
+        1_000_000_000,
+        1_000_000_000,
+        2_000_000_000,
+        3_000_000_000,
+        5_000_000_000
+    ]
 
     var isEmpty: Bool {
         hasLoaded && items.isEmpty && errorMessage == nil && !isLoading
+    }
+
+    var isStockPriceCheckActive: Bool {
+        guard let stockPriceCheckJob else {
+            return false
+        }
+
+        switch stockPriceCheckJob.status {
+        case .queued, .running, .unknown:
+            return true
+        case .completed, .completedWithIssues, .failed:
+            return false
+        }
+    }
+
+    var isStockPriceCheckUnavailable: Bool {
+        stockPriceCheckReadiness?.enabled == false
     }
 
     var otherActiveViewers: [ShoppingListViewerPresence] {
@@ -217,6 +259,15 @@ final class ShoppingListViewModel: ObservableObject {
             },
             claimShoppingTripDisplay: { tripId, request in
                 try await apiClient.claimShoppingTripDisplay(tripId: tripId, request: request)
+            },
+            startShoppingStockPriceCheck: { request in
+                try await apiClient.startShoppingStockPriceCheck(request)
+            },
+            fetchShoppingStockPriceCheck: { jobId in
+                try await apiClient.fetchShoppingStockPriceCheck(id: jobId)
+            },
+            fetchShoppingStockPriceCheckReadiness: {
+                try await apiClient.fetchShoppingStockPriceCheckReadiness()
             }
         )
     }
@@ -255,6 +306,15 @@ final class ShoppingListViewModel: ObservableObject {
             },
             claimShoppingTripDisplay: { _, _ in
                 throw APIError.transport("Shopping trip display recovery is not configured.")
+            },
+            startShoppingStockPriceCheck: { _ in
+                throw APIError.transport("Stock and price checks are not configured.")
+            },
+            fetchShoppingStockPriceCheck: { _ in
+                throw APIError.transport("Stock and price checks are not configured.")
+            },
+            fetchShoppingStockPriceCheckReadiness: {
+                throw APIError.transport("Stock and price checks are not configured.")
             }
         )
     }
@@ -278,6 +338,18 @@ final class ShoppingListViewModel: ObservableObject {
         },
         claimShoppingTripDisplay: @escaping ShoppingTripDisplayClaimer = { _, _ in
             throw APIError.transport("Shopping trip display recovery is not configured.")
+        },
+        startShoppingStockPriceCheck: @escaping ShoppingStockPriceCheckStarter = { _ in
+            throw APIError.transport("Stock and price checks are not configured.")
+        },
+        fetchShoppingStockPriceCheck: @escaping ShoppingStockPriceCheckLoader = { _ in
+            throw APIError.transport("Stock and price checks are not configured.")
+        },
+        fetchShoppingStockPriceCheckReadiness: @escaping ShoppingStockPriceCheckReadinessLoader = {
+            throw APIError.transport("Stock and price checks are not configured.")
+        },
+        stockPriceCheckSleep: @escaping ShoppingStockPriceCheckSleeper = { nanoseconds in
+            try await Task.sleep(nanoseconds: nanoseconds)
         }
     ) {
         self.loadShoppingList = loadShoppingList
@@ -288,6 +360,10 @@ final class ShoppingListViewModel: ObservableObject {
         self.startShoppingTrip = startShoppingTrip
         self.endShoppingTrip = endShoppingTrip
         self.claimShoppingTripDisplay = claimShoppingTripDisplay
+        self.startShoppingStockPriceCheck = startShoppingStockPriceCheck
+        self.fetchShoppingStockPriceCheck = fetchShoppingStockPriceCheck
+        self.fetchShoppingStockPriceCheckReadiness = fetchShoppingStockPriceCheckReadiness
+        self.stockPriceCheckSleep = stockPriceCheckSleep
         self.searchKrogerProducts = searchKrogerProducts
         self.liveService = liveService
         self.appLogStore = appLogStore
@@ -300,6 +376,7 @@ final class ShoppingListViewModel: ObservableObject {
     deinit {
         liveUpdatesTask?.cancel()
         liveConnectionStateTask?.cancel()
+        stockPriceCheckPollingTask?.cancel()
         liveService?.disconnect()
     }
 
@@ -322,6 +399,104 @@ final class ShoppingListViewModel: ObservableObject {
         if didLoad {
             startLiveUpdatesIfNeeded()
         }
+    }
+
+    /// Starts or stops client-side monitoring only. The durable server job continues when this screen is not visible.
+    func setStockPriceCheckPollingAllowed(_ allowed: Bool) {
+        isStockPriceCheckPollingAllowed = allowed
+
+        guard allowed else {
+            stopStockPriceCheckPolling()
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshStockPriceCheckReadiness()
+            self.beginStockPriceCheckPollingIfNeeded()
+        }
+    }
+
+    func refreshStockPriceCheckReadiness() async {
+        do {
+            stockPriceCheckReadiness = try await fetchShoppingStockPriceCheckReadiness()
+            if stockPriceCheckJob == nil {
+                stockPriceCheckErrorMessage = nil
+            }
+        } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
+            // Readiness is advisory. It must not overwrite an existing job's poll/recovery state.
+            if stockPriceCheckJob == nil {
+                stockPriceCheckErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    @discardableResult
+    func startStockPriceCheck() async -> ShoppingStockPriceCheckSummary? {
+        guard !isStartingStockPriceCheck, !isStockPriceCheckActive else {
+            return stockPriceCheckJob
+        }
+        guard hasLoaded else {
+            stockPriceCheckErrorMessage = "The shopping list is still loading. Try again in a moment."
+            return nil
+        }
+        guard items.contains(where: { !$0.purchased }) else {
+            stockPriceCheckErrorMessage = "Add at least one needed item before checking stock and price."
+            return nil
+        }
+        guard let actor = currentActorName else {
+            stockPriceCheckErrorMessage = "Choose Josh or Mallory before checking stock and price."
+            return nil
+        }
+        guard stockPriceCheckReadiness?.enabled != false else {
+            stockPriceCheckErrorMessage = "Stock and price checks are currently unavailable."
+            return nil
+        }
+
+        isStartingStockPriceCheck = true
+        defer { isStartingStockPriceCheck = false }
+
+        do {
+            let result = try await startShoppingStockPriceCheck(
+                StartShoppingStockPriceCheckRequest(actor: actor)
+            )
+            let job = result.job
+            adoptStockPriceCheck(job)
+            stockPriceCheckErrorMessage = nil
+
+            if isStockPriceCheckActive {
+                beginStockPriceCheckPollingIfNeeded()
+            } else {
+                await finishStockPriceCheck(job)
+            }
+
+            return job
+        } catch {
+            guard !error.isTaskCancellation else {
+                return nil
+            }
+
+            stockPriceCheckErrorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func stopStockPriceCheckPolling() {
+        stockPriceCheckPollingTask?.cancel()
+        stockPriceCheckPollingTask = nil
+        stockPriceCheckPollingToken = nil
+    }
+
+    var stockPriceCheckProgressLabel: String? {
+        guard let stockPriceCheckJob, isStockPriceCheckActive else {
+            return nil
+        }
+
+        return "\(min(stockPriceCheckJob.processedItemCount, stockPriceCheckJob.requestedItemCount)) of \(stockPriceCheckJob.requestedItemCount)"
     }
 
     func searchProducts(named name: String) async throws -> [KrogerProduct] {
@@ -744,6 +919,105 @@ final class ShoppingListViewModel: ObservableObject {
 
         hasLoaded = true
         return true
+    }
+
+    private func beginStockPriceCheckPollingIfNeeded() {
+        guard isStockPriceCheckPollingAllowed,
+              isStockPriceCheckActive,
+              stockPriceCheckPollingTask == nil,
+              let jobId = stockPriceCheckJob?.id else {
+            return
+        }
+
+        let pollingToken = UUID()
+        stockPriceCheckPollingToken = pollingToken
+        stockPriceCheckPollingTask = Task { [weak self] in
+            await self?.pollStockPriceCheck(id: jobId, pollingToken: pollingToken)
+        }
+    }
+
+    private func pollStockPriceCheck(id jobId: String, pollingToken: UUID) async {
+        defer {
+            if stockPriceCheckPollingToken == pollingToken {
+                stockPriceCheckPollingTask = nil
+                stockPriceCheckPollingToken = nil
+            }
+        }
+
+        var attempt = 0
+
+        while isStockPriceCheckPollingAllowed,
+              !Task.isCancelled,
+              stockPriceCheckPollingToken == pollingToken,
+              isStockPriceCheckActive,
+              stockPriceCheckJob?.id == jobId {
+            if attempt > 0 {
+                let delayIndex = min(attempt - 1, Self.stockPriceCheckPollDelaysNanoseconds.count - 1)
+
+                do {
+                    try await stockPriceCheckSleep(Self.stockPriceCheckPollDelaysNanoseconds[delayIndex])
+                } catch {
+                    return
+                }
+            }
+
+            guard !Task.isCancelled,
+                  isStockPriceCheckPollingAllowed,
+                  stockPriceCheckPollingToken == pollingToken else {
+                return
+            }
+
+            do {
+                let job = try await fetchShoppingStockPriceCheck(jobId)
+
+                guard !Task.isCancelled,
+                      stockPriceCheckPollingToken == pollingToken,
+                      job.id == jobId else {
+                    guard !Task.isCancelled,
+                          stockPriceCheckPollingToken == pollingToken else {
+                        return
+                    }
+
+                    stockPriceCheckErrorMessage = "The stock and price check could not be refreshed safely."
+                    return
+                }
+
+                adoptStockPriceCheck(job)
+                stockPriceCheckErrorMessage = nil
+
+                if !isStockPriceCheckActive {
+                    await finishStockPriceCheck(job)
+                    return
+                }
+
+                attempt += 1
+
+                if attempt >= Self.maximumStockPriceCheckPollAttempts {
+                    stockPriceCheckErrorMessage = "Stock and price check updates paused. Return to Shopping to try again."
+                    return
+                }
+            } catch {
+                guard !error.isTaskCancellation else {
+                    return
+                }
+
+                stockPriceCheckErrorMessage = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    private func adoptStockPriceCheck(_ job: ShoppingStockPriceCheckSummary) {
+        stockPriceCheckJob = job
+
+        if isStockPriceCheckActive {
+            finalStockPriceCheckSummary = nil
+        }
+    }
+
+    private func finishStockPriceCheck(_ job: ShoppingStockPriceCheckSummary) async {
+        finalStockPriceCheckSummary = job
+        await refresh()
     }
 
     private func applyCommittedItem(_ item: ShoppingListItem) {

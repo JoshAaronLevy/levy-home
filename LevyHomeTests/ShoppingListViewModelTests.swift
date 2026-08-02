@@ -564,6 +564,216 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isStartingTrip)
     }
 
+    func testStockPriceCheckStartsOnlyOnceDuringRapidTaps() async {
+        let startGate = StockPriceCheckStartGate()
+        var startCount = 0
+        var receivedRequest: StartShoppingStockPriceCheckRequest?
+        let queuedJob = Self.stockPriceCheckJob(status: .queued)
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { request in
+                startCount += 1
+                receivedRequest = request
+                return .accepted(await startGate.waitForJob())
+            }
+        )
+        await viewModel.loadIfNeeded()
+
+        let firstStart = Task { await viewModel.startStockPriceCheck() }
+        await startGate.waitUntilStarted()
+        let secondResult = await viewModel.startStockPriceCheck()
+        await startGate.resume(with: queuedJob)
+        let firstResult = await firstStart.value
+
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(receivedRequest?.actor, "Josh")
+        XCTAssertFalse(receivedRequest?.mutationId.isEmpty ?? true)
+        XCTAssertEqual(firstResult?.id, queuedJob.id)
+        XCTAssertNil(secondResult)
+        XCTAssertEqual(viewModel.stockPriceCheckJob?.id, queuedJob.id)
+    }
+
+    func testStockPriceCheckAdoptsTheServerActiveJob() async {
+        let activeJob = Self.stockPriceCheckJob(id: "already-running", status: .running, processed: 2, requested: 5)
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { _ in .active(activeJob) }
+        )
+        await viewModel.loadIfNeeded()
+
+        let result = await viewModel.startStockPriceCheck()
+
+        XCTAssertEqual(result?.id, activeJob.id)
+        XCTAssertEqual(viewModel.stockPriceCheckJob, activeJob)
+        XCTAssertTrue(viewModel.isStockPriceCheckActive)
+        XCTAssertEqual(viewModel.stockPriceCheckProgressLabel, "2 of 5")
+    }
+
+    func testStockPriceCheckPollsProgressAndRefreshesAtTerminalState() async {
+        let initial = Self.item(id: 15, name: "Cereal", version: 1)
+        let refreshed = Self.item(id: 15, name: "Cereal", version: 2)
+        var listLoadCount = 0
+        var jobs = [
+            Self.stockPriceCheckJob(status: .running, processed: 2, requested: 4),
+            Self.stockPriceCheckJob(status: .completedWithIssues, phase: .finished, processed: 4, requested: 4)
+        ]
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [initial],
+            loadShoppingList: {
+                listLoadCount += 1
+                return Self.response(items: listLoadCount == 1 ? [initial] : [refreshed])
+            },
+            start: { _ in .accepted(Self.stockPriceCheckJob(status: .queued, processed: 0, requested: 4)) },
+            fetch: { _ in jobs.removeFirst() },
+            sleeper: { _ in }
+        )
+        await viewModel.loadIfNeeded()
+        viewModel.setStockPriceCheckPollingAllowed(true)
+
+        _ = await viewModel.startStockPriceCheck()
+        await waitUntil { viewModel.finalStockPriceCheckSummary != nil }
+
+        XCTAssertEqual(viewModel.stockPriceCheckJob?.status, .completedWithIssues)
+        XCTAssertEqual(viewModel.finalStockPriceCheckSummary?.processedItemCount, 4)
+        XCTAssertEqual(viewModel.items.first?.version, 2)
+        XCTAssertGreaterThanOrEqual(listLoadCount, 2)
+        XCTAssertNil(viewModel.stockPriceCheckErrorMessage)
+    }
+
+    func testStockPriceCheckPollingCancelsInBackgroundAndResumesOnReturn() async {
+        let fetchGate = StockPriceCheckFetchGate()
+        var fetchCount = 0
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { _ in .accepted(Self.stockPriceCheckJob(status: .running, processed: 0, requested: 1)) },
+            fetch: { _ in
+                fetchCount += 1
+                if fetchCount == 1 {
+                    return await fetchGate.waitForJob()
+                }
+
+                return Self.stockPriceCheckJob(
+                    status: .completed,
+                    phase: .finished,
+                    processed: 1,
+                    requested: 1
+                )
+            },
+            sleeper: { _ in }
+        )
+        await viewModel.loadIfNeeded()
+
+        viewModel.setStockPriceCheckPollingAllowed(true)
+        _ = await viewModel.startStockPriceCheck()
+        await fetchGate.waitUntilStarted()
+        viewModel.setStockPriceCheckPollingAllowed(false)
+        await fetchGate.resume(with: Self.stockPriceCheckJob(status: .running, processed: 0, requested: 1))
+        await Task.yield()
+        XCTAssertEqual(fetchCount, 1)
+        XCTAssertTrue(viewModel.isStockPriceCheckActive)
+
+        viewModel.setStockPriceCheckPollingAllowed(true)
+        await waitUntil { viewModel.finalStockPriceCheckSummary != nil }
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertFalse(viewModel.isStockPriceCheckActive)
+    }
+
+    func testStockPriceCheckPublishesFeatureReadiness() async {
+        let readiness = Self.stockPriceCheckReadiness(enabled: false)
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { _ in .accepted(Self.stockPriceCheckJob(status: .queued)) },
+            readiness: { readiness }
+        )
+
+        viewModel.setStockPriceCheckPollingAllowed(true)
+        await waitUntil { viewModel.stockPriceCheckReadiness != nil }
+
+        XCTAssertEqual(viewModel.stockPriceCheckReadiness, readiness)
+        XCTAssertTrue(viewModel.isStockPriceCheckUnavailable)
+        XCTAssertNil(viewModel.stockPriceCheckErrorMessage)
+    }
+
+    func testStockPriceCheckPollingRecoversAfterTransportFailure() async {
+        var fetchCount = 0
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { _ in .accepted(Self.stockPriceCheckJob(status: .running, processed: 0, requested: 1)) },
+            fetch: { _ in
+                fetchCount += 1
+                if fetchCount == 1 {
+                    throw APIError.transport("The network connection was lost.")
+                }
+
+                return Self.stockPriceCheckJob(
+                    status: .completed,
+                    phase: .finished,
+                    processed: 1,
+                    requested: 1
+                )
+            },
+            sleeper: { _ in }
+        )
+        await viewModel.loadIfNeeded()
+        viewModel.setStockPriceCheckPollingAllowed(true)
+
+        _ = await viewModel.startStockPriceCheck()
+        await waitUntil { viewModel.stockPriceCheckErrorMessage != nil }
+        XCTAssertTrue(viewModel.isStockPriceCheckActive)
+
+        viewModel.setStockPriceCheckPollingAllowed(true)
+        await waitUntil { viewModel.finalStockPriceCheckSummary != nil }
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertNil(viewModel.stockPriceCheckErrorMessage)
+        XCTAssertFalse(viewModel.isStockPriceCheckActive)
+    }
+
+    func testStockPriceCheckExplainsWhenNoItemsAreNeeded() async {
+        var startCount = 0
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [],
+            start: { _ in
+                startCount += 1
+                return .accepted(Self.stockPriceCheckJob(status: .queued))
+            }
+        )
+        await viewModel.loadIfNeeded()
+
+        let result = await viewModel.startStockPriceCheck()
+
+        XCTAssertNil(result)
+        XCTAssertEqual(startCount, 0)
+        XCTAssertEqual(
+            viewModel.stockPriceCheckErrorMessage,
+            "Add at least one needed item before checking stock and price."
+        )
+    }
+
+    func testLiveItemUpdatesRemainAuthoritativeDuringStockPriceCheck() async {
+        let original = Self.item(id: 15, name: "Cereal", version: 1)
+        let updated = Self.item(id: 15, name: "Granola", version: 2)
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [original],
+            start: { _ in .accepted(Self.stockPriceCheckJob(status: .running, processed: 0, requested: 1)) }
+        )
+        await viewModel.loadIfNeeded()
+
+        _ = await viewModel.startStockPriceCheck()
+        await viewModel.applyLiveMessage(
+            .itemUpdated(
+                item: updated,
+                mutationId: "live-stock-update",
+                serverTime: "2026-08-02T16:00:00Z"
+            )
+        )
+
+        XCTAssertEqual(viewModel.items.first?.name, "Granola")
+        XCTAssertEqual(viewModel.items.first?.version, 2)
+        XCTAssertTrue(viewModel.isStockPriceCheckActive)
+    }
+
     func testCompactOrderingPlacesMostRecentlyActiveItemsFirst() {
         let category = ShoppingCategory(id: 42, name: "Miscellaneous")
         let older = ShoppingListDisplayItem(
@@ -634,6 +844,102 @@ final class ShoppingListViewModelTests: XCTestCase {
             deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") },
             startShoppingTrip: start
         )
+    }
+
+    private static func stockPriceCheckViewModel(
+        items: [ShoppingListItem],
+        loadShoppingList: ShoppingListViewModel.ShoppingListLoader? = nil,
+        start: @escaping ShoppingListViewModel.ShoppingStockPriceCheckStarter,
+        fetch: @escaping ShoppingListViewModel.ShoppingStockPriceCheckLoader = { _ in
+            throw APIError.transport("Unused")
+        },
+        readiness: @escaping ShoppingListViewModel.ShoppingStockPriceCheckReadinessLoader = {
+            throw APIError.transport("Unused")
+        },
+        sleeper: @escaping ShoppingListViewModel.ShoppingStockPriceCheckSleeper = { _ in }
+    ) -> ShoppingListViewModel {
+        ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: loadShoppingList ?? { response(items: items) },
+            lookupShoppingListItem: { name in ShoppingListItemLookupResponse(ok: true, query: name, match: nil) },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in throw APIError.transport("Unused") },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") },
+            startShoppingStockPriceCheck: start,
+            fetchShoppingStockPriceCheck: fetch,
+            fetchShoppingStockPriceCheckReadiness: readiness,
+            stockPriceCheckSleep: sleeper
+        )
+    }
+
+    private static func stockPriceCheckJob(
+        id: String = "stock-check-1",
+        status: ShoppingStockPriceCheckStatus,
+        phase: ShoppingStockPriceCheckPhase = .checkingStores,
+        processed: Int = 0,
+        requested: Int = 1
+    ) -> ShoppingStockPriceCheckSummary {
+        ShoppingStockPriceCheckSummary(
+            ok: true,
+            id: id,
+            status: status,
+            phase: phase,
+            requestedItemCount: requested,
+            processedItemCount: processed,
+            updatedItemCount: processed,
+            unmatchedItemCount: 0,
+            failedItemCount: 0,
+            skippedStaleItemCount: 0,
+            submittedAt: "2026-08-02T16:00:00Z",
+            startedAt: "2026-08-02T16:00:01Z",
+            finishedAt: status == .completed || status == .completedWithIssues || status == .failed
+                ? "2026-08-02T16:00:02Z"
+                : nil,
+            failureCode: nil,
+            message: nil
+        )
+    }
+
+    private static func stockPriceCheckReadiness(enabled: Bool) -> ShoppingStockPriceCheckReadiness {
+        ShoppingStockPriceCheckReadiness(
+            ok: enabled,
+            enabled: enabled,
+            checks: ShoppingStockPriceCheckReadiness.Checks(
+                persistence: ShoppingStockPriceCheckReadiness.Persistence(
+                    ok: enabled,
+                    configured: enabled,
+                    code: enabled ? nil : "site_scope_unavailable"
+                ),
+                fixedStoreScope: ShoppingStockPriceCheckReadiness.FixedStoreScope(
+                    ok: enabled,
+                    targetHighlandsRanch: enabled,
+                    kingSoopersWildcatReserve: enabled,
+                    allowedHosts: enabled,
+                    allowedMethods: enabled
+                ),
+                codexRuntime: ShoppingStockPriceCheckReadiness.CodexRuntime(
+                    ok: enabled,
+                    enabled: enabled,
+                    code: enabled ? nil : "site_scope_unavailable"
+                )
+            )
+        )
+    }
+
+    private func waitUntil(
+        _ condition: @escaping @MainActor () -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0..<100 {
+            if condition() {
+                return
+            }
+
+            await Task.yield()
+        }
+
+        XCTFail("Timed out waiting for the expected state.", file: file, line: line)
     }
 
     private static func trip(
@@ -756,6 +1062,68 @@ private actor ShoppingListMutationResponseGate {
     func resume() {
         responseContinuation?.resume()
         responseContinuation = nil
+    }
+}
+
+private actor StockPriceCheckStartGate {
+    private var jobContinuation: CheckedContinuation<ShoppingStockPriceCheckSummary, Never>?
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+    private var hasStarted = false
+
+    func waitForJob() async -> ShoppingStockPriceCheckSummary {
+        hasStarted = true
+        startContinuations.forEach { $0.resume() }
+        startContinuations = []
+
+        return await withCheckedContinuation { continuation in
+            jobContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !hasStarted else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startContinuations.append(continuation)
+        }
+    }
+
+    func resume(with job: ShoppingStockPriceCheckSummary) {
+        jobContinuation?.resume(returning: job)
+        jobContinuation = nil
+    }
+}
+
+private actor StockPriceCheckFetchGate {
+    private var jobContinuation: CheckedContinuation<ShoppingStockPriceCheckSummary, Never>?
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+    private var hasStarted = false
+
+    func waitForJob() async -> ShoppingStockPriceCheckSummary {
+        hasStarted = true
+        startContinuations.forEach { $0.resume() }
+        startContinuations = []
+
+        return await withCheckedContinuation { continuation in
+            jobContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !hasStarted else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startContinuations.append(continuation)
+        }
+    }
+
+    func resume(with job: ShoppingStockPriceCheckSummary) {
+        jobContinuation?.resume(returning: job)
+        jobContinuation = nil
     }
 }
 
