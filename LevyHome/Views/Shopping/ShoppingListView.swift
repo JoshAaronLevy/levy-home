@@ -469,6 +469,7 @@ private struct ShoppingListContentView: View {
     @State private var pendingDeleteItem: ShoppingListItem?
     @State private var tripDisplayMessage: String?
     @State private var isShowingEndTripConfirmation = false
+    @State private var isShowingShoppingAIMenu = false
     let isSelected: Bool
 
     init(viewModel: ShoppingListViewModel, isSelected: Bool = true) {
@@ -496,7 +497,18 @@ private struct ShoppingListContentView: View {
             }
             .padding(.horizontal, AppSpacing.screen)
             .padding(.top, AppSpacing.large)
-            .padding(.bottom, AppSpacing.xLarge * 3)
+            .padding(.bottom, AppSpacing.xLarge * 4)
+        }
+        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
+            ShoppingAIFloatingEntry(
+                status: shoppingAIStatus,
+                action: {
+                    isShowingShoppingAIMenu = true
+                }
+            )
+            .padding(.horizontal, AppSpacing.screen)
+            .padding(.top, AppSpacing.small)
+            .padding(.bottom, AppSpacing.small)
         }
         .appScreenChrome()
         .task {
@@ -579,6 +591,22 @@ private struct ShoppingListContentView: View {
             if let trip = viewModel.activeTrip {
                 Text(endTripConfirmationMessage(for: trip))
             }
+        }
+        .confirmationDialog(
+            "Shopping AI",
+            isPresented: $isShowingShoppingAIMenu,
+            titleVisibility: .visible
+        ) {
+            ForEach(ShoppingAIAction.allCases) { action in
+                Button(shoppingAIActionTitle(for: action)) {
+                    performShoppingAIAction(action)
+                }
+                .disabled(isShoppingAIActionDisabled(action))
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(shoppingAIActionMessage)
         }
         .alert(
             "Delete Item?",
@@ -733,6 +761,111 @@ private struct ShoppingListContentView: View {
         let amount = Decimal(trip.estimatedTotalCents) / 100
         let estimate = amount.formatted(.currency(code: trip.currencyCode))
         return "Picked-up est. \(estimate) • Started by \(trip.startedBy)"
+    }
+
+    private var shoppingAIStatus: ShoppingAIStatus? {
+        if viewModel.isStartingStockPriceCheck {
+            return ShoppingAIStatus(
+                message: "Starting stock & price check…",
+                systemImage: "sparkles",
+                tone: .info
+            )
+        }
+
+        if let errorMessage = viewModel.stockPriceCheckErrorMessage {
+            return ShoppingAIStatus(
+                message: "Stock & price check paused: \(errorMessage)",
+                systemImage: "exclamationmark.triangle",
+                tone: .warning
+            )
+        }
+
+        if viewModel.isStockPriceCheckActive {
+            let progress = viewModel.stockPriceCheckProgressLabel.map { " \($0)" } ?? ""
+            return ShoppingAIStatus(
+                message: "Checking stock & price…\(progress)",
+                systemImage: "arrow.triangle.2.circlepath",
+                tone: .info
+            )
+        }
+
+        if viewModel.isStockPriceCheckUnavailable {
+            return ShoppingAIStatus(
+                message: "Stock & price checks are currently unavailable.",
+                systemImage: "bolt.slash",
+                tone: .warning
+            )
+        }
+
+        guard let summary = viewModel.finalStockPriceCheckSummary else {
+            return nil
+        }
+
+        switch summary.status {
+        case .completedWithIssues:
+            return ShoppingAIStatus(
+                message: "Stock & price check finished. Some items need review.",
+                systemImage: "exclamationmark.circle",
+                tone: .warning
+            )
+        case .failed:
+            return ShoppingAIStatus(
+                message: summary.message ?? "Stock & price check did not finish.",
+                systemImage: "xmark.octagon",
+                tone: .error
+            )
+        case .completed, .queued, .running, .unknown:
+            return nil
+        }
+    }
+
+    private var shoppingAIActionMessage: String {
+        if viewModel.isStockPriceCheckActive || viewModel.isStartingStockPriceCheck {
+            return "A household-wide stock and price check is already in progress."
+        }
+
+        if viewModel.isStockPriceCheckUnavailable {
+            return "Stock and price checks are not available right now."
+        }
+
+        return "Check needed shopping items at the configured Target and King Soopers stores."
+    }
+
+    private func shoppingAIActionTitle(for action: ShoppingAIAction) -> String {
+        switch action {
+        case .checkStockAndPrice:
+            if viewModel.isStartingStockPriceCheck {
+                return "Starting Stock & Price Check…"
+            }
+
+            if viewModel.isStockPriceCheckActive {
+                return "Stock & Price Check in Progress"
+            }
+
+            if viewModel.isStockPriceCheckUnavailable {
+                return "Stock & Price Checks Unavailable"
+            }
+
+            return action.title
+        }
+    }
+
+    private func isShoppingAIActionDisabled(_ action: ShoppingAIAction) -> Bool {
+        switch action {
+        case .checkStockAndPrice:
+            return viewModel.isStartingStockPriceCheck
+                || viewModel.isStockPriceCheckActive
+                || viewModel.isStockPriceCheckUnavailable
+        }
+    }
+
+    private func performShoppingAIAction(_ action: ShoppingAIAction) {
+        switch action {
+        case .checkStockAndPrice:
+            Task {
+                await viewModel.startStockPriceCheck()
+            }
+        }
     }
 
     private func startTrip() async {
@@ -970,6 +1103,78 @@ private struct ShoppingListContentView: View {
         } catch {
             // The view model surfaces mutation failures in the existing error banner.
         }
+    }
+}
+
+private enum ShoppingAIAction: CaseIterable, Identifiable {
+    case checkStockAndPrice
+
+    var id: String {
+        switch self {
+        case .checkStockAndPrice:
+            return "check-stock-and-price"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .checkStockAndPrice:
+            return "Check/Update Stock & Price"
+        }
+    }
+}
+
+private struct ShoppingAIStatus: Equatable {
+    let message: String
+    let systemImage: String
+    let tone: BannerTone
+}
+
+private struct ShoppingAIFloatingEntry: View {
+    let status: ShoppingAIStatus?
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: AppSpacing.small) {
+            if let status {
+                Label {
+                    Text(status.message)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: status.systemImage)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(status.tone.foregroundColor)
+                .padding(.horizontal, AppSpacing.medium)
+                .padding(.vertical, AppSpacing.small)
+                .background(status.tone.backgroundColor, in: Capsule(style: .continuous))
+                .accessibilityElement(children: .combine)
+            }
+
+            Button(action: action) {
+                VStack(spacing: 1) {
+                    Image(systemName: "sparkles")
+                        .font(.headline.weight(.bold))
+
+                    Text("AI")
+                        .font(.caption2.weight(.bold))
+                }
+                .frame(width: 58, height: 58)
+                .foregroundStyle(Color.white)
+                .background(AppColors.accent, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppColors.panelBackground.opacity(0.8), lineWidth: 1)
+                }
+                .shadow(color: AppColors.surfaceShadow.opacity(0.7), radius: 10, y: 5)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Shopping AI")
+            .accessibilityValue(status?.message ?? "Ready")
+            .accessibilityHint("Opens Shopping AI actions")
+        }
+        .frame(maxWidth: 300, alignment: .trailing)
     }
 }
 
@@ -3422,6 +3627,154 @@ private extension ShoppingCategory {
     }
 }
 
+private enum ShoppingAIPreviewScenario {
+    case idle
+    case running
+    case unavailable
+    case completedWithIssues
+
+    var job: ShoppingStockPriceCheckSummary? {
+        switch self {
+        case .idle, .unavailable:
+            return nil
+        case .running:
+            return Self.summary(
+                status: .running,
+                phase: .checkingStores,
+                requested: 24,
+                processed: 12
+            )
+        case .completedWithIssues:
+            return Self.summary(
+                status: .completedWithIssues,
+                phase: .finished,
+                requested: 24,
+                processed: 24,
+                updated: 18,
+                unmatched: 4,
+                failed: 2
+            )
+        }
+    }
+
+    var readiness: ShoppingStockPriceCheckReadiness {
+        let enabled = self != .unavailable
+        return ShoppingStockPriceCheckReadiness(
+            ok: enabled,
+            enabled: enabled,
+            checks: ShoppingStockPriceCheckReadiness.Checks(
+                persistence: ShoppingStockPriceCheckReadiness.Persistence(
+                    ok: enabled,
+                    configured: enabled,
+                    code: enabled ? nil : "site_scope_unavailable"
+                ),
+                fixedStoreScope: ShoppingStockPriceCheckReadiness.FixedStoreScope(
+                    ok: enabled,
+                    targetHighlandsRanch: enabled,
+                    kingSoopersWildcatReserve: enabled,
+                    allowedHosts: enabled,
+                    allowedMethods: enabled
+                ),
+                codexRuntime: ShoppingStockPriceCheckReadiness.CodexRuntime(
+                    ok: enabled,
+                    enabled: enabled,
+                    code: enabled ? nil : "site_scope_unavailable"
+                )
+            )
+        )
+    }
+
+    private static func summary(
+        status: ShoppingStockPriceCheckStatus,
+        phase: ShoppingStockPriceCheckPhase,
+        requested: Int,
+        processed: Int,
+        updated: Int = 0,
+        unmatched: Int = 0,
+        failed: Int = 0
+    ) -> ShoppingStockPriceCheckSummary {
+        ShoppingStockPriceCheckSummary(
+            ok: true,
+            id: "preview-stock-price-check",
+            status: status,
+            phase: phase,
+            requestedItemCount: requested,
+            processedItemCount: processed,
+            updatedItemCount: updated,
+            unmatchedItemCount: unmatched,
+            failedItemCount: failed,
+            skippedStaleItemCount: 0,
+            submittedAt: "2026-08-02T16:00:00Z",
+            startedAt: "2026-08-02T16:00:01Z",
+            finishedAt: status == .completedWithIssues ? "2026-08-02T16:02:00Z" : nil,
+            failureCode: nil,
+            message: nil
+        )
+    }
+}
+
+private struct ShoppingListAIPreview: View {
+    let scenario: ShoppingAIPreviewScenario
+    @StateObject private var viewModel: ShoppingListViewModel
+
+    init(scenario: ShoppingAIPreviewScenario) {
+        self.scenario = scenario
+        let job = scenario.job
+        let readiness = scenario.readiness
+
+        _viewModel = StateObject(
+            wrappedValue: ShoppingListViewModel(
+                currentActorName: "Josh",
+                loadShoppingList: {
+                    ShoppingPreviewData.loadedResponse
+                },
+                lookupShoppingListItem: { name in
+                    ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+                },
+                createShoppingListItem: { _ in throw APIError.transport("Preview only") },
+                updateShoppingListItem: { _, _ in throw APIError.transport("Preview only") },
+                deleteShoppingListItem: { _, _, _ in throw APIError.transport("Preview only") },
+                startShoppingStockPriceCheck: { _ in
+                    guard let job else {
+                        throw APIError.transport("Preview only")
+                    }
+
+                    return .accepted(job)
+                },
+                fetchShoppingStockPriceCheck: { _ in
+                    guard let job else {
+                        throw APIError.transport("Preview only")
+                    }
+
+                    return job
+                },
+                fetchShoppingStockPriceCheckReadiness: {
+                    readiness
+                }
+            )
+        )
+    }
+
+    var body: some View {
+        ShoppingListContentView(viewModel: viewModel)
+            .task {
+                await viewModel.loadIfNeeded()
+
+                if scenario == .unavailable {
+                    await viewModel.refreshStockPriceCheckReadiness()
+                    return
+                }
+
+                guard scenario != .idle else {
+                    return
+                }
+
+                viewModel.setStockPriceCheckPollingAllowed(false)
+                _ = await viewModel.startStockPriceCheck()
+            }
+    }
+}
+
 #Preview("Loaded") {
     NavigationStack {
         ShoppingListContentView(
@@ -3432,6 +3785,37 @@ private extension ShoppingCategory {
     }
     .environmentObject(ShoppingLiveActivityCoordinator())
     .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
+}
+
+#Preview("AI Idle") {
+    ShoppingListAIPreview(scenario: .idle)
+        .environmentObject(ShoppingLiveActivityCoordinator())
+        .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
+}
+
+#Preview("AI Running") {
+    ShoppingListAIPreview(scenario: .running)
+        .environmentObject(ShoppingLiveActivityCoordinator())
+        .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
+}
+
+#Preview("AI Unavailable") {
+    ShoppingListAIPreview(scenario: .unavailable)
+        .environmentObject(ShoppingLiveActivityCoordinator())
+        .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
+}
+
+#Preview("AI Completed With Issues") {
+    ShoppingListAIPreview(scenario: .completedWithIssues)
+        .environmentObject(ShoppingLiveActivityCoordinator())
+        .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
+}
+
+#Preview("AI Compact Screen") {
+    ShoppingListAIPreview(scenario: .running)
+        .frame(width: 320, height: 640)
+        .environmentObject(ShoppingLiveActivityCoordinator())
+        .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
 }
 
 #Preview("Empty") {
