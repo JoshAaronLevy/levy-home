@@ -44,7 +44,7 @@ test('prompt has only approved bounded Shopping context and no retailer, browser
   assert.match(prompt, /Egg Cups/);
   assert.match(prompt, /Use only the JSON below\. Do not use tools/);
   assert.doesNotMatch(prompt, /target|king soopers|retailer|store listing|browser|image|database|SQL|curl|fetch/i);
-  assert.doesNotMatch(prompt, /\/Users\/|CODEX_SHOPPING_LIST_API_KEY|DATABASE_URL/i);
+  assert.doesNotMatch(prompt, /\/Users\/|CODEX_API_KEY|DATABASE_URL/i);
 });
 
 test('deterministic fake validates exact, normalized, and semantic fixture plans without a Codex invocation', async () => {

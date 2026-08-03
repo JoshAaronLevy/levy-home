@@ -7,7 +7,7 @@ service. It therefore cannot create, update, or delete Shopping data by itself.
 ## Credential boundary
 
 The deployed API will receive one dedicated Render secret named
-`CODEX_SHOPPING_LIST_API_KEY`. The application composition root (added in a
+`CODEX_API_KEY`. The application composition root (added in a
 later stage) must explicitly pass that value to `CodexShoppingListReaddMatcher`
 as its `apiKey`. It must not put this value in source control, iOS settings,
 logs, prompts, a database row, or API responses.
