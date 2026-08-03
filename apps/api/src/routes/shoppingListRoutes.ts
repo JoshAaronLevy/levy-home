@@ -9,7 +9,11 @@ import { asyncHandler } from '../http/asyncHandler.js';
 import { HTTPError } from '../http/errors.js';
 import type { Logger } from '../observability/logger.js';
 import type { ShoppingStockPriceCheckStore } from '../repositories/shoppingStockPriceCheckRepository.js';
+import type { ShoppingListReaddStore } from '../repositories/shoppingListReaddRepository.js';
 import type { ShoppingListMutationService } from '../services/shopping/shoppingListMutationService.js';
+import type { ShoppingListReaddReadiness } from '../services/shopping/shoppingListReaddReadiness.js';
+import type { ShoppingListReaddRunner } from '../services/shopping/shoppingListReaddRunner.js';
+import type { ShoppingListReaddService } from '../services/shopping/shoppingListReaddService.js';
 import type { ShoppingStockPriceCheckReadiness } from '../services/shopping/stockPriceCheckReadiness.js';
 import type { StockPriceCheckRunner } from '../services/shopping/stockPriceCheckRunner.js';
 import {
@@ -29,6 +33,10 @@ import {
   readShoppingStockPriceCheckId,
   validateStartShoppingStockPriceCheckBody,
 } from '../validation/shoppingStockPriceCheckValidation.js';
+import {
+  readShoppingListReaddId,
+  validateStartShoppingListReaddBody,
+} from '../validation/shoppingListReaddValidation.js';
 
 export type ShoppingListRouteDependencies = {
   krogerProductSearchRunner: (query?: string) => Promise<KrogerProductSearchResponse>;
@@ -38,6 +46,10 @@ export type ShoppingListRouteDependencies = {
   shoppingStockPriceCheckStore?: ShoppingStockPriceCheckStore;
   shoppingStockPriceCheckReadiness: ShoppingStockPriceCheckReadiness;
   stockPriceCheckRunner?: StockPriceCheckRunner;
+  shoppingListReaddStore?: ShoppingListReaddStore;
+  shoppingListReaddReadiness: ShoppingListReaddReadiness;
+  shoppingListReaddRunner?: ShoppingListReaddRunner;
+  shoppingListReaddService?: ShoppingListReaddService;
   logger?: Pick<Logger, 'info'>;
 };
 
@@ -78,6 +90,69 @@ export function createShoppingListRoutes(deps: ShoppingListRouteDependencies): R
 
   router.get('/api/shopping-list/ai/readiness', asyncHandler(async (_req, res) => {
     res.json(await deps.shoppingStockPriceCheckReadiness.getReadiness());
+  }));
+
+  router.get('/api/shopping-list/ai/readd/readiness', asyncHandler(async (_req, res) => {
+    res.json(await deps.shoppingListReaddReadiness.getReadiness());
+  }));
+
+  router.get('/api/shopping-list/ai/readd/:runId', asyncHandler(async (req, res) => {
+    const runId = readShoppingListReaddId(req.params.runId);
+    const run = await requireShoppingListReaddStore(deps).fetchRun(runId);
+    if (!run) {
+      throw new HTTPError(404, 'AI Shopping re-add run was not found.', 'shopping_list_readd_not_found');
+    }
+    res.json(run);
+  }));
+
+  router.post('/api/shopping-list/ai/readd', asyncHandler(async (req, res) => {
+    const request = validateStartShoppingListReaddBody(req.body);
+    const readiness = await deps.shoppingListReaddReadiness.getReadiness();
+    if (!readiness.ready) {
+      throw new HTTPError(503, 'AI Shopping re-add is unavailable.', shoppingListReaddUnavailableCode(readiness));
+    }
+
+    const store = requireShoppingListReaddStore(deps);
+    const runner = requireShoppingListReaddRunner(deps);
+    const replay = await store.fetchRunByRequestId(request.mutationId);
+    if (replay) {
+      if (replay.status === 'queued') runner.enqueue(replay.id);
+      res.status(202).json(replay);
+      return;
+    }
+
+    try {
+      const run = await store.createRun({
+        requestId: request.mutationId,
+        actor: request.actor,
+        requestedText: request.text,
+      });
+      deps.logger?.info('Shopping AI re-add queued.', { runId: run.id, phase: 'queued' });
+      runner.enqueue(run.id);
+      res.status(202).json(run);
+    } catch (error) {
+      if (!isActiveRunConstraint(error)) throw error;
+      const activeRun = await store.fetchRecoverableRun();
+      if (!activeRun) throw error;
+      res.status(409).json({
+        error: 'An AI Shopping re-add request is already in progress.',
+        code: 'shopping_list_readd_active',
+        activeRun,
+      });
+    }
+  }));
+
+  router.post('/api/shopping-list/ai/readd/:runId/undo', asyncHandler(async (req, res) => {
+    const runId = readShoppingListReaddId(req.params.runId);
+    const store = requireShoppingListReaddStore(deps);
+    if (!await store.fetchRun(runId)) {
+      throw new HTTPError(404, 'AI Shopping re-add run was not found.', 'shopping_list_readd_not_found');
+    }
+    const undone = await requireShoppingListReaddService(deps).undoRun(runId);
+    if (!undone) {
+      throw new HTTPError(409, 'Undo is no longer available for this AI Shopping re-add run.', 'shopping_list_readd_undo_unavailable');
+    }
+    res.json(undone);
   }));
 
   router.get('/api/shopping-list/ai/stock-price-checks/:jobId', asyncHandler(async (req, res) => {
@@ -166,6 +241,36 @@ function requireStockPriceCheckStore(deps: ShoppingListRouteDependencies): Shopp
     throw new HTTPError(503, 'Stock and price checks are not configured.', 'shopping_stock_price_check_not_configured');
   }
   return deps.shoppingStockPriceCheckStore;
+}
+
+function requireShoppingListReaddStore(deps: ShoppingListRouteDependencies): ShoppingListReaddStore {
+  if (!deps.shoppingListReaddStore) {
+    throw new HTTPError(503, 'AI Shopping re-add is not configured.', 'shopping_list_readd_not_configured');
+  }
+  return deps.shoppingListReaddStore;
+}
+
+function requireShoppingListReaddRunner(deps: ShoppingListRouteDependencies): ShoppingListReaddRunner {
+  if (!deps.shoppingListReaddRunner) {
+    throw new HTTPError(503, 'AI Shopping re-add is not configured.', 'shopping_list_readd_not_configured');
+  }
+  return deps.shoppingListReaddRunner;
+}
+
+function requireShoppingListReaddService(deps: ShoppingListRouteDependencies): ShoppingListReaddService {
+  if (!deps.shoppingListReaddService) {
+    throw new HTTPError(503, 'AI Shopping re-add is not configured.', 'shopping_list_readd_not_configured');
+  }
+  return deps.shoppingListReaddService;
+}
+
+function shoppingListReaddUnavailableCode(
+  readiness: Awaited<ReturnType<ShoppingListReaddReadiness['getReadiness']>>,
+): 'matcher_runtime_unavailable' | 'authentication_unavailable' | 'persistence_unavailable' | 'matcher_unavailable' {
+  return readiness.persistence.code
+    ?? readiness.matcherRuntime.code
+    ?? readiness.authentication.code
+    ?? 'matcher_unavailable';
 }
 
 function requireStockPriceCheckRunner(deps: ShoppingListRouteDependencies): StockPriceCheckRunner {

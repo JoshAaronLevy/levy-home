@@ -35,6 +35,10 @@ import {
   createPostgresShoppingStockPriceCheckStore,
   type ShoppingStockPriceCheckStore,
 } from './repositories/shoppingStockPriceCheckRepository.js';
+import {
+  createPostgresShoppingListReaddStore,
+  type ShoppingListReaddStore,
+} from './repositories/shoppingListReaddRepository.js';
 import { createPostgresShoppingTripStore, type ShoppingTripStore } from './repositories/shoppingTripRepository.js';
 import {
   createPostgresShoppingLiveActivityStore,
@@ -63,6 +67,17 @@ import {
 } from './services/notifications/notificationPreferenceStore.js';
 import { createNotificationService } from './services/notifications/notificationService.js';
 import { createShoppingListMutationService } from './services/shopping/shoppingListMutationService.js';
+import {
+  CODEX_SHOPPING_LIST_READD_MATCHER_API_KEY_ENV,
+  CodexShoppingListReaddMatcher,
+  type ShoppingListReaddMatcher,
+} from './services/shopping/shoppingListReaddMatcher.js';
+import {
+  createShoppingListReaddReadiness,
+  type ShoppingListReaddReadiness,
+} from './services/shopping/shoppingListReaddReadiness.js';
+import { createShoppingListReaddRunner, type ShoppingListReaddRunner } from './services/shopping/shoppingListReaddRunner.js';
+import { createShoppingListReaddService, type ShoppingListReaddService } from './services/shopping/shoppingListReaddService.js';
 import {
   CodexShoppingWebsiteResearcher,
 } from './services/shopping/codexShoppingWebsiteResearcher.js';
@@ -116,6 +131,11 @@ export type CreateAppOptions = {
   stockPriceCheckService?: StockPriceCheckService;
   stockPriceCheckRunner?: StockPriceCheckRunner;
   shoppingStockPriceCheckReadiness?: ShoppingStockPriceCheckReadiness;
+  shoppingListReaddStore?: ShoppingListReaddStore;
+  shoppingListReaddMatcher?: ShoppingListReaddMatcher;
+  shoppingListReaddService?: ShoppingListReaddService;
+  shoppingListReaddRunner?: ShoppingListReaddRunner;
+  shoppingListReaddReadiness?: ShoppingListReaddReadiness;
   toDoListRealtime?: ToDoListRealtimeHub;
   userStore?: UserStore;
   toDoLocationStore?: ToDoLocationStore;
@@ -232,6 +252,31 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     : undefined);
   const shoppingStockPriceCheckReadiness = options.shoppingStockPriceCheckReadiness ??
     createShoppingStockPriceCheckReadiness({ shoppingStockPriceCheckStore });
+  const shoppingListReaddStore = options.shoppingListReaddStore ?? (
+    isDatabaseConfigured() ? createPostgresShoppingListReaddStore() : undefined
+  );
+  const shoppingListReaddMatcher = options.shoppingListReaddMatcher ?? new CodexShoppingListReaddMatcher({
+    apiKey: process.env[CODEX_SHOPPING_LIST_READD_MATCHER_API_KEY_ENV],
+  });
+  const shoppingListReaddService = options.shoppingListReaddService ?? (shoppingListReaddStore
+    ? createShoppingListReaddService({
+      matcher: shoppingListReaddMatcher,
+      shoppingListReaddStore,
+      shoppingListStore,
+      shoppingListMutationService,
+    })
+    : undefined);
+  const shoppingListReaddRunner = options.shoppingListReaddRunner ?? (shoppingListReaddService
+    ? createShoppingListReaddRunner({
+      shoppingListReaddService,
+      logger: appLogger,
+      fetchRecoverableRun: () => shoppingListReaddStore?.fetchRecoverableRun() ?? Promise.resolve(null),
+    })
+    : undefined);
+  const shoppingListReaddReadiness = options.shoppingListReaddReadiness ?? createShoppingListReaddReadiness({
+    matcher: shoppingListReaddMatcher,
+    store: shoppingListReaddStore,
+  });
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
   const toDoListStore = options.toDoListStore ?? createPostgresToDoListStore();
@@ -260,6 +305,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);
   app.set('shoppingTripSummaryDeliveryService', shoppingTripSummaryDeliveryService);
   app.set('stockPriceCheckRunner', stockPriceCheckRunner);
+  app.set('shoppingListReaddRunner', shoppingListReaddRunner);
 
   registerRoutes(app, {
     activityStore,
@@ -282,6 +328,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     shoppingListStore,
     shoppingStockPriceCheckReadiness,
     shoppingStockPriceCheckStore,
+    shoppingListReaddReadiness,
+    shoppingListReaddRunner,
+    shoppingListReaddService,
+    shoppingListReaddStore,
     stockPriceCheckRunner,
     shoppingTripService,
     shoppingTripStore,
@@ -294,6 +344,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   // Durable state, rather than an HTTP request-held promise, controls restart
   // recovery. The runner itself de-duplicates in-process schedules.
   stockPriceCheckRunner?.recover();
+  shoppingListReaddRunner?.recover();
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof DatabaseConfigurationError) {

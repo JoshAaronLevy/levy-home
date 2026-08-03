@@ -40,6 +40,13 @@ export function validateStartShoppingListReaddBody(input: unknown): StartShoppin
   return { text, actor: input.actor, mutationId: input.mutationId.trim().toLowerCase() };
 }
 
+export function readShoppingListReaddId(value: unknown): string {
+  if (typeof value !== 'string' || !uuidPattern.test(value.trim())) {
+    throw invalidShoppingListReadd('runId must be a UUID.');
+  }
+  return value.trim().toLowerCase();
+}
+
 function invalidShoppingListReadd(message: string): HTTPError {
   return new HTTPError(400, message, 'invalid_shopping_list_readd');
 }

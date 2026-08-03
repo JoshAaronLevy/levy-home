@@ -207,3 +207,28 @@ test('AI re-add persistence rejects unsafe operation records, expires Undo, and 
     assert.equal(columnNames.has(forbidden), false);
   }
 });
+
+test('AI re-add persistence permits only one active run and exposes it for restart recovery', async (t) => {
+  const disposable = await createDisposableShoppingDatabase();
+  t.after(() => disposable.close());
+  const store = createPostgresShoppingListReaddStore({
+    database: disposable.database,
+    transactionRunner: disposable.transactionRunner,
+  });
+  const first = await store.createRun({ requestId: randomUUID(), actor: 'Josh', requestedText: 'Add eggs' });
+  assert.equal((await store.fetchRecoverableRun())?.id, first.id);
+  await assert.rejects(
+    store.createRun({ requestId: randomUUID(), actor: 'Mallory', requestedText: 'Add milk' }),
+    /unique constraint|duplicate key/i,
+  );
+
+  await store.claimRun(first.id);
+  assert.equal((await store.fetchRecoverableRun())?.status, 'matching');
+  await store.finalizeRun({
+    runId: first.id,
+    status: 'failed',
+    operations: [{ requestIndex: 0, requestedText: 'eggs', outcome: 'unavailable' }],
+  });
+  assert.equal(await store.fetchRecoverableRun(), null);
+  assert.equal((await store.createRun({ requestId: randomUUID(), actor: 'Mallory', requestedText: 'Add milk' })).status, 'queued');
+});

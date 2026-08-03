@@ -25,6 +25,11 @@ export const shoppingListReaddUndoWindowMs = 5 * 60_000;
 
 export type ShoppingListReaddService = {
   processRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
+  /**
+   * A restart never replays an in-progress write. Queued work can restart;
+   * matching/applying work is finalized safely so it is not left stuck.
+   */
+  recoverRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
   undoRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
 };
 
@@ -116,6 +121,21 @@ export function createShoppingListReaddService(options: {
 
       return (await options.shoppingListReaddStore.markRunUndone(runId))
         ?? options.shoppingListReaddStore.fetchRun(runId);
+    },
+
+    async recoverRun(runId) {
+      const run = await options.shoppingListReaddStore.fetchRun(runId);
+      if (!run) return null;
+      if (run.status === 'queued') return this.processRun(runId);
+      if (run.status !== 'matching' && run.status !== 'applying') return run;
+
+      const executionRun = await options.shoppingListReaddStore.fetchRunExecutionInput(runId);
+      if (!executionRun) return options.shoppingListReaddStore.fetchRun(runId);
+      return options.shoppingListReaddStore.finalizeRun({
+        runId,
+        status: 'failed',
+        operations: failureOperationsForRequest(executionRun.requestedText, 'unavailable'),
+      });
     },
   };
 }

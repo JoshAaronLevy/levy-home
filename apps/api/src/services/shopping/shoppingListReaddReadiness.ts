@@ -6,11 +6,15 @@ import {
   type ShoppingListReaddReadinessCheck,
 } from './shoppingListReaddMatcher.js';
 
-export type ShoppingListReaddReadiness = {
+export type ShoppingListReaddReadinessResponse = {
   ready: boolean;
   matcherRuntime: ShoppingListReaddReadinessCheck;
   authentication: ShoppingListReaddReadinessCheck;
   persistence: ShoppingListReaddReadinessCheck;
+};
+
+export type ShoppingListReaddReadiness = {
+  getReadiness: () => Promise<ShoppingListReaddReadinessResponse>;
 };
 
 /**
@@ -21,7 +25,7 @@ export type ShoppingListReaddReadiness = {
 export async function getShoppingListReaddReadiness(options: {
   matcher?: ShoppingListReaddMatcher;
   store?: Pick<ShoppingListReaddStore, 'fetchRun'>;
-} = {}): Promise<ShoppingListReaddReadiness> {
+} = {}): Promise<ShoppingListReaddReadinessResponse> {
   const matcher = options.matcher ?? new CodexShoppingListReaddMatcher();
   const matcherReadiness = matcher.getReadiness();
   const persistence = await persistenceReadiness(options.store);
@@ -31,6 +35,15 @@ export async function getShoppingListReaddReadiness(options: {
     matcherRuntime: matcherReadiness.runtime,
     authentication: matcherReadiness.authentication,
     persistence,
+  };
+}
+
+export function createShoppingListReaddReadiness(options: {
+  matcher?: ShoppingListReaddMatcher;
+  store?: Pick<ShoppingListReaddStore, 'fetchRun'>;
+} = {}): ShoppingListReaddReadiness {
+  return {
+    getReadiness: () => getShoppingListReaddReadiness(options),
   };
 }
 

@@ -17,6 +17,7 @@ import type { ShoppingListStore } from '../repositories/shoppingListRepository.j
 import type { ShoppingTripStore } from '../repositories/shoppingTripRepository.js';
 import type { ShoppingLiveActivityStore } from '../repositories/shoppingLiveActivityRepository.js';
 import type { ShoppingStockPriceCheckStore } from '../repositories/shoppingStockPriceCheckRepository.js';
+import type { ShoppingListReaddStore } from '../repositories/shoppingListReaddRepository.js';
 import type { ToDoLocationStore } from '../repositories/todoLocationRepository.js';
 import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
@@ -25,6 +26,9 @@ import type { DoorbellImageService } from '../services/doorbell/doorbellImageSer
 import type { CameraService } from '../services/camera/cameraService.js';
 import type { ShoppingStockPriceCheckReadiness } from '../services/shopping/stockPriceCheckReadiness.js';
 import type { StockPriceCheckRunner } from '../services/shopping/stockPriceCheckRunner.js';
+import type { ShoppingListReaddReadiness } from '../services/shopping/shoppingListReaddReadiness.js';
+import type { ShoppingListReaddRunner } from '../services/shopping/shoppingListReaddRunner.js';
+import type { ShoppingListReaddService } from '../services/shopping/shoppingListReaddService.js';
 import type { Logger } from '../observability/logger.js';
 import { createCameraRoutes } from './cameraRoutes.js';
 import { createActivityRoutes } from './activityRoutes.js';
@@ -63,6 +67,10 @@ export type AppRouteDependencies = {
   shoppingStockPriceCheckStore?: ShoppingStockPriceCheckStore;
   shoppingStockPriceCheckReadiness: ShoppingStockPriceCheckReadiness;
   stockPriceCheckRunner?: StockPriceCheckRunner;
+  shoppingListReaddStore?: ShoppingListReaddStore;
+  shoppingListReaddReadiness: ShoppingListReaddReadiness;
+  shoppingListReaddRunner?: ShoppingListReaddRunner;
+  shoppingListReaddService?: ShoppingListReaddService;
   shoppingTripStore?: ShoppingTripStore;
   toDoLocationStore: ToDoLocationStore;
   toDoListMutationService: ToDoListMutationService;

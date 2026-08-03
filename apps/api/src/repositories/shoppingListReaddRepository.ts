@@ -48,6 +48,7 @@ export type ShoppingListReaddStore = {
   createRun: (request: CreateShoppingListReaddRunRequest) => Promise<ShoppingListReaddSummary>;
   fetchRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
   fetchRunByRequestId: (requestId: string) => Promise<ShoppingListReaddSummary | null>;
+  fetchRecoverableRun: () => Promise<ShoppingListReaddSummary | null>;
   claimRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
   claimRunForProcessing: (runId: string) => Promise<ShoppingListReaddRunClaim | null>;
   fetchRunExecutionInput: (runId: string) => Promise<ShoppingListReaddExecutionRun | null>;
@@ -193,6 +194,7 @@ export function createPostgresShoppingListReaddStore(options: {
     createRun: (request) => transaction()((database) => createShoppingListReaddRun(database, request)),
     fetchRun: (runId) => fetchShoppingListReaddRun(query(), runId),
     fetchRunByRequestId: (requestId) => fetchShoppingListReaddRunByRequestId(query(), requestId),
+    fetchRecoverableRun: () => fetchRecoverableShoppingListReaddRun(query()),
     claimRun: (runId) => transaction()((database) => claimShoppingListReaddRun(database, runId)),
     claimRunForProcessing: (runId) => transaction()((database) => claimShoppingListReaddRunForProcessing(database, runId)),
     fetchRunExecutionInput: (runId) => fetchShoppingListReaddExecutionRun(query(), runId),
@@ -253,6 +255,22 @@ export async function fetchShoppingListReaddRunByRequestId(
     LIMIT 1
   `;
 
+  return row ? shoppingListReaddSummaryFromRow(row) : null;
+}
+
+/** One active run is enforced by a database partial index; recovery handles it oldest-first. */
+export async function fetchRecoverableShoppingListReaddRun(
+  database: DatabaseQuery,
+): Promise<ShoppingListReaddSummary | null> {
+  const [row] = await database<ShoppingListReaddRunRow>`
+    SELECT
+      id, status, public_summary AS "publicSummary", undo_expires_at AS "undoExpiresAt",
+      submitted_at AS "submittedAt", started_at AS "startedAt", finished_at AS "finishedAt"
+    FROM shopping_ai_readd_runs
+    WHERE status IN ('queued', 'matching', 'applying')
+    ORDER BY submitted_at ASC
+    LIMIT 1
+  `;
   return row ? shoppingListReaddSummaryFromRow(row) : null;
 }
 
