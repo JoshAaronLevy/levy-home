@@ -10,6 +10,21 @@ struct StartShoppingStockPriceCheckRequest: Encodable, Equatable {
     }
 }
 
+/// Starts the offline, existing-items-only AI Shopping re-add workflow.
+/// The server reads its own candidate snapshot; the app sends no item IDs,
+/// quantities, prompts, or model controls.
+struct StartShoppingListReaddRequest: Encodable, Equatable {
+    let text: String
+    let actor: String
+    let mutationId: String
+
+    init(text: String, actor: String, mutationId: String = UUID().uuidString) {
+        self.text = text
+        self.actor = actor
+        self.mutationId = mutationId
+    }
+}
+
 struct CreateShoppingListItemRequest: Encodable, Equatable {
     let name: String
     let brand: String?

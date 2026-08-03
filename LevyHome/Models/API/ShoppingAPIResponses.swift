@@ -454,6 +454,164 @@ struct ShoppingStockPriceCheckReadiness: Decodable, Equatable {
     }
 }
 
+enum ShoppingListReaddMatchKind: Codable, Equatable {
+    case exact
+    case normalized
+    case semantic
+    case unknown(String)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "exact": self = .exact
+        case "normalized": self = .normalized
+        case "semantic": self = .semantic
+        default: self = .unknown(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(apiValue)
+    }
+
+    private var apiValue: String {
+        switch self {
+        case .exact: return "exact"
+        case .normalized: return "normalized"
+        case .semantic: return "semantic"
+        case .unknown(let value): return value
+        }
+    }
+}
+
+enum ShoppingListReaddOperationOutcome: Codable, Equatable {
+    case reAdded
+    case quantityUpdated
+    case alreadyNeeded
+    case unmatched
+    case staleSkipped
+    case invalidRequest
+    case unavailable
+    case undone
+    case unknown(String)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "re_added": self = .reAdded
+        case "quantity_updated": self = .quantityUpdated
+        case "already_needed": self = .alreadyNeeded
+        case "unmatched": self = .unmatched
+        case "stale_skipped": self = .staleSkipped
+        case "invalid_request": self = .invalidRequest
+        case "unavailable": self = .unavailable
+        case "undone": self = .undone
+        default: self = .unknown(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(apiValue)
+    }
+
+    private var apiValue: String {
+        switch self {
+        case .reAdded: return "re_added"
+        case .quantityUpdated: return "quantity_updated"
+        case .alreadyNeeded: return "already_needed"
+        case .unmatched: return "unmatched"
+        case .staleSkipped: return "stale_skipped"
+        case .invalidRequest: return "invalid_request"
+        case .unavailable: return "unavailable"
+        case .undone: return "undone"
+        case .unknown(let value): return value
+        }
+    }
+}
+
+enum ShoppingListReaddRunStatus: Codable, Equatable {
+    case queued
+    case matching
+    case applying
+    case completed
+    case completedWithIssues
+    case failed
+    case undone
+    case unknown(String)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "queued": self = .queued
+        case "matching": self = .matching
+        case "applying": self = .applying
+        case "completed": self = .completed
+        case "completed_with_issues": self = .completedWithIssues
+        case "failed": self = .failed
+        case "undone": self = .undone
+        default: self = .unknown(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(apiValue)
+    }
+
+    private var apiValue: String {
+        switch self {
+        case .queued: return "queued"
+        case .matching: return "matching"
+        case .applying: return "applying"
+        case .completed: return "completed"
+        case .completedWithIssues: return "completed_with_issues"
+        case .failed: return "failed"
+        case .undone: return "undone"
+        case .unknown(let value): return value
+        }
+    }
+}
+
+struct ShoppingListReaddOperationSummary: Codable, Equatable, Identifiable {
+    let requestIndex: Int
+    let requestedText: String
+    let outcome: ShoppingListReaddOperationOutcome
+    let itemId: Int?
+    let itemName: String?
+    let quantity: Int?
+    let matchKind: ShoppingListReaddMatchKind?
+
+    var id: Int { requestIndex }
+}
+
+struct ShoppingListReaddUnmatchedPhrase: Codable, Equatable, Identifiable {
+    let requestIndex: Int
+    let requestedText: String
+
+    var id: Int { requestIndex }
+}
+
+struct ShoppingListReaddUndoAvailability: Codable, Equatable {
+    let available: Bool
+    let expiresAt: String?
+}
+
+/// Deliberately public-safe: it never decodes or preserves prompts, model
+/// output, thread IDs, candidate snapshots, scores, or runtime diagnostics.
+struct ShoppingListReaddSummary: Codable, Equatable {
+    let ok: Bool
+    let id: String
+    let status: ShoppingListReaddRunStatus
+    let operations: [ShoppingListReaddOperationSummary]
+    let unmatched: [ShoppingListReaddUnmatchedPhrase]
+    let undo: ShoppingListReaddUndoAvailability
+    let submittedAt: String
+    let startedAt: String?
+    let finishedAt: String?
+}
+
 struct ShoppingListItemLookupResponse: Codable, Equatable {
     let ok: Bool
     let query: String

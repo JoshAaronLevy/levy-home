@@ -591,6 +591,59 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertFalse(encodedSummary.contains("filesystemPath"))
     }
 
+    func testShoppingListReaddModelsPreserveUnknownEnumsAndDropInternalResponseFields() throws {
+        let request = StartShoppingListReaddRequest(
+            text: "Add 2 coffees and eggs",
+            actor: "Josh",
+            mutationId: "A5E0627A-2B06-4770-A042-9717740758FA"
+        )
+        let summary = try decode(
+            ShoppingListReaddSummary.self,
+            from: """
+            {
+              "ok": true,
+              "id": "run-1",
+              "status": "future_status",
+              "operations": [
+                {
+                  "requestIndex": 0,
+                  "requestedText": "2 coffees",
+                  "outcome": "future_outcome",
+                  "itemId": 14,
+                  "itemName": "Iced Coffee",
+                  "quantity": 2,
+                  "matchKind": "future_match_kind"
+                }
+              ],
+              "unmatched": [],
+              "undo": { "available": true, "expiresAt": "2026-08-02T12:05:00.000Z" },
+              "submittedAt": "2026-08-02T12:00:00.000Z",
+              "startedAt": null,
+              "finishedAt": null,
+              "threadId": "private-thread",
+              "prompt": "private prompt",
+              "rawOutput": "private model output",
+              "candidateSnapshot": [{ "itemId": 14 }]
+            }
+            """
+        )
+
+        XCTAssertEqual(summary.status, .unknown("future_status"))
+        XCTAssertEqual(summary.operations.first?.outcome, .unknown("future_outcome"))
+        XCTAssertEqual(summary.operations.first?.matchKind, .unknown("future_match_kind"))
+
+        let encodedRequest = try encodeJSON(request)
+        XCTAssertEqual(encodedRequest["text"] as? String, "Add 2 coffees and eggs")
+        XCTAssertEqual(encodedRequest["actor"] as? String, "Josh")
+        XCTAssertEqual(encodedRequest["mutationId"] as? String, "A5E0627A-2B06-4770-A042-9717740758FA")
+
+        let encodedSummary = String(decoding: try encoder.encode(summary), as: UTF8.self)
+        XCTAssertFalse(encodedSummary.contains("threadId"))
+        XCTAssertFalse(encodedSummary.contains("prompt"))
+        XCTAssertFalse(encodedSummary.contains("rawOutput"))
+        XCTAssertFalse(encodedSummary.contains("candidateSnapshot"))
+    }
+
     func testDecodesStockPriceCheckReadinessWithoutRuntimeDiagnostics() throws {
         let readiness = try decode(
             ShoppingStockPriceCheckReadiness.self,

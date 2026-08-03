@@ -272,3 +272,81 @@ export type StartShoppingStockPriceCheckRequest = {
   actor?: string;
   mutationId: string;
 };
+
+/**
+ * Public-safe descriptions of how an existing item was selected. These values
+ * intentionally reveal no model score, prompt, candidate list, or rationale.
+ */
+export type ShoppingListReaddMatchKind = 'exact' | 'normalized' | 'semantic';
+
+/**
+ * Public outcome for one requested phrase. See the re-add matching policy for
+ * the server-side rules; iOS must not infer any internal details from this.
+ */
+export type ShoppingListReaddOperationOutcome =
+  | 're_added'
+  | 'quantity_updated'
+  | 'already_needed'
+  | 'unmatched'
+  | 'stale_skipped'
+  | 'invalid_request'
+  | 'unavailable'
+  | 'undone';
+
+export type ShoppingListReaddRunStatus =
+  | 'queued'
+  | 'matching'
+  | 'applying'
+  | 'completed'
+  | 'completed_with_issues'
+  | 'failed'
+  | 'undone';
+
+export type ShoppingListReaddOperationSummary = {
+  requestIndex: number;
+  requestedText: string;
+  outcome: ShoppingListReaddOperationOutcome;
+  itemId?: number;
+  itemName?: string;
+  /** Present only when the request explicitly set the quantity. */
+  quantity?: number;
+  matchKind?: ShoppingListReaddMatchKind;
+};
+
+export type ShoppingListReaddUnmatchedPhrase = {
+  requestIndex: number;
+  requestedText: string;
+};
+
+export type ShoppingListReaddUndoAvailability = {
+  available: boolean;
+  expiresAt?: string;
+};
+
+/**
+ * The only re-add result shape exposed to iOS. Prompts, raw model output,
+ * candidate snapshots, scores, thread IDs, and runtime diagnostics are never
+ * part of this contract.
+ */
+export type ShoppingListReaddSummary = {
+  ok: true;
+  id: string;
+  status: ShoppingListReaddRunStatus;
+  operations: ShoppingListReaddOperationSummary[];
+  unmatched: ShoppingListReaddUnmatchedPhrase[];
+  undo: ShoppingListReaddUndoAvailability;
+  submittedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+/**
+ * The sole public start payload for offline Shopping re-add matching. The API
+ * reads the Shopping candidates itself; clients cannot supply item IDs,
+ * quantities, prompts, or model controls.
+ */
+export type StartShoppingListReaddRequest = {
+  text: string;
+  actor: 'Josh' | 'Mallory';
+  mutationId: string;
+};

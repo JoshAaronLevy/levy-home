@@ -13,6 +13,8 @@ import {
   validateCreateShoppingListItemBody,
   validateUpdateShoppingListItemBody,
 } from '../../../src/validation/shoppingValidation.js';
+import { validateStartShoppingListReaddBody } from '../../../src/validation/shoppingListReaddValidation.js';
+import { shoppingListReaddLimits } from '../../../src/services/shopping/shoppingListReaddContracts.js';
 import { validateCreateToDoLocationBody } from '../../../src/validation/todoValidation.js';
 import { HTTPError } from '../../../src/http/errors.js';
 
@@ -57,6 +59,55 @@ test('shopping validators normalize create payloads and reject empty updates', (
   assertHTTPError(
     () => validateUpdateShoppingListItemBody({ mutationId: 'only-metadata' }),
     'invalid_shopping_item',
+  );
+});
+
+test('AI Shopping re-add validator accepts only the bounded server-owned start payload', () => {
+  assert.deepEqual(
+    validateStartShoppingListReaddBody({
+      text: '  Add 2 coffees and eggs  ',
+      actor: 'Josh',
+      mutationId: 'A5E0627A-2B06-4770-A042-9717740758FA',
+    }),
+    {
+      text: 'Add 2 coffees and eggs',
+      actor: 'Josh',
+      mutationId: 'a5e0627a-2b06-4770-a042-9717740758fa',
+    },
+  );
+
+  assertHTTPError(
+    () => validateStartShoppingListReaddBody({
+      text: 'Add eggs',
+      actor: 'Someone else',
+      mutationId: 'a5e0627a-2b06-4770-a042-9717740758fa',
+    }),
+    'invalid_shopping_list_readd',
+  );
+  assertHTTPError(
+    () => validateStartShoppingListReaddBody({
+      text: ' ',
+      actor: 'Mallory',
+      mutationId: 'not-a-uuid',
+    }),
+    'invalid_shopping_list_readd',
+  );
+  assertHTTPError(
+    () => validateStartShoppingListReaddBody({
+      text: 'a'.repeat(shoppingListReaddLimits.maxRequestTextLength + 1),
+      actor: 'Mallory',
+      mutationId: 'a5e0627a-2b06-4770-a042-9717740758fa',
+    }),
+    'invalid_shopping_list_readd',
+  );
+  assertHTTPError(
+    () => validateStartShoppingListReaddBody({
+      text: 'Add eggs',
+      actor: 'Mallory',
+      mutationId: 'a5e0627a-2b06-4770-a042-9717740758fa',
+      itemIds: [22],
+    }),
+    'invalid_shopping_list_readd',
   );
 });
 
