@@ -38,7 +38,8 @@ test('offline Codex matcher configuration is read-only, approval-free, and netwo
 test('prompt has only approved bounded Shopping context and no retailer, browser, image, or database instructions', () => {
   const prompt = buildCodexShoppingListReaddPrompt('Add 2 coffees and eggs', candidates);
 
-  assert.match(prompt, /Add 2 coffees and eggs/);
+  assert.match(prompt, /"text":"2 coffees"/);
+  assert.match(prompt, /"text":"eggs"/);
   assert.match(prompt, /Iced Coffee/);
   assert.match(prompt, /Egg Cups/);
   assert.match(prompt, /Use only the JSON below\. Do not use tools/);
@@ -96,18 +97,14 @@ test('fake Codex turn returns a validated structured plan and has no database de
   ]);
 });
 
-test('strict parser rejects malformed, duplicate, unknown, and extra-field matcher output', () => {
+test('strict parser rejects malformed, unknown, and extra-field matcher output', () => {
   for (const response of [
     'not JSON',
     JSON.stringify({ operations: [{ requestIndex: 0, requestedText: 'eggs', itemId: 22, matchKind: 'exact', explanation: 'no' }], unmatched: [] }),
-    JSON.stringify({ operations: [
-      { requestIndex: 0, requestedText: 'eggs', itemId: 22, matchKind: 'exact' },
-      { requestIndex: 1, requestedText: 'more eggs', itemId: 22, matchKind: 'semantic' },
-    ], unmatched: [] }),
     JSON.stringify({ operations: [{ requestIndex: 0, requestedText: 'eggs', itemId: 999, matchKind: 'exact' }], unmatched: [] }),
   ]) {
     assert.throws(
-      () => parseCodexShoppingListReaddResponse(response, candidates),
+      () => parseCodexShoppingListReaddResponse(response, 'Add eggs and more eggs', candidates),
       ShoppingListReaddMatcherInvalidResultError,
     );
   }

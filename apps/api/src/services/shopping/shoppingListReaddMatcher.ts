@@ -3,10 +3,14 @@ import { Codex, type CodexOptions, type Thread, type ThreadOptions } from '@open
 import {
   shoppingListReaddLimits,
   shoppingListReaddMatchingPolicy,
-  validateShoppingListReaddMatchPlan,
   type ShoppingListReaddCandidateSnapshot,
   type ShoppingListReaddMatchPlan,
 } from './shoppingListReaddContracts.js';
+import {
+  buildShoppingListReaddMatchContext,
+  shoppingListReaddPromptContext,
+  validateShoppingListReaddMatchPlanForRequest,
+} from './shoppingListReaddPlanning.js';
 
 const MAX_CODEX_STRUCTURED_OUTPUT_BYTES = 16 * 1024;
 export const CODEX_SHOPPING_LIST_READD_MATCHER_API_KEY_ENV = 'CODEX_SHOPPING_LIST_API_KEY';
@@ -110,13 +114,12 @@ export class DeterministicShoppingListReaddMatcher implements ShoppingListReaddM
   }
 
   async match(
-    _requestText: string,
+    requestText: string,
     candidateSnapshot: readonly ShoppingListReaddCandidateSnapshot[],
   ): Promise<ShoppingListReaddMatchPlan> {
-    return validateShoppingListReaddMatchPlan(
+    return validateShoppingListReaddMatchPlanForRequest(
       this.plan,
-      candidateSnapshot,
-      shoppingListReaddLimits.maxRequestedPhrases,
+      buildShoppingListReaddMatchContext(requestText, candidateSnapshot),
     );
   }
 }
@@ -185,23 +188,25 @@ export function buildCodexShoppingListReaddPrompt(
   requestText: string,
   candidateSnapshot: readonly ShoppingListReaddCandidateSnapshot[],
 ): string {
-  const request = boundedRequiredText(requestText, 'request text');
-  const items = promptCandidates(candidateSnapshot);
+  const context = buildShoppingListReaddMatchContext(requestText, candidateSnapshot);
+  const promptContext = shoppingListReaddPromptContext(context);
 
   return [
     'Match requested shopping phrases to existing supplied shopping items only.',
     'Return exactly one JSON object matching the provided schema and no prose.',
     'Use only the JSON below. Do not use tools or outside information.',
     'Never create an item, choose an ID outside items, select the same item twice, add fields, or infer a quantity when the phrase did not explicitly state one.',
-    'For each phrase, choose one plausible closest item or put that phrase in unmatched. Do not choose an unrelated item.',
+    'For every supplied phrase, choose one plausible closest item or put that phrase in unmatched. Do not return a ranking or ask for confirmation.',
+    'Use each phrase text exactly as supplied. If quantityState is explicit, return exactly explicitQuantity; if absent, omit quantity; if invalid, return that phrase as unmatched.',
     ...shoppingListReaddMatchingPolicy.map((rule) => `Policy: ${rule}`),
-    JSON.stringify({ request, items }),
+    JSON.stringify(promptContext),
   ].join('\n');
 }
 
 /** Parses only bounded schema-shaped model text. It has no mutation effect. */
 export function parseCodexShoppingListReaddResponse(
   response: string,
+  requestText: string,
   candidateSnapshot: readonly ShoppingListReaddCandidateSnapshot[],
 ): ShoppingListReaddMatchPlan {
   if (Buffer.byteLength(response, 'utf8') > MAX_CODEX_STRUCTURED_OUTPUT_BYTES) {
@@ -209,10 +214,9 @@ export function parseCodexShoppingListReaddResponse(
   }
 
   try {
-    return validateShoppingListReaddMatchPlan(
+    return validateShoppingListReaddMatchPlanForRequest(
       JSON.parse(response) as unknown,
-      candidateSnapshot,
-      shoppingListReaddLimits.maxRequestedPhrases,
+      buildShoppingListReaddMatchContext(requestText, candidateSnapshot),
     );
   } catch (error) {
     if (error instanceof ShoppingListReaddMatcherInvalidResultError) throw error;
@@ -235,69 +239,13 @@ export async function runCodexShoppingListReaddTurn(
       outputSchema: CODEX_SHOPPING_LIST_READD_OUTPUT_SCHEMA,
       signal: controller.signal,
     });
-    return parseCodexShoppingListReaddResponse(result.finalResponse, candidateSnapshot);
+    return parseCodexShoppingListReaddResponse(result.finalResponse, requestText, candidateSnapshot);
   } catch (error) {
     if (error instanceof ShoppingListReaddMatcherInvalidResultError) throw error;
     throw new ShoppingListReaddMatcherUnavailableError('matcher_unavailable');
   } finally {
     clearTimeout(timer);
   }
-}
-
-function promptCandidates(
-  candidateSnapshot: readonly ShoppingListReaddCandidateSnapshot[],
-): Array<{
-  id: number;
-  version: number;
-  name: string;
-  brand?: string;
-  notes?: string;
-  purchased: boolean;
-  quantity: number;
-}> {
-  if (candidateSnapshot.length > shoppingListReaddLimits.maxCandidateItems) {
-    throw new ShoppingListReaddMatcherInvalidResultError();
-  }
-
-  return candidateSnapshot.map((item) => ({
-    id: requiredPositiveInteger(item.itemId, 'item ID'),
-    version: requiredPositiveInteger(item.itemVersion, 'item version'),
-    name: boundedRequiredText(item.name, 'item name', shoppingListReaddLimits.maxCandidateNameLength),
-    ...(item.brand ? { brand: boundedText(item.brand, shoppingListReaddLimits.maxCandidateBrandLength) } : {}),
-    ...(item.notes ? { notes: boundedText(item.notes, shoppingListReaddLimits.maxCandidateNotesLength) } : {}),
-    purchased: item.purchased,
-    quantity: boundedQuantity(item.quantity),
-  }));
-}
-
-function boundedRequiredText(value: string, field: string, maximumLength: number = shoppingListReaddLimits.maxRequestTextLength): string {
-  const normalized = typeof value === 'string' ? value.trim() : '';
-  if (!normalized || normalized.length > maximumLength) {
-    throw new ShoppingListReaddMatcherInvalidResultError();
-  }
-  return normalized;
-}
-
-function boundedText(value: string, maximumLength: number): string {
-  const normalized = value.trim();
-  if (!normalized || normalized.length > maximumLength) {
-    throw new ShoppingListReaddMatcherInvalidResultError();
-  }
-  return normalized;
-}
-
-function requiredPositiveInteger(value: number, _field: string): number {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new ShoppingListReaddMatcherInvalidResultError();
-  }
-  return value;
-}
-
-function boundedQuantity(value: number): number {
-  if (!Number.isInteger(value) || value < shoppingListReaddLimits.minQuantity || value > shoppingListReaddLimits.maxQuantity) {
-    throw new ShoppingListReaddMatcherInvalidResultError();
-  }
-  return value;
 }
 
 function nonemptyString(value: string | undefined): string | undefined {
