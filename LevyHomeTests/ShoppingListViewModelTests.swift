@@ -774,6 +774,195 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isStockPriceCheckActive)
     }
 
+    func testShoppingListReaddStartsOnlyOnceAndAdoptsTheActiveRun() async {
+        var startCount = 0
+        var receivedRequest: StartShoppingListReaddRequest?
+        let activeRun = Self.shoppingListReaddRun(status: .matching)
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [Self.item(id: 15, name: "Iced Coffee")],
+            start: { request in
+                startCount += 1
+                receivedRequest = request
+                return .active(activeRun)
+            }
+        )
+        await viewModel.loadIfNeeded()
+
+        let first = await viewModel.startShoppingListReadd(text: "Add two coffees")
+        let second = await viewModel.startShoppingListReadd(text: "Add two coffees")
+
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(receivedRequest?.actor, "Josh")
+        XCTAssertEqual(receivedRequest?.text, "Add two coffees")
+        XCTAssertEqual(first?.id, activeRun.id)
+        XCTAssertEqual(second?.id, activeRun.id)
+        XCTAssertTrue(viewModel.isShoppingListReaddActive)
+    }
+
+    func testShoppingListReaddPollsProgressAndRefreshesAtTerminalState() async {
+        let initial = Self.item(id: 15, name: "Iced Coffee", version: 1)
+        let refreshed = Self.item(id: 15, name: "Iced Coffee", version: 2)
+        var listLoadCount = 0
+        var runs = [
+            Self.shoppingListReaddRun(status: .applying),
+            Self.shoppingListReaddRun(status: .completed, undoAvailable: true)
+        ]
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [initial],
+            loadShoppingList: {
+                listLoadCount += 1
+                return Self.response(items: listLoadCount == 1 ? [initial] : [refreshed])
+            },
+            start: { _ in .accepted(Self.shoppingListReaddRun(status: .queued)) },
+            fetch: { _ in runs.removeFirst() },
+            sleeper: { _ in }
+        )
+        await viewModel.loadIfNeeded()
+        viewModel.setShoppingListReaddPollingAllowed(true)
+
+        _ = await viewModel.startShoppingListReadd(text: "Add two coffees")
+        await waitUntil { viewModel.finalShoppingListReaddSummary != nil }
+
+        XCTAssertEqual(viewModel.shoppingListReaddRun?.status, .completed)
+        XCTAssertEqual(viewModel.items.first?.version, 2)
+        XCTAssertGreaterThanOrEqual(listLoadCount, 2)
+        XCTAssertNil(viewModel.shoppingListReaddErrorMessage)
+    }
+
+    func testShoppingListReaddPollingCancelsInBackgroundAndResumesOnReturn() async {
+        let fetchGate = ShoppingListReaddFetchGate()
+        var fetchCount = 0
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [Self.item(id: 15, name: "Iced Coffee")],
+            start: { _ in .accepted(Self.shoppingListReaddRun(status: .applying)) },
+            fetch: { _ in
+                fetchCount += 1
+                if fetchCount == 1 {
+                    return await fetchGate.waitForRun()
+                }
+                return Self.shoppingListReaddRun(status: .completed)
+            },
+            sleeper: { _ in }
+        )
+        await viewModel.loadIfNeeded()
+
+        viewModel.setShoppingListReaddPollingAllowed(true)
+        _ = await viewModel.startShoppingListReadd(text: "coffee")
+        await fetchGate.waitUntilStarted()
+        viewModel.setShoppingListReaddPollingAllowed(false)
+        await fetchGate.resume(with: Self.shoppingListReaddRun(status: .applying))
+        await Task.yield()
+        XCTAssertEqual(fetchCount, 1)
+        XCTAssertTrue(viewModel.isShoppingListReaddActive)
+
+        viewModel.setShoppingListReaddPollingAllowed(true)
+        await waitUntil { viewModel.finalShoppingListReaddSummary != nil }
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertFalse(viewModel.isShoppingListReaddActive)
+    }
+
+    func testShoppingListReaddPollingRecoversAfterTransportFailure() async {
+        var fetchCount = 0
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [Self.item(id: 15, name: "Iced Coffee")],
+            start: { _ in .accepted(Self.shoppingListReaddRun(status: .applying)) },
+            fetch: { _ in
+                fetchCount += 1
+                if fetchCount == 1 {
+                    throw APIError.transport("The network connection was lost.")
+                }
+                return Self.shoppingListReaddRun(status: .completed)
+            },
+            sleeper: { _ in }
+        )
+        await viewModel.loadIfNeeded()
+        viewModel.setShoppingListReaddPollingAllowed(true)
+
+        _ = await viewModel.startShoppingListReadd(text: "coffee")
+        await waitUntil { viewModel.shoppingListReaddErrorMessage != nil }
+        XCTAssertTrue(viewModel.isShoppingListReaddActive)
+
+        viewModel.setShoppingListReaddPollingAllowed(true)
+        await waitUntil { viewModel.finalShoppingListReaddSummary != nil }
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertNil(viewModel.shoppingListReaddErrorMessage)
+        XCTAssertFalse(viewModel.isShoppingListReaddActive)
+    }
+
+    func testShoppingListReaddPublishesReadinessAndSupportsUndoOnlyWhenAvailable() async {
+        var undoCount = 0
+        let unavailable = Self.shoppingListReaddReadiness(ready: false)
+        let unavailableViewModel = Self.shoppingListReaddViewModel(
+            items: [Self.item(id: 15, name: "Eggs")],
+            start: { _ in .accepted(Self.shoppingListReaddRun(status: .queued)) },
+            readiness: { unavailable }
+        )
+        await unavailableViewModel.loadIfNeeded()
+        unavailableViewModel.setShoppingListReaddPollingAllowed(true)
+        await waitUntil { unavailableViewModel.shoppingListReaddReadiness != nil }
+        XCTAssertTrue(unavailableViewModel.isShoppingListReaddUnavailable)
+        let unavailableResult = await unavailableViewModel.startShoppingListReadd(text: "eggs")
+        XCTAssertNil(unavailableResult)
+        XCTAssertEqual(unavailableViewModel.shoppingListReaddErrorMessage, "AI Shopping re-add is currently unavailable.")
+
+        let completed = Self.shoppingListReaddRun(status: .completed, undoAvailable: true)
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [Self.item(id: 15, name: "Eggs")],
+            start: { _ in .accepted(completed) },
+            undo: { _ in
+                undoCount += 1
+                return Self.shoppingListReaddRun(status: .undone, undoAvailable: false)
+            }
+        )
+        await viewModel.loadIfNeeded()
+        _ = await viewModel.startShoppingListReadd(text: "eggs")
+        let undone = await viewModel.undoCurrentShoppingListReadd()
+
+        XCTAssertEqual(undoCount, 1)
+        XCTAssertEqual(undone?.status, .undone)
+        XCTAssertEqual(viewModel.finalShoppingListReaddSummary?.status, .undone)
+        let expiredUndo = await viewModel.undoCurrentShoppingListReadd()
+        XCTAssertNil(expiredUndo)
+        XCTAssertEqual(undoCount, 1)
+    }
+
+    func testLiveItemUpdateSurvivesAnOlderTerminalReaddRefresh() async {
+        let original = Self.item(id: 15, name: "Iced Coffee", version: 1)
+        let liveUpdated = Self.item(id: 15, name: "Cold Brew", version: 2)
+        let refreshGate = ShoppingListResponseGate()
+        var loadCount = 0
+        let terminal = Self.shoppingListReaddRun(status: .completed)
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [original],
+            loadShoppingList: {
+                loadCount += 1
+                switch loadCount {
+                case 1:
+                    return Self.response(items: [original])
+                case 2:
+                    return await refreshGate.waitForResponse()
+                default:
+                    return Self.response(items: [liveUpdated])
+                }
+            },
+            start: { _ in .accepted(terminal) }
+        )
+        await viewModel.loadIfNeeded()
+
+        let startTask = Task { await viewModel.startShoppingListReadd(text: "coffee") }
+        await refreshGate.waitUntilStarted()
+        await viewModel.applyLiveMessage(
+            .itemUpdated(item: liveUpdated, mutationId: "live-readd-update", serverTime: "2026-08-03T16:00:00Z")
+        )
+        await refreshGate.resume(with: Self.response(items: [original]))
+        _ = await startTask.value
+
+        XCTAssertEqual(viewModel.items.first?.name, "Cold Brew")
+        XCTAssertEqual(viewModel.items.first?.version, 2)
+    }
+
     func testCompactOrderingPlacesMostRecentlyActiveItemsFirst() {
         let category = ShoppingCategory(id: 42, name: "Miscellaneous")
         let older = ShoppingListDisplayItem(
@@ -1074,6 +1263,68 @@ final class ShoppingListViewModelTests: XCTestCase {
         )
     }
 
+    private static func shoppingListReaddViewModel(
+        items: [ShoppingListItem],
+        loadShoppingList: ShoppingListViewModel.ShoppingListLoader? = nil,
+        start: @escaping ShoppingListViewModel.ShoppingListReaddStarter,
+        fetch: @escaping ShoppingListViewModel.ShoppingListReaddLoader = { _ in
+            throw APIError.transport("Unused")
+        },
+        undo: @escaping ShoppingListViewModel.ShoppingListReaddUndoer = { _ in
+            throw APIError.transport("Unused")
+        },
+        readiness: @escaping ShoppingListViewModel.ShoppingListReaddReadinessLoader = {
+            throw APIError.transport("Unused")
+        },
+        sleeper: @escaping ShoppingListViewModel.ShoppingListReaddSleeper = { _ in }
+    ) -> ShoppingListViewModel {
+        ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: loadShoppingList ?? { response(items: items) },
+            lookupShoppingListItem: { name in ShoppingListItemLookupResponse(ok: true, query: name, match: nil) },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in throw APIError.transport("Unused") },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") },
+            startShoppingListReadd: start,
+            fetchShoppingListReadd: fetch,
+            undoShoppingListReadd: undo,
+            fetchShoppingListReaddReadiness: readiness,
+            shoppingListReaddSleep: sleeper
+        )
+    }
+
+    private static func shoppingListReaddRun(
+        id: String = "readd-run-1",
+        status: ShoppingListReaddRunStatus,
+        undoAvailable: Bool = false
+    ) -> ShoppingListReaddSummary {
+        ShoppingListReaddSummary(
+            ok: true,
+            id: id,
+            status: status,
+            operations: [],
+            unmatched: [],
+            undo: ShoppingListReaddUndoAvailability(
+                available: undoAvailable,
+                expiresAt: undoAvailable ? "2026-08-03T12:10:00.000Z" : nil
+            ),
+            submittedAt: "2026-08-03T12:00:00.000Z",
+            startedAt: "2026-08-03T12:00:01.000Z",
+            finishedAt: status == .completed || status == .completedWithIssues || status == .failed || status == .undone
+                ? "2026-08-03T12:00:02.000Z"
+                : nil
+        )
+    }
+
+    private static func shoppingListReaddReadiness(ready: Bool) -> ShoppingListReaddReadiness {
+        ShoppingListReaddReadiness(
+            ready: ready,
+            matcherRuntime: ShoppingListReaddReadiness.Check(ready: ready, code: ready ? nil : "matcher_unavailable"),
+            authentication: ShoppingListReaddReadiness.Check(ready: ready, code: ready ? nil : "authentication_unavailable"),
+            persistence: ShoppingListReaddReadiness.Check(ready: ready, code: ready ? nil : "persistence_unavailable")
+        )
+    }
+
     private func waitUntil(
         _ condition: @escaping @MainActor () -> Bool,
         file: StaticString = #filePath,
@@ -1294,6 +1545,37 @@ private actor StockPriceCheckFetchGate {
     func resume(with job: ShoppingStockPriceCheckSummary) {
         jobContinuation?.resume(returning: job)
         jobContinuation = nil
+    }
+}
+
+private actor ShoppingListReaddFetchGate {
+    private var runContinuation: CheckedContinuation<ShoppingListReaddSummary, Never>?
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+    private var hasStarted = false
+
+    func waitForRun() async -> ShoppingListReaddSummary {
+        hasStarted = true
+        startContinuations.forEach { $0.resume() }
+        startContinuations = []
+
+        return await withCheckedContinuation { continuation in
+            runContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !hasStarted else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startContinuations.append(continuation)
+        }
+    }
+
+    func resume(with run: ShoppingListReaddSummary) {
+        runContinuation?.resume(returning: run)
+        runContinuation = nil
     }
 }
 

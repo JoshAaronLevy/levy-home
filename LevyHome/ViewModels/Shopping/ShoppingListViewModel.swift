@@ -33,6 +33,11 @@ final class ShoppingListViewModel: ObservableObject {
     typealias ShoppingStockPriceCheckLoader = (String) async throws -> ShoppingStockPriceCheckSummary
     typealias ShoppingStockPriceCheckReadinessLoader = () async throws -> ShoppingStockPriceCheckReadiness
     typealias ShoppingStockPriceCheckSleeper = (UInt64) async throws -> Void
+    typealias ShoppingListReaddStarter = (StartShoppingListReaddRequest) async throws -> ShoppingListReaddStartResult
+    typealias ShoppingListReaddLoader = (String) async throws -> ShoppingListReaddSummary
+    typealias ShoppingListReaddUndoer = (String) async throws -> ShoppingListReaddSummary
+    typealias ShoppingListReaddReadinessLoader = () async throws -> ShoppingListReaddReadiness
+    typealias ShoppingListReaddSleeper = (UInt64) async throws -> Void
 
     private struct ShoppingItemUpdateOutcome {
         let response: ShoppingListMutationResponse
@@ -58,6 +63,12 @@ final class ShoppingListViewModel: ObservableObject {
     @Published private(set) var stockPriceCheckErrorMessage: String?
     @Published private(set) var finalStockPriceCheckSummary: ShoppingStockPriceCheckSummary?
     @Published private(set) var isStartingStockPriceCheck = false
+    @Published private(set) var shoppingListReaddRun: ShoppingListReaddSummary?
+    @Published private(set) var shoppingListReaddReadiness: ShoppingListReaddReadiness?
+    @Published private(set) var shoppingListReaddErrorMessage: String?
+    @Published private(set) var finalShoppingListReaddSummary: ShoppingListReaddSummary?
+    @Published private(set) var isStartingShoppingListReadd = false
+    @Published private(set) var isUndoingShoppingListReadd = false
 
     private let loadShoppingList: ShoppingListLoader
     private let lookupShoppingListItem: ShoppingListLookup
@@ -71,6 +82,11 @@ final class ShoppingListViewModel: ObservableObject {
     private let fetchShoppingStockPriceCheck: ShoppingStockPriceCheckLoader
     private let fetchShoppingStockPriceCheckReadiness: ShoppingStockPriceCheckReadinessLoader
     private let stockPriceCheckSleep: ShoppingStockPriceCheckSleeper
+    private let sendShoppingListReadd: ShoppingListReaddStarter
+    private let loadShoppingListReadd: ShoppingListReaddLoader
+    private let performShoppingListReaddUndo: ShoppingListReaddUndoer
+    private let loadShoppingListReaddReadiness: ShoppingListReaddReadinessLoader
+    private let shoppingListReaddSleep: ShoppingListReaddSleeper
     private let searchKrogerProducts: KrogerProductSearch?
     private let liveService: ShoppingListLiveServicing?
     private let appLogStore: AppLogStore?
@@ -85,9 +101,20 @@ final class ShoppingListViewModel: ObservableObject {
     private var stockPriceCheckPollingTask: Task<Void, Never>?
     private var stockPriceCheckPollingToken: UUID?
     private var isStockPriceCheckPollingAllowed = false
+    private var shoppingListReaddPollingTask: Task<Void, Never>?
+    private var shoppingListReaddPollingToken: UUID?
+    private var isShoppingListReaddPollingAllowed = false
 
     private static let maximumStockPriceCheckPollAttempts = 30
     private static let stockPriceCheckPollDelaysNanoseconds: [UInt64] = [
+        1_000_000_000,
+        1_000_000_000,
+        2_000_000_000,
+        3_000_000_000,
+        5_000_000_000
+    ]
+    private static let maximumShoppingListReaddPollAttempts = 30
+    private static let shoppingListReaddPollDelaysNanoseconds: [UInt64] = [
         1_000_000_000,
         1_000_000_000,
         2_000_000_000,
@@ -114,6 +141,24 @@ final class ShoppingListViewModel: ObservableObject {
 
     var isStockPriceCheckUnavailable: Bool {
         stockPriceCheckReadiness?.enabled == false
+    }
+
+    var isShoppingListReaddActive: Bool {
+        guard let shoppingListReaddRun else {
+            return false
+        }
+
+        switch shoppingListReaddRun.status {
+        case .queued, .matching, .applying, .unknown:
+            return true
+        case .completed, .completedWithIssues, .failed, .undone:
+            return false
+        }
+    }
+
+    /// This readiness is intentionally independent of the stock/price browser feature.
+    var isShoppingListReaddUnavailable: Bool {
+        shoppingListReaddReadiness?.ready == false
     }
 
     var otherActiveViewers: [ShoppingListViewerPresence] {
@@ -268,6 +313,18 @@ final class ShoppingListViewModel: ObservableObject {
             },
             fetchShoppingStockPriceCheckReadiness: {
                 try await apiClient.fetchShoppingStockPriceCheckReadiness()
+            },
+            startShoppingListReadd: { request in
+                try await apiClient.startShoppingListReadd(request)
+            },
+            fetchShoppingListReadd: { runId in
+                try await apiClient.fetchShoppingListReadd(id: runId)
+            },
+            undoShoppingListReadd: { runId in
+                try await apiClient.undoShoppingListReadd(id: runId)
+            },
+            fetchShoppingListReaddReadiness: {
+                try await apiClient.fetchShoppingListReaddReadiness()
             }
         )
     }
@@ -315,6 +372,18 @@ final class ShoppingListViewModel: ObservableObject {
             },
             fetchShoppingStockPriceCheckReadiness: {
                 throw APIError.transport("Stock and price checks are not configured.")
+            },
+            startShoppingListReadd: { _ in
+                throw APIError.transport("AI Shopping re-add is not configured.")
+            },
+            fetchShoppingListReadd: { _ in
+                throw APIError.transport("AI Shopping re-add is not configured.")
+            },
+            undoShoppingListReadd: { _ in
+                throw APIError.transport("AI Shopping re-add is not configured.")
+            },
+            fetchShoppingListReaddReadiness: {
+                throw APIError.transport("AI Shopping re-add is not configured.")
             }
         )
     }
@@ -350,6 +419,21 @@ final class ShoppingListViewModel: ObservableObject {
         },
         stockPriceCheckSleep: @escaping ShoppingStockPriceCheckSleeper = { nanoseconds in
             try await Task.sleep(nanoseconds: nanoseconds)
+        },
+        startShoppingListReadd: @escaping ShoppingListReaddStarter = { _ in
+            throw APIError.transport("AI Shopping re-add is not configured.")
+        },
+        fetchShoppingListReadd: @escaping ShoppingListReaddLoader = { _ in
+            throw APIError.transport("AI Shopping re-add is not configured.")
+        },
+        undoShoppingListReadd: @escaping ShoppingListReaddUndoer = { _ in
+            throw APIError.transport("AI Shopping re-add is not configured.")
+        },
+        fetchShoppingListReaddReadiness: @escaping ShoppingListReaddReadinessLoader = {
+            throw APIError.transport("AI Shopping re-add is not configured.")
+        },
+        shoppingListReaddSleep: @escaping ShoppingListReaddSleeper = { nanoseconds in
+            try await Task.sleep(nanoseconds: nanoseconds)
         }
     ) {
         self.loadShoppingList = loadShoppingList
@@ -364,6 +448,11 @@ final class ShoppingListViewModel: ObservableObject {
         self.fetchShoppingStockPriceCheck = fetchShoppingStockPriceCheck
         self.fetchShoppingStockPriceCheckReadiness = fetchShoppingStockPriceCheckReadiness
         self.stockPriceCheckSleep = stockPriceCheckSleep
+        self.sendShoppingListReadd = startShoppingListReadd
+        self.loadShoppingListReadd = fetchShoppingListReadd
+        self.performShoppingListReaddUndo = undoShoppingListReadd
+        self.loadShoppingListReaddReadiness = fetchShoppingListReaddReadiness
+        self.shoppingListReaddSleep = shoppingListReaddSleep
         self.searchKrogerProducts = searchKrogerProducts
         self.liveService = liveService
         self.appLogStore = appLogStore
@@ -377,6 +466,7 @@ final class ShoppingListViewModel: ObservableObject {
         liveUpdatesTask?.cancel()
         liveConnectionStateTask?.cancel()
         stockPriceCheckPollingTask?.cancel()
+        shoppingListReaddPollingTask?.cancel()
         liveService?.disconnect()
     }
 
@@ -493,6 +583,133 @@ final class ShoppingListViewModel: ObservableObject {
 
     func dismissFinalStockPriceCheckSummary() {
         finalStockPriceCheckSummary = nil
+    }
+
+    /// Starts or stops local re-add polling. The server-owned run is never cancelled when this screen leaves view.
+    func setShoppingListReaddPollingAllowed(_ allowed: Bool) {
+        isShoppingListReaddPollingAllowed = allowed
+
+        guard allowed else {
+            stopShoppingListReaddPolling()
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshShoppingListReaddReadiness()
+            self.beginShoppingListReaddPollingIfNeeded()
+        }
+    }
+
+    func refreshShoppingListReaddReadiness() async {
+        do {
+            shoppingListReaddReadiness = try await loadShoppingListReaddReadiness()
+            if shoppingListReaddRun == nil {
+                shoppingListReaddErrorMessage = nil
+            }
+        } catch {
+            guard !error.isTaskCancellation else {
+                return
+            }
+
+            // Readiness is advisory and cannot replace an active durable run.
+            if shoppingListReaddRun == nil {
+                shoppingListReaddErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    @discardableResult
+    func startShoppingListReadd(
+        text: String,
+        mutationId: String = UUID().uuidString
+    ) async -> ShoppingListReaddSummary? {
+        guard !isStartingShoppingListReadd, !isShoppingListReaddActive else {
+            return shoppingListReaddRun
+        }
+        guard hasLoaded else {
+            shoppingListReaddErrorMessage = "The shopping list is still loading. Try again in a moment."
+            return nil
+        }
+
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            shoppingListReaddErrorMessage = "Enter at least one item to add."
+            return nil
+        }
+        guard let actor = currentActorName else {
+            shoppingListReaddErrorMessage = "Choose Josh or Mallory before adding items."
+            return nil
+        }
+        guard shoppingListReaddReadiness?.ready != false else {
+            shoppingListReaddErrorMessage = "AI Shopping re-add is currently unavailable."
+            return nil
+        }
+
+        isStartingShoppingListReadd = true
+        defer { isStartingShoppingListReadd = false }
+
+        do {
+            let result = try await sendShoppingListReadd(
+                StartShoppingListReaddRequest(text: trimmedText, actor: actor, mutationId: mutationId)
+            )
+            let run = result.run
+            adoptShoppingListReadd(run)
+            shoppingListReaddErrorMessage = nil
+
+            if isShoppingListReaddActive {
+                beginShoppingListReaddPollingIfNeeded()
+            } else {
+                await finishShoppingListReadd(run)
+            }
+
+            return run
+        } catch {
+            guard !error.isTaskCancellation else {
+                return nil
+            }
+
+            shoppingListReaddErrorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func stopShoppingListReaddPolling() {
+        shoppingListReaddPollingTask?.cancel()
+        shoppingListReaddPollingTask = nil
+        shoppingListReaddPollingToken = nil
+    }
+
+    @discardableResult
+    func undoCurrentShoppingListReadd() async -> ShoppingListReaddSummary? {
+        guard !isUndoingShoppingListReadd,
+              let run = shoppingListReaddRun,
+              run.undo.available else {
+            return nil
+        }
+
+        isUndoingShoppingListReadd = true
+        defer { isUndoingShoppingListReadd = false }
+
+        do {
+            let undone = try await performShoppingListReaddUndo(run.id)
+            adoptShoppingListReadd(undone)
+            finalShoppingListReaddSummary = undone
+            shoppingListReaddErrorMessage = nil
+            await refresh()
+            return undone
+        } catch {
+            guard !error.isTaskCancellation else {
+                return nil
+            }
+
+            shoppingListReaddErrorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func dismissFinalShoppingListReaddSummary() {
+        finalShoppingListReaddSummary = nil
     }
 
     var stockPriceCheckProgressLabel: String? {
@@ -940,6 +1157,83 @@ final class ShoppingListViewModel: ObservableObject {
         }
     }
 
+    private func beginShoppingListReaddPollingIfNeeded() {
+        guard isShoppingListReaddPollingAllowed,
+              isShoppingListReaddActive,
+              shoppingListReaddPollingTask == nil,
+              let runId = shoppingListReaddRun?.id else {
+            return
+        }
+
+        let pollingToken = UUID()
+        shoppingListReaddPollingToken = pollingToken
+        shoppingListReaddPollingTask = Task { [weak self] in
+            await self?.pollShoppingListReadd(id: runId, pollingToken: pollingToken)
+        }
+    }
+
+    private func pollShoppingListReadd(id runId: String, pollingToken: UUID) async {
+        defer {
+            if shoppingListReaddPollingToken == pollingToken {
+                shoppingListReaddPollingTask = nil
+                shoppingListReaddPollingToken = nil
+            }
+        }
+
+        var attempt = 0
+        while isShoppingListReaddPollingAllowed,
+              !Task.isCancelled,
+              shoppingListReaddPollingToken == pollingToken,
+              isShoppingListReaddActive,
+              shoppingListReaddRun?.id == runId {
+            if attempt > 0 {
+                let delayIndex = min(attempt - 1, Self.shoppingListReaddPollDelaysNanoseconds.count - 1)
+                do {
+                    try await shoppingListReaddSleep(Self.shoppingListReaddPollDelaysNanoseconds[delayIndex])
+                } catch {
+                    return
+                }
+            }
+
+            guard !Task.isCancelled,
+                  isShoppingListReaddPollingAllowed,
+                  shoppingListReaddPollingToken == pollingToken else {
+                return
+            }
+
+            do {
+                let run = try await loadShoppingListReadd(runId)
+                guard !Task.isCancelled,
+                      shoppingListReaddPollingToken == pollingToken,
+                      run.id == runId,
+                      shoppingListReaddRun?.id == runId else {
+                    return
+                }
+
+                adoptShoppingListReadd(run)
+                shoppingListReaddErrorMessage = nil
+
+                if !isShoppingListReaddActive {
+                    await finishShoppingListReadd(run)
+                    return
+                }
+
+                attempt += 1
+                if attempt >= Self.maximumShoppingListReaddPollAttempts {
+                    shoppingListReaddErrorMessage = "AI Shopping re-add updates paused. Return to Shopping to try again."
+                    return
+                }
+            } catch {
+                guard !error.isTaskCancellation else {
+                    return
+                }
+
+                shoppingListReaddErrorMessage = error.localizedDescription
+                return
+            }
+        }
+    }
+
     private func pollStockPriceCheck(id jobId: String, pollingToken: UUID) async {
         defer {
             if stockPriceCheckPollingToken == pollingToken {
@@ -1021,6 +1315,18 @@ final class ShoppingListViewModel: ObservableObject {
 
     private func finishStockPriceCheck(_ job: ShoppingStockPriceCheckSummary) async {
         finalStockPriceCheckSummary = job
+        await refresh()
+    }
+
+    private func adoptShoppingListReadd(_ run: ShoppingListReaddSummary) {
+        shoppingListReaddRun = run
+        if isShoppingListReaddActive {
+            finalShoppingListReaddSummary = nil
+        }
+    }
+
+    private func finishShoppingListReadd(_ run: ShoppingListReaddSummary) async {
+        finalShoppingListReaddSummary = run
         await refresh()
     }
 

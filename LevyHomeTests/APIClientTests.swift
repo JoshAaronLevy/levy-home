@@ -357,6 +357,82 @@ final class APIClientTests: XCTestCase {
         }
     }
 
+    func testShoppingListReaddMethodsUseOnlyThePublicRunEndpoints() async throws {
+        MockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api-base/api/shopping-list/ai/readd"):
+                return Self.response(for: request, statusCode: 202, json: Self.shoppingListReaddSummaryJSON)
+            case ("GET", "/api-base/api/shopping-list/ai/readd/run-1"):
+                return Self.response(for: request, json: Self.shoppingListReaddSummaryJSON)
+            case ("POST", "/api-base/api/shopping-list/ai/readd/run-1/undo"):
+                return Self.response(for: request, json: Self.shoppingListReaddUndoneSummaryJSON)
+            case ("GET", "/api-base/api/shopping-list/ai/readd/readiness"):
+                return Self.response(for: request, json: Self.shoppingListReaddReadinessJSON)
+            default:
+                return Self.response(for: request, statusCode: 404, json: #"{"error":"Unhandled test path"}"#)
+            }
+        }
+
+        let mutationId = "4ffb0c63-dc2b-49b5-a039-b32f0d89a325"
+        let start = try await client.startShoppingListReadd(
+            StartShoppingListReaddRequest(text: "Add two coffees", actor: "Josh", mutationId: mutationId)
+        )
+        let status = try await client.fetchShoppingListReadd(id: "run-1")
+        let undone = try await client.undoShoppingListReadd(id: "run-1")
+        let readiness = try await client.fetchShoppingListReaddReadiness()
+
+        guard case .accepted(let startedRun) = start else {
+            return XCTFail("Expected an accepted re-add run.")
+        }
+        XCTAssertEqual(startedRun.id, "run-1")
+        XCTAssertEqual(status.status, .applying)
+        XCTAssertEqual(undone.status, .undone)
+        XCTAssertTrue(readiness.ready)
+        XCTAssertEqual(capturedRequests.map { $0.url?.path }, [
+            "/api-base/api/shopping-list/ai/readd",
+            "/api-base/api/shopping-list/ai/readd/run-1",
+            "/api-base/api/shopping-list/ai/readd/run-1/undo",
+            "/api-base/api/shopping-list/ai/readd/readiness"
+        ])
+        XCTAssertEqual(capturedRequests[0].httpMethod, "POST")
+        XCTAssertEqual(capturedRequests[0].jsonBody["text"] as? String, "Add two coffees")
+        XCTAssertEqual(capturedRequests[0].jsonBody["actor"] as? String, "Josh")
+        XCTAssertEqual(capturedRequests[0].jsonBody["mutationId"] as? String, mutationId)
+        XCTAssertEqual(capturedRequests[0].value(forHTTPHeaderField: "X-Levy-Home-Mutation-ID"), mutationId)
+        XCTAssertNil(capturedRequests[1].bodyData)
+        XCTAssertNil(capturedRequests[2].bodyData)
+        XCTAssertNil(capturedRequests[3].bodyData)
+    }
+
+    func testShoppingListReaddStartSurfacesThe409ActiveRun() async throws {
+        MockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+            return Self.response(
+                for: request,
+                statusCode: 409,
+                json: """
+                {
+                  "error": "An AI Shopping re-add is already in progress.",
+                  "code": "shopping_list_readd_active",
+                  "activeRun": \(Self.shoppingListReaddSummaryJSON)
+                }
+                """
+            )
+        }
+
+        let result = try await client.startShoppingListReadd(
+            StartShoppingListReaddRequest(text: "eggs", actor: "Mallory", mutationId: "abdf0436-816f-4c68-af38-a0b211c7cbfd")
+        )
+
+        guard case .active(let run) = result else {
+            return XCTFail("Expected the active public run from HTTP 409.")
+        }
+        XCTAssertEqual(run.id, "run-1")
+        XCTAssertEqual(capturedRequests.first?.httpMethod, "POST")
+    }
+
     func testDecodesServerErrorEnvelope() async {
         MockURLProtocol.requestHandler = { request in
             Self.response(
@@ -883,6 +959,50 @@ final class APIClientTests: XCTestCase {
             },
             "codexRuntime": { "ok": true, "enabled": true, "code": null }
           }
+        }
+        """
+    }
+
+    private static var shoppingListReaddSummaryJSON: String {
+        """
+        {
+          "ok": true,
+          "id": "run-1",
+          "status": "applying",
+          "operations": [
+            {
+              "requestIndex": 0,
+              "requestedText": "coffees",
+              "outcome": "quantity_updated",
+              "itemId": 15,
+              "itemName": "Iced Coffee",
+              "quantity": 2,
+              "matchKind": "semantic"
+            }
+          ],
+          "unmatched": [],
+          "undo": { "available": true, "expiresAt": "2026-08-03T12:10:00.000Z" },
+          "submittedAt": "2026-08-03T12:00:00.000Z",
+          "startedAt": "2026-08-03T12:00:01.000Z",
+          "finishedAt": null
+        }
+        """
+    }
+
+    private static var shoppingListReaddUndoneSummaryJSON: String {
+        shoppingListReaddSummaryJSON
+            .replacingOccurrences(of: "\"status\": \"applying\"", with: "\"status\": \"undone\"")
+            .replacingOccurrences(of: "\"available\": true", with: "\"available\": false")
+            .replacingOccurrences(of: "\"finishedAt\": null", with: "\"finishedAt\": \"2026-08-03T12:02:00.000Z\"")
+    }
+
+    private static var shoppingListReaddReadinessJSON: String {
+        """
+        {
+          "ready": true,
+          "matcherRuntime": { "ready": true, "code": null },
+          "authentication": { "ready": true, "code": null },
+          "persistence": { "ready": true, "code": null }
         }
         """
     }

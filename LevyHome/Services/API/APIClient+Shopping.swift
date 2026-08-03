@@ -20,6 +20,17 @@ protocol ShoppingStockPriceCheckServicing {
 
 extension APIClient: ShoppingStockPriceCheckServicing {}
 
+protocol ShoppingListReaddServicing {
+    func startShoppingListReadd(
+        _ request: StartShoppingListReaddRequest
+    ) async throws -> ShoppingListReaddStartResult
+    func fetchShoppingListReadd(id runId: String) async throws -> ShoppingListReaddSummary
+    func undoShoppingListReadd(id runId: String) async throws -> ShoppingListReaddSummary
+    func fetchShoppingListReaddReadiness() async throws -> ShoppingListReaddReadiness
+}
+
+extension APIClient: ShoppingListReaddServicing {}
+
 extension APIClient {
     func startShoppingStockPriceCheck(
         _ request: StartShoppingStockPriceCheckRequest
@@ -41,6 +52,33 @@ extension APIClient {
 
     func fetchShoppingStockPriceCheckReadiness() async throws -> ShoppingStockPriceCheckReadiness {
         try await send(path: "/api/shopping-list/ai/readiness")
+    }
+
+    func startShoppingListReadd(
+        _ request: StartShoppingListReaddRequest
+    ) async throws -> ShoppingListReaddStartResult {
+        try await send(
+            path: "/api/shopping-list/ai/readd",
+            method: .post,
+            body: request,
+            additionalHeaders: Self.mutationHeaders(for: request.mutationId),
+            additionalAcceptedStatusCodes: [409]
+        )
+    }
+
+    func fetchShoppingListReadd(id runId: String) async throws -> ShoppingListReaddSummary {
+        try await send(path: "/api/shopping-list/ai/readd/\(runId)")
+    }
+
+    func undoShoppingListReadd(id runId: String) async throws -> ShoppingListReaddSummary {
+        try await send(
+            path: "/api/shopping-list/ai/readd/\(runId)/undo",
+            method: .post
+        )
+    }
+
+    func fetchShoppingListReaddReadiness() async throws -> ShoppingListReaddReadiness {
+        try await send(path: "/api/shopping-list/ai/readd/readiness")
     }
 
     func sendShoppingLiveActivityDebugDelivery(

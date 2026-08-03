@@ -521,11 +521,13 @@ private struct ShoppingListContentView: View {
             await viewModel.loadIfNeeded()
             await recoverActiveTripDisplay()
             viewModel.setStockPriceCheckPollingAllowed(true)
+            viewModel.setShoppingListReaddPollingAllowed(true)
         }
         .onChange(of: isSelected) { _, selected in
             guard selected else {
                 viewModel.stopLiveUpdates()
                 viewModel.setStockPriceCheckPollingAllowed(false)
+                viewModel.setShoppingListReaddPollingAllowed(false)
                 return
             }
             Task { await refreshForSelectedVisit() }
@@ -534,6 +536,7 @@ private struct ShoppingListContentView: View {
             guard phase == .active, isSelected else {
                 viewModel.stopLiveUpdates()
                 viewModel.setStockPriceCheckPollingAllowed(false)
+                viewModel.setShoppingListReaddPollingAllowed(false)
                 return
             }
             Task { await refreshForSelectedVisit() }
@@ -541,6 +544,7 @@ private struct ShoppingListContentView: View {
         .onDisappear {
             viewModel.stopLiveUpdates()
             viewModel.setStockPriceCheckPollingAllowed(false)
+            viewModel.setShoppingListReaddPollingAllowed(false)
         }
         .onChange(of: viewModel.activeTrip?.id) { _, _ in
             guard isSelected else { return }
@@ -912,6 +916,7 @@ private struct ShoppingListContentView: View {
 
     private func refreshForSelectedVisit() async {
         viewModel.setStockPriceCheckPollingAllowed(true)
+        viewModel.setShoppingListReaddPollingAllowed(true)
         await viewModel.refresh()
         await recoverActiveTripDisplay()
     }

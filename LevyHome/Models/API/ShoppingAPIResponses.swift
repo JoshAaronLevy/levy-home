@@ -612,6 +612,44 @@ struct ShoppingListReaddSummary: Codable, Equatable {
     let finishedAt: String?
 }
 
+enum ShoppingListReaddStartResult: Equatable {
+    case accepted(ShoppingListReaddSummary)
+    case active(ShoppingListReaddSummary)
+
+    var run: ShoppingListReaddSummary {
+        switch self {
+        case .accepted(let run), .active(let run): return run
+        }
+    }
+}
+
+extension ShoppingListReaddStartResult: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case activeRun
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let activeRun = try container.decodeIfPresent(ShoppingListReaddSummary.self, forKey: .activeRun) {
+            self = .active(activeRun)
+        } else {
+            self = .accepted(try ShoppingListReaddSummary(from: decoder))
+        }
+    }
+}
+
+struct ShoppingListReaddReadiness: Decodable, Equatable {
+    let ready: Bool
+    let matcherRuntime: Check
+    let authentication: Check
+    let persistence: Check
+
+    struct Check: Decodable, Equatable {
+        let ready: Bool
+        let code: String?
+    }
+}
+
 struct ShoppingListItemLookupResponse: Codable, Equatable {
     let ok: Bool
     let query: String
