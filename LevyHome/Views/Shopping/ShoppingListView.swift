@@ -471,6 +471,7 @@ private struct ShoppingListContentView: View {
     @State private var isShowingEndTripConfirmation = false
     @State private var isShowingShoppingAIMenu = false
     @State private var isShowingStockPriceCheckSummary = false
+    @State private var isShowingShoppingListReaddSheet = false
     let isSelected: Bool
 
     init(viewModel: ShoppingListViewModel, isSelected: Bool = true) {
@@ -503,7 +504,7 @@ private struct ShoppingListContentView: View {
         .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
             ShoppingAIFloatingEntry(
                 status: shoppingAIStatus,
-                isUnavailable: viewModel.isStockPriceCheckUnavailable,
+                isUnavailable: false,
                 action: {
                     isShowingShoppingAIMenu = true
                 }
@@ -598,6 +599,11 @@ private struct ShoppingListContentView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
+        }
+        .sheet(isPresented: $isShowingShoppingListReaddSheet) {
+            ShoppingListReaddSheet(viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             "End Shopping Trip?",
@@ -785,6 +791,22 @@ private struct ShoppingListContentView: View {
     }
 
     private var shoppingAIStatus: ShoppingAIStatus? {
+        if viewModel.isStartingShoppingListReadd {
+            return ShoppingAIStatus(
+                message: "Finding shopping items…",
+                systemImage: "sparkles",
+                tone: .info
+            )
+        }
+
+        if viewModel.isShoppingListReaddActive {
+            return ShoppingAIStatus(
+                message: "Finding shopping items…",
+                systemImage: "arrow.triangle.2.circlepath",
+                tone: .info
+            )
+        }
+
         if viewModel.isStartingStockPriceCheck {
             return ShoppingAIStatus(
                 message: "Starting stock & price check…",
@@ -833,19 +855,25 @@ private struct ShoppingListContentView: View {
     }
 
     private var shoppingAIActionMessage: String {
-        if viewModel.isStockPriceCheckActive || viewModel.isStartingStockPriceCheck {
-            return "A household-wide stock and price check is already in progress."
+        if viewModel.isShoppingListReaddUnavailable && viewModel.isStockPriceCheckUnavailable {
+            return "AI item matching and stock checks are unavailable. You can still compose an item request and edit the shopping list normally."
         }
 
-        if viewModel.isStockPriceCheckUnavailable {
-            return "Stock and price checks are not available right now."
+        if viewModel.isShoppingListReaddUnavailable {
+            return "Add items from text is unavailable right now. Stock and price checking is listed separately."
         }
 
-        return "Check needed shopping items at the configured Target and King Soopers stores."
+        return "Use text or keyboard dictation to quickly re-add familiar shopping items."
     }
 
     private func shoppingAIActionTitle(for action: ShoppingAIAction) -> String {
         switch action {
+        case .addItemsFromText:
+            if viewModel.isStartingShoppingListReadd || viewModel.isShoppingListReaddActive {
+                return "Finding Items…"
+            }
+
+            return action.title
         case .checkStockAndPrice:
             if viewModel.isStartingStockPriceCheck {
                 return "Starting Stock & Price Check…"
@@ -865,6 +893,8 @@ private struct ShoppingListContentView: View {
 
     private func isShoppingAIActionDisabled(_ action: ShoppingAIAction) -> Bool {
         switch action {
+        case .addItemsFromText:
+            return false
         case .checkStockAndPrice:
             return viewModel.isStartingStockPriceCheck
                 || viewModel.isStockPriceCheckActive
@@ -874,6 +904,8 @@ private struct ShoppingListContentView: View {
 
     private func performShoppingAIAction(_ action: ShoppingAIAction) {
         switch action {
+        case .addItemsFromText:
+            isShowingShoppingListReaddSheet = true
         case .checkStockAndPrice:
             Task {
                 await viewModel.startStockPriceCheck()
@@ -1124,10 +1156,13 @@ private struct ShoppingListContentView: View {
 }
 
 private enum ShoppingAIAction: CaseIterable, Identifiable {
+    case addItemsFromText
     case checkStockAndPrice
 
     var id: String {
         switch self {
+        case .addItemsFromText:
+            return "add-items-from-text"
         case .checkStockAndPrice:
             return "check-stock-and-price"
         }
@@ -1135,6 +1170,8 @@ private enum ShoppingAIAction: CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .addItemsFromText:
+            return "Add Items from Text"
         case .checkStockAndPrice:
             return "Check/Update Stock & Price"
         }
@@ -1145,6 +1182,352 @@ private struct ShoppingAIStatus: Equatable {
     let message: String
     let systemImage: String
     let tone: BannerTone
+}
+
+private struct ShoppingListReaddSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: ShoppingListViewModel
+    @FocusState private var isRequestTextFocused: Bool
+    @State private var requestText = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.large) {
+                header
+
+                VStack(alignment: .leading, spacing: AppSpacing.small) {
+                    Text("What do you need?")
+                        .font(.headline)
+
+                    TextField(
+                        "Add 2 coffees and eggs",
+                        text: $requestText,
+                        axis: .vertical
+                    )
+                    .lineLimit(3...6)
+                    .textInputAutocapitalization(.sentences)
+                    .autocorrectionDisabled(false)
+                    .focused($isRequestTextFocused)
+                    .padding(AppSpacing.medium)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                            .stroke(AppColors.panelBorder, lineWidth: 1)
+                    }
+                    .accessibilityLabel("Items to add")
+                    .accessibilityHint("Type an item request, or use the Dictation microphone on the iOS keyboard.")
+
+                    Text("For example: Add 2 coffees and eggs")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+
+                if let errorMessage = viewModel.shoppingListReaddErrorMessage {
+                    ErrorBannerView(message: errorMessage)
+                }
+
+                if viewModel.isShoppingListReaddUnavailable {
+                    unavailableNotice
+                } else if isFindingItems {
+                    findingItemsNotice
+                } else if let summary = viewModel.finalShoppingListReaddSummary {
+                    ShoppingListReaddResultSummary(summary: summary)
+                }
+
+                actions
+            }
+            .padding(AppSpacing.screen)
+        }
+        .task {
+            guard !viewModel.isShoppingListReaddActive,
+                  !viewModel.isStartingShoppingListReadd else {
+                return
+            }
+
+            isRequestTextFocused = true
+        }
+        .onChange(of: viewModel.isShoppingListReaddActive) { _, isActive in
+            if !isActive {
+                isRequestTextFocused = true
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: AppSpacing.medium) {
+            Image(systemName: "sparkles")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(AppColors.accent)
+                .frame(width: 38, height: 38)
+                .background(AppColors.accent.opacity(0.14), in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                Text("Add Items from Text")
+                    .font(.title3.weight(.bold))
+
+                Text("Use the keyboard’s Dictation microphone or type a quick request. AI only re-adds items already on this shared list.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var unavailableNotice: some View {
+        Label("AI item matching is currently unavailable. You can still type or edit your request, but it cannot be submitted right now.", systemImage: "exclamationmark.triangle")
+            .font(.subheadline)
+            .foregroundStyle(BannerTone.warning.foregroundColor)
+            .padding(AppSpacing.medium)
+            .background(BannerTone.warning.backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var findingItemsNotice: some View {
+        Label("Finding items in your existing shopping list…", systemImage: "arrow.triangle.2.circlepath")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(BannerTone.info.foregroundColor)
+            .padding(AppSpacing.medium)
+            .background(BannerTone.info.backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            .accessibilityElement(children: .combine)
+    }
+
+    private var actions: some View {
+        VStack(spacing: AppSpacing.small) {
+            if let summary = viewModel.finalShoppingListReaddSummary,
+               summary.undo.available {
+                PrimaryActionButton(
+                    title: viewModel.isUndoingShoppingListReadd ? "Undoing…" : "Undo Changes",
+                    systemImage: "arrow.uturn.backward",
+                    isLoading: viewModel.isUndoingShoppingListReadd
+                ) {
+                    Task { await viewModel.undoCurrentShoppingListReadd() }
+                }
+                .accessibilityHint("Safely reverts unchanged items from this AI request.")
+            }
+
+            PrimaryActionButton(
+                title: submitButtonTitle,
+                systemImage: "sparkles",
+                isLoading: isFindingItems,
+                isDisabled: isSubmitDisabled
+            ) {
+                Task { await viewModel.startShoppingListReadd(text: requestText) }
+            }
+            .accessibilityHint(submitAccessibilityHint)
+
+            Button("Cancel") {
+                dismiss()
+            }
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .foregroundStyle(AppColors.accent)
+            .buttonStyle(.plain)
+            .accessibilityHint("Closes Add Items from Text without changing the shopping list.")
+        }
+    }
+
+    private var isFindingItems: Bool {
+        viewModel.isStartingShoppingListReadd || viewModel.isShoppingListReaddActive
+    }
+
+    private var isSubmitDisabled: Bool {
+        isFindingItems || viewModel.isShoppingListReaddUnavailable || requestText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var submitButtonTitle: String {
+        if isFindingItems {
+            return "Finding Items…"
+        }
+
+        if viewModel.isShoppingListReaddUnavailable {
+            return "AI Matching Unavailable"
+        }
+
+        return "Add to Shopping List"
+    }
+
+    private var submitAccessibilityHint: String {
+        if viewModel.isShoppingListReaddUnavailable {
+            return "AI item matching is unavailable, so this request cannot be submitted yet."
+        }
+
+        return "Finds the closest existing shopping-list items and adds them as needed."
+    }
+}
+
+private struct ShoppingListReaddResultSummary: View {
+    let summary: ShoppingListReaddSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            HStack(alignment: .top, spacing: AppSpacing.medium) {
+                Image(systemName: statusSystemImage)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(statusTone.foregroundColor)
+                    .frame(width: 34, height: 34)
+                    .background(statusTone.backgroundColor, in: Circle())
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(title)
+                        .font(.headline)
+
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if !summary.operations.isEmpty {
+                VStack(alignment: .leading, spacing: AppSpacing.small) {
+                    ForEach(summary.operations) { operation in
+                        Label(operationDescription(operation), systemImage: operationSystemImage(operation))
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.text)
+                            .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+
+            if !summary.unmatched.isEmpty {
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text("Not found in your existing list")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BannerTone.warning.foregroundColor)
+
+                    ForEach(summary.unmatched) { phrase in
+                        Text("• \(phrase.requestedText)")
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+                }
+                .padding(AppSpacing.medium)
+                .background(BannerTone.warning.backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+            }
+        }
+        .padding(AppSpacing.medium)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var appliedCount: Int {
+        summary.operations.filter { operation in
+            switch operation.outcome {
+            case .reAdded, .quantityUpdated:
+                return true
+            case .alreadyNeeded, .unmatched, .staleSkipped, .invalidRequest, .unavailable, .undone, .unknown:
+                return false
+            }
+        }.count
+    }
+
+    private var title: String {
+        switch summary.status {
+        case .undone:
+            return "Changes Undone"
+        case .failed:
+            return "Couldn’t Update the List"
+        case .completed, .completedWithIssues:
+            return appliedCount == 1 ? "Added 1 Item" : "Added \(appliedCount) Items"
+        case .queued, .matching, .applying, .unknown:
+            return "Shopping List Update"
+        }
+    }
+
+    private var subtitle: String {
+        switch summary.status {
+        case .undone:
+            return "Eligible changes from this request were reverted."
+        case .failed:
+            return "Your shopping list was not changed by this request."
+        case .completed, .completedWithIssues:
+            if appliedCount == 0, !summary.unmatched.isEmpty {
+                return "No matching existing items were found."
+            }
+            return "Only existing shopping-list items were considered."
+        case .queued, .matching, .applying, .unknown:
+            return "Your request is being checked against the existing shopping list."
+        }
+    }
+
+    private var statusSystemImage: String {
+        switch summary.status {
+        case .undone:
+            return "arrow.uturn.backward.circle.fill"
+        case .failed:
+            return "xmark.octagon.fill"
+        case .completedWithIssues:
+            return "exclamationmark.circle.fill"
+        case .completed:
+            return "checkmark.circle.fill"
+        case .queued, .matching, .applying, .unknown:
+            return "sparkles"
+        }
+    }
+
+    private var statusTone: BannerTone {
+        switch summary.status {
+        case .failed:
+            return .error
+        case .completedWithIssues:
+            return .warning
+        case .queued, .matching, .applying, .unknown:
+            return .info
+        case .completed, .undone:
+            return .success
+        }
+    }
+
+    private func operationDescription(_ operation: ShoppingListReaddOperationSummary) -> String {
+        let itemName = operation.itemName ?? operation.requestedText
+        let quantityDescription = operation.quantity.map { " Quantity set to \($0)." } ?? ""
+
+        switch operation.outcome {
+        case .reAdded:
+            return "\(itemName) added to needed items.\(quantityDescription)"
+        case .quantityUpdated:
+            return "\(itemName) quantity updated.\(quantityDescription)"
+        case .alreadyNeeded:
+            return "\(itemName) was already needed."
+        case .unmatched:
+            return "\(operation.requestedText) was not found in the existing list."
+        case .staleSkipped:
+            return "\(itemName) changed elsewhere and was not updated."
+        case .invalidRequest, .unavailable:
+            return "\(operation.requestedText) could not be updated."
+        case .undone:
+            return "\(itemName) was restored."
+        case .unknown:
+            return "\(itemName) needs review."
+        }
+    }
+
+    private func operationSystemImage(_ operation: ShoppingListReaddOperationSummary) -> String {
+        switch operation.outcome {
+        case .reAdded:
+            return "cart.badge.plus"
+        case .quantityUpdated:
+            return "number.circle"
+        case .alreadyNeeded:
+            return "checkmark.circle"
+        case .unmatched, .staleSkipped, .invalidRequest, .unavailable:
+            return "exclamationmark.triangle"
+        case .undone:
+            return "arrow.uturn.backward.circle"
+        case .unknown:
+            return "questionmark.circle"
+        }
+    }
 }
 
 private struct ShoppingAIFloatingEntry: View {
@@ -4114,6 +4497,171 @@ private struct ShoppingListAIPreview: View {
     }
 }
 
+private enum ShoppingListReaddPreviewScenario {
+    case entry
+    case finding
+    case resultWithUndo
+    case unmatched
+    case error
+    case unavailable
+
+    var run: ShoppingListReaddSummary? {
+        switch self {
+        case .entry, .error, .unavailable:
+            return nil
+        case .finding:
+            return Self.summary(status: .matching)
+        case .resultWithUndo:
+            return Self.summary(
+                status: .completed,
+                operations: [
+                    ShoppingListReaddOperationSummary(
+                        requestIndex: 0,
+                        requestedText: "2 coffees",
+                        outcome: .quantityUpdated,
+                        itemId: 15,
+                        itemName: "Iced Coffee",
+                        quantity: 2,
+                        matchKind: .semantic
+                    ),
+                    ShoppingListReaddOperationSummary(
+                        requestIndex: 1,
+                        requestedText: "eggs",
+                        outcome: .reAdded,
+                        itemId: 16,
+                        itemName: "Eggs",
+                        quantity: nil,
+                        matchKind: .exact
+                    )
+                ],
+                undoAvailable: true
+            )
+        case .unmatched:
+            return Self.summary(
+                status: .completedWithIssues,
+                unmatched: [ShoppingListReaddUnmatchedPhrase(requestIndex: 0, requestedText: "mango nectar")]
+            )
+        }
+    }
+
+    var readiness: ShoppingListReaddReadiness {
+        let ready = self != .unavailable
+        return ShoppingListReaddReadiness(
+            ready: ready,
+            matcherRuntime: ShoppingListReaddReadiness.Check(ready: ready, code: ready ? nil : "matcher_unavailable"),
+            authentication: ShoppingListReaddReadiness.Check(ready: ready, code: ready ? nil : "authentication_unavailable"),
+            persistence: ShoppingListReaddReadiness.Check(ready: ready, code: ready ? nil : "persistence_unavailable")
+        )
+    }
+
+    private static func summary(
+        status: ShoppingListReaddRunStatus,
+        operations: [ShoppingListReaddOperationSummary] = [],
+        unmatched: [ShoppingListReaddUnmatchedPhrase] = [],
+        undoAvailable: Bool = false
+    ) -> ShoppingListReaddSummary {
+        ShoppingListReaddSummary(
+            ok: true,
+            id: "preview-readd-run",
+            status: status,
+            operations: operations,
+            unmatched: unmatched,
+            undo: ShoppingListReaddUndoAvailability(
+                available: undoAvailable,
+                expiresAt: undoAvailable ? "2026-08-03T12:10:00.000Z" : nil
+            ),
+            submittedAt: "2026-08-03T12:00:00.000Z",
+            startedAt: "2026-08-03T12:00:01.000Z",
+            finishedAt: status == .matching ? nil : "2026-08-03T12:00:02.000Z"
+        )
+    }
+}
+
+private struct ShoppingListReaddSheetPreview: View {
+    let scenario: ShoppingListReaddPreviewScenario
+    @StateObject private var viewModel: ShoppingListViewModel
+
+    init(scenario: ShoppingListReaddPreviewScenario) {
+        self.scenario = scenario
+        let run = scenario.run
+        let readiness = scenario.readiness
+
+        _viewModel = StateObject(
+            wrappedValue: ShoppingListViewModel(
+                currentActorName: "Josh",
+                loadShoppingList: { ShoppingPreviewData.loadedResponse },
+                lookupShoppingListItem: { name in ShoppingListItemLookupResponse(ok: true, query: name, match: nil) },
+                createShoppingListItem: { _ in throw APIError.transport("Preview only") },
+                updateShoppingListItem: { _, _ in throw APIError.transport("Preview only") },
+                deleteShoppingListItem: { _, _, _ in throw APIError.transport("Preview only") },
+                startShoppingListReadd: { _ in
+                    guard let run else {
+                        throw APIError.transport("Preview only")
+                    }
+                    return .accepted(run)
+                },
+                fetchShoppingListReadd: { _ in
+                    guard let run else {
+                        throw APIError.transport("Preview only")
+                    }
+                    return run
+                },
+                undoShoppingListReadd: { _ in
+                    Self.undoneRun(from: run)
+                },
+                fetchShoppingListReaddReadiness: { readiness }
+            )
+        )
+    }
+
+    var body: some View {
+        ShoppingListReaddSheet(viewModel: viewModel)
+            .task {
+                await viewModel.loadIfNeeded()
+
+                if scenario == .unavailable {
+                    await viewModel.refreshShoppingListReaddReadiness()
+                    return
+                }
+
+                guard scenario != .entry, scenario != .unavailable else {
+                    return
+                }
+
+                viewModel.setShoppingListReaddPollingAllowed(false)
+                _ = await viewModel.startShoppingListReadd(text: "Add 2 coffees and eggs")
+            }
+    }
+
+    private static func undoneRun(from run: ShoppingListReaddSummary?) -> ShoppingListReaddSummary {
+        guard let run else {
+            return ShoppingListReaddSummary(
+                ok: true,
+                id: "preview-readd-run",
+                status: .undone,
+                operations: [],
+                unmatched: [],
+                undo: ShoppingListReaddUndoAvailability(available: false, expiresAt: nil),
+                submittedAt: "2026-08-03T12:00:00.000Z",
+                startedAt: "2026-08-03T12:00:01.000Z",
+                finishedAt: "2026-08-03T12:00:02.000Z"
+            )
+        }
+
+        return ShoppingListReaddSummary(
+            ok: true,
+            id: run.id,
+            status: .undone,
+            operations: run.operations,
+            unmatched: run.unmatched,
+            undo: ShoppingListReaddUndoAvailability(available: false, expiresAt: nil),
+            submittedAt: run.submittedAt,
+            startedAt: run.startedAt,
+            finishedAt: "2026-08-03T12:00:02.000Z"
+        )
+    }
+}
+
 #Preview("Loaded") {
     NavigationStack {
         ShoppingListContentView(
@@ -4155,6 +4703,40 @@ private struct ShoppingListAIPreview: View {
         .frame(width: 320, height: 640)
         .environmentObject(ShoppingLiveActivityCoordinator())
         .environmentObject(PushRegistrationViewModel(service: NotificationService.shared))
+}
+
+#Preview("AI Text Entry") {
+    ShoppingListReaddSheetPreview(scenario: .entry)
+}
+
+#Preview("AI Finding Items") {
+    ShoppingListReaddSheetPreview(scenario: .finding)
+}
+
+#Preview("AI Re-add Result With Undo") {
+    ShoppingListReaddSheetPreview(scenario: .resultWithUndo)
+}
+
+#Preview("AI Re-add Unmatched") {
+    ShoppingListReaddSheetPreview(scenario: .unmatched)
+}
+
+#Preview("AI Re-add Error") {
+    ShoppingListReaddSheetPreview(scenario: .error)
+}
+
+#Preview("AI Re-add Unavailable") {
+    ShoppingListReaddSheetPreview(scenario: .unavailable)
+}
+
+#Preview("AI Re-add Compact") {
+    ShoppingListReaddSheetPreview(scenario: .resultWithUndo)
+        .frame(width: 320, height: 640)
+}
+
+#Preview("AI Re-add Dynamic Type") {
+    ShoppingListReaddSheetPreview(scenario: .resultWithUndo)
+        .dynamicTypeSize(.accessibility3)
 }
 
 #Preview("Empty") {
