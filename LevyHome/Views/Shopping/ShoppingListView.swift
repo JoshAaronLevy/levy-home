@@ -1189,6 +1189,9 @@ private struct ShoppingListReaddSheet: View {
     @ObservedObject var viewModel: ShoppingListViewModel
     @FocusState private var isRequestTextFocused: Bool
     @State private var requestText = ""
+    @State private var textBeforeVoiceInput = ""
+    @State private var selectedSpeechLanguage = ShoppingSpeechInputLanguage.device
+    @StateObject private var speechTranscription = ShoppingSpeechTranscriptionService()
 
     var body: some View {
         ScrollView {
@@ -1222,6 +1225,8 @@ private struct ShoppingListReaddSheet: View {
                         .foregroundStyle(AppColors.mutedText)
                 }
 
+                voiceInputControls
+
                 if let errorMessage = viewModel.shoppingListReaddErrorMessage {
                     ErrorBannerView(message: errorMessage)
                 }
@@ -1249,6 +1254,23 @@ private struct ShoppingListReaddSheet: View {
         .onChange(of: viewModel.isShoppingListReaddActive) { _, isActive in
             if !isActive {
                 isRequestTextFocused = true
+            }
+        }
+        .onChange(of: speechTranscription.transcript) { _, transcript in
+            guard speechTranscription.isListening else {
+                return
+            }
+
+            requestText = combinedRequestText(with: transcript)
+        }
+        .onChange(of: speechTranscription.state) { previousState, newState in
+            if previousState.isListening && !newState.isListening {
+                isRequestTextFocused = true
+            }
+        }
+        .onDisappear {
+            if speechTranscription.isCapturing {
+                speechTranscription.cancelTranscribing()
             }
         }
         .accessibilityElement(children: .contain)
@@ -1283,6 +1305,79 @@ private struct ShoppingListReaddSheet: View {
             .padding(AppSpacing.medium)
             .background(BannerTone.warning.backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
             .accessibilityElement(children: .combine)
+    }
+
+    private var voiceInputControls: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            HStack(alignment: .center, spacing: AppSpacing.medium) {
+                Button {
+                    if speechTranscription.isCapturing {
+                        stopVoiceInput()
+                    } else {
+                        startVoiceInput()
+                    }
+                } label: {
+                    Label(
+                        speechTranscription.isCapturing ? "Stop Listening" : "Tap to Talk",
+                        systemImage: speechTranscription.isCapturing ? "stop.circle.fill" : "mic.circle.fill"
+                    )
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .foregroundStyle(.white)
+                    .background(speechTranscription.isCapturing ? AppColors.critical : AppColors.accent, in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(
+                    speechTranscription.isCapturing
+                        ? "Stops voice input and leaves the recognized text ready to edit."
+                        : "Requests access, then starts voice input. It never submits your request automatically."
+                )
+
+                if speechTranscription.isCapturing {
+                    Button("Cancel Voice") {
+                        cancelVoiceInput()
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppColors.accent)
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Discards only the current voice transcription and restores the text from before listening.")
+                }
+            }
+
+            Picker("Speech language", selection: $selectedSpeechLanguage) {
+                ForEach(ShoppingSpeechInputLanguage.allCases) { language in
+                    Text(language.title).tag(language)
+                }
+            }
+            .pickerStyle(.menu)
+            .disabled(speechTranscription.isCapturing)
+            .onChange(of: selectedSpeechLanguage) { _, language in
+                speechTranscription.selectLanguage(identifier: language.localeIdentifier)
+            }
+            .accessibilityHint("Chooses the language used for the next voice input.")
+
+            if let message = speechTranscription.state.message {
+                Label(message, systemImage: speechStateSystemImage)
+                    .font(.caption)
+                    .foregroundStyle(speechStateTone.foregroundColor)
+                    .padding(AppSpacing.small)
+                    .background(speechStateTone.backgroundColor, in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                    .accessibilityElement(children: .combine)
+            } else {
+                Text(speechTranscription.usesOnDeviceRecognitionWhenAvailable
+                    ? "Uses on-device speech recognition. You can edit before sending."
+                    : "On-device speech is unavailable for this language. You can type or select a different language.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.mutedText)
+            }
+        }
+        .padding(AppSpacing.medium)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous)
+                .stroke(AppColors.panelBorder, lineWidth: 1)
+        }
     }
 
     @ViewBuilder
@@ -1357,6 +1452,82 @@ private struct ShoppingListReaddSheet: View {
         }
 
         return "Finds the closest existing shopping-list items and adds them as needed."
+    }
+
+    private var speechStateSystemImage: String {
+        switch speechTranscription.state {
+        case .requestingPermission, .listening:
+            return "mic.fill"
+        case .denied, .unavailable, .interrupted, .failed:
+            return "exclamationmark.triangle"
+        case .idle:
+            return "mic"
+        }
+    }
+
+    private var speechStateTone: BannerTone {
+        switch speechTranscription.state {
+        case .requestingPermission, .listening:
+            return .info
+        case .denied, .unavailable, .interrupted, .failed:
+            return .warning
+        case .idle:
+            return .info
+        }
+    }
+
+    private func startVoiceInput() {
+        textBeforeVoiceInput = requestText
+        isRequestTextFocused = false
+        Task { await speechTranscription.startTranscribing() }
+    }
+
+    private func stopVoiceInput() {
+        speechTranscription.stopTranscribing()
+        isRequestTextFocused = true
+    }
+
+    private func cancelVoiceInput() {
+        speechTranscription.cancelTranscribing()
+        requestText = textBeforeVoiceInput
+        isRequestTextFocused = true
+    }
+
+    private func combinedRequestText(with transcript: String) -> String {
+        ShoppingSpeechTranscriptComposer.combine(
+            existingText: textBeforeVoiceInput,
+            transcript: transcript
+        )
+    }
+}
+
+private enum ShoppingSpeechInputLanguage: CaseIterable, Identifiable {
+    case device
+    case englishUnitedStates
+    case englishUnitedKingdom
+
+    var id: String { localeIdentifier }
+
+    var title: String {
+        switch self {
+        case .device:
+            return "Device Language"
+        case .englishUnitedStates:
+            return "English (United States)"
+        case .englishUnitedKingdom:
+            return "English (United Kingdom)"
+        }
+    }
+
+    var localeIdentifier: String {
+        switch self {
+        case .device:
+            return Locale.current.identifier
+        case .englishUnitedStates:
+            return "en_US"
+        case .englishUnitedKingdom:
+            return "en_GB"
+        }
     }
 }
 

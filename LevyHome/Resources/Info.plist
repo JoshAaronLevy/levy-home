@@ -72,13 +72,15 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Levy Home needs access to your location</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Levy Home would like to access your microphone</string>
+	<string>Levy Home uses your microphone only while you choose to dictate a shopping-list request. Audio is not stored or sent to Levy Home.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Levy Home would like to access motion events on your phone</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Levy Home would like to access your Reminders</string>
 	<key>NSSiriUsageDescription</key>
 	<string>Levy Home uses Siri to add items to your shared Shopping and To Do lists.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Levy Home transcribes a shopping-list request you choose to dictate so you can review and edit the text before sending it.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

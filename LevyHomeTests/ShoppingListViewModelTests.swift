@@ -963,6 +963,96 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.first?.version, 2)
     }
 
+    func testShoppingSpeechTranscriptionExplainsDeniedPermissionWithoutStartingAudio() async {
+        let runtime = FakeShoppingSpeechRuntime()
+        runtime.speechAuthorization = .denied
+        let service = ShoppingSpeechTranscriptionService(runtime: runtime)
+
+        await service.startTranscribing()
+
+        XCTAssertEqual(service.state, .denied)
+        XCTAssertEqual(runtime.startCount, 0)
+        XCTAssertEqual(runtime.microphonePermissionRequestCount, 0)
+    }
+
+    func testShoppingSpeechTranscriptionDoesNotRequestPermissionsUntilTapToTalk() {
+        let runtime = FakeShoppingSpeechRuntime()
+        _ = ShoppingSpeechTranscriptionService(runtime: runtime)
+
+        XCTAssertEqual(runtime.speechAuthorizationRequestCount, 0)
+        XCTAssertEqual(runtime.microphonePermissionRequestCount, 0)
+    }
+
+    func testShoppingSpeechTranscriptComposerPreservesEditableTypedTextBeforeSubmit() {
+        XCTAssertEqual(
+            ShoppingSpeechTranscriptComposer.combine(existingText: "Add milk", transcript: "and eggs"),
+            "Add milk and eggs"
+        )
+        XCTAssertEqual(
+            ShoppingSpeechTranscriptComposer.combine(existingText: "  ", transcript: "two coffees"),
+            "two coffees"
+        )
+    }
+
+    func testShoppingSpeechTranscriptionExplainsUnavailableRecognizer() async {
+        let runtime = FakeShoppingSpeechRuntime()
+        runtime.isRecognitionAvailable = false
+        let service = ShoppingSpeechTranscriptionService(runtime: runtime)
+
+        await service.startTranscribing()
+
+        XCTAssertEqual(
+            service.state,
+            .unavailable("Speech recognition is unavailable for the selected language. You can still type your request.")
+        )
+        XCTAssertEqual(runtime.startCount, 0)
+    }
+
+    func testShoppingSpeechTranscriptionCancellationDiscardsOnlyCurrentTranscript() async {
+        let runtime = FakeShoppingSpeechRuntime()
+        let service = ShoppingSpeechTranscriptionService(runtime: runtime)
+
+        await service.startTranscribing()
+        runtime.emitPartialTranscript("two coffees")
+        XCTAssertEqual(service.state, .listening)
+        XCTAssertEqual(service.transcript, "two coffees")
+
+        service.cancelTranscribing()
+
+        XCTAssertEqual(service.state, .idle)
+        XCTAssertEqual(service.transcript, "")
+        XCTAssertEqual(runtime.cancelCount, 1)
+    }
+
+    func testShoppingSpeechTranscriptionPreservesRecognizedTextAfterStopAndNeverSubmits() async {
+        let runtime = FakeShoppingSpeechRuntime()
+        let service = ShoppingSpeechTranscriptionService(runtime: runtime)
+
+        await service.startTranscribing()
+        runtime.emitPartialTranscript("add eggs and milk")
+        service.stopTranscribing()
+
+        XCTAssertEqual(service.state, .idle)
+        XCTAssertEqual(service.transcript, "add eggs and milk")
+        XCTAssertEqual(runtime.finishCount, 1)
+        XCTAssertEqual(runtime.cancelCount, 0)
+    }
+
+    func testShoppingSpeechTranscriptionHandlesAudioInterruptionAndAllowsLanguageSelection() async {
+        let runtime = FakeShoppingSpeechRuntime()
+        let service = ShoppingSpeechTranscriptionService(runtime: runtime)
+
+        service.selectLanguage(identifier: "en_GB")
+        XCTAssertEqual(service.selectedLanguageIdentifier, "en_GB")
+        XCTAssertEqual(runtime.selectedLocaleIdentifier, "en_GB")
+
+        await service.startTranscribing()
+        runtime.completeRecognition(.failure(ShoppingSpeechRuntimeError.interrupted))
+
+        XCTAssertEqual(service.state, .interrupted)
+        XCTAssertFalse(service.isCapturing)
+    }
+
     func testCompactOrderingPlacesMostRecentlyActiveItemsFirst() {
         let category = ShoppingCategory(id: 42, name: "Miscellaneous")
         let older = ShoppingListDisplayItem(
@@ -1576,6 +1666,65 @@ private actor ShoppingListReaddFetchGate {
     func resume(with run: ShoppingListReaddSummary) {
         runContinuation?.resume(returning: run)
         runContinuation = nil
+    }
+}
+
+@MainActor
+private final class FakeShoppingSpeechRuntime: ShoppingSpeechRecognitionRuntime {
+    var isRecognitionAvailable = true
+    var supportsOnDeviceRecognition = true
+    var speechAuthorization: ShoppingSpeechAuthorization = .authorized
+    var microphonePermissionGranted = true
+    private(set) var selectedLocaleIdentifier: String?
+    private(set) var speechAuthorizationRequestCount = 0
+    private(set) var microphonePermissionRequestCount = 0
+    private(set) var startCount = 0
+    private(set) var finishCount = 0
+    private(set) var cancelCount = 0
+    private var partialTranscriptHandler: ((String) -> Void)?
+    private var completionHandler: ((Result<Void, Error>) -> Void)?
+
+    func selectLanguage(locale: Locale) {
+        selectedLocaleIdentifier = locale.identifier
+    }
+
+    func requestSpeechAuthorization() async -> ShoppingSpeechAuthorization {
+        speechAuthorizationRequestCount += 1
+        return speechAuthorization
+    }
+
+    func requestMicrophonePermission() async -> Bool {
+        microphonePermissionRequestCount += 1
+        return microphonePermissionGranted
+    }
+
+    func startRecognition(
+        onPartialTranscript: @escaping (String) -> Void,
+        onCompletion: @escaping (Result<Void, Error>) -> Void
+    ) throws {
+        startCount += 1
+        partialTranscriptHandler = onPartialTranscript
+        completionHandler = onCompletion
+    }
+
+    func finishRecognition() {
+        finishCount += 1
+        partialTranscriptHandler = nil
+        completionHandler = nil
+    }
+
+    func cancelRecognition() {
+        cancelCount += 1
+        partialTranscriptHandler = nil
+        completionHandler = nil
+    }
+
+    func emitPartialTranscript(_ transcript: String) {
+        partialTranscriptHandler?(transcript)
+    }
+
+    func completeRecognition(_ result: Result<Void, Error>) {
+        completionHandler?(result)
     }
 }
 

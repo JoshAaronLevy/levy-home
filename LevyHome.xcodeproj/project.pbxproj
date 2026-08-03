@@ -161,6 +161,7 @@
 		F60000000000000000000002 /* ShoppingListLiveMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000022 /* ShoppingListLiveMessages.swift */; };
 		F60000000000000000000003 /* ShoppingListViewerPresence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000023 /* ShoppingListViewerPresence.swift */; };
 		F60000000000000000000004 /* ShoppingListLiveConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000024 /* ShoppingListLiveConnectionState.swift */; };
+		F62000000000000000000001 /* ShoppingSpeechTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F62000000000000000000011 /* ShoppingSpeechTranscriptionService.swift */; };
 		F61000000000000000000001 /* ToDoListLiveServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61000000000000000000011 /* ToDoListLiveServicing.swift */; };
 		F61000000000000000000002 /* ToDoListLiveMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61000000000000000000012 /* ToDoListLiveMessages.swift */; };
 		F61000000000000000000003 /* ToDoListLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61000000000000000000013 /* ToDoListLiveService.swift */; };
@@ -413,6 +414,7 @@
 		F60000000000000000000022 /* ShoppingListLiveMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveMessages.swift; sourceTree = "<group>"; };
 		F60000000000000000000023 /* ShoppingListViewerPresence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListViewerPresence.swift; sourceTree = "<group>"; };
 		F60000000000000000000024 /* ShoppingListLiveConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingListLiveConnectionState.swift; sourceTree = "<group>"; };
+		F62000000000000000000011 /* ShoppingSpeechTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingSpeechTranscriptionService.swift; sourceTree = "<group>"; };
 		F61000000000000000000011 /* ToDoListLiveServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoListLiveServicing.swift; sourceTree = "<group>"; };
 		F61000000000000000000012 /* ToDoListLiveMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoListLiveMessages.swift; sourceTree = "<group>"; };
 		F61000000000000000000013 /* ToDoListLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoListLiveService.swift; sourceTree = "<group>"; };
@@ -865,6 +867,7 @@
 		F60000000000000000000030 /* Shopping */ = {
 			isa = PBXGroup;
 			children = (
+				F62000000000000000000011 /* ShoppingSpeechTranscriptionService.swift */,
 				F60000000000000000000021 /* ShoppingListLiveServicing.swift */,
 				F60000000000000000000022 /* ShoppingListLiveMessages.swift */,
 				F60000000000000000000023 /* ShoppingListViewerPresence.swift */,
@@ -1357,6 +1360,7 @@
 				980000000000000000000002 /* APIClient+Users.swift in Sources */,
 				980000000000000000000034 /* APIClient+ListItems.swift in Sources */,
 				E70000000000000000000001 /* ShoppingListLiveService.swift in Sources */,
+				F62000000000000000000001 /* ShoppingSpeechTranscriptionService.swift in Sources */,
 				F60000000000000000000001 /* ShoppingListLiveServicing.swift in Sources */,
 				F60000000000000000000002 /* ShoppingListLiveMessages.swift in Sources */,
 				F60000000000000000000003 /* ShoppingListViewerPresence.swift in Sources */,
