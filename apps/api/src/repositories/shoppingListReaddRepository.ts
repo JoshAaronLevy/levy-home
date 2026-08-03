@@ -49,7 +49,10 @@ export type ShoppingListReaddStore = {
   fetchRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
   fetchRunByRequestId: (requestId: string) => Promise<ShoppingListReaddSummary | null>;
   claimRun: (runId: string) => Promise<ShoppingListReaddSummary | null>;
+  claimRunForProcessing: (runId: string) => Promise<ShoppingListReaddRunClaim | null>;
+  fetchRunExecutionInput: (runId: string) => Promise<ShoppingListReaddExecutionRun | null>;
   moveRunToApplying: (runId: string) => Promise<ShoppingListReaddSummary | null>;
+  recordApplyingOperation: (request: RecordApplyingShoppingListReaddOperationRequest) => Promise<boolean>;
   finalizeRun: (request: FinalizeShoppingListReaddRunRequest) => Promise<ShoppingListReaddSummary | null>;
   fetchRunOperations: (runId: string) => Promise<ShoppingListReaddPersistedOperation[]>;
   fetchUndoableRun: (runId: string) => Promise<ShoppingListReaddUndoRun | null>;
@@ -82,6 +85,7 @@ export type ShoppingListReaddOperationPersistenceInput = {
   priorQuantity?: number;
   appliedPurchased?: boolean;
   appliedQuantity?: number;
+  appliedVersion?: number;
   undoEligible?: boolean;
 };
 
@@ -91,6 +95,12 @@ export type FinalizeShoppingListReaddRunRequest = {
   operations: ShoppingListReaddOperationPersistenceInput[];
   /** A short-lived absolute expiry set only when at least one write can be undone. */
   undoExpiresAt?: Date;
+};
+
+/** Durable pre-write Undo facts, recorded while the parent run is applying. */
+export type RecordApplyingShoppingListReaddOperationRequest = {
+  runId: string;
+  operation: ShoppingListReaddOperationPersistenceInput;
 };
 
 export type ShoppingListReaddUndoStatus = 'not_eligible' | 'eligible' | 'reverted' | 'skipped_stale';
@@ -107,6 +117,7 @@ export type ShoppingListReaddPersistedOperation = {
   priorQuantity?: number;
   appliedPurchased?: boolean;
   appliedQuantity?: number;
+  appliedVersion?: number;
   matchKind?: ShoppingListReaddMatchKind;
   undoStatus: ShoppingListReaddUndoStatus;
   createdAt: string;
@@ -117,6 +128,19 @@ export type ShoppingListReaddUndoRun = {
   run: ShoppingListReaddSummary;
   actor: 'Josh' | 'Mallory';
   operations: ShoppingListReaddPersistedOperation[];
+};
+
+/** Internal-only execution input. It is never an HTTP response shape. */
+export type ShoppingListReaddExecutionRun = {
+  id: string;
+  actor: 'Josh' | 'Mallory';
+  requestedText: string;
+  status: ShoppingListReaddRunStatus;
+};
+
+export type ShoppingListReaddRunClaim = {
+  run: ShoppingListReaddSummary;
+  claimed: boolean;
 };
 
 export type RecordShoppingListReaddUndoOperationRequest = {
@@ -147,6 +171,7 @@ type ShoppingListReaddOperationRow = Record<string, unknown> & {
   priorQuantity: unknown;
   appliedPurchased: unknown;
   appliedQuantity: unknown;
+  appliedVersion: unknown;
   matchKind: unknown;
   undoStatus: unknown;
   createdAt: unknown;
@@ -169,7 +194,10 @@ export function createPostgresShoppingListReaddStore(options: {
     fetchRun: (runId) => fetchShoppingListReaddRun(query(), runId),
     fetchRunByRequestId: (requestId) => fetchShoppingListReaddRunByRequestId(query(), requestId),
     claimRun: (runId) => transaction()((database) => claimShoppingListReaddRun(database, runId)),
+    claimRunForProcessing: (runId) => transaction()((database) => claimShoppingListReaddRunForProcessing(database, runId)),
+    fetchRunExecutionInput: (runId) => fetchShoppingListReaddExecutionRun(query(), runId),
     moveRunToApplying: (runId) => transaction()((database) => moveShoppingListReaddRunToApplying(database, runId)),
+    recordApplyingOperation: (request) => transaction()((database) => recordApplyingShoppingListReaddOperation(database, request)),
     finalizeRun: (request) => transaction()((database) => finalizeShoppingListReaddRun(database, request)),
     fetchRunOperations: (runId) => fetchShoppingListReaddOperations(query(), runId),
     fetchUndoableRun: (runId) => fetchShoppingListReaddUndoRun(query(), runId),
@@ -244,6 +272,45 @@ export async function claimShoppingListReaddRun(
     : fetchShoppingListReaddRun(database, runId);
 }
 
+export async function claimShoppingListReaddRunForProcessing(
+  database: DatabaseQuery,
+  runId: string,
+): Promise<ShoppingListReaddRunClaim | null> {
+  const [claimed] = await database<{ id: unknown }>`
+    UPDATE shopping_ai_readd_runs
+    SET status = 'matching', started_at = now()
+    WHERE id = ${runId} AND status = 'queued'
+    RETURNING id
+  `;
+  const run = await fetchShoppingListReaddRun(database, runId);
+  if (!run) return null;
+  return { run, claimed: Boolean(claimed) };
+}
+
+export async function fetchShoppingListReaddExecutionRun(
+  database: DatabaseQuery,
+  runId: string,
+): Promise<ShoppingListReaddExecutionRun | null> {
+  const [row] = await database<Record<string, unknown> & {
+    id: unknown;
+    actor: unknown;
+    requestedText: unknown;
+    status: unknown;
+  }>`
+    SELECT id, actor, requested_text AS "requestedText", status
+    FROM shopping_ai_readd_runs
+    WHERE id = ${runId}
+    LIMIT 1
+  `;
+  if (!row) return null;
+  return {
+    id: requiredString(row.id, 'shopping_ai_readd_runs.id'),
+    actor: requiredActor(row.actor),
+    requestedText: boundedText(row.requestedText, 'shopping_ai_readd_runs.requested_text'),
+    status: requiredRunStatus(row.status),
+  };
+}
+
 export async function moveShoppingListReaddRunToApplying(
   database: DatabaseQuery,
   runId: string,
@@ -302,7 +369,63 @@ export async function finalizeShoppingListReaddRun(
   }
 
   for (const operation of operations) {
-    await database`
+    await upsertShoppingListReaddOperation(database, request.runId, operation);
+  }
+
+  return requireRun(await fetchShoppingListReaddRun(database, request.runId), 'finalize Shopping AI re-add run');
+}
+
+export async function recordApplyingShoppingListReaddOperation(
+  database: DatabaseQuery,
+  request: RecordApplyingShoppingListReaddOperationRequest,
+): Promise<boolean> {
+  const [operation] = sanitizeOperations([request.operation]);
+  const [inserted] = await database<{ id: unknown }>`
+    INSERT INTO shopping_ai_readd_operations (
+      run_id,
+      request_index,
+      requested_text,
+      outcome,
+      target_item_id,
+      snapshot_version,
+      prior_purchased,
+      prior_quantity,
+      applied_purchased,
+      applied_quantity,
+      applied_version,
+      match_kind,
+      undo_status
+    )
+    SELECT
+      ${request.runId},
+      ${operation.requestIndex},
+      ${operation.requestedText},
+      ${operation.outcome},
+      ${operation.itemId ?? null},
+      ${operation.snapshotVersion ?? null},
+      ${operation.priorPurchased ?? null},
+      ${operation.priorQuantity ?? null},
+      ${operation.appliedPurchased ?? null},
+      ${operation.appliedQuantity ?? null},
+      ${operation.appliedVersion ?? null},
+      ${operation.matchKind ?? null},
+      'not_eligible'
+    WHERE EXISTS (
+      SELECT 1 FROM shopping_ai_readd_runs
+      WHERE id = ${request.runId} AND status = 'applying'
+    )
+    ON CONFLICT (run_id, request_index) DO NOTHING
+    RETURNING id
+  `;
+  return Boolean(inserted);
+}
+
+async function upsertShoppingListReaddOperation(
+  database: DatabaseQuery,
+  runId: string,
+  operation: ShoppingListReaddOperationPersistenceInput,
+): Promise<void> {
+  await database`
       INSERT INTO shopping_ai_readd_operations (
         run_id,
         request_index,
@@ -314,11 +437,12 @@ export async function finalizeShoppingListReaddRun(
         prior_quantity,
         applied_purchased,
         applied_quantity,
+        applied_version,
         match_kind,
         undo_status
       )
       VALUES (
-        ${request.runId},
+        ${runId},
         ${operation.requestIndex},
         ${operation.requestedText},
         ${operation.outcome},
@@ -328,13 +452,24 @@ export async function finalizeShoppingListReaddRun(
         ${operation.priorQuantity ?? null},
         ${operation.appliedPurchased ?? null},
         ${operation.appliedQuantity ?? null},
+        ${operation.appliedVersion ?? null},
         ${operation.matchKind ?? null},
         ${operation.undoEligible ? 'eligible' : 'not_eligible'}
       )
+      ON CONFLICT (run_id, request_index) DO UPDATE
+      SET
+        requested_text = EXCLUDED.requested_text,
+        outcome = EXCLUDED.outcome,
+        target_item_id = EXCLUDED.target_item_id,
+        snapshot_version = EXCLUDED.snapshot_version,
+        prior_purchased = EXCLUDED.prior_purchased,
+        prior_quantity = EXCLUDED.prior_quantity,
+        applied_purchased = EXCLUDED.applied_purchased,
+        applied_quantity = EXCLUDED.applied_quantity,
+        applied_version = EXCLUDED.applied_version,
+        match_kind = EXCLUDED.match_kind,
+        undo_status = EXCLUDED.undo_status
     `;
-  }
-
-  return requireRun(await fetchShoppingListReaddRun(database, request.runId), 'finalize Shopping AI re-add run');
 }
 
 export async function fetchShoppingListReaddOperations(
@@ -354,6 +489,7 @@ export async function fetchShoppingListReaddOperations(
       prior_quantity AS "priorQuantity",
       applied_purchased AS "appliedPurchased",
       applied_quantity AS "appliedQuantity",
+      applied_version AS "appliedVersion",
       match_kind AS "matchKind",
       undo_status AS "undoStatus",
       created_at AS "createdAt",
@@ -516,6 +652,7 @@ function shoppingListReaddOperationFromRow(
   const priorQuantity = optionalInteger(row.priorQuantity);
   const appliedPurchased = optionalBoolean(row.appliedPurchased);
   const appliedQuantity = optionalInteger(row.appliedQuantity);
+  const appliedVersion = optionalInteger(row.appliedVersion);
 
   return {
     ...operation,
@@ -525,6 +662,7 @@ function shoppingListReaddOperationFromRow(
     ...(priorQuantity === undefined ? {} : { priorQuantity }),
     ...(appliedPurchased === undefined ? {} : { appliedPurchased }),
     ...(appliedQuantity === undefined ? {} : { appliedQuantity }),
+    ...(appliedVersion === undefined ? {} : { appliedVersion }),
     ...(matchKind ? { matchKind } : {}),
   };
 }
@@ -553,6 +691,7 @@ function sanitizeOperations(
     const snapshotVersion = optionalPositiveInteger(operation.snapshotVersion, 'operation snapshotVersion');
     const priorQuantity = optionalQuantity(operation.priorQuantity, 'operation priorQuantity');
     const appliedQuantity = optionalQuantity(operation.appliedQuantity, 'operation appliedQuantity');
+    const appliedVersion = optionalPositiveInteger(operation.appliedVersion, 'operation appliedVersion');
     const quantity = optionalQuantity(operation.quantity, 'operation quantity');
     const matchKind = operation.matchKind === undefined ? undefined : requiredMatchKind(operation.matchKind);
     const undoEligible = operation.undoEligible === true;
@@ -567,6 +706,7 @@ function sanitizeOperations(
     if (undoEligible && (
       itemId === undefined || snapshotVersion === undefined || operation.priorPurchased === undefined
       || priorQuantity === undefined || operation.appliedPurchased === undefined || appliedQuantity === undefined
+      || appliedVersion === undefined
     )) {
       throw new Error('Undo-eligible Shopping AI re-add operations require complete prior and applied values.');
     }
@@ -579,6 +719,7 @@ function sanitizeOperations(
       ...(snapshotVersion === undefined ? {} : { snapshotVersion }),
       ...(priorQuantity === undefined ? {} : { priorQuantity }),
       ...(appliedQuantity === undefined ? {} : { appliedQuantity }),
+      ...(appliedVersion === undefined ? {} : { appliedVersion }),
       ...(quantity === undefined ? {} : { quantity }),
       ...(matchKind === undefined ? {} : { matchKind }),
       undoEligible,

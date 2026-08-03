@@ -54,9 +54,33 @@ export type ShoppingListMutationService = {
     request: { expectedVersion: number; storeListings: NonNullable<UpdateShoppingListItemRequest['storeListings']> },
     mutationId: string,
   ) => Promise<StockPriceCheckListingWriteResult>;
+  /**
+   * Internal-only optimistic writer for an AI Shopping re-add or its Undo.
+   * It can alter only purchased and quantity after locking and comparing the
+   * exact API-owned item state captured before matching.
+   */
+  applyShoppingListReaddUpdate: (
+    itemId: number,
+    request: ShoppingListReaddUpdateRequest,
+    mutationId: string,
+  ) => Promise<ShoppingListReaddWriteResult>;
 };
 
 export type StockPriceCheckListingWriteResult =
+  | { status: 'updated'; response: ShoppingListMutationResponse }
+  | { status: 'stale' };
+
+export type ShoppingListReaddUpdateRequest = {
+  expectedVersion: number;
+  expectedPurchased: boolean;
+  expectedQuantity: number;
+  purchased: boolean;
+  /** Omitted to preserve the current quantity. */
+  quantity?: number;
+  actor: 'Josh' | 'Mallory';
+};
+
+export type ShoppingListReaddWriteResult =
   | { status: 'updated'; response: ShoppingListMutationResponse }
   | { status: 'stale' };
 
@@ -275,6 +299,53 @@ export function createShoppingListMutationService(options: {
         throw error;
       }
     },
+    async applyShoppingListReaddUpdate(itemId, request, mutationId) {
+      try {
+        const committed = await commitShoppingMutation({
+          kind: 'ai_readd',
+          itemId,
+          expectedVersion: request.expectedVersion,
+          expectedPurchased: request.expectedPurchased,
+          expectedQuantity: request.expectedQuantity,
+          request: {
+            purchased: request.purchased,
+            ...(request.quantity === undefined ? {} : { quantity: request.quantity }),
+            actor: request.actor,
+          },
+        });
+        const response = shoppingListMutationResponse(committed.item, mutationId, committed.activeTrip);
+
+        auditLogger.info('Shopping AI re-add item update committed.', {
+          mutationId,
+          itemId: response.item.id,
+          actor: request.actor,
+          expectedVersion: request.expectedVersion,
+          appliedVersion: response.item.version,
+        });
+        shoppingListRealtime?.broadcastItemUpdated(response.item, mutationId);
+        await publishTripUpdateIfNeeded(committed.activeTrip, committed.tripUpdated, mutationId);
+        shoppingListRealtime?.recordItemMutation?.(response.item, mutationId, 'updated', request.actor);
+
+        return { status: 'updated', response };
+      } catch (error) {
+        if (error instanceof ShoppingListReaddStaleItemError) {
+          auditLogger.info('Shopping AI re-add item update skipped as stale.', {
+            mutationId,
+            itemId,
+            expectedVersion: request.expectedVersion,
+          });
+          return { status: 'stale' };
+        }
+
+        auditLogger.error('Shopping AI re-add item update failed.', {
+          mutationId,
+          itemId,
+          expectedVersion: request.expectedVersion,
+          error: safeErrorMessage(error),
+        });
+        throw error;
+      }
+    },
   };
 
   async function commitShoppingMutation(input:
@@ -285,6 +356,14 @@ export function createShoppingListMutationService(options: {
       itemId: number;
       expectedVersion: number;
       request: Pick<UpdateShoppingListItemRequest, 'storeListings' | 'actor'>;
+    }
+    | {
+      kind: 'ai_readd';
+      itemId: number;
+      expectedVersion: number;
+      expectedPurchased: boolean;
+      expectedQuantity: number;
+      request: Pick<UpdateShoppingListItemRequest, 'purchased' | 'quantity' | 'actor'>;
     }
     | { kind: 'deleted'; itemId: number; request: DeleteShoppingListItemRequest },
   ): Promise<{ item: ShoppingListItem; activeTrip: ShoppingTripSnapshot | null; tripUpdated: boolean }> {
@@ -305,6 +384,15 @@ export function createShoppingListMutationService(options: {
         }
         const item = await shoppingListStore.updateItem(input.itemId, input.request);
         if (!item) throw new StockPriceCheckStaleItemError();
+        return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
+      }
+      if (input.kind === 'ai_readd') {
+        const previousItem = await shoppingListStore.fetchItem(input.itemId);
+        if (!isCurrentShoppingListReaddItem(previousItem, input)) {
+          throw new ShoppingListReaddStaleItemError();
+        }
+        const item = await shoppingListStore.updateItem(input.itemId, input.request);
+        if (!item) throw new ShoppingListReaddStaleItemError();
         return { item, activeTrip: await currentActiveTrip(shoppingTripService), tripUpdated: false };
       }
       const item = await shoppingListStore.deleteItem(input.itemId);
@@ -333,6 +421,22 @@ export function createShoppingListMutationService(options: {
         }
         const item = await updateShoppingListItem(database, input.itemId, input.request);
         if (!item) throw new StockPriceCheckStaleItemError();
+        const updatedTrip = activeTrip
+          ? await applyShoppingTripItemMutation(database, activeTrip, {
+            kind: 'updated', previousItem, item, actor: input.request.actor,
+          })
+          : null;
+        return { item, activeTrip: updatedTrip, tripUpdated: Boolean(updatedTrip && updatedTrip.version !== activeTrip?.version) };
+      }
+      if (input.kind === 'ai_readd') {
+        if (!isCurrentShoppingListReaddItem(previousItem, input)) {
+          throw new ShoppingListReaddStaleItemError();
+        }
+        if (activeTrip && input.request.purchased !== undefined) {
+          requireShoppingTripActor(input.request.actor);
+        }
+        const item = await updateShoppingListItem(database, input.itemId, input.request);
+        if (!item) throw new ShoppingListReaddStaleItemError();
         const updatedTrip = activeTrip
           ? await applyShoppingTripItemMutation(database, activeTrip, {
             kind: 'updated', previousItem, item, actor: input.request.actor,
@@ -400,11 +504,30 @@ class StockPriceCheckStaleItemError extends Error {
   }
 }
 
+class ShoppingListReaddStaleItemError extends Error {
+  constructor() {
+    super('Shopping item changed or was removed during AI re-add processing.');
+    this.name = 'ShoppingListReaddStaleItemError';
+  }
+}
+
 function isCurrentNeededStockPriceCheckItem(
   item: ShoppingListItem | null,
   expectedVersion: number,
 ): item is ShoppingListItem {
   return Boolean(item && item.purchased === false && item.version === expectedVersion);
+}
+
+function isCurrentShoppingListReaddItem(
+  item: ShoppingListItem | null,
+  expected: Pick<ShoppingListReaddUpdateRequest, 'expectedVersion' | 'expectedPurchased' | 'expectedQuantity'>,
+): item is ShoppingListItem {
+  return Boolean(
+    item
+    && item.version === expected.expectedVersion
+    && item.purchased === expected.expectedPurchased
+    && item.quantity === expected.expectedQuantity,
+  );
 }
 
 export function readShoppingListItemId(value: unknown): number {

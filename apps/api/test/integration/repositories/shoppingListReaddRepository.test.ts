@@ -69,6 +69,7 @@ test('AI re-add migration is repeatable and runs are durable, idempotent, bounde
         priorQuantity: 1,
         appliedPurchased: false,
         appliedQuantity: 2,
+        appliedVersion: 5,
         undoEligible: true,
       },
       {
@@ -94,6 +95,7 @@ test('AI re-add migration is repeatable and runs are durable, idempotent, bounde
     priorQuantity: operation.priorQuantity,
     appliedPurchased: operation.appliedPurchased,
     appliedQuantity: operation.appliedQuantity,
+    appliedVersion: operation.appliedVersion,
     undoStatus: operation.undoStatus,
   })), [
     {
@@ -104,6 +106,7 @@ test('AI re-add migration is repeatable and runs are durable, idempotent, bounde
       priorQuantity: 1,
       appliedPurchased: false,
       appliedQuantity: 2,
+      appliedVersion: 5,
       undoStatus: 'eligible',
     },
     {
@@ -114,6 +117,7 @@ test('AI re-add migration is repeatable and runs are durable, idempotent, bounde
       priorQuantity: undefined,
       appliedPurchased: undefined,
       appliedQuantity: undefined,
+      appliedVersion: undefined,
       undoStatus: 'not_eligible',
     },
   ]);
@@ -165,6 +169,7 @@ test('AI re-add persistence rejects unsafe operation records, expires Undo, and 
       priorQuantity: 1,
       appliedPurchased: false,
       appliedQuantity: 1,
+      appliedVersion: 5,
       undoEligible: true,
     }],
   });
