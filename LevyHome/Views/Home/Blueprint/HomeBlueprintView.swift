@@ -15,8 +15,10 @@ struct HomeBlueprintView: View {
             let height = geometry.size.height
             let cornerRadius: CGFloat = 26
             let center = CGPoint(x: width * 0.50, y: height * 0.48)
-            let nodeSize = min(max(width * 0.225, 78), 92)
-            let garageSize = min(max(width * 0.305, 112), 134)
+            let fullNodeSize = min(max(width * 0.225, 78), 92)
+            let fullGarageSize = min(max(width * 0.305, 112), 134)
+            let nodeSize = fullNodeSize * 0.85
+            let garageSize = fullGarageSize * 0.85
             let centerSize = min(max(width * 0.185, 66), 80)
             let positions = BlueprintNodePositions(width: width, height: height)
             let kitchenStatus = lightStatus(for: .kitchen)
@@ -76,6 +78,7 @@ struct HomeBlueprintView: View {
                         systemImage: "stove",
                         tone: .success,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: kitchenStatus,
                         iconScale: 1.12
                     )
@@ -92,6 +95,7 @@ struct HomeBlueprintView: View {
                         systemImage: "light.recessed.3.inverse",
                         tone: .accent,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: upstairsStatus
                     )
                 }
@@ -107,6 +111,7 @@ struct HomeBlueprintView: View {
                         systemImage: "lamp.desk",
                         tone: .success,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: studyStatus
                     )
                 }
@@ -122,6 +127,7 @@ struct HomeBlueprintView: View {
                         systemImage: "teddybear",
                         tone: .accent,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: playroomStatus
                     )
                 }
@@ -137,6 +143,7 @@ struct HomeBlueprintView: View {
                         systemImage: "door.left.hand.closed",
                         tone: .success,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: entryStatus,
                         iconScale: 1.12
                     )
@@ -153,6 +160,7 @@ struct HomeBlueprintView: View {
                         systemImage: garageData.systemImage,
                         tone: garageData.tone,
                         size: garageSize,
+                        iconReferenceSize: fullGarageSize,
                         lightStatus: garageStatus,
                         isPriority: true,
                         showsWarningBadge: showsGarageWarning,
@@ -339,6 +347,7 @@ private struct BlueprintNodeView: View {
     let systemImage: String
     let tone: StatusBadgeTone
     let size: CGFloat
+    let iconReferenceSize: CGFloat
     let lightStatus: BlueprintLightStatus
     var isPriority = false
     var showsWarningBadge = false
@@ -370,7 +379,11 @@ private struct BlueprintNodeView: View {
                         .foregroundStyle(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
                 }
             }
-            .frame(width: size * 0.72, height: size * 0.72, alignment: .center)
+            .frame(
+                width: iconReferenceSize * 0.72,
+                height: iconReferenceSize * 0.72,
+                alignment: .center
+            )
 
             if showsWarningBadge {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -391,7 +404,7 @@ private struct BlueprintNodeView: View {
     }
 
     private var baseIconSize: CGFloat {
-        isPriority ? size * 0.38 : size * 0.36
+        isPriority ? iconReferenceSize * 0.38 : iconReferenceSize * 0.36
     }
 }
 
