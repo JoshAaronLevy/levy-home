@@ -19,6 +19,7 @@ final class ToDoViewModel: ObservableObject {
     private var loadLiveSnapshot: ToDoListSnapshotLoader?
     private var liveUpdatesTask: Task<Void, Never>?
     private var currentViewerId: String?
+    private var currentViewerUserId: Int?
     private var isSyncingLiveSnapshot = false
     private var committedStateRevision: UInt64 = 0
 
@@ -32,18 +33,29 @@ final class ToDoViewModel: ObservableObject {
             return []
         }
 
+        let tasks = items.map { task(from: $0) }
+        let familyTasks = tasks.filter(\.isFamilyItem)
+        let personalTasks = tasks.filter { !$0.isFamilyItem }
+
         return [
-            ToDoTaskSection(
-                id: "todo-list",
-                title: "To Do",
-                systemImage: "checklist",
+            familyTasks.isEmpty ? nil : ToDoTaskSection(
+                id: "family",
+                title: "Family",
+                systemImage: "person.2.fill",
                 tone: .accent,
-                tasks: items.map { task(from: $0) }
-            )
-        ]
+                tasks: familyTasks
+            ),
+            personalTasks.isEmpty ? nil : ToDoTaskSection(
+                id: "me",
+                title: "Me",
+                systemImage: "person.fill",
+                tone: .neutral,
+                tasks: personalTasks
+            ),
+        ].compactMap { $0 }
     }
 
-    func load(apiClient: APIClient, force: Bool = false) async {
+    func load(apiClient: APIClient, visibleTo userId: Int? = nil, force: Bool = false) async {
         guard !isLoading || force else {
             return
         }
@@ -57,7 +69,7 @@ final class ToDoViewModel: ObservableObject {
         do {
             for _ in 0..<2 {
                 let revisionAtRequestStart = committedStateRevision
-                async let todoListResponse = apiClient.fetchToDoList()
+                async let todoListResponse = apiClient.fetchToDoList(visibleTo: userId)
                 async let usersResponse = apiClient.fetchUsers()
                 let (todoList, fetchedUsers) = try await (todoListResponse, usersResponse)
 
@@ -111,6 +123,7 @@ final class ToDoViewModel: ObservableObject {
         self.liveService = liveService
         loadLiveSnapshot = loadSnapshot
         self.currentViewerId = currentViewerId
+        currentViewerUserId = Self.userId(forViewerId: currentViewerId)
 
         liveUpdatesTask = Task { [weak self] in
             for await message in liveService.messages() {
@@ -130,6 +143,7 @@ final class ToDoViewModel: ObservableObject {
         liveService = nil
         loadLiveSnapshot = nil
         currentViewerId = nil
+        currentViewerUserId = nil
         activeViewers = []
     }
 
@@ -142,7 +156,11 @@ final class ToDoViewModel: ObservableObject {
         case .snapshotRequired:
             await refreshFromLiveSnapshot()
         case .itemCreated(let item, _, _), .itemUpdated(let item, _, _):
-            apply(item)
+            if isVisibleToCurrentViewer(item) {
+                apply(item)
+            } else {
+                removeCommittedItem(id: item.id)
+            }
         case .itemDeleted(let itemId, _, _):
             removeCommittedItem(id: itemId)
         case .unknown:
@@ -192,6 +210,7 @@ final class ToDoViewModel: ObservableObject {
                 alerts: item.alerts,
                 subtasks: item.subtasks,
                 createdBy: item.createdBy,
+                createdFor: item.createdFor,
                 createdDate: item.createdDate
             )
         )
@@ -214,6 +233,7 @@ final class ToDoViewModel: ObservableObject {
             recurring: draft.recurring.flatMap { ToDoItemRecurring(rawValue: $0.rawValue) },
             notes: draft.trimmedNotes.isEmpty ? nil : draft.trimmedNotes,
             createdBy: draft.createdBy,
+            createdFor: draft.createdFor,
             actor: actor
         )
 
@@ -355,6 +375,10 @@ final class ToDoViewModel: ObservableObject {
         return nil
     }
 
+    private static func userId(forViewerId viewerId: String) -> Int? {
+        ResidentIdentity.allCases.first { $0.toDoListViewerId == viewerId.lowercased() }?.toDoUserId
+    }
+
     private func resolveLocationIds(
         from draft: ToDoDraft,
         apiClient: APIClient
@@ -421,6 +445,14 @@ final class ToDoViewModel: ObservableObject {
 
         items = Self.sortedItems(items)
         committedStateRevision &+= 1
+    }
+
+    private func isVisibleToCurrentViewer(_ item: ToDoItem) -> Bool {
+        guard let currentViewerUserId else {
+            return true
+        }
+
+        return item.createdFor.contains(currentViewerUserId)
     }
 
     private func removeCommittedItem(id itemId: Int) {
@@ -553,6 +585,7 @@ final class ToDoViewModel: ObservableObject {
             alerts: [],
             subtasks: [],
             createdBy: draft.createdBy,
+            createdFor: draft.createdFor,
             createdDate: Self.isoString(from: draft.createdDate)
         )
     }
@@ -566,6 +599,7 @@ final class ToDoViewModel: ObservableObject {
             date: Self.date(from: item.date),
             recurring: item.recurring.flatMap { ToDoRecurring(rawValue: $0.rawValue) },
             createdBy: item.createdBy,
+            createdFor: item.createdFor,
             createdDate: Self.date(from: item.createdDate) ?? Date(),
             status: ToDoStatus(rawValue: item.status.rawValue) ?? .open,
             locationDisplayText: item.locationDisplayText,

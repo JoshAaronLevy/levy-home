@@ -9,6 +9,7 @@ import type {
   ToDoListMutationResponse,
   UpdateToDoItemRequest,
 } from '../../contracts.js';
+import { TODO_FAMILY_USER_IDS } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import type { ToDoListStore } from '../../repositories/todoListRepository.js';
 import type { ToDoListRealtimeMutationReporter } from '../../todoListRealtime.js';
@@ -39,7 +40,7 @@ export function createToDoListMutationService(options: {
       const response = toDoListMutationResponse(item, mutationId);
 
       toDoListRealtime?.broadcastItemCreated(item, mutationId);
-      toDoListRealtime?.recordItemMutation(item, mutationId, 'created', request.actor);
+      recordSharedItemMutation(toDoListRealtime, item, mutationId, 'created', request.actor);
 
       return response;
     },
@@ -53,7 +54,8 @@ export function createToDoListMutationService(options: {
       const response = toDoListMutationResponse(item, mutationId);
 
       toDoListRealtime?.broadcastItemUpdated(item, mutationId);
-      toDoListRealtime?.recordItemMutation(
+      recordSharedItemMutation(
+        toDoListRealtime,
         item,
         mutationId,
         request.status === 'completed' ? 'completed' : 'updated',
@@ -77,8 +79,8 @@ export function createToDoListMutationService(options: {
         generatedAt: new Date().toISOString(),
       };
 
-      toDoListRealtime?.broadcastItemDeleted(itemId, mutationId);
-      toDoListRealtime?.recordItemMutation(item, mutationId, 'deleted', request.actor);
+      toDoListRealtime?.broadcastItemDeleted(item, mutationId);
+      recordSharedItemMutation(toDoListRealtime, item, mutationId, 'deleted', request.actor);
 
       return response;
     },
@@ -90,6 +92,20 @@ export function readToDoItemId(value: unknown): number {
 
   if (!Number.isInteger(id) || id < 1) {
     throw new HTTPError(400, 'itemId must be a positive integer.', 'invalid_todo_item');
+  }
+
+  return id;
+}
+
+export function readOptionalToDoVisibleToUserId(value: unknown): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const id = typeof value === 'string' && value.trim().length > 0 ? Number(value) : Number.NaN;
+
+  if (!Number.isInteger(id) || id < 1) {
+    throw new HTTPError(400, 'visibleTo must be a positive integer.', 'invalid_todo_item');
   }
 
   return id;
@@ -112,4 +128,22 @@ function toDoListMutationResponse(item: ToDoItem, mutationId: string): ToDoListM
 
 function toDoItemNotFoundError(): HTTPError {
   return new HTTPError(404, 'To-do item was not found.', 'todo_item_not_found');
+}
+
+function recordSharedItemMutation(
+  realtime: ToDoListRealtimeMutationReporter | undefined,
+  item: ToDoItem,
+  mutationId: string,
+  action: 'created' | 'updated' | 'deleted' | 'completed',
+  actor?: string,
+): void {
+  if (!isFamilyToDoItem(item)) {
+    return;
+  }
+
+  realtime?.recordItemMutation(item, mutationId, action, actor);
+}
+
+function isFamilyToDoItem(item: ToDoItem): boolean {
+  return TODO_FAMILY_USER_IDS.every((userId) => item.createdFor.includes(userId));
 }

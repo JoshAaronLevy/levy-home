@@ -55,7 +55,61 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sections.first?.tasks.first?.locationIds, [2])
         XCTAssertEqual(viewModel.sections.first?.tasks.first?.notes, "Bring insurance card.")
         XCTAssertEqual(viewModel.sections.first?.tasks.first?.subtasks, [])
+        XCTAssertEqual(viewModel.items.first?.createdFor, [1, 2])
+        XCTAssertEqual(viewModel.sections.map(\.title), ["Family"])
         XCTAssertEqual(Set(capturedRequests.requests.map { $0.url?.path }), ["/api/todo-list", "/api/users"])
+    }
+
+    func testSectionsSeparateFamilyAndPersonalToDos() async {
+        let viewModel = ToDoViewModel()
+
+        await viewModel.applyLiveMessage(
+            .itemCreated(
+                item: Self.liveItem(id: 41, name: "Schedule dentist", createdFor: [1, 2]),
+                mutationId: "family-41",
+                serverTime: "2026-08-08T18:00:00Z"
+            )
+        )
+        await viewModel.applyLiveMessage(
+            .itemCreated(
+                item: Self.liveItem(id: 42, name: "Renew passport", createdFor: [1]),
+                mutationId: "personal-42",
+                serverTime: "2026-08-08T18:00:01Z"
+            )
+        )
+
+        XCTAssertEqual(viewModel.sections.map(\.title), ["Family", "Me"])
+        XCTAssertEqual(viewModel.sections[0].tasks.map(\.id), [41])
+        XCTAssertEqual(viewModel.sections[1].tasks.map(\.id), [42])
+    }
+
+    func testLiveItemsOutsideCurrentResidentAudienceAreIgnored() async {
+        let viewModel = ToDoViewModel()
+        let liveService = ToDoListLiveServiceStub()
+
+        viewModel.startLiveUpdatesIfNeeded(
+            liveService: liveService,
+            currentViewerId: "mallory",
+            loadSnapshot: { fatalError("No snapshot expected.") }
+        )
+
+        await viewModel.applyLiveMessage(
+            .itemCreated(
+                item: Self.liveItem(id: 43, name: "Josh only", createdFor: [1]),
+                mutationId: "josh-only",
+                serverTime: "2026-08-08T18:00:00Z"
+            )
+        )
+        await viewModel.applyLiveMessage(
+            .itemCreated(
+                item: Self.liveItem(id: 44, name: "Mallory only", createdFor: [2]),
+                mutationId: "mallory-only",
+                serverTime: "2026-08-08T18:00:01Z"
+            )
+        )
+
+        XCTAssertEqual(viewModel.items.map(\.id), [44])
+        viewModel.stopLiveUpdates()
     }
 
     func testLoadSortsToDoItemsByDueDateThenCreatedDate() async {
@@ -131,6 +185,30 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.first?.status, .completed)
         XCTAssertTrue(viewModel.mutatingItemIDs.isEmpty)
         XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testCreateTaskSendsPersonalAudienceForMe() async throws {
+        ToDoMockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api/todo-list/items"):
+                return Self.response(for: request, json: Self.toDoMutationJSON(status: "open"))
+            default:
+                return Self.response(for: request, statusCode: 404, json: #"{"error":"Unhandled"}"#)
+            }
+        }
+
+        var draft = ToDoDraft(createdBy: 1)
+        draft.name = "Renew passport"
+        draft.audience = .me
+
+        let viewModel = ToDoViewModel()
+        try await viewModel.createTask(from: draft, apiClient: client, actor: "Josh")
+
+        let createRequest = try XCTUnwrap(capturedRequests.requests.first { $0.httpMethod == "POST" })
+        XCTAssertEqual(createRequest.jsonBody["createdBy"] as? Int, 1)
+        XCTAssertEqual(createRequest.jsonBody["createdFor"] as? [Int], [1])
     }
 
     func testLoadFailureShowsErrorAndMarksLoaded() async {
@@ -294,7 +372,8 @@ final class ToDoViewModelTests: XCTestCase {
         id: Int,
         name: String,
         status: ToDoItemStatus = .open,
-        createdBy: Int? = 1
+        createdBy: Int? = 1,
+        createdFor: [Int] = [1, 2]
     ) -> ToDoItem {
         ToDoItem(
             id: id,
@@ -302,7 +381,8 @@ final class ToDoViewModelTests: XCTestCase {
             status: status,
             locationIds: [],
             locationDisplayText: "No location",
-            createdBy: createdBy
+            createdBy: createdBy,
+            createdFor: createdFor
         )
     }
 
@@ -323,6 +403,7 @@ final class ToDoViewModelTests: XCTestCase {
               "notes": "Bring insurance card.",
               "subtasks": [],
               "createdBy": 1,
+              "createdFor": [1, 2],
               "createdDate": "2026-07-05T17:00:00.000Z"
             }
           ],

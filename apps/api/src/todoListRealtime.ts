@@ -74,7 +74,7 @@ export type ToDoListLiveMessage =
 export type ToDoListRealtimeBroadcaster = {
   broadcastItemCreated: (item: ToDoItem, mutationId: string) => void;
   broadcastItemUpdated: (item: ToDoItem, mutationId: string) => void;
-  broadcastItemDeleted: (itemId: number, mutationId: string) => void;
+  broadcastItemDeleted: (item: ToDoItem, mutationId: string) => void;
 };
 
 export type ToDoListRealtimeSessionRecorder = {
@@ -268,16 +268,16 @@ export function createToDoListRealtimeHub(options: {
     broadcastItemUpdated(item, mutationId) {
       broadcastItemMessage('item_updated', item, mutationId);
     },
-    broadcastItemDeleted(itemId, mutationId) {
+    broadcastItemDeleted(item, mutationId) {
       logRealtime('mutation_broadcast', {
         mutationType: 'item_deleted',
-        itemId,
+        itemId: item.id,
         mutationId,
         connectionCount: clients.size,
       });
-      broadcast({
+      broadcastToItemAudience(item, {
         type: 'item_deleted',
-        itemId,
+        itemId: item.id,
         mutationId,
         serverTime: now(),
       });
@@ -463,12 +463,20 @@ export function createToDoListRealtimeHub(options: {
       mutationId,
       connectionCount: clients.size,
     });
-    broadcast({
+    broadcastToItemAudience(item, {
       type,
       item,
       mutationId,
       serverTime: now(),
     });
+  }
+
+  function broadcastToItemAudience(item: ToDoItem, message: ToDoListLiveMessage): void {
+    for (const [socket, state] of clients) {
+      if (viewerCanAccessItem(state.presence, item)) {
+        sendMessage(socket, message);
+      }
+    }
   }
 
   return hub;
@@ -588,6 +596,22 @@ function viewerIdForActor(actor: string | undefined): string | undefined {
   }
 
   return undefined;
+}
+
+function viewerCanAccessItem(presence: ToDoListViewerPresence | undefined, item: ToDoItem): boolean {
+  const userId = viewerUserId(presence?.viewerId);
+  return userId !== undefined && item.createdFor.includes(userId);
+}
+
+function viewerUserId(viewerId: string | undefined): number | undefined {
+  switch (normalizeViewerId(viewerId)) {
+    case 'josh':
+      return 1;
+    case 'mallory':
+      return 2;
+    default:
+      return undefined;
+  }
 }
 
 function normalizeViewerId(value: unknown): string {

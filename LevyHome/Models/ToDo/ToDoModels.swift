@@ -33,6 +33,7 @@ struct ToDoTask: Identifiable {
     let date: Date?
     let recurring: ToDoRecurring?
     let createdBy: Int?
+    let createdFor: [Int]
     let createdDate: Date
     let status: ToDoStatus
     let locationDisplayText: String
@@ -42,6 +43,10 @@ struct ToDoTask: Identifiable {
 
     var isCompleted: Bool {
         status == .completed
+    }
+
+    var isFamilyItem: Bool {
+        Set(createdFor) == Set([1, 2])
     }
 
     var dueListDisplayText: String {
@@ -160,12 +165,51 @@ enum ToDoEditorMode: Identifiable {
     }
 }
 
+enum ToDoAudience: String, CaseIterable, Identifiable {
+    case family
+    case me
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .family:
+            return "Family"
+        case .me:
+            return "Me"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .family:
+            return "person.2.fill"
+        case .me:
+            return "person.fill"
+        }
+    }
+
+    func createdFor(creatorId: Int) -> [Int] {
+        switch self {
+        case .family:
+            return [1, 2]
+        case .me:
+            return [creatorId]
+        }
+    }
+
+    init(createdFor: [Int]) {
+        self = Set(createdFor) == Set([1, 2]) ? .family : .me
+    }
+}
+
 struct ToDoDraft {
     var name = ""
     var locationIds: [Int]?
     var date: Date? = ToDoDateDefaults.today
     var recurring: ToDoRecurring?
     var createdBy: Int
+    var audience: ToDoAudience = .family
     var createdDate = Date()
     var status: ToDoStatus = .open
     var dueDateID = "today"
@@ -183,6 +227,7 @@ struct ToDoDraft {
         date = task.date
         recurring = task.recurring
         createdBy = task.createdBy ?? fallbackCreatedBy
+        audience = ToDoAudience(createdFor: task.createdFor)
         createdDate = task.createdDate
         status = task.status
         dueDateID = Self.dueDateID(for: task.date)
@@ -201,6 +246,10 @@ struct ToDoDraft {
 
     var trimmedNotes: String {
         notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var createdFor: [Int] {
+        audience.createdFor(creatorId: createdBy)
     }
 
     var isValid: Bool {

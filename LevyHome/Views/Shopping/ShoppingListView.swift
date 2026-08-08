@@ -469,7 +469,6 @@ private struct ShoppingListContentView: View {
     @State private var pendingDeleteItem: ShoppingListItem?
     @State private var tripDisplayMessage: String?
     @State private var isShowingEndTripConfirmation = false
-    @State private var isShowingShoppingAIMenu = false
     @State private var isShowingStockPriceCheckSummary = false
     @State private var isShowingShoppingListReaddSheet = false
     let isSelected: Bool
@@ -506,7 +505,7 @@ private struct ShoppingListContentView: View {
                 status: shoppingAIStatus,
                 isUnavailable: false,
                 action: {
-                    isShowingShoppingAIMenu = true
+                    isShowingShoppingListReaddSheet = true
                 }
             )
             .padding(.horizontal, AppSpacing.screen)
@@ -618,22 +617,6 @@ private struct ShoppingListContentView: View {
             if let trip = viewModel.activeTrip {
                 Text(endTripConfirmationMessage(for: trip))
             }
-        }
-        .confirmationDialog(
-            "Shopping AI",
-            isPresented: $isShowingShoppingAIMenu,
-            titleVisibility: .visible
-        ) {
-            ForEach(ShoppingAIAction.allCases) { action in
-                Button(shoppingAIActionTitle(for: action)) {
-                    performShoppingAIAction(action)
-                }
-                .disabled(isShoppingAIActionDisabled(action))
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(shoppingAIActionMessage)
         }
         .alert(
             "Delete Item?",
@@ -851,65 +834,6 @@ private struct ShoppingListContentView: View {
             )
         case .completed, .queued, .running, .unknown:
             return nil
-        }
-    }
-
-    private var shoppingAIActionMessage: String {
-        if viewModel.isShoppingListReaddUnavailable && viewModel.isStockPriceCheckUnavailable {
-            return "AI item matching and stock checks are unavailable. You can still compose an item request and edit the shopping list normally."
-        }
-
-        if viewModel.isShoppingListReaddUnavailable {
-            return "Add items from text is unavailable right now. Stock and price checking is listed separately."
-        }
-
-        return "Use text or keyboard dictation to quickly re-add familiar shopping items."
-    }
-
-    private func shoppingAIActionTitle(for action: ShoppingAIAction) -> String {
-        switch action {
-        case .addItemsFromText:
-            if viewModel.isStartingShoppingListReadd || viewModel.isShoppingListReaddActive {
-                return "Finding Items…"
-            }
-
-            return action.title
-        case .checkStockAndPrice:
-            if viewModel.isStartingStockPriceCheck {
-                return "Starting Stock & Price Check…"
-            }
-
-            if viewModel.isStockPriceCheckActive {
-                return "Stock & Price Check in Progress"
-            }
-
-            if viewModel.isStockPriceCheckUnavailable {
-                return "Stock & Price Checks Unavailable"
-            }
-
-            return action.title
-        }
-    }
-
-    private func isShoppingAIActionDisabled(_ action: ShoppingAIAction) -> Bool {
-        switch action {
-        case .addItemsFromText:
-            return false
-        case .checkStockAndPrice:
-            return viewModel.isStartingStockPriceCheck
-                || viewModel.isStockPriceCheckActive
-                || viewModel.isStockPriceCheckUnavailable
-        }
-    }
-
-    private func performShoppingAIAction(_ action: ShoppingAIAction) {
-        switch action {
-        case .addItemsFromText:
-            isShowingShoppingListReaddSheet = true
-        case .checkStockAndPrice:
-            Task {
-                await viewModel.startStockPriceCheck()
-            }
         }
     }
 
@@ -1155,29 +1079,6 @@ private struct ShoppingListContentView: View {
     }
 }
 
-private enum ShoppingAIAction: CaseIterable, Identifiable {
-    case addItemsFromText
-    case checkStockAndPrice
-
-    var id: String {
-        switch self {
-        case .addItemsFromText:
-            return "add-items-from-text"
-        case .checkStockAndPrice:
-            return "check-stock-and-price"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .addItemsFromText:
-            return "Add Items from Text"
-        case .checkStockAndPrice:
-            return "Check/Update Stock & Price"
-        }
-    }
-}
-
 private struct ShoppingAIStatus: Equatable {
     let message: String
     let systemImage: String
@@ -1190,7 +1091,6 @@ private struct ShoppingListReaddSheet: View {
     @FocusState private var isRequestTextFocused: Bool
     @State private var requestText = ""
     @State private var textBeforeVoiceInput = ""
-    @State private var selectedSpeechLanguage = ShoppingSpeechInputLanguage.device
     @StateObject private var speechTranscription = ShoppingSpeechTranscriptionService()
 
     var body: some View {
@@ -1345,18 +1245,6 @@ private struct ShoppingListReaddSheet: View {
                 }
             }
 
-            Picker("Speech language", selection: $selectedSpeechLanguage) {
-                ForEach(ShoppingSpeechInputLanguage.allCases) { language in
-                    Text(language.title).tag(language)
-                }
-            }
-            .pickerStyle(.menu)
-            .disabled(speechTranscription.isCapturing)
-            .onChange(of: selectedSpeechLanguage) { _, language in
-                speechTranscription.selectLanguage(identifier: language.localeIdentifier)
-            }
-            .accessibilityHint("Chooses the language used for the next voice input.")
-
             if let message = speechTranscription.state.message {
                 Label(message, systemImage: speechStateSystemImage)
                     .font(.caption)
@@ -1367,7 +1255,7 @@ private struct ShoppingListReaddSheet: View {
             } else {
                 Text(speechTranscription.usesOnDeviceRecognitionWhenAvailable
                     ? "Uses on-device speech recognition. You can edit before sending."
-                    : "On-device speech is unavailable for this language. You can type or select a different language.")
+                    : "On-device speech recognition is unavailable. You can type your request instead.")
                     .font(.caption)
                     .foregroundStyle(AppColors.mutedText)
             }
@@ -1498,36 +1386,6 @@ private struct ShoppingListReaddSheet: View {
             existingText: textBeforeVoiceInput,
             transcript: transcript
         )
-    }
-}
-
-private enum ShoppingSpeechInputLanguage: CaseIterable, Identifiable {
-    case device
-    case englishUnitedStates
-    case englishUnitedKingdom
-
-    var id: String { localeIdentifier }
-
-    var title: String {
-        switch self {
-        case .device:
-            return "Device Language"
-        case .englishUnitedStates:
-            return "English (United States)"
-        case .englishUnitedKingdom:
-            return "English (United Kingdom)"
-        }
-    }
-
-    var localeIdentifier: String {
-        switch self {
-        case .device:
-            return Locale.current.identifier
-        case .englishUnitedStates:
-            return "en_US"
-        case .englishUnitedKingdom:
-            return "en_GB"
-        }
     }
 }
 

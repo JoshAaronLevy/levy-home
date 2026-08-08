@@ -7,6 +7,7 @@ import type {
   ToDoStatus,
   UpdateToDoItemRequest,
 } from '../contracts.js';
+import { TODO_FAMILY_USER_IDS } from '../contracts.js';
 import { getDatabaseClient, type DatabaseQuery } from '../db/client.js';
 import {
   jsonb,
@@ -20,7 +21,7 @@ import {
 import { fetchToDoLocations } from './todoLocationRepository.js';
 
 export type ToDoListStore = {
-  fetchToDoList: () => Promise<ToDoListData>;
+  fetchToDoList: (visibleToUserId?: number) => Promise<ToDoListData>;
   fetchItem: (id: number) => Promise<ToDoItem | null>;
   createItem: (request: CreateToDoItemRequest) => Promise<ToDoItem>;
   updateItem: (id: number, request: UpdateToDoItemRequest) => Promise<ToDoItem | null>;
@@ -38,6 +39,7 @@ type ToDoItemRow = Record<string, unknown> & {
   alerts: unknown;
   subtasks: unknown;
   createdBy: unknown;
+  createdFor: unknown;
   createdDate: unknown;
   status: unknown;
 };
@@ -52,8 +54,8 @@ export function createPostgresToDoListStore(database?: DatabaseQuery): ToDoListS
   const query = () => database ?? getDatabaseClient();
 
   return {
-    async fetchToDoList() {
-      return fetchToDoListData(query());
+    async fetchToDoList(visibleToUserId) {
+      return fetchToDoListData(query(), visibleToUserId);
     },
     async fetchItem(id) {
       return fetchToDoItem(query(), id);
@@ -70,7 +72,10 @@ export function createPostgresToDoListStore(database?: DatabaseQuery): ToDoListS
   };
 }
 
-export async function fetchToDoListData(database: DatabaseQuery): Promise<ToDoListData> {
+export async function fetchToDoListData(
+  database: DatabaseQuery,
+  visibleToUserId?: number,
+): Promise<ToDoListData> {
   const [itemRows, categoryRows, locations] = await Promise.all([
     database<ToDoItemRow>`
       SELECT
@@ -94,9 +99,14 @@ export async function fetchToDoListData(database: DatabaseQuery): Promise<ToDoLi
         COALESCE(item.alerts, '[]'::jsonb) AS alerts,
         COALESCE(item.subtasks, '[]'::jsonb) AS subtasks,
         item.created_by AS "createdBy",
+        COALESCE(item.created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb) AS "createdFor",
         item.created_date AS "createdDate",
         item.status
       FROM todo_list item
+      WHERE
+        ${visibleToUserId === undefined}
+        OR COALESCE(item.created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb)
+          @> ${jsonb([visibleToUserId ?? 0])}::jsonb
       ORDER BY
         item.date ASC NULLS LAST,
         item.created_date DESC NULLS LAST,
@@ -137,6 +147,7 @@ export async function fetchToDoItem(database: DatabaseQuery, id: number): Promis
       COALESCE(item.alerts, '[]'::jsonb) AS alerts,
       COALESCE(item.subtasks, '[]'::jsonb) AS subtasks,
       item.created_by AS "createdBy",
+      COALESCE(item.created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb) AS "createdFor",
       item.created_date AS "createdDate",
       item.status
     FROM todo_list item
@@ -158,6 +169,7 @@ export async function createToDoItem(database: DatabaseQuery, request: CreateToD
       alerts,
       subtasks,
       created_by,
+      created_for,
       created_date,
       status
     )
@@ -170,6 +182,7 @@ export async function createToDoItem(database: DatabaseQuery, request: CreateToD
       ${jsonb(request.alerts ?? [])}::jsonb,
       ${jsonb(request.subtasks ?? [])}::jsonb,
       ${request.createdBy ?? null},
+      ${jsonb(request.createdFor ?? TODO_FAMILY_USER_IDS)}::jsonb,
       now(),
       ${request.status ?? 'open'}
     )
@@ -194,6 +207,7 @@ export async function createToDoItem(database: DatabaseQuery, request: CreateToD
       COALESCE(alerts, '[]'::jsonb) AS alerts,
       COALESCE(subtasks, '[]'::jsonb) AS subtasks,
       created_by AS "createdBy",
+      COALESCE(created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb) AS "createdFor",
       created_date AS "createdDate",
       status
   `;
@@ -260,6 +274,7 @@ export async function updateToDoItem(
       COALESCE(alerts, '[]'::jsonb) AS alerts,
       COALESCE(subtasks, '[]'::jsonb) AS subtasks,
       created_by AS "createdBy",
+      COALESCE(created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb) AS "createdFor",
       created_date AS "createdDate",
       status
   `;
@@ -292,6 +307,7 @@ export async function deleteToDoItem(database: DatabaseQuery, id: number): Promi
       COALESCE(alerts, '[]'::jsonb) AS alerts,
       COALESCE(subtasks, '[]'::jsonb) AS subtasks,
       created_by AS "createdBy",
+      COALESCE(created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb) AS "createdFor",
       created_date AS "createdDate",
       status
   `;
@@ -319,6 +335,7 @@ function toDoItemFromRow(row: ToDoItemRow): ToDoItem {
   const alerts = jsonArrayFromJSON(row.alerts);
   const subtasks = jsonArrayFromJSON(row.subtasks);
   const createdBy = optionalInteger(row.createdBy);
+  const createdFor = integerArrayFromJSON(row.createdFor);
   const createdDate = optionalISOString(row.createdDate);
 
   return {
@@ -333,6 +350,7 @@ function toDoItemFromRow(row: ToDoItemRow): ToDoItem {
     alerts,
     subtasks,
     ...(createdBy !== undefined ? { createdBy } : {}),
+    createdFor: createdFor.length > 0 ? createdFor : [...TODO_FAMILY_USER_IDS],
     ...(createdDate ? { createdDate } : {}),
   };
 }

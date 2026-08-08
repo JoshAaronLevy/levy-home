@@ -76,6 +76,10 @@ struct ToDoView: View {
         )
     }
 
+    private var currentToDoUserId: Int {
+        viewModel.userId(for: currentViewingResident.rawValue) ?? currentViewingResident.toDoUserId
+    }
+
     private var currentDeviceName: String? {
         #if canImport(UIKit)
         let name = UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,17 +144,19 @@ struct ToDoView: View {
                     }
                 }
 
-                ToDoTaskSectionView(
-                    section: toDoSection,
-                    usersById: usersById
-                ) { task in
-                    Task {
-                        await toggle(task)
+                ForEach(toDoSections) { section in
+                    ToDoTaskSectionView(
+                        section: section,
+                        usersById: usersById
+                    ) { task in
+                        Task {
+                            await toggle(task)
+                        }
+                    } onEdit: { task in
+                        editorMode = .edit(task)
+                    } onDelete: { task in
+                        pendingDeleteTask = task
                     }
-                } onEdit: { task in
-                    editorMode = .edit(task)
-                } onDelete: { task in
-                    pendingDeleteTask = task
                 }
             }
             .padding(.horizontal, AppSpacing.screen)
@@ -191,7 +197,7 @@ struct ToDoView: View {
                 mode: mode,
                 users: users,
                 recentLocations: viewModel.locations.isEmpty ? ToDoPreviewData.recentLocations : viewModel.locations,
-                currentUserId: viewModel.userId(for: currentResidentName)
+                currentUserId: currentToDoUserId
             ) { draft in
                 try await save(draft, mode: mode)
             }
@@ -230,18 +236,18 @@ struct ToDoView: View {
                 pendingDeleteTask = nil
             }
         } message: { task in
-            Text("Remove \(task.name) from the shared to-do list.")
+            Text("Remove \(task.name) from the to-do list.")
         }
     }
 
-    private var toDoSection: ToDoTaskSection {
-        sections.first ?? ToDoTaskSection(
-            id: "todo-list",
-            title: "To Do",
-            systemImage: "checklist",
+    private var toDoSections: [ToDoTaskSection] {
+        sections.isEmpty ? [ToDoTaskSection(
+            id: "family",
+            title: "Family",
+            systemImage: "person.2.fill",
             tone: .accent,
             tasks: []
-        )
+        )] : sections
     }
 
     private var currentActorName: String? {
@@ -255,6 +261,7 @@ struct ToDoView: View {
         }
 
         let identity = currentToDoViewerIdentity
+        let visibleToUserId = currentToDoUserId
         viewModel.startLiveUpdatesIfNeeded(
             liveService: ToDoListLiveService(
                 baseURL: appEnvironment.config.apiBaseURL,
@@ -263,7 +270,7 @@ struct ToDoView: View {
             ),
             currentViewerId: identity.viewerId,
             loadSnapshot: { [apiClient = appEnvironment.apiClient] in
-                try await apiClient.fetchToDoList()
+                try await apiClient.fetchToDoList(visibleTo: visibleToUserId)
             }
         )
     }
@@ -273,7 +280,11 @@ struct ToDoView: View {
             #if targetEnvironment(simulator)
             loadSimulatorPreviewData()
             #else
-            async let tasksLoad: Void = viewModel.load(apiClient: appEnvironment.apiClient, force: force)
+            async let tasksLoad: Void = viewModel.load(
+                apiClient: appEnvironment.apiClient,
+                visibleTo: currentToDoUserId,
+                force: force
+            )
             await loadEventKitContent(force: force)
 
             _ = await tasksLoad
@@ -638,6 +649,14 @@ private struct ToDoEditorSheet: View {
             VStack(spacing: 0) {
                 ToDoCreatedByRow(user: selectedUser)
 
+                if case .add = mode {
+                    Divider()
+                        .padding(.leading, 42)
+                        .padding(.vertical, AppSpacing.medium)
+
+                    ToDoAudiencePicker(selectedAudience: $draft.audience)
+                }
+
                 Divider()
                     .padding(.leading, 42)
                     .padding(.vertical, AppSpacing.medium)
@@ -795,7 +814,7 @@ private struct ToDoEditorSheet: View {
 
     private var summaryText: String {
         let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
+        return "\(draft.audience.title) • \(selectedDueDate.title) • \(location.isEmpty ? "No location" : location)"
     }
 
     private func selectLocationSearchSuggestion(_ suggestion: ToDoLocationSearchSuggestion) {
@@ -1061,6 +1080,40 @@ private struct ToDoCreatedByRow: View {
                 .frame(width: 28, height: 28)
                 .background(AppColors.accent)
                 .clipShape(Circle())
+        }
+    }
+}
+
+private struct ToDoAudiencePicker: View {
+    @Binding var selectedAudience: ToDoAudience
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.medium) {
+            ToDoFormRowHeader(
+                title: "Visible to",
+                subtitle: "Choose who can see this to do",
+                systemImage: "person.2"
+            )
+
+            FlowLayout(spacing: AppSpacing.small, rowSpacing: AppSpacing.small) {
+                ForEach(ToDoAudience.allCases) { audience in
+                    Button {
+                        selectedAudience = audience
+                    } label: {
+                        Label(audience.title, systemImage: audience.systemImage)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .padding(.horizontal, AppSpacing.medium)
+                            .frame(height: 32)
+                            .foregroundStyle(selectedAudience == audience ? Color.white : AppColors.accent)
+                            .background(selectedAudience == audience ? AppColors.accent : AppColors.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Visible to \(audience.title)")
+                    .accessibilityAddTraits(selectedAudience == audience ? .isSelected : [])
+                }
+            }
         }
     }
 }

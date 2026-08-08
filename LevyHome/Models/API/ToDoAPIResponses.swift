@@ -57,6 +57,7 @@ struct ToDoItem: Codable, Equatable, Identifiable {
     let alerts: [JSONValue]
     let subtasks: [JSONValue]
     let createdBy: Int?
+    let createdFor: [Int]
     let createdDate: String?
 
     enum CodingKeys: String, CodingKey {
@@ -71,6 +72,7 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         case alerts
         case subtasks
         case createdBy
+        case createdFor
         case createdDate
     }
 
@@ -86,6 +88,7 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         alerts: [JSONValue] = [],
         subtasks: [JSONValue] = [],
         createdBy: Int? = nil,
+        createdFor: [Int] = [1, 2],
         createdDate: String? = nil
     ) {
         self.id = id
@@ -99,6 +102,7 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         self.alerts = alerts
         self.subtasks = subtasks
         self.createdBy = createdBy
+        self.createdFor = createdFor
         self.createdDate = createdDate
     }
 
@@ -116,6 +120,7 @@ struct ToDoItem: Codable, Equatable, Identifiable {
         alerts = try container.decodeIfPresent([JSONValue].self, forKey: .alerts) ?? []
         subtasks = try container.decodeIfPresent([JSONValue].self, forKey: .subtasks) ?? []
         createdBy = try container.decodeIfPresent(Int.self, forKey: .createdBy)
+        createdFor = try container.decodeIfPresent([Int].self, forKey: .createdFor) ?? [1, 2]
         createdDate = try container.decodeIfPresent(String.self, forKey: .createdDate)
     }
 }

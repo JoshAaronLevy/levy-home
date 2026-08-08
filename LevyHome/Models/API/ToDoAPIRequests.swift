@@ -21,6 +21,7 @@ struct CreateToDoItemRequest: Encodable, Equatable {
     let alerts: [JSONValue]?
     let subtasks: [JSONValue]?
     let createdBy: Int?
+    let createdFor: [Int]?
     let actor: String?
     let mutationId: String
 
@@ -34,6 +35,7 @@ struct CreateToDoItemRequest: Encodable, Equatable {
         alerts: [JSONValue]? = nil,
         subtasks: [JSONValue]? = nil,
         createdBy: Int? = nil,
+        createdFor: [Int]? = nil,
         actor: String? = nil,
         mutationId: String = UUID().uuidString
     ) {
@@ -46,6 +48,7 @@ struct CreateToDoItemRequest: Encodable, Equatable {
         self.alerts = alerts
         self.subtasks = subtasks
         self.createdBy = createdBy
+        self.createdFor = createdFor
         self.actor = actor
         self.mutationId = mutationId
     }

@@ -9,6 +9,15 @@ extension ResidentIdentity {
             return "mallory"
         }
     }
+
+    var toDoUserId: Int {
+        switch self {
+        case .josh:
+            return 1
+        case .mallory:
+            return 2
+        }
+    }
 }
 
 struct ToDoListViewerIdentity: Equatable {

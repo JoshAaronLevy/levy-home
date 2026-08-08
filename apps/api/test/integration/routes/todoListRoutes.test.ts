@@ -24,12 +24,15 @@ afterEach(async () => {
 test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', async () => {
   let capturedCreate: CreateToDoItemRequest | undefined;
   let capturedUpdate: UpdateToDoItemRequest | undefined;
+  let capturedVisibleToUserId: number | undefined;
 
   await routes.restart(
     createApp({
       config: testConfig,
       toDoListStore: todoListStore({
-        async fetchToDoList() {
+        async fetchToDoList(visibleToUserId) {
+          capturedVisibleToUserId = visibleToUserId;
+
           return {
             items: [
               todoItem({
@@ -72,7 +75,7 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
     }),
   );
 
-  const list = await routes.getJSON('/api/todo-list');
+  const list = await routes.getJSON('/api/todo-list?visibleTo=2');
   const created = await routes.postJSON('/api/todo-list/items', {
     name: 'Book summer camp',
     locationIds: [],
@@ -80,6 +83,7 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
     alerts: [{ recipient: 'both', timing: 'morningOf' }],
     subtasks: [{ id: 'subtask-1', title: 'Print forms', assignedTo: [1] }],
     createdBy: 2,
+    createdFor: [1, 2],
     actor: 'Mallory',
   });
   const patchResponse = await fetch(`${routes.baseURL()}/api/todo-list/items/9`, {
@@ -98,6 +102,7 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
   const updated = await patchResponse.json();
 
   assert.equal(list.ok, true);
+  assert.equal(capturedVisibleToUserId, 2);
   assert.equal(list.items[0].name, 'Schedule dentist');
   assert.equal(list.categories[0].id, 1);
   assert.deepEqual(capturedCreate, {
@@ -108,6 +113,7 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
     alerts: [{ recipient: 'both', timing: 'morningOf' }],
     subtasks: [{ id: 'subtask-1', title: 'Print forms', assignedTo: [1] }],
     createdBy: 2,
+    createdFor: [1, 2],
     actor: 'Mallory',
   });
   assert.equal(created.ok, true);
@@ -158,6 +164,7 @@ function todoItem(overrides: Partial<ToDoItem> = {}): ToDoItem {
     locationDisplayText: 'No location',
     alerts: [],
     subtasks: [],
+    createdFor: [1, 2],
     createdDate: '2026-07-03T12:00:00.000Z',
     ...overrides,
   };

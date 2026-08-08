@@ -5,6 +5,8 @@ export type ToDoRecurring = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 export type ToDoItemAlert = unknown;
 export type ToDoItemSubtask = unknown;
 
+export const TODO_FAMILY_USER_IDS = [1, 2] as const;
+
 export type ToDoCategory = {
   id: number;
   name?: string;
@@ -23,6 +25,7 @@ export type ToDoItem = {
   alerts: ToDoItemAlert[];
   subtasks: ToDoItemSubtask[];
   createdBy?: number;
+  createdFor: number[];
   createdDate?: string;
 };
 
@@ -89,6 +92,7 @@ export type CreateToDoItemRequest = {
   alerts?: ToDoItemAlert[] | null;
   subtasks?: ToDoItemSubtask[] | null;
   createdBy?: number | null;
+  createdFor?: number[];
   actor?: string;
   mutationId?: string;
 };

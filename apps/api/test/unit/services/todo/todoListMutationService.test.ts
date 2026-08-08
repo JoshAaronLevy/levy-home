@@ -47,6 +47,23 @@ test('to-do mutation service records updates for the viewer session push', async
   assert.deepEqual(recordings, ['broadcast-updated:9:mutation-2', 'completed:9:mutation-2:Mallory']);
 });
 
+test('to-do mutation service does not record a personal item for a family push', async () => {
+  const recordings: string[] = [];
+  const createdItem = todoItem({ id: 10, name: 'Renew passport', createdFor: [1] });
+  const service = createToDoListMutationService({
+    toDoListRealtime: recordingRealtimeSessionRecorder(recordings),
+    toDoListStore: todoListStore({
+      async createItem() {
+        return createdItem;
+      },
+    }),
+  });
+
+  await service.createItem({ name: 'Renew passport', actor: 'Josh', createdFor: [1] }, 'mutation-10');
+
+  assert.deepEqual(recordings, ['broadcast-created:10:mutation-10']);
+});
+
 test('to-do mutation service returns not found for missing deletes', async () => {
   const service = createToDoListMutationService({
     toDoListStore: todoListStore({
@@ -73,8 +90,8 @@ function recordingRealtimeSessionRecorder(recordings: string[]): ToDoListRealtim
     broadcastItemUpdated(item, mutationId) {
       recordings.push(`broadcast-updated:${item.id}:${mutationId}`);
     },
-    broadcastItemDeleted(itemId, mutationId) {
-      recordings.push(`broadcast-deleted:${itemId}:${mutationId}`);
+    broadcastItemDeleted(item, mutationId) {
+      recordings.push(`broadcast-deleted:${item.id}:${mutationId}`);
     },
     recordItemMutation(item, mutationId, action, actor) {
       recordings.push(`${action}:${item.id}:${mutationId}:${actor ?? ''}`);
@@ -119,6 +136,7 @@ function todoItem(overrides: Partial<ToDoItem> = {}): ToDoItem {
     locationDisplayText: 'No location',
     alerts: [],
     subtasks: [],
+    createdFor: [1, 2],
     createdDate: '2026-07-03T12:00:00.000Z',
     ...overrides,
   };

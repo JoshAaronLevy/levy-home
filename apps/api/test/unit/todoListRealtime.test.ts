@@ -129,6 +129,14 @@ test('to-do realtime sends a snapshot request and broadcasts committed item muta
   await waitForCondition(() => receivedMessages.some((message) => message.type === 'snapshot_required'));
   assert.equal(receivedMessages.find((message) => message.type === 'snapshot_required')?.reason, 'connected');
 
+  const presenceChanged = waitForMessage(socket, (message) => message.type === 'presence_changed');
+  socket.send(JSON.stringify({
+    type: 'subscribe',
+    viewerId: 'josh',
+    displayName: 'Josh',
+  }));
+  await presenceChanged;
+
   const created = todoItem(21, 'Call plumber');
   const createdMessage = waitForMessage(socket, (message) => message.type === 'item_created');
   hub.broadcastItemCreated(created, 'mutation-created');
@@ -147,11 +155,64 @@ test('to-do realtime sends a snapshot request and broadcasts committed item muta
   assert.equal(receivedUpdated.mutationId, 'mutation-updated');
 
   const deletedMessage = waitForMessage(socket, (message) => message.type === 'item_deleted');
-  hub.broadcastItemDeleted(updated.id, 'mutation-deleted');
+  hub.broadcastItemDeleted(updated, 'mutation-deleted');
   const receivedDeleted = await deletedMessage;
   assert.equal(receivedDeleted.type, 'item_deleted');
   assert.equal(receivedDeleted.itemId, updated.id);
   assert.equal(receivedDeleted.mutationId, 'mutation-deleted');
+});
+
+test('to-do realtime sends personal items only to the selected resident', async (t) => {
+  const hub = createToDoListRealtimeHub();
+  const server = createServer();
+  server.on('upgrade', (request, socket, head) => {
+    if (!hub.handleUpgrade(request, socket, head)) {
+      socket.destroy();
+    }
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+
+  const joshSocket = new WebSocket(`ws://127.0.0.1:${address.port}/api/todo-list/live`);
+  const mallorySocket = new WebSocket(`ws://127.0.0.1:${address.port}/api/todo-list/live`);
+  const joshMessages: Record<string, unknown>[] = [];
+  const malloryMessages: Record<string, unknown>[] = [];
+  joshSocket.on('message', (data) => joshMessages.push(JSON.parse(data.toString()) as Record<string, unknown>));
+  mallorySocket.on('message', (data) => malloryMessages.push(JSON.parse(data.toString()) as Record<string, unknown>));
+
+  t.after(() => {
+    joshSocket.terminate();
+    mallorySocket.terminate();
+    hub.close();
+    server.close();
+  });
+
+  await Promise.all([once(joshSocket, 'open'), once(mallorySocket, 'open')]);
+  joshSocket.send(JSON.stringify({ type: 'subscribe', viewerId: 'josh', displayName: 'Josh' }));
+  mallorySocket.send(JSON.stringify({ type: 'subscribe', viewerId: 'mallory', displayName: 'Mallory' }));
+  await waitForCondition(() =>
+    joshMessages.some((message) => message.type === 'presence_changed') &&
+    malloryMessages.some((message) => message.type === 'presence_changed'),
+  );
+
+  const privateItem = { ...todoItem(31, 'Renew passport'), createdFor: [1] };
+  const personalItemMessage = waitForMessage(
+    joshSocket,
+    (message) => message.type === 'item_created' && (message.item as { id?: number }).id === privateItem.id,
+  );
+  hub.broadcastItemCreated(privateItem, 'mutation-personal');
+
+  await personalItemMessage;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.equal(
+    malloryMessages.some(
+      (message) => message.type === 'item_created' && (message.item as { id?: number }).id === privateItem.id,
+    ),
+    false,
+  );
 });
 
 function todoItem(id: number, name: string) {
@@ -163,6 +224,7 @@ function todoItem(id: number, name: string) {
     locationDisplayText: 'No location',
     alerts: [],
     subtasks: [],
+    createdFor: [1, 2],
     createdDate: '2026-07-03T12:00:00.000Z',
   };
 }

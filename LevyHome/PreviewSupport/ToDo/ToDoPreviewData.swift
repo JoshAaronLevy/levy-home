@@ -95,7 +95,7 @@ enum ToDoPreviewData {
         )
     ]
 
-    static let taskSections = [
+    private static let ungroupedTaskSections = [
         ToDoTaskSection(
             id: "appointments",
             title: "Appointments",
@@ -109,6 +109,7 @@ enum ToDoPreviewData {
                     date: today,
                     recurring: nil,
                     createdBy: 1,
+                    createdFor: [1, 2],
                     createdDate: today,
                     status: .open,
                     locationDisplayText: "Cherry Creek Dental",
@@ -123,6 +124,7 @@ enum ToDoPreviewData {
                     date: today,
                     recurring: nil,
                     createdBy: 2,
+                    createdFor: [1, 2],
                     createdDate: today,
                     status: .open,
                     locationDisplayText: "Denver Pediatrics",
@@ -145,6 +147,7 @@ enum ToDoPreviewData {
                     date: thisWeek,
                     recurring: nil,
                     createdBy: 1,
+                    createdFor: [1, 2],
                     createdDate: today,
                     status: .open,
                     locationDisplayText: "Home",
@@ -167,6 +170,7 @@ enum ToDoPreviewData {
                     date: thisWeek,
                     recurring: nil,
                     createdBy: 2,
+                    createdFor: [1, 2],
                     createdDate: today,
                     status: .open,
                     locationDisplayText: "Rec center",
@@ -189,6 +193,7 @@ enum ToDoPreviewData {
                     date: nextMonth,
                     recurring: .quarterly,
                     createdBy: 1,
+                    createdFor: [1],
                     createdDate: today,
                     status: .open,
                     locationDisplayText: "County office",
@@ -197,6 +202,23 @@ enum ToDoPreviewData {
                     subtasks: []
                 )
             ]
+        )
+    ]
+
+    static let taskSections = [
+        ToDoTaskSection(
+            id: "family",
+            title: "Family",
+            systemImage: "person.2.fill",
+            tone: .accent,
+            tasks: ungroupedTaskSections.flatMap(\.tasks).filter(\.isFamilyItem)
+        ),
+        ToDoTaskSection(
+            id: "me",
+            title: "Me",
+            systemImage: "person.fill",
+            tone: .neutral,
+            tasks: ungroupedTaskSections.flatMap(\.tasks).filter { !$0.isFamilyItem }
         )
     ]
 
@@ -293,6 +315,7 @@ enum ToDoPreviewData {
             recurring: nil,
             notes: "Collect ideas before the weekend.",
             createdBy: 1,
+            createdFor: [1],
             createdDate: "2026-07-06T15:30:00.000Z"
         )
     ]

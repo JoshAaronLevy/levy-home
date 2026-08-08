@@ -1,3 +1,4 @@
+import { TODO_FAMILY_USER_IDS } from '../contracts/todo.js';
 import type {
   CreateToDoItemRequest,
   CreateToDoLocationRequest,
@@ -29,6 +30,7 @@ const allowedCreateToDoItemBodyKeys = new Set([
   'alerts',
   'subtasks',
   'createdBy',
+  'createdFor',
   'actor',
   'mutationId',
 ]);
@@ -77,6 +79,7 @@ export function validateCreateToDoItemBody(input: unknown): CreateToDoItemReques
   const alerts = readOptionalNullableToDoAlerts(input.alerts);
   const subtasks = readOptionalNullableToDoJSONArray(input.subtasks, 'subtasks');
   const createdBy = readOptionalNullablePositiveInteger(input.createdBy, 'createdBy', invalidToDoItem);
+  const createdFor = readOptionalToDoCreatedFor(input.createdFor);
   const actor = readOptionalToDoActor(input.actor);
   const mutationId = readOptionalToDoMutationId(input.mutationId);
 
@@ -90,6 +93,7 @@ export function validateCreateToDoItemBody(input: unknown): CreateToDoItemReques
     ...(alerts !== undefined ? { alerts: alerts ?? [] } : {}),
     ...(subtasks !== undefined ? { subtasks: subtasks ?? [] } : {}),
     ...(createdBy !== undefined ? { createdBy } : {}),
+    createdFor: createdFor ?? [...TODO_FAMILY_USER_IDS],
     ...(actor ? { actor } : {}),
     ...(mutationId ? { mutationId } : {}),
   };
@@ -295,6 +299,20 @@ function readOptionalToDoItemIdArray(value: unknown, fieldName: string): number[
   }
 
   return readRequiredToDoItemIdArray(value, fieldName);
+}
+
+function readOptionalToDoCreatedFor(value: unknown): number[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const userIds = readRequiredToDoItemIdArray(value, 'createdFor');
+
+  if (userIds.length === 0) {
+    throw invalidToDoItem('createdFor must include at least one user id.');
+  }
+
+  return userIds;
 }
 
 function readRequiredToDoItemIdArray(value: unknown, fieldName: string): number[] {

@@ -50,8 +50,11 @@ extension APIClient {
         )
     }
 
-    func fetchToDoList() async throws -> ToDoListResponse {
-        try await send(path: "/api/todo-list")
+    func fetchToDoList(visibleTo userId: Int? = nil) async throws -> ToDoListResponse {
+        try await send(
+            path: "/api/todo-list",
+            queryItems: userId.map { [URLQueryItem(name: "visibleTo", value: String($0))] } ?? []
+        )
     }
 
     func createToDoItem(_ request: CreateToDoItemRequest) async throws -> ToDoListMutationResponse {

@@ -4,6 +4,7 @@ import { asyncHandler } from '../http/asyncHandler.js';
 import type { ToDoListStore } from '../repositories/todoListRepository.js';
 import type { ToDoListMutationService } from '../services/todo/todoListMutationService.js';
 import {
+  readOptionalToDoVisibleToUserId,
   readToDoItemId,
   todoMutationIdForRequest,
 } from '../services/todo/todoListMutationService.js';
@@ -21,8 +22,9 @@ export type ToDoListRouteDependencies = {
 export function createToDoListRoutes(deps: ToDoListRouteDependencies): Router {
   const router = Router();
 
-  router.get('/api/todo-list', asyncHandler(async (_req, res) => {
-    const todoList = await deps.toDoListStore.fetchToDoList();
+  router.get('/api/todo-list', asyncHandler(async (req, res) => {
+    const visibleToUserId = readOptionalToDoVisibleToUserId(req.query.visibleTo);
+    const todoList = await deps.toDoListStore.fetchToDoList(visibleToUserId);
 
     res.json({
       ok: true,
