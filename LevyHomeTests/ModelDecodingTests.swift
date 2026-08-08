@@ -210,6 +210,11 @@ final class ModelDecodingTests: XCTestCase {
                 "totalLightCount": 12,
                 "groups": []
               },
+              "thermostatStatus": {
+                "currentTemperature": 74.2,
+                "targetTemperatureLow": 65,
+                "targetTemperatureHigh": 70
+              },
               "recentImportantEvent": \(eventJSON(type: "garage_closed", displaySeverity: "info")),
               "generatedAt": "2026-06-12T14:00:02Z",
               "isPartial": false
@@ -219,6 +224,9 @@ final class ModelDecodingTests: XCTestCase {
 
         XCTAssertEqual(overview.garageStatus.state, .closed)
         XCTAssertEqual(overview.lightSummary.state, .off)
+        XCTAssertEqual(overview.thermostatStatus?.currentTemperature, 74.2)
+        XCTAssertEqual(overview.thermostatStatus?.targetTemperatureLow, 65)
+        XCTAssertEqual(overview.thermostatStatus?.targetTemperatureHigh, 70)
         XCTAssertEqual(overview.recentImportantEvent?.type, .garageClosed)
         XCTAssertEqual(overview.isPartial, false)
     }

@@ -58,6 +58,7 @@ struct HomeContentView: View {
                 HomeBlueprintView(
                     garageData: homeViewModel.garageCardData,
                     lightSummaryData: homeViewModel.lightSummaryCardData,
+                    thermostatStatus: homeViewModel.overview?.thermostatStatus,
                     garageToggleAction: garageToggleAction,
                     showsGarageWarning: showsGarageAwayWarning,
                     performingActionID: quickActionsViewModel.performingActionID

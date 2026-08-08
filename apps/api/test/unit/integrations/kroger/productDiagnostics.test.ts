@@ -237,6 +237,7 @@ function testConfig(options: { outputFilePath: string }): AppConfig {
     homeAssistant: {
       mode: 'mock',
       garageCoverEntityId: 'cover.test_garage',
+      thermostatClimateEntityId: 'climate.test_thermostat',
       allLightsEntityId: 'light.test_all_lights',
       lightGroups: [],
       lightEntities: [],

@@ -38,6 +38,7 @@ const baseConfig: AppConfig = {
     baseURL: 'http://home-assistant.local',
     token: 'test-home-assistant-token',
     garageCoverEntityId: 'cover.main_garage_door',
+    thermostatClimateEntityId: 'climate.test_thermostat',
     allLightsEntityId: 'light.all_lights',
     lightGroups: [],
     lightEntities: [],

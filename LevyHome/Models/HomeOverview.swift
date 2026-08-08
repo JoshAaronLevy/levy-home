@@ -3,10 +3,37 @@ import Foundation
 struct HomeOverview: Codable, Equatable {
     let garageStatus: GarageStatus
     let lightSummary: LightSummary
+    let thermostatStatus: ThermostatStatus?
     let presence: [HomePresenceStatus]?
     let recentImportantEvent: LevyHomeEvent?
     let generatedAt: String?
     let isPartial: Bool?
+
+    init(
+        garageStatus: GarageStatus,
+        lightSummary: LightSummary,
+        thermostatStatus: ThermostatStatus? = nil,
+        presence: [HomePresenceStatus]?,
+        recentImportantEvent: LevyHomeEvent?,
+        generatedAt: String?,
+        isPartial: Bool?
+    ) {
+        self.garageStatus = garageStatus
+        self.lightSummary = lightSummary
+        self.thermostatStatus = thermostatStatus
+        self.presence = presence
+        self.recentImportantEvent = recentImportantEvent
+        self.generatedAt = generatedAt
+        self.isPartial = isPartial
+    }
+}
+
+struct ThermostatStatus: Codable, Equatable {
+    let currentTemperature: Double?
+    let targetTemperatureLow: Double?
+    let targetTemperatureHigh: Double?
+    let lastUpdatedAt: String?
+    let isStale: Bool?
 }
 
 struct HomePresenceStatus: Codable, Equatable, Identifiable {

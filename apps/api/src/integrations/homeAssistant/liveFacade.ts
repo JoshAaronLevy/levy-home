@@ -7,6 +7,7 @@ import type {
   LightState,
   PersonPresenceStatus,
   PresenceState,
+  ThermostatStatus,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import {
@@ -39,6 +40,18 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
     return {
       state: mapGarageState(state.state),
       displayName: state.attributes?.friendly_name ?? 'Main garage',
+      lastUpdatedAt: state.last_updated,
+      isStale: false,
+    };
+  }
+
+  async getThermostatStatus(): Promise<ThermostatStatus> {
+    const state = await this.fetchEntityState(this.config.homeAssistant.thermostatClimateEntityId);
+
+    return {
+      currentTemperature: finiteNumberOrNull(state.attributes?.current_temperature),
+      targetTemperatureLow: finiteNumberOrNull(state.attributes?.target_temp_low),
+      targetTemperatureHigh: finiteNumberOrNull(state.attributes?.target_temp_high),
       lastUpdatedAt: state.last_updated,
       isStale: false,
     };
@@ -247,6 +260,10 @@ function childLightCount(entityIds: unknown): number {
 
   const childCount = entityIds.filter((entityId): entityId is string => typeof entityId === 'string').length;
   return childCount > 0 ? childCount : 1;
+}
+
+function finiteNumberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function mapLightCollectionState(states: LightState[]): LightState {

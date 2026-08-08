@@ -10,6 +10,9 @@ export type HomeAssistantStateResponse = {
     device_class?: string;
     friendly_name?: string;
     entity_id?: string[];
+    current_temperature?: number;
+    target_temp_low?: number;
+    target_temp_high?: number;
   };
 };
 

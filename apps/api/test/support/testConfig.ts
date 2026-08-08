@@ -31,6 +31,7 @@ export const testConfig: AppConfig = {
   homeAssistant: {
     mode: 'mock',
     garageCoverEntityId: 'cover.test_garage',
+    thermostatClimateEntityId: 'climate.test_thermostat',
     allLightsEntityId: 'light.test_all_lights',
     lightGroups: [
       { id: 'upstairs_hallway', name: 'Upstairs Hallway', entityId: 'light.upstairs_hallway' },

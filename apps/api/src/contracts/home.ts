@@ -35,9 +35,18 @@ export type LightSummary = {
   groups: LightGroupStatus[];
 };
 
+export type ThermostatStatus = {
+  currentTemperature: number | null;
+  targetTemperatureLow: number | null;
+  targetTemperatureHigh: number | null;
+  lastUpdatedAt?: string;
+  isStale?: boolean;
+};
+
 export type HomeOverview = {
   garageStatus: GarageStatus;
   lightSummary: LightSummary;
+  thermostatStatus: ThermostatStatus;
   presence: PersonPresenceStatus[];
   recentImportantEvent: LevyHomeEvent | null;
   generatedAt: string;

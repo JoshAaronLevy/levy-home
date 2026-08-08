@@ -46,6 +46,37 @@ test('live Home Assistant facade opens and closes the configured garage cover', 
   }
 });
 
+test('live Home Assistant facade retrieves the configured thermostat temperatures', async () => {
+  const server = await startHomeAssistantServer((req, res) => {
+    assert.equal(req.url, '/api/states/climate.main_thermostat');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      entity_id: 'climate.main_thermostat',
+      state: 'heat_cool',
+      last_updated: '2026-08-08T20:18:22.599773+00:00',
+      attributes: {
+        current_temperature: 74.2,
+        target_temp_low: 65,
+        target_temp_high: 70,
+      },
+    }));
+  });
+
+  try {
+    const thermostat = await createHomeAssistantFacade(liveConfig(server.baseURL)).getThermostatStatus();
+
+    assert.deepEqual(thermostat, {
+      currentTemperature: 74.2,
+      targetTemperatureLow: 65,
+      targetTemperatureHigh: 70,
+      lastUpdatedAt: '2026-08-08T20:18:22.599773+00:00',
+      isStale: false,
+    });
+  } finally {
+    await server.close();
+  }
+});
+
 test('live Home Assistant facade summarizes configured light groups without an all-lights entity', async () => {
   const requestedPaths: string[] = [];
   const states = new Map<string, unknown>([
@@ -536,6 +567,7 @@ function liveConfig(baseURL: string): AppConfig {
       baseURL,
       token: 'test-home-assistant-token',
       garageCoverEntityId: 'cover.meross_garage_door',
+      thermostatClimateEntityId: 'climate.main_thermostat',
       allLightsEntityId: 'light.all_lights',
       lightGroups: [],
       lightEntities: [],

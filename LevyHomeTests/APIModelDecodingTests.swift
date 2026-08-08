@@ -42,6 +42,13 @@ final class APIModelDecodingTests: XCTestCase {
                   "totalLightCount": 12,
                   "groups": []
                 },
+                "thermostatStatus": {
+                  "currentTemperature": 74.2,
+                  "targetTemperatureLow": 65,
+                  "targetTemperatureHigh": 70,
+                  "lastUpdatedAt": "2026-08-08T20:18:22.599773+00:00",
+                  "isStale": false
+                },
                 "presence": [
                   {
                     "person": "Josh",
@@ -62,6 +69,9 @@ final class APIModelDecodingTests: XCTestCase {
 
         XCTAssertEqual(response.overview.garageStatus.state, .open)
         XCTAssertEqual(response.overview.lightSummary.state, .partiallyOn)
+        XCTAssertEqual(response.overview.thermostatStatus?.currentTemperature, 74.2)
+        XCTAssertEqual(response.overview.thermostatStatus?.targetTemperatureLow, 65)
+        XCTAssertEqual(response.overview.thermostatStatus?.targetTemperatureHigh, 70)
         XCTAssertEqual(response.overview.presence?.first?.person, "Josh")
         XCTAssertEqual(response.overview.presence?.first?.state, .away)
     }

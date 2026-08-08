@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeBlueprintView: View {
     let garageData: GarageStatusCardData
     let lightSummaryData: LightSummaryCardData
+    let thermostatStatus: ThermostatStatus?
     let garageToggleAction: QuickActionDisplayData?
     let showsGarageWarning: Bool
     let performingActionID: String?
@@ -157,7 +158,7 @@ struct HomeBlueprintView: View {
                 .accessibilityHint("Shows Foyer lighting controls.")
                 .position(positions.entry)
 
-                BlueprintPlaceholderNode(size: garageSize)
+                BlueprintThermostatNode(size: garageSize, status: thermostatStatus)
                     .position(positions.thermostat)
 
                 Button {
@@ -352,23 +353,51 @@ private extension LightSummary.State {
     }
 }
 
-private struct BlueprintPlaceholderNode: View {
+private struct BlueprintThermostatNode: View {
     let size: CGFloat
+    let status: ThermostatStatus?
 
     var body: some View {
-        Circle()
-            .fill(HomePalette.nodeFill)
-            .overlay {
-                Circle()
-                    .stroke(.white.opacity(0.88), lineWidth: 2)
+        ZStack {
+            Circle()
+                .fill(HomePalette.nodeFill)
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.88), lineWidth: 2)
+                }
+                .overlay {
+                    Circle()
+                        .stroke(HomePalette.inactiveLightStatus, lineWidth: 3)
+                }
+                .shadow(color: HomePalette.shadow, radius: 16, y: 9)
+
+            VStack(spacing: size * 0.02) {
+                Text(temperatureText(status?.currentTemperature))
+                    .font(.system(size: size * 0.30, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+
+                Text("\(temperatureText(status?.targetTemperatureLow)) / \(temperatureText(status?.targetTemperatureHigh))")
+                    .font(.system(size: size * 0.17, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
-            .overlay {
-                Circle()
-                    .stroke(HomePalette.inactiveLightStatus, lineWidth: 3)
-            }
-            .shadow(color: HomePalette.shadow, radius: 16, y: 9)
-            .frame(width: size, height: size)
-            .accessibilityLabel("Thermostat placeholder")
+            .foregroundStyle(HomePalette.iconInk)
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func temperatureText(_ temperature: Double?) -> String {
+        guard let temperature, temperature.isFinite else {
+            return "—"
+        }
+
+        return "\(Int(temperature.rounded()))°"
+    }
+
+    private var accessibilityLabel: String {
+        "Thermostat, current \(temperatureText(status?.currentTemperature)), low \(temperatureText(status?.targetTemperatureLow)), high \(temperatureText(status?.targetTemperatureHigh))"
     }
 }
 

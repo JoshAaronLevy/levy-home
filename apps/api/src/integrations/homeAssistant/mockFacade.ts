@@ -6,6 +6,7 @@ import type {
   LightGroupStatus,
   LightState,
   PersonPresenceStatus,
+  ThermostatStatus,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import {
@@ -31,6 +32,16 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
     return {
       state: this.garageState,
       displayName: 'Main garage',
+      lastUpdatedAt: new Date().toISOString(),
+      isStale: false,
+    };
+  }
+
+  async getThermostatStatus(): Promise<ThermostatStatus> {
+    return {
+      currentTemperature: 72,
+      targetTemperatureLow: 67,
+      targetTemperatureHigh: 72,
       lastUpdatedAt: new Date().toISOString(),
       isStale: false,
     };

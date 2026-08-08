@@ -22,6 +22,10 @@ test('GET /api/home/overview returns a narrow home overview', async () => {
   assert.equal(response.overview.garageStatus.state, 'closed');
   assert.equal(response.overview.lightSummary.state, 'off');
   assert.equal(response.overview.lightSummary.groups.length, 2);
+  assert.equal(response.overview.thermostatStatus.currentTemperature, 72);
+  assert.equal(response.overview.thermostatStatus.targetTemperatureLow, 67);
+  assert.equal(response.overview.thermostatStatus.targetTemperatureHigh, 72);
+  assert.equal(response.overview.thermostatStatus.isStale, false);
   assert.deepEqual(response.overview.presence, []);
 });
 
