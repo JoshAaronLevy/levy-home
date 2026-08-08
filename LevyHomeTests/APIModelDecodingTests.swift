@@ -46,6 +46,7 @@ final class APIModelDecodingTests: XCTestCase {
                   "currentTemperature": 74.2,
                   "targetTemperatureLow": 65,
                   "targetTemperatureHigh": 70,
+                  "hvacAction": "heating",
                   "lastUpdatedAt": "2026-08-08T20:18:22.599773+00:00",
                   "isStale": false
                 },
@@ -72,6 +73,7 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.overview.thermostatStatus?.currentTemperature, 74.2)
         XCTAssertEqual(response.overview.thermostatStatus?.targetTemperatureLow, 65)
         XCTAssertEqual(response.overview.thermostatStatus?.targetTemperatureHigh, 70)
+        XCTAssertEqual(response.overview.thermostatStatus?.hvacAction, "heating")
         XCTAssertEqual(response.overview.presence?.first?.person, "Josh")
         XCTAssertEqual(response.overview.presence?.first?.state, .away)
     }

@@ -10,13 +10,14 @@ export const LEVY_HOME_EVENT_TYPES = [
   'doorbell_pressed',
   'doorbell_person_detected',
   'doorbell_motion_detected',
+  'thermostat_setpoint_high',
   'phone_state_changed',
 ] as const;
 
 export type LevyHomeEventType = (typeof LEVY_HOME_EVENT_TYPES)[number];
 
 export type DisplaySeverity = 'info' | 'warning' | 'critical';
-export type HomeAssistantEventCategory = 'garage' | 'doorbell' | 'phone' | 'presence' | 'lighting';
+export type HomeAssistantEventCategory = 'garage' | 'doorbell' | 'phone' | 'presence' | 'lighting' | 'thermostat';
 export type HomeAssistantEventSeverity = 'normal' | 'high';
 
 export type HomeAssistantEntityDiscoveryCandidate = {
@@ -119,6 +120,11 @@ export const EVENT_DISPLAY_METADATA: Record<LevyHomeEventType, EventDisplayMetad
     title: 'Motion detected',
     body: 'The doorbell detected motion.',
     severity: 'info',
+  },
+  thermostat_setpoint_high: {
+    title: 'Thermostat changed',
+    body: 'The thermostat high setpoint is above 72°.',
+    severity: 'warning',
   },
   phone_state_changed: {
     title: 'Phone changed',

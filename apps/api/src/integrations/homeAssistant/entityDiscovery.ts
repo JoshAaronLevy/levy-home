@@ -13,6 +13,7 @@ export type HomeAssistantStateResponse = {
     current_temperature?: number;
     target_temp_low?: number;
     target_temp_high?: number;
+    hvac_action?: string;
   };
 };
 

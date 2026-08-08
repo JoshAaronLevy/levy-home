@@ -58,6 +58,7 @@ test('live Home Assistant facade retrieves the configured thermostat temperature
         current_temperature: 74.2,
         target_temp_low: 65,
         target_temp_high: 70,
+        hvac_action: 'cooling',
       },
     }));
   });
@@ -69,6 +70,7 @@ test('live Home Assistant facade retrieves the configured thermostat temperature
       currentTemperature: 74.2,
       targetTemperatureLow: 65,
       targetTemperatureHigh: 70,
+      hvacAction: 'cooling',
       lastUpdatedAt: '2026-08-08T20:18:22.599773+00:00',
       isStale: false,
     });

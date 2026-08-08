@@ -401,6 +401,7 @@ export function notificationCategoryForEvent(
     doorbell_pressed: 'doorbell',
     doorbell_person_detected: 'doorbell',
     doorbell_motion_detected: 'doorbell',
+    thermostat_setpoint_high: 'thermostat_setpoint_high',
     study_lights_on: 'lighting_automation',
   };
   const category = categoryByEventType[payload.type];

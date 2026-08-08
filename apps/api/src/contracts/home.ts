@@ -39,6 +39,7 @@ export type ThermostatStatus = {
   currentTemperature: number | null;
   targetTemperatureLow: number | null;
   targetTemperatureHigh: number | null;
+  hvacAction: string | null;
   lastUpdatedAt?: string;
   isStale?: boolean;
 };

@@ -52,6 +52,7 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
       currentTemperature: finiteNumberOrNull(state.attributes?.current_temperature),
       targetTemperatureLow: finiteNumberOrNull(state.attributes?.target_temp_low),
       targetTemperatureHigh: finiteNumberOrNull(state.attributes?.target_temp_high),
+      hvacAction: stringOrNull(state.attributes?.hvac_action),
       lastUpdatedAt: state.last_updated,
       isStale: false,
     };
@@ -264,6 +265,10 @@ function childLightCount(entityIds: unknown): number {
 
 function finiteNumberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function mapLightCollectionState(states: LightState[]): LightState {

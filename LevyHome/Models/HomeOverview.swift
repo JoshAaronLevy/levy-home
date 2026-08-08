@@ -32,6 +32,7 @@ struct ThermostatStatus: Codable, Equatable {
     let currentTemperature: Double?
     let targetTemperatureLow: Double?
     let targetTemperatureHigh: Double?
+    let hvacAction: String?
     let lastUpdatedAt: String?
     let isStale: Bool?
 }

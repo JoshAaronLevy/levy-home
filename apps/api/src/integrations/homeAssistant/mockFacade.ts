@@ -42,6 +42,7 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
       currentTemperature: 72,
       targetTemperatureLow: 67,
       targetTemperatureHigh: 72,
+      hvacAction: 'idle',
       lastUpdatedAt: new Date().toISOString(),
       isStale: false,
     };

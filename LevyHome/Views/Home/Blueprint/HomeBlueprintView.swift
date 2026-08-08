@@ -28,6 +28,7 @@ struct HomeBlueprintView: View {
             let playroomStatus = lightStatus(for: .playroom)
             let entryStatus = lightStatus(for: .entry)
             let garageStatus = BlueprintLightStatus(garageStatus: garageData.status)
+            let thermostatOperation = BlueprintThermostatOperation(hvacAction: thermostatStatus?.hvacAction)
 
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -62,7 +63,7 @@ struct HomeBlueprintView: View {
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
 
                 BlueprintConnectorLine(from: center, to: positions.thermostat)
-                    .stroke(HomePalette.inactiveLightStatus, style: BlueprintConnectorLine.strokeStyle)
+                    .stroke(thermostatOperation.color, style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
 
                 BlueprintConnectorLine(from: center, to: positions.entry)
@@ -158,7 +159,7 @@ struct HomeBlueprintView: View {
                 .accessibilityHint("Shows Foyer lighting controls.")
                 .position(positions.entry)
 
-                BlueprintThermostatNode(size: garageSize, status: thermostatStatus)
+                BlueprintThermostatNode(size: garageSize, status: thermostatStatus, operation: thermostatOperation)
                     .position(positions.thermostat)
 
                 Button {
@@ -353,9 +354,38 @@ private extension LightSummary.State {
     }
 }
 
+private enum BlueprintThermostatOperation {
+    case cooling
+    case heating
+    case neutral
+
+    init(hvacAction: String?) {
+        switch hvacAction?.lowercased() {
+        case "cooling":
+            self = .cooling
+        case "heating":
+            self = .heating
+        default:
+            self = .neutral
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .cooling:
+            return HomePalette.blue
+        case .heating:
+            return HomePalette.coral
+        case .neutral:
+            return HomePalette.inactiveLightStatus
+        }
+    }
+}
+
 private struct BlueprintThermostatNode: View {
     let size: CGFloat
     let status: ThermostatStatus?
+    let operation: BlueprintThermostatOperation
 
     var body: some View {
         ZStack {
@@ -367,7 +397,7 @@ private struct BlueprintThermostatNode: View {
                 }
                 .overlay {
                     Circle()
-                        .stroke(HomePalette.inactiveLightStatus, lineWidth: 3)
+                        .stroke(operation.color, lineWidth: 3)
                 }
                 .shadow(color: HomePalette.shadow, radius: 16, y: 9)
 
@@ -393,7 +423,7 @@ private struct BlueprintThermostatNode: View {
             return "—"
         }
 
-        return "\(Int(temperature.rounded()))°"
+        return "\(Int(temperature.rounded()))"
     }
 
     private var accessibilityLabel: String {

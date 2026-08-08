@@ -74,7 +74,10 @@ function eventDisplayMetadataForPayload(payload: HomeAssistantEventPayload) {
 }
 
 function usesPayloadDisplayMetadata(type: HomeAssistantEventPayload['type']): boolean {
-  return type === 'partner_left_home' || type === 'partner_arrived_home' || type === 'study_lights_on';
+  return type === 'partner_left_home'
+    || type === 'partner_arrived_home'
+    || type === 'study_lights_on'
+    || type === 'thermostat_setpoint_high';
 }
 
 export async function fetchNormalizedHomeAssistantHistoryEvents(

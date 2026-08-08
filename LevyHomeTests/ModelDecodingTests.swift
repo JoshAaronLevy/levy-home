@@ -62,6 +62,19 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(event.push?.attempted, true)
     }
 
+    func testDecodesThermostatHighSetpointEvent() throws {
+        let event = try decodeEvent(
+            type: "thermostat_setpoint_high",
+            displaySeverity: "warning",
+            category: "thermostat"
+        )
+
+        XCTAssertEqual(event.type, .thermostatSetpointHigh)
+        XCTAssertEqual(event.category, .thermostat)
+        XCTAssertEqual(event.display.severity, .warning)
+        XCTAssertEqual(event.push?.attempted, true)
+    }
+
     func testDecodesPhoneActivityEventWithoutPushMetadata() throws {
         let json = """
         {
@@ -213,7 +226,8 @@ final class ModelDecodingTests: XCTestCase {
               "thermostatStatus": {
                 "currentTemperature": 74.2,
                 "targetTemperatureLow": 65,
-                "targetTemperatureHigh": 70
+                "targetTemperatureHigh": 70,
+                "hvacAction": "cooling"
               },
               "recentImportantEvent": \(eventJSON(type: "garage_closed", displaySeverity: "info")),
               "generatedAt": "2026-06-12T14:00:02Z",
@@ -227,6 +241,7 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(overview.thermostatStatus?.currentTemperature, 74.2)
         XCTAssertEqual(overview.thermostatStatus?.targetTemperatureLow, 65)
         XCTAssertEqual(overview.thermostatStatus?.targetTemperatureHigh, 70)
+        XCTAssertEqual(overview.thermostatStatus?.hvacAction, "cooling")
         XCTAssertEqual(overview.recentImportantEvent?.type, .garageClosed)
         XCTAssertEqual(overview.isPartial, false)
     }
@@ -300,6 +315,16 @@ final class ModelDecodingTests: XCTestCase {
                 "detail": "Notify when your partner leaves or arrives home."
               },
               {
+                "category": "doorbell",
+                "isEnabled": true
+              },
+              {
+                "category": "thermostat_setpoint_high",
+                "isEnabled": true,
+                "title": "Thermostat high setpoint",
+                "detail": "Notify when the thermostat high setpoint is raised above 72°."
+              },
+              {
                 "category": "weather_alerts",
                 "isEnabled": true,
                 "title": "Weather alerts",
@@ -325,6 +350,7 @@ final class ModelDecodingTests: XCTestCase {
                 .garageStillOpenAt10PM,
                 .partnerPresence,
                 .doorbell,
+                .thermostatSetpointHigh,
                 .weatherAlerts,
                 .lightingAutomation
             ]

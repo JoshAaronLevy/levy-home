@@ -12,6 +12,7 @@ enum EventType: Codable, Equatable, Hashable {
     case doorbellPressed
     case doorbellPersonDetected
     case doorbellMotionDetected
+    case thermostatSetpointHigh
     case phoneStateChanged
     case unknown(String)
 
@@ -39,6 +40,8 @@ enum EventType: Codable, Equatable, Hashable {
             return "doorbell_person_detected"
         case .doorbellMotionDetected:
             return "doorbell_motion_detected"
+        case .thermostatSetpointHigh:
+            return "thermostat_setpoint_high"
         case .phoneStateChanged:
             return "phone_state_changed"
         case .unknown(let rawValue):
@@ -70,6 +73,8 @@ enum EventType: Codable, Equatable, Hashable {
             self = .doorbellPersonDetected
         case "doorbell_motion_detected":
             self = .doorbellMotionDetected
+        case "thermostat_setpoint_high":
+            self = .thermostatSetpointHigh
         case "phone_state_changed":
             self = .phoneStateChanged
         default:
