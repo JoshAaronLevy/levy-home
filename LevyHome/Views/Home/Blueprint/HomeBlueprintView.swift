@@ -60,6 +60,10 @@ struct HomeBlueprintView: View {
                     .stroke(garageStatus.color, style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
 
+                BlueprintConnectorLine(from: center, to: positions.thermostat)
+                    .stroke(HomePalette.inactiveLightStatus, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
                 BlueprintConnectorLine(from: center, to: positions.entry)
                     .stroke(entryStatus.color, style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
@@ -152,6 +156,9 @@ struct HomeBlueprintView: View {
                 .accessibilityLabel("Foyer Lights")
                 .accessibilityHint("Shows Foyer lighting controls.")
                 .position(positions.entry)
+
+                BlueprintPlaceholderNode(size: garageSize)
+                    .position(positions.thermostat)
 
                 Button {
                     onGarageTapped()
@@ -259,6 +266,7 @@ private struct BlueprintNodePositions {
     let upstairsHall: CGPoint
     let study: CGPoint
     let garage: CGPoint
+    let thermostat: CGPoint
     let entry: CGPoint
     let playroom: CGPoint
 
@@ -266,9 +274,10 @@ private struct BlueprintNodePositions {
         kitchen = CGPoint(x: width * 0.48, y: height * 0.25)
         upstairsHall = CGPoint(x: width * 0.72, y: height * 0.26)
         study = CGPoint(x: width * 0.82, y: height * 0.50)
-        garage = CGPoint(x: width * 0.70, y: height * 0.78)
-        entry = CGPoint(x: width * 0.35, y: height * 0.75)
-        playroom = CGPoint(x: width * 0.19, y: height * 0.54)
+        garage = CGPoint(x: width * 0.75, y: height * 0.78)
+        thermostat = CGPoint(x: width * 0.47, y: height * 0.75)
+        entry = CGPoint(x: width * 0.18, y: height * 0.75)
+        playroom = CGPoint(x: width * 0.19, y: height * 0.50)
     }
 }
 
@@ -340,6 +349,26 @@ private extension LightSummary.State {
         case .off, .on, .partiallyOn, .unknown, .unrecognized:
             return false
         }
+    }
+}
+
+private struct BlueprintPlaceholderNode: View {
+    let size: CGFloat
+
+    var body: some View {
+        Circle()
+            .fill(HomePalette.nodeFill)
+            .overlay {
+                Circle()
+                    .stroke(.white.opacity(0.88), lineWidth: 2)
+            }
+            .overlay {
+                Circle()
+                    .stroke(HomePalette.inactiveLightStatus, lineWidth: 3)
+            }
+            .shadow(color: HomePalette.shadow, radius: 16, y: 9)
+            .frame(width: size, height: size)
+            .accessibilityLabel("Thermostat placeholder")
     }
 }
 
