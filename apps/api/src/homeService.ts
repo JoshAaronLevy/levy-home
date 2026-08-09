@@ -21,8 +21,9 @@ export class HomeService {
   ) {}
 
   async getOverview(): Promise<HomeOverview> {
-    const [garageStatus, lightSummaryInputs, presence] = await Promise.all([
+    const [garageStatus, thermostatStatus, lightSummaryInputs, presence] = await Promise.all([
       this.homeAssistant.getGarageStatus(),
+      this.homeAssistant.getThermostatStatus(),
       this.homeAssistant.getLightSummaryInputs(),
       this.homeAssistant.getPresenceStatuses(),
     ]);
@@ -32,6 +33,7 @@ export class HomeService {
     return {
       garageStatus,
       lightSummary,
+      thermostatStatus,
       presence,
       recentImportantEvent: this.findRecentImportantEvent(),
       generatedAt: new Date().toISOString(),
@@ -90,7 +92,12 @@ export class HomeService {
     ];
   }
 
-  async performAction(actionId: QuickActionId, groupId?: string): Promise<QuickActionResult> {
+  async performAction(
+    actionId: QuickActionId,
+    groupId?: string,
+    targetTemperatureLow?: number,
+    targetTemperatureHigh?: number,
+  ): Promise<QuickActionResult> {
     switch (actionId) {
     case 'open_garage':
       await this.homeAssistant.openGarage();
@@ -115,6 +122,25 @@ export class HomeService {
 
       await this.homeAssistant.turnOffLightGroup(groupId);
       return this.result(actionId, 'The selected light group was turned off.');
+    case 'set_thermostat_temperature':
+      if (targetTemperatureLow === undefined || targetTemperatureHigh === undefined) {
+        throw new HTTPError(
+          400,
+          'targetTemperatureLow and targetTemperatureHigh are required for set_thermostat_temperature.',
+          'thermostat_temperatures_required',
+        );
+      }
+
+      if (targetTemperatureHigh - targetTemperatureLow < 7) {
+        throw new HTTPError(
+          400,
+          'Thermostat high temperature must be at least 7° above the low temperature.',
+          'thermostat_minimum_delta_required',
+        );
+      }
+
+      await this.homeAssistant.setThermostatTemperatures(targetTemperatureLow, targetTemperatureHigh);
+      return this.result(actionId, 'Thermostat temperatures updated.');
     }
   }
 

@@ -575,6 +575,12 @@ final class APIClientTests: XCTestCase {
               "totalLightCount": 12,
               "groups": []
             },
+            "thermostatStatus": {
+              "currentTemperature": 74.2,
+              "targetTemperatureLow": 65,
+              "targetTemperatureHigh": 70,
+              "isStale": false
+            },
             "recentImportantEvent": null,
             "generatedAt": "2026-06-12T14:00:02Z",
             "isPartial": false

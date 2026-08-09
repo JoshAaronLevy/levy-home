@@ -7,6 +7,7 @@ import type {
   LightState,
   PersonPresenceStatus,
   PresenceState,
+  ThermostatStatus,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
 import {
@@ -39,6 +40,22 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
     return {
       state: mapGarageState(state.state),
       displayName: state.attributes?.friendly_name ?? 'Main garage',
+      lastUpdatedAt: state.last_updated,
+      isStale: false,
+    };
+  }
+
+  async getThermostatStatus(): Promise<ThermostatStatus> {
+    const state = await this.fetchEntityState(this.config.homeAssistant.thermostatClimateEntityId);
+
+    return {
+      currentTemperature: finiteNumberOrNull(state.attributes?.current_temperature),
+      targetTemperatureLow: finiteNumberOrNull(state.attributes?.target_temp_low),
+      targetTemperatureHigh: finiteNumberOrNull(state.attributes?.target_temp_high),
+      minimumTemperature: finiteNumberOrNull(state.attributes?.min_temp),
+      maximumTemperature: finiteNumberOrNull(state.attributes?.max_temp),
+      temperatureStep: finiteNumberOrNull(state.attributes?.target_temp_step),
+      hvacAction: stringOrNull(state.attributes?.hvac_action),
       lastUpdatedAt: state.last_updated,
       isStale: false,
     };
@@ -85,6 +102,14 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
   async openGarage(): Promise<void> {
     await this.callService('cover', 'open_cover', {
       entity_id: this.config.homeAssistant.garageCoverEntityId,
+    });
+  }
+
+  async setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void> {
+    await this.callService('climate', 'set_temperature', {
+      entity_id: this.config.homeAssistant.thermostatClimateEntityId,
+      target_temp_low: targetTemperatureLow,
+      target_temp_high: targetTemperatureHigh,
     });
   }
 
@@ -216,7 +241,11 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
     return group;
   }
 
-  private async callService(domain: 'cover' | 'light', service: string, body: { entity_id: string | string[] }): Promise<void> {
+  private async callService(
+    domain: 'cover' | 'light' | 'climate',
+    service: string,
+    body: Record<string, unknown>,
+  ): Promise<void> {
     await this.restClient.request<unknown>(`/api/services/${domain}/${service}`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -247,6 +276,14 @@ function childLightCount(entityIds: unknown): number {
 
   const childCount = entityIds.filter((entityId): entityId is string => typeof entityId === 'string').length;
   return childCount > 0 ? childCount : 1;
+}
+
+function finiteNumberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function mapLightCollectionState(states: LightState[]): LightState {

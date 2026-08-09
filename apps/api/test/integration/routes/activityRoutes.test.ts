@@ -117,6 +117,63 @@ test('garage left open Home Assistant automation payload sends a Levy Home push 
   assert.deepEqual(pushSender.requests[0].data, { category: 'garage_left_open' });
 });
 
+test('thermostat high-setpoint automation notifies every registered household device', async () => {
+  const pushSender = new FakePushSender();
+
+  await routes.restart(createApp({ config: testConfig, pushSender }));
+
+  await routes.postJSON('/api/devices/register', {
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh iPhone',
+  });
+  await routes.postJSON('/api/devices/register', {
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory iPhone',
+  });
+
+  const created = await routes.postJSON(
+    '/api/ha/events',
+    {
+      type: 'thermostat_setpoint_high',
+      category: 'thermostat',
+      severity: 'normal',
+      entityId: 'climate.thermostat',
+      source: 'home_assistant',
+      occurredAt: '2026-08-08T21:45:00.000Z',
+      title: 'Thermostat changed',
+      message: 'Thermostat was changed to 65° / 73°.',
+    },
+    { Authorization: 'Bearer test-secret' },
+  );
+
+  assert.equal(created.ok, true);
+  assert.equal(created.event.type, 'thermostat_setpoint_high');
+  assert.equal(created.event.category, 'thermostat');
+  assert.equal(created.event.display.title, 'Thermostat changed');
+  assert.equal(created.event.display.body, 'Thermostat was changed to 65° / 73°.');
+  assert.equal(created.event.push.attempted, true);
+  assert.equal(created.event.push.sentNotificationCount, 2);
+  assert.equal(pushSender.requests.length, 2);
+  assert.deepEqual(pushSender.requests.map((request) => request.device.token).sort(), [
+    'josh-apns-token',
+    'mallory-apns-token',
+  ]);
+  assert.deepEqual(pushSender.requests.map((request) => request.body), [
+    'Thermostat was changed to 65° / 73°.',
+    'Thermostat was changed to 65° / 73°.',
+  ]);
+  assert.deepEqual(pushSender.requests.map((request) => request.data), [
+    { category: 'thermostat_setpoint_high' },
+    { category: 'thermostat_setpoint_high' },
+  ]);
+});
+
 test('partner presence webhook event sends a Levy Home push notification', async () => {
   const pushSender = new FakePushSender();
 

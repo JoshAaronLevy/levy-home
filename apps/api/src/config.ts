@@ -78,6 +78,7 @@ export type AppConfig = {
     baseURL?: string;
     token?: string;
     garageCoverEntityId: string;
+    thermostatClimateEntityId: string;
     allLightsEntityId?: string;
     lightGroups: CuratedLightGroup[];
     lightEntities: CuratedLightEntity[];
@@ -140,6 +141,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       baseURL: readOptionalString(env.HOME_ASSISTANT_BASE_URL),
       token: readOptionalString(env.HOME_ASSISTANT_TOKEN),
       garageCoverEntityId: readOptionalString(env.HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID) ?? 'cover.main_garage_door',
+      thermostatClimateEntityId: readThermostatClimateEntityId(env.HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID),
       allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID),
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
       lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
@@ -258,6 +260,16 @@ function readBoolean(value: string | undefined, fallback: boolean, envName: stri
 function readOptionalString(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function readThermostatClimateEntityId(value: string | undefined): string {
+  const entityId = readOptionalString(value) ?? 'climate.thermostat';
+
+  if (!entityId.startsWith('climate.')) {
+    throw new Error('HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID must be a climate entity ID.');
+  }
+
+  return entityId;
 }
 
 function readLightGroups(value: string | undefined): CuratedLightGroup[] {

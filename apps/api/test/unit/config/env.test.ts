@@ -29,6 +29,19 @@ test('readConfig defaults Home Assistant light targets to empty instead of demo 
   assert.deepEqual(config.homeAssistant.lightEntities, []);
 });
 
+test('readConfig uses the verified thermostat climate entity and accepts a climate override', () => {
+  assert.equal(readConfig({}).homeAssistant.thermostatClimateEntityId, 'climate.thermostat');
+  assert.equal(
+    readConfig({ HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID: 'climate.downstairs' }).homeAssistant
+      .thermostatClimateEntityId,
+    'climate.downstairs',
+  );
+  assert.throws(
+    () => readConfig({ HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID: 'sensor.thermostat_temperature' }),
+    /must be a climate entity ID/,
+  );
+});
+
 test('readConfig uses only the curated Kids Room camera and validates its entity types', () => {
   const defaults = readConfig({});
   assert.deepEqual(defaults.homeAssistant.camera, {

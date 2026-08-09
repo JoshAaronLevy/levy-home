@@ -68,6 +68,7 @@ export type NotificationPreferenceCategory =
   | 'garage_still_open_at_10pm'
   | 'partner_presence'
   | 'doorbell'
+  | 'thermostat_setpoint_high'
   | 'weather_alerts'
   | 'lighting_automation'
   | 'shopping_list'
@@ -140,6 +141,12 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     isEnabled: true,
     title: 'Doorbell',
     detail: 'Notify when the front door detects motion, a person, or a doorbell press.',
+  },
+  {
+    category: 'thermostat_setpoint_high',
+    isEnabled: true,
+    title: 'Thermostat high setpoint',
+    detail: 'Notify when the thermostat high setpoint is raised above 72°.',
   },
   {
     category: 'weather_alerts',
