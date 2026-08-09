@@ -4,10 +4,13 @@ enum QuickActionRequest: Encodable, Equatable {
     case turnOffAllLights
     case turnOnLightGroup(groupId: String)
     case turnOffLightGroup(groupId: String)
+    case setThermostatTemperature(low: Double, high: Double)
 
     private enum CodingKeys: String, CodingKey {
         case actionId
         case groupId
+        case targetTemperatureLow
+        case targetTemperatureHigh
     }
 
     var actionId: QuickActionID {
@@ -22,6 +25,8 @@ enum QuickActionRequest: Encodable, Equatable {
             return .turnOnLightGroup
         case .turnOffLightGroup:
             return .turnOffLightGroup
+        case .setThermostatTemperature:
+            return .setThermostatTemperature
         }
     }
 
@@ -32,6 +37,9 @@ enum QuickActionRequest: Encodable, Equatable {
         switch self {
         case .turnOnLightGroup(let groupId), .turnOffLightGroup(let groupId):
             try container.encode(groupId, forKey: .groupId)
+        case .setThermostatTemperature(let low, let high):
+            try container.encode(low, forKey: .targetTemperatureLow)
+            try container.encode(high, forKey: .targetTemperatureHigh)
         case .openGarage, .closeGarage, .turnOffAllLights:
             break
         }

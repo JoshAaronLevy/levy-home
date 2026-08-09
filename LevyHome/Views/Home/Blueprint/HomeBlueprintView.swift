@@ -9,6 +9,7 @@ struct HomeBlueprintView: View {
     let performingActionID: String?
     let onLightingAreaTapped: (BlueprintLightingArea) -> Void
     let onGarageTapped: () -> Void
+    let onThermostatTapped: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -159,8 +160,15 @@ struct HomeBlueprintView: View {
                 .accessibilityHint("Shows Foyer lighting controls.")
                 .position(positions.entry)
 
-                BlueprintThermostatNode(size: garageSize, status: thermostatStatus, operation: thermostatOperation)
-                    .position(positions.thermostat)
+                Button {
+                    onThermostatTapped()
+                } label: {
+                    BlueprintThermostatNode(size: garageSize, status: thermostatStatus, operation: thermostatOperation)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Thermostat controls")
+                .accessibilityHint("Shows the current temperature and setpoint controls.")
+                .position(positions.thermostat)
 
                 Button {
                     onGarageTapped()

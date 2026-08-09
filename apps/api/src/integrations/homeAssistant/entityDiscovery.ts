@@ -13,6 +13,9 @@ export type HomeAssistantStateResponse = {
     current_temperature?: number;
     target_temp_low?: number;
     target_temp_high?: number;
+    min_temp?: number;
+    max_temp?: number;
+    target_temp_step?: number;
     hvac_action?: string;
   };
 };

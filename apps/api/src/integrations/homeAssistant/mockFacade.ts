@@ -21,6 +21,8 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
   private garageState: GarageState = 'closed';
   private allLightsState: LightState = 'off';
   private readonly groupStates = new Map<string, LightState>();
+  private thermostatTargetTemperatureLow = 67;
+  private thermostatTargetTemperatureHigh = 72;
 
   constructor(private readonly config: AppConfig) {
     for (const group of this.configuredLightTargets()) {
@@ -40,12 +42,20 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
   async getThermostatStatus(): Promise<ThermostatStatus> {
     return {
       currentTemperature: 72,
-      targetTemperatureLow: 67,
-      targetTemperatureHigh: 72,
+      targetTemperatureLow: this.thermostatTargetTemperatureLow,
+      targetTemperatureHigh: this.thermostatTargetTemperatureHigh,
+      minimumTemperature: 45,
+      maximumTemperature: 95,
+      temperatureStep: 1,
       hvacAction: 'idle',
       lastUpdatedAt: new Date().toISOString(),
       isStale: false,
     };
+  }
+
+  async setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void> {
+    this.thermostatTargetTemperatureLow = targetTemperatureLow;
+    this.thermostatTargetTemperatureHigh = targetTemperatureHigh;
   }
 
   async getLightSummaryInputs(): Promise<{ allLights: LightGroupStatus; groups: LightGroupStatus[] }> {

@@ -39,6 +39,9 @@ export type ThermostatStatus = {
   currentTemperature: number | null;
   targetTemperatureLow: number | null;
   targetTemperatureHigh: number | null;
+  minimumTemperature: number | null;
+  maximumTemperature: number | null;
+  temperatureStep: number | null;
   hvacAction: string | null;
   lastUpdatedAt?: string;
   isStale?: boolean;
@@ -59,7 +62,8 @@ export type QuickActionId =
   | 'close_garage'
   | 'turn_off_all_lights'
   | 'turn_on_light_group'
-  | 'turn_off_light_group';
+  | 'turn_off_light_group'
+  | 'set_thermostat_temperature';
 
 export type QuickAction = {
   id: QuickActionId;

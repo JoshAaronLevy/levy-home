@@ -180,6 +180,48 @@ final class QuickActionsViewModel: ObservableObject {
         }
     }
 
+    func setThermostatTemperatures(low: Double, high: Double) async -> HomeOverview? {
+        guard high - low >= ThermostatSetpointDraft.minimumDelta else {
+            message = QuickActionMessage(
+                text: "Thermostat high temperature must be at least 7° above the low temperature.",
+                tone: .warning
+            )
+            return nil
+        }
+
+        guard !isBusy else {
+            message = QuickActionMessage(text: "Thermostat controls are busy. Please wait a moment.", tone: .warning)
+            return nil
+        }
+
+        isPerforming = true
+        performingActionID = QuickActionID.setThermostatTemperature.rawValue
+        message = nil
+
+        defer {
+            isPerforming = false
+            performingActionID = nil
+        }
+
+        do {
+            let result = try await service.perform(.setThermostatTemperature(low: low, high: high))
+
+            switch result.status {
+            case .success:
+                return result.refreshedHomeOverview
+            case .failure:
+                message = QuickActionMessage(text: result.message, tone: .error)
+                return nil
+            case .unknown:
+                message = QuickActionMessage(text: result.message, tone: .warning)
+                return nil
+            }
+        } catch {
+            message = QuickActionMessage(text: error.localizedDescription, tone: .error)
+            return nil
+        }
+    }
+
     func confirmPendingAction() async -> HomeOverview? {
         guard let action = pendingConfirmationAction else {
             appLogStore?.record(
@@ -426,7 +468,7 @@ final class QuickActionsViewModel: ObservableObject {
                         requiresConfirmation: action.requiresConfirmation
                     )
                 }
-            case .unknown:
+            case .setThermostatTemperature, .unknown:
                 return []
             }
         }

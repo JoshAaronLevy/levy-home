@@ -20,7 +20,7 @@ struct GarageCompletionWatchPolicy: Equatable {
             expectedState = .closed
             inProgressState = .closing
             maximumAttempts = 24
-        case .turnOffAllLights, .turnOnLightGroup, .turnOffLightGroup:
+        case .turnOffAllLights, .turnOnLightGroup, .turnOffLightGroup, .setThermostatTemperature:
             return nil
         }
     }

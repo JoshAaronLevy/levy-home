@@ -227,6 +227,9 @@ final class ModelDecodingTests: XCTestCase {
                 "currentTemperature": 74.2,
                 "targetTemperatureLow": 65,
                 "targetTemperatureHigh": 70,
+                "minimumTemperature": 45,
+                "maximumTemperature": 95,
+                "temperatureStep": 1,
                 "hvacAction": "cooling"
               },
               "recentImportantEvent": \(eventJSON(type: "garage_closed", displaySeverity: "info")),
@@ -241,9 +244,45 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(overview.thermostatStatus?.currentTemperature, 74.2)
         XCTAssertEqual(overview.thermostatStatus?.targetTemperatureLow, 65)
         XCTAssertEqual(overview.thermostatStatus?.targetTemperatureHigh, 70)
+        XCTAssertEqual(overview.thermostatStatus?.minimumTemperature, 45)
+        XCTAssertEqual(overview.thermostatStatus?.maximumTemperature, 95)
+        XCTAssertEqual(overview.thermostatStatus?.temperatureStep, 1)
         XCTAssertEqual(overview.thermostatStatus?.hvacAction, "cooling")
         XCTAssertEqual(overview.recentImportantEvent?.type, .garageClosed)
         XCTAssertEqual(overview.isPartial, false)
+    }
+
+    func testThermostatSetpointDraftAdjustsOnlyTheOppositeSetpointNeededForTheMinimumDelta() throws {
+        let status = ThermostatStatus(
+            currentTemperature: 72,
+            targetTemperatureLow: 65,
+            targetTemperatureHigh: 74,
+            minimumTemperature: 45,
+            maximumTemperature: 95,
+            temperatureStep: 0.5,
+            hvacAction: "idle",
+            lastUpdatedAt: nil,
+            isStale: false
+        )
+        var draft = try XCTUnwrap(ThermostatSetpointDraft(status: status))
+        XCTAssertEqual(draft.step, 1)
+        XCTAssertEqual(draft.availableMinSetpoints.first, 45)
+        XCTAssertEqual(draft.availableMinSetpoints.last, 88)
+        XCTAssertEqual(draft.availableMaxSetpoints.first, 52)
+        XCTAssertEqual(draft.availableMaxSetpoints.last, 95)
+
+        draft.setHigh(72)
+        XCTAssertEqual(draft.low, 65)
+        XCTAssertEqual(draft.high, 72)
+
+        draft.setHigh(70)
+        XCTAssertEqual(draft.low, 63)
+        XCTAssertEqual(draft.high, 70)
+
+        draft.setLow(66)
+        XCTAssertEqual(draft.low, 66)
+        XCTAssertEqual(draft.high, 73)
+        XCTAssertTrue(draft.isValid)
     }
 
     func testDecodesQuickActionsAndResults() throws {

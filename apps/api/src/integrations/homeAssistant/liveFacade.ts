@@ -52,6 +52,9 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
       currentTemperature: finiteNumberOrNull(state.attributes?.current_temperature),
       targetTemperatureLow: finiteNumberOrNull(state.attributes?.target_temp_low),
       targetTemperatureHigh: finiteNumberOrNull(state.attributes?.target_temp_high),
+      minimumTemperature: finiteNumberOrNull(state.attributes?.min_temp),
+      maximumTemperature: finiteNumberOrNull(state.attributes?.max_temp),
+      temperatureStep: finiteNumberOrNull(state.attributes?.target_temp_step),
       hvacAction: stringOrNull(state.attributes?.hvac_action),
       lastUpdatedAt: state.last_updated,
       isStale: false,
@@ -99,6 +102,14 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
   async openGarage(): Promise<void> {
     await this.callService('cover', 'open_cover', {
       entity_id: this.config.homeAssistant.garageCoverEntityId,
+    });
+  }
+
+  async setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void> {
+    await this.callService('climate', 'set_temperature', {
+      entity_id: this.config.homeAssistant.thermostatClimateEntityId,
+      target_temp_low: targetTemperatureLow,
+      target_temp_high: targetTemperatureHigh,
     });
   }
 
@@ -230,7 +241,11 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
     return group;
   }
 
-  private async callService(domain: 'cover' | 'light', service: string, body: { entity_id: string | string[] }): Promise<void> {
+  private async callService(
+    domain: 'cover' | 'light' | 'climate',
+    service: string,
+    body: Record<string, unknown>,
+  ): Promise<void> {
     await this.restClient.request<unknown>(`/api/services/${domain}/${service}`, {
       method: 'POST',
       body: JSON.stringify(body),
