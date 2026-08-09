@@ -116,6 +116,12 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
             detail: "Notify when the front door detects motion, a person, or a doorbell press."
         ),
         NotificationPreference(
+            category: .thermostatSetpointHigh,
+            isEnabled: true,
+            title: "Thermostat high setpoint",
+            detail: "Notify when the thermostat high setpoint is raised above 72°."
+        ),
+        NotificationPreference(
             category: .weatherAlerts,
             isEnabled: true,
             title: "Weather alerts",

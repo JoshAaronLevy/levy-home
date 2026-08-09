@@ -9,6 +9,7 @@ struct HomeContentView: View {
     @State private var isShowingConfirmationDialog = false
     @State private var isWeatherExpanded = false
     @State private var selectedLightingArea: BlueprintLightingArea?
+    @State private var isShowingThermostatControl = false
     @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
     private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
 
@@ -58,6 +59,7 @@ struct HomeContentView: View {
                 HomeBlueprintView(
                     garageData: homeViewModel.garageCardData,
                     lightSummaryData: homeViewModel.lightSummaryCardData,
+                    thermostatStatus: homeViewModel.overview?.thermostatStatus,
                     garageToggleAction: garageToggleAction,
                     showsGarageWarning: showsGarageAwayWarning,
                     performingActionID: quickActionsViewModel.performingActionID
@@ -67,6 +69,8 @@ struct HomeContentView: View {
                     Task {
                         await selectGarageToggle()
                     }
+                } onThermostatTapped: {
+                    isShowingThermostatControl = true
                 }
 
                 // AutomationShortcutStrip(
@@ -153,6 +157,17 @@ struct HomeContentView: View {
             }
             .presentationDetents([.height(236)])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingThermostatControl) {
+            ThermostatControlSheet(
+                status: homeViewModel.overview?.thermostatStatus,
+                isBusy: quickActionsViewModel.isBusy
+            ) { low, high in
+                await setThermostatTemperatures(low: low, high: high)
+            }
+            .presentationDetents([.height(548)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
         }
     }
 
@@ -442,6 +457,32 @@ struct HomeContentView: View {
         }
     }
 
+    private func setThermostatTemperatures(low: Double, high: Double) async -> String? {
+        guard let refreshedOverview = await quickActionsViewModel.setThermostatTemperatures(low: low, high: high) else {
+            return quickActionsViewModel.message?.text ?? "The thermostat settings could not be updated."
+        }
+
+        homeViewModel.apply(overview: refreshedOverview)
+        let confirmation = ThermostatSetpointConfirmation(low: low, high: high)
+
+        if confirmation.isSatisfied(in: refreshedOverview) {
+            return nil
+        }
+
+        for _ in 1...confirmation.maximumAttempts {
+            try? await Task.sleep(nanoseconds: confirmation.pollIntervalNanoseconds)
+            await homeViewModel.refresh()
+
+            if confirmation.isSatisfied(in: homeViewModel.overview) {
+                return nil
+            }
+        }
+
+        let message = "Thermostat settings were sent, but Home Assistant has not confirmed \(temperatureText(low)) / \(temperatureText(high)) yet."
+        quickActionsViewModel.reportActionIssue(title: "Thermostat", reason: message, tone: .warning)
+        return message
+    }
+
     private func watchLightingCompletionIfNeeded(groupIds: [String], turnOn: Bool, title: String) async {
         let watchPolicy = LightingCompletionWatchPolicy(turnOn: turnOn)
 
@@ -520,6 +561,32 @@ struct HomeContentView: View {
         case .unknown, .unrecognized:
             return "Garage status is unknown, so the app is waiting for a stable open or closed state."
         }
+    }
+
+    private func temperatureText(_ temperature: Double) -> String {
+        if temperature.rounded() == temperature {
+            return "\(Int(temperature))°"
+        }
+
+        return "\(temperature.formatted(.number.precision(.fractionLength(1))))°"
+    }
+}
+
+private struct ThermostatSetpointConfirmation {
+    let low: Double
+    let high: Double
+    let maximumAttempts = 4
+    let pollIntervalNanoseconds: UInt64 = 1_000_000_000
+
+    func isSatisfied(in overview: HomeOverview?) -> Bool {
+        guard
+            let currentLow = overview?.thermostatStatus?.targetTemperatureLow,
+            let currentHigh = overview?.thermostatStatus?.targetTemperatureHigh
+        else {
+            return false
+        }
+
+        return abs(currentLow - low) < 0.01 && abs(currentHigh - high) < 0.01
     }
 }
 
@@ -628,5 +695,229 @@ private struct LightingDialogActionButton: View {
         .buttonStyle(.plain)
         .disabled(isBusy || isDisabled)
         .accessibilityLabel(title)
+    }
+}
+
+private struct ThermostatControlSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let status: ThermostatStatus?
+    let isBusy: Bool
+    let onSet: (Double, Double) async -> String?
+
+    @State private var draft: ThermostatSetpointDraft?
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    init(
+        status: ThermostatStatus?,
+        isBusy: Bool,
+        onSet: @escaping (Double, Double) async -> String?
+    ) {
+        self.status = status
+        self.isBusy = isBusy
+        self.onSet = onSet
+        _draft = State(initialValue: status.flatMap { ThermostatSetpointDraft(status: $0) })
+    }
+
+    var body: some View {
+        VStack(spacing: AppSpacing.large) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text("Thermostat")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(HomePalette.ink)
+
+                    Text(operationText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(HomePalette.secondaryInk)
+                }
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(HomePalette.iconInk)
+                        .frame(width: 36, height: 36)
+                        .background(HomePalette.background, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close thermostat controls")
+            }
+
+            if let status, let draft {
+                VStack(spacing: AppSpacing.xSmall) {
+                    Text("Current temperature")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(HomePalette.secondaryInk)
+
+                    Text(temperatureText(status.currentTemperature))
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(HomePalette.ink)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, AppSpacing.medium)
+                .background(HomePalette.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                HStack(spacing: AppSpacing.medium) {
+                    ThermostatSetpointWheel(
+                        title: "Min",
+                        selection: minSetpointBinding(fallback: draft),
+                        values: draft.availableMinSetpoints,
+                        tint: HomePalette.coral
+                    )
+
+                    ThermostatSetpointWheel(
+                        title: "Max",
+                        selection: maxSetpointBinding(fallback: draft),
+                        values: draft.availableMaxSetpoints,
+                        tint: HomePalette.blue
+                    )
+                }
+                .padding(AppSpacing.small)
+                .background(HomePalette.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                Text("A minimum 7° gap is maintained automatically.")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(HomePalette.secondaryInk)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppColors.critical)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button {
+                    save(draft)
+                } label: {
+                    HStack(spacing: AppSpacing.small) {
+                        if isSaving {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "checkmark")
+                                .font(.headline.weight(.bold))
+                        }
+
+                        Text(isSaving ? "Setting…" : "Set")
+                            .font(.headline.weight(.bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .foregroundStyle(.white)
+                    .background(isSaving || isBusy || !draft.isValid ? AppColors.disabledControl : HomePalette.blue)
+                    .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.control, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaving || isBusy || !draft.isValid)
+            } else {
+                ContentUnavailableView(
+                    "Thermostat unavailable",
+                    systemImage: "thermometer.medium",
+                    description: Text("Pull to refresh Home Assistant status, then try again.")
+                )
+                .frame(maxHeight: .infinity)
+            }
+        }
+        .padding(.horizontal, AppSpacing.xLarge)
+        .padding(.top, AppSpacing.large)
+        .padding(.bottom, AppSpacing.xLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(HomePalette.surface.ignoresSafeArea())
+    }
+
+    private var operationText: String {
+        switch status?.hvacAction?.lowercased() {
+        case "cooling":
+            return "Cooling is active"
+        case "heating":
+            return "Heating is active"
+        case "fan":
+            return "Fan is active"
+        default:
+            return "System is idle"
+        }
+    }
+
+    private func save(_ draft: ThermostatSetpointDraft) {
+        errorMessage = nil
+        isSaving = true
+
+        Task {
+            let message = await onSet(draft.low, draft.high)
+            isSaving = false
+
+            if let message {
+                errorMessage = message
+            } else {
+                dismiss()
+            }
+        }
+    }
+
+    private func minSetpointBinding(fallback: ThermostatSetpointDraft) -> Binding<Int> {
+        Binding(
+            get: { Int((draft?.low ?? fallback.low).rounded()) },
+            set: { value in
+                draft?.setLow(Double(value))
+            }
+        )
+    }
+
+    private func maxSetpointBinding(fallback: ThermostatSetpointDraft) -> Binding<Int> {
+        Binding(
+            get: { Int((draft?.high ?? fallback.high).rounded()) },
+            set: { value in
+                draft?.setHigh(Double(value))
+            }
+        )
+    }
+
+    private func temperatureText(_ temperature: Double?) -> String {
+        guard let temperature, temperature.isFinite else {
+            return "—"
+        }
+
+        if temperature.rounded() == temperature {
+            return "\(Int(temperature))°"
+        }
+
+        return "\(temperature.formatted(.number.precision(.fractionLength(1))))°"
+    }
+}
+
+private struct ThermostatSetpointWheel: View {
+    let title: String
+    @Binding var selection: Int
+    let values: [Int]
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(tint)
+
+            Picker(title, selection: $selection) {
+                ForEach(values, id: \.self) { value in
+                    Text("\(value)°")
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                        .tag(value)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.wheel)
+            .frame(height: 132)
+            .clipped()
+            .accessibilityLabel("\(title) temperature")
+        }
+        .frame(maxWidth: .infinity)
     }
 }

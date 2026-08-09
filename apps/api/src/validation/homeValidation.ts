@@ -8,8 +8,9 @@ const quickActionIds = new Set<QuickActionId>([
   'turn_off_all_lights',
   'turn_on_light_group',
   'turn_off_light_group',
+  'set_thermostat_temperature',
 ]);
-const allowedQuickActionBodyKeys = new Set(['actionId', 'groupId']);
+const allowedQuickActionBodyKeys = new Set(['actionId', 'groupId', 'targetTemperatureLow', 'targetTemperatureHigh']);
 const forbiddenHomeAssistantKeys = new Set([
   'domain',
   'service',
@@ -23,6 +24,8 @@ const forbiddenHomeAssistantKeys = new Set([
 export type QuickActionBody = {
   actionId: QuickActionId;
   groupId?: string;
+  targetTemperatureLow?: number;
+  targetTemperatureHigh?: number;
 };
 
 export function validateQuickActionBody(input: unknown): QuickActionBody {
@@ -56,5 +59,37 @@ export function validateQuickActionBody(input: unknown): QuickActionBody {
   }
 
   const groupId = typeof input.groupId === 'string' && input.groupId.trim() ? input.groupId.trim() : undefined;
-  return { actionId: input.actionId as QuickActionId, ...(groupId ? { groupId } : {}) };
+  const actionId = input.actionId as QuickActionId;
+  const targetTemperatureLow = numberOrUndefined(input.targetTemperatureLow);
+  const targetTemperatureHigh = numberOrUndefined(input.targetTemperatureHigh);
+
+  if (actionId === 'set_thermostat_temperature') {
+    if (targetTemperatureLow === undefined || targetTemperatureHigh === undefined) {
+      throw new HTTPError(
+        400,
+        'targetTemperatureLow and targetTemperatureHigh are required for set_thermostat_temperature.',
+        'thermostat_temperatures_required',
+      );
+    }
+
+    return { actionId, targetTemperatureLow, targetTemperatureHigh };
+  }
+
+  if (targetTemperatureLow !== undefined || targetTemperatureHigh !== undefined) {
+    throw new HTTPError(400, 'Thermostat temperatures are only supported for set_thermostat_temperature.', 'unsupported_action_field');
+  }
+
+  return { actionId, ...(groupId ? { groupId } : {}) };
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new HTTPError(400, 'Thermostat temperatures must be finite numbers when provided.', 'invalid_thermostat_temperature');
+  }
+
+  return value;
 }

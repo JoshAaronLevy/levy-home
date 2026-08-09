@@ -88,11 +88,18 @@ function readOptionalCategory(value: unknown): ValidationResult<HomeAssistantEve
     return { ok: true, value: undefined };
   }
 
-  if (value === 'garage' || value === 'doorbell' || value === 'phone' || value === 'presence' || value === 'lighting') {
+  if (
+    value === 'garage'
+    || value === 'doorbell'
+    || value === 'phone'
+    || value === 'presence'
+    || value === 'lighting'
+    || value === 'thermostat'
+  ) {
     return { ok: true, value };
   }
 
-  return { ok: false, error: 'category must be garage, doorbell, phone, presence, or lighting when provided.' };
+  return { ok: false, error: 'category must be garage, doorbell, phone, presence, lighting, or thermostat when provided.' };
 }
 
 function readOptionalPayloadSeverity(value: unknown): ValidationResult<HomeAssistantEventSeverity | undefined> {

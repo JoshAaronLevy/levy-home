@@ -3,11 +3,13 @@ import SwiftUI
 struct HomeBlueprintView: View {
     let garageData: GarageStatusCardData
     let lightSummaryData: LightSummaryCardData
+    let thermostatStatus: ThermostatStatus?
     let garageToggleAction: QuickActionDisplayData?
     let showsGarageWarning: Bool
     let performingActionID: String?
     let onLightingAreaTapped: (BlueprintLightingArea) -> Void
     let onGarageTapped: () -> Void
+    let onThermostatTapped: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -15,8 +17,10 @@ struct HomeBlueprintView: View {
             let height = geometry.size.height
             let cornerRadius: CGFloat = 26
             let center = CGPoint(x: width * 0.50, y: height * 0.48)
-            let nodeSize = min(max(width * 0.225, 78), 92)
-            let garageSize = min(max(width * 0.305, 112), 134)
+            let fullNodeSize = min(max(width * 0.225, 78), 92)
+            let fullGarageSize = min(max(width * 0.305, 112), 134)
+            let nodeSize = fullNodeSize * 0.85
+            let garageSize = fullGarageSize * 0.85
             let centerSize = min(max(width * 0.185, 66), 80)
             let positions = BlueprintNodePositions(width: width, height: height)
             let kitchenStatus = lightStatus(for: .kitchen)
@@ -25,6 +29,7 @@ struct HomeBlueprintView: View {
             let playroomStatus = lightStatus(for: .playroom)
             let entryStatus = lightStatus(for: .entry)
             let garageStatus = BlueprintLightStatus(garageStatus: garageData.status)
+            let thermostatOperation = BlueprintThermostatOperation(hvacAction: thermostatStatus?.hvacAction)
 
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -58,6 +63,10 @@ struct HomeBlueprintView: View {
                     .stroke(garageStatus.color, style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
 
+                BlueprintConnectorLine(from: center, to: positions.thermostat)
+                    .stroke(thermostatOperation.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
                 BlueprintConnectorLine(from: center, to: positions.entry)
                     .stroke(entryStatus.color, style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
@@ -76,6 +85,7 @@ struct HomeBlueprintView: View {
                         systemImage: "stove",
                         tone: .success,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: kitchenStatus,
                         iconScale: 1.12
                     )
@@ -92,6 +102,7 @@ struct HomeBlueprintView: View {
                         systemImage: "light.recessed.3.inverse",
                         tone: .accent,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: upstairsStatus
                     )
                 }
@@ -107,6 +118,7 @@ struct HomeBlueprintView: View {
                         systemImage: "lamp.desk",
                         tone: .success,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: studyStatus
                     )
                 }
@@ -122,6 +134,7 @@ struct HomeBlueprintView: View {
                         systemImage: "teddybear",
                         tone: .accent,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: playroomStatus
                     )
                 }
@@ -137,6 +150,7 @@ struct HomeBlueprintView: View {
                         systemImage: "door.left.hand.closed",
                         tone: .success,
                         size: nodeSize,
+                        iconReferenceSize: fullNodeSize,
                         lightStatus: entryStatus,
                         iconScale: 1.12
                     )
@@ -147,12 +161,23 @@ struct HomeBlueprintView: View {
                 .position(positions.entry)
 
                 Button {
+                    onThermostatTapped()
+                } label: {
+                    BlueprintThermostatNode(size: garageSize, status: thermostatStatus, operation: thermostatOperation)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Thermostat controls")
+                .accessibilityHint("Shows the current temperature and setpoint controls.")
+                .position(positions.thermostat)
+
+                Button {
                     onGarageTapped()
                 } label: {
                     BlueprintNodeView(
                         systemImage: garageData.systemImage,
                         tone: garageData.tone,
                         size: garageSize,
+                        iconReferenceSize: fullGarageSize,
                         lightStatus: garageStatus,
                         isPriority: true,
                         showsWarningBadge: showsGarageWarning,
@@ -251,6 +276,7 @@ private struct BlueprintNodePositions {
     let upstairsHall: CGPoint
     let study: CGPoint
     let garage: CGPoint
+    let thermostat: CGPoint
     let entry: CGPoint
     let playroom: CGPoint
 
@@ -258,9 +284,10 @@ private struct BlueprintNodePositions {
         kitchen = CGPoint(x: width * 0.48, y: height * 0.25)
         upstairsHall = CGPoint(x: width * 0.72, y: height * 0.26)
         study = CGPoint(x: width * 0.82, y: height * 0.50)
-        garage = CGPoint(x: width * 0.70, y: height * 0.78)
-        entry = CGPoint(x: width * 0.35, y: height * 0.75)
-        playroom = CGPoint(x: width * 0.19, y: height * 0.54)
+        garage = CGPoint(x: width * 0.75, y: height * 0.78)
+        thermostat = CGPoint(x: width * 0.47, y: height * 0.75)
+        entry = CGPoint(x: width * 0.18, y: height * 0.75)
+        playroom = CGPoint(x: width * 0.19, y: height * 0.50)
     }
 }
 
@@ -335,10 +362,89 @@ private extension LightSummary.State {
     }
 }
 
+private enum BlueprintThermostatOperation {
+    case cooling
+    case heating
+    case neutral
+
+    init(hvacAction: String?) {
+        switch hvacAction?.lowercased() {
+        case "cooling":
+            self = .cooling
+        case "heating":
+            self = .heating
+        default:
+            self = .neutral
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .cooling:
+            return HomePalette.blue
+        case .heating:
+            return HomePalette.coral
+        case .neutral:
+            return HomePalette.inactiveLightStatus
+        }
+    }
+}
+
+private struct BlueprintThermostatNode: View {
+    let size: CGFloat
+    let status: ThermostatStatus?
+    let operation: BlueprintThermostatOperation
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(HomePalette.nodeFill)
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.88), lineWidth: 2)
+                }
+                .overlay {
+                    Circle()
+                        .stroke(operation.color, lineWidth: 3)
+                }
+                .shadow(color: HomePalette.shadow, radius: 16, y: 9)
+
+            VStack(spacing: size * 0.02) {
+                Text(temperatureText(status?.currentTemperature, includesDegreeSymbol: true))
+                    .font(.system(size: size * 0.30, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+
+                Text("\(temperatureText(status?.targetTemperatureLow)) / \(temperatureText(status?.targetTemperatureHigh))")
+                    .font(.system(size: size * 0.17, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(HomePalette.iconInk)
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func temperatureText(_ temperature: Double?, includesDegreeSymbol: Bool = false) -> String {
+        guard let temperature, temperature.isFinite else {
+            return "—"
+        }
+
+        let value = "\(Int(temperature.rounded()))"
+        return includesDegreeSymbol ? "\(value)°" : value
+    }
+
+    private var accessibilityLabel: String {
+        "Thermostat, current \(temperatureText(status?.currentTemperature)), low \(temperatureText(status?.targetTemperatureLow)), high \(temperatureText(status?.targetTemperatureHigh))"
+    }
+}
+
 private struct BlueprintNodeView: View {
     let systemImage: String
     let tone: StatusBadgeTone
     let size: CGFloat
+    let iconReferenceSize: CGFloat
     let lightStatus: BlueprintLightStatus
     var isPriority = false
     var showsWarningBadge = false
@@ -370,7 +476,11 @@ private struct BlueprintNodeView: View {
                         .foregroundStyle(tone == .warning ? HomePalette.amber : HomePalette.iconInk)
                 }
             }
-            .frame(width: size * 0.72, height: size * 0.72, alignment: .center)
+            .frame(
+                width: iconReferenceSize * 0.72,
+                height: iconReferenceSize * 0.72,
+                alignment: .center
+            )
 
             if showsWarningBadge {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -391,7 +501,7 @@ private struct BlueprintNodeView: View {
     }
 
     private var baseIconSize: CGFloat {
-        isPriority ? size * 0.38 : size * 0.36
+        isPriority ? iconReferenceSize * 0.38 : iconReferenceSize * 0.36
     }
 }
 

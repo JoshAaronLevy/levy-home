@@ -4,12 +4,15 @@ import type {
   HomeAssistantEntityDiscoveryCandidate,
   LightGroupStatus,
   PersonPresenceStatus,
+  ThermostatStatus,
 } from '../../contracts.js';
 import { LiveHomeAssistantFacade } from './liveFacade.js';
 import { MockHomeAssistantFacade } from './mockFacade.js';
 
 export type HomeAssistantFacade = {
   getGarageStatus(): Promise<GarageStatus>;
+  getThermostatStatus(): Promise<ThermostatStatus>;
+  setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void>;
   getLightSummaryInputs(): Promise<{
     allLights: LightGroupStatus;
     groups: LightGroupStatus[];

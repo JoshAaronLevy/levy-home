@@ -80,6 +80,8 @@ struct EventCardView: View {
             return "figure.walk.motion"
         case .phoneStateChanged:
             return "iphone"
+        case .thermostatSetpointHigh:
+            return "thermometer.medium"
         case .unknown:
             return "clock"
         }

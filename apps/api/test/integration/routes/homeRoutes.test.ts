@@ -22,6 +22,14 @@ test('GET /api/home/overview returns a narrow home overview', async () => {
   assert.equal(response.overview.garageStatus.state, 'closed');
   assert.equal(response.overview.lightSummary.state, 'off');
   assert.equal(response.overview.lightSummary.groups.length, 2);
+  assert.equal(response.overview.thermostatStatus.currentTemperature, 72);
+  assert.equal(response.overview.thermostatStatus.targetTemperatureLow, 67);
+  assert.equal(response.overview.thermostatStatus.targetTemperatureHigh, 72);
+  assert.equal(response.overview.thermostatStatus.minimumTemperature, 45);
+  assert.equal(response.overview.thermostatStatus.maximumTemperature, 95);
+  assert.equal(response.overview.thermostatStatus.temperatureStep, 1);
+  assert.equal(response.overview.thermostatStatus.hvacAction, 'idle');
+  assert.equal(response.overview.thermostatStatus.isStale, false);
   assert.deepEqual(response.overview.presence, []);
 });
 
@@ -73,6 +81,33 @@ test('POST /api/home/actions performs curated light group actions', async () => 
   assert.equal(response.ok, true);
   assert.equal(response.result.actionId, 'turn_off_light_group');
   assert.equal(response.result.status, 'success');
+});
+
+test('POST /api/home/actions sets the thermostat range only when its minimum delta is valid', async () => {
+  const response = await routes.postJSON('/api/home/actions', {
+    actionId: 'set_thermostat_temperature',
+    targetTemperatureLow: 63,
+    targetTemperatureHigh: 70,
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.result.actionId, 'set_thermostat_temperature');
+  assert.equal(response.result.refreshedHomeOverview.thermostatStatus.targetTemperatureLow, 63);
+  assert.equal(response.result.refreshedHomeOverview.thermostatStatus.targetTemperatureHigh, 70);
+
+  const invalidResponse = await fetch(`${routes.baseURL()}/api/home/actions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      actionId: 'set_thermostat_temperature',
+      targetTemperatureLow: 65,
+      targetTemperatureHigh: 71,
+    }),
+  });
+  const invalidBody = (await invalidResponse.json()) as { code: string };
+
+  assert.equal(invalidResponse.status, 400);
+  assert.equal(invalidBody.code, 'thermostat_minimum_delta_required');
 });
 
 test('POST /api/home/actions rejects arbitrary Home Assistant payloads', async () => {

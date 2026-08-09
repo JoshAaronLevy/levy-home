@@ -51,6 +51,7 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
     case phone
     case presence
     case lighting
+    case thermostat
     case unknown(String)
 
     var rawValue: String {
@@ -65,6 +66,8 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
             return "presence"
         case .lighting:
             return "lighting"
+        case .thermostat:
+            return "thermostat"
         case .unknown(let rawValue):
             return rawValue
         }
@@ -82,6 +85,8 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
             self = .presence
         case "lighting":
             self = .lighting
+        case "thermostat":
+            self = .thermostat
         default:
             self = .unknown(rawValue)
         }

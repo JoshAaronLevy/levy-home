@@ -6,6 +6,7 @@ enum QuickActionID: Codable, Equatable, Hashable {
     case turnOffAllLights
     case turnOnLightGroup
     case turnOffLightGroup
+    case setThermostatTemperature
     case unknown(String)
 
     var rawValue: String {
@@ -20,6 +21,8 @@ enum QuickActionID: Codable, Equatable, Hashable {
             return "turn_on_light_group"
         case .turnOffLightGroup:
             return "turn_off_light_group"
+        case .setThermostatTemperature:
+            return "set_thermostat_temperature"
         case .unknown(let rawValue):
             return rawValue
         }
@@ -37,6 +40,8 @@ enum QuickActionID: Codable, Equatable, Hashable {
             self = .turnOnLightGroup
         case "turn_off_light_group":
             self = .turnOffLightGroup
+        case "set_thermostat_temperature":
+            self = .setThermostatTemperature
         default:
             self = .unknown(rawValue)
         }

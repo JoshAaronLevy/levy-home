@@ -35,7 +35,12 @@ export function createHomeRoutes(deps: HomeRouteDependencies): Router {
     '/api/home/actions',
     asyncHandler(async (req, res) => {
       const action = validateQuickActionBody(req.body);
-      const result = await deps.homeService.performAction(action.actionId, action.groupId);
+      const result = await deps.homeService.performAction(
+        action.actionId,
+        action.groupId,
+        action.targetTemperatureLow,
+        action.targetTemperatureHigh,
+      );
 
       res.json({
         ok: true,

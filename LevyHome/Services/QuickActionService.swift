@@ -69,6 +69,8 @@ private extension QuickActionRequest {
             return "Turn On Light Group"
         case .turnOffLightGroup:
             return "Turn Off Light Group"
+        case .setThermostatTemperature:
+            return "Set Thermostat"
         }
     }
 }
