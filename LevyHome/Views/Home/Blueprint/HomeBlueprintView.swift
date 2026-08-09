@@ -410,7 +410,7 @@ private struct BlueprintThermostatNode: View {
                 .shadow(color: HomePalette.shadow, radius: 16, y: 9)
 
             VStack(spacing: size * 0.02) {
-                Text(temperatureText(status?.currentTemperature))
+                Text(temperatureText(status?.currentTemperature, includesDegreeSymbol: true))
                     .font(.system(size: size * 0.30, weight: .semibold, design: .rounded))
                     .monospacedDigit()
 
@@ -426,12 +426,13 @@ private struct BlueprintThermostatNode: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
-    private func temperatureText(_ temperature: Double?) -> String {
+    private func temperatureText(_ temperature: Double?, includesDegreeSymbol: Bool = false) -> String {
         guard let temperature, temperature.isFinite else {
             return "—"
         }
 
-        return "\(Int(temperature.rounded()))"
+        let value = "\(Int(temperature.rounded()))"
+        return includesDegreeSymbol ? "\(value)°" : value
     }
 
     private var accessibilityLabel: String {
