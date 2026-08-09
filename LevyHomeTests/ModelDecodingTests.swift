@@ -265,23 +265,28 @@ final class ModelDecodingTests: XCTestCase {
             isStale: false
         )
         var draft = try XCTUnwrap(ThermostatSetpointDraft(status: status))
+        XCTAssertEqual(ThermostatSetpointDraft.minimumDelta, 6)
         XCTAssertEqual(draft.step, 1)
         XCTAssertEqual(draft.availableMinSetpoints.first, 45)
-        XCTAssertEqual(draft.availableMinSetpoints.last, 88)
-        XCTAssertEqual(draft.availableMaxSetpoints.first, 52)
+        XCTAssertEqual(draft.availableMinSetpoints.last, 89)
+        XCTAssertEqual(draft.availableMaxSetpoints.first, 51)
         XCTAssertEqual(draft.availableMaxSetpoints.last, 95)
 
         draft.setHigh(72)
         XCTAssertEqual(draft.low, 65)
         XCTAssertEqual(draft.high, 72)
 
+        draft.setHigh(71)
+        XCTAssertEqual(draft.low, 65)
+        XCTAssertEqual(draft.high, 71)
+
         draft.setHigh(70)
-        XCTAssertEqual(draft.low, 63)
+        XCTAssertEqual(draft.low, 64)
         XCTAssertEqual(draft.high, 70)
 
         draft.setLow(66)
         XCTAssertEqual(draft.low, 66)
-        XCTAssertEqual(draft.high, 73)
+        XCTAssertEqual(draft.high, 72)
         XCTAssertTrue(draft.isValid)
     }
 

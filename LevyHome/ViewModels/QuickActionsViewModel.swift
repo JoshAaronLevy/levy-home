@@ -183,7 +183,7 @@ final class QuickActionsViewModel: ObservableObject {
     func setThermostatTemperatures(low: Double, high: Double) async -> HomeOverview? {
         guard high - low >= ThermostatSetpointDraft.minimumDelta else {
             message = QuickActionMessage(
-                text: "Thermostat high temperature must be at least 7° above the low temperature.",
+                text: "Thermostat high temperature must be at least \(Int(ThermostatSetpointDraft.minimumDelta))° above the low temperature.",
                 tone: .warning
             )
             return nil

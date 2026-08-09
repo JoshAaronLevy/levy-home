@@ -86,14 +86,14 @@ test('POST /api/home/actions performs curated light group actions', async () => 
 test('POST /api/home/actions sets the thermostat range only when its minimum delta is valid', async () => {
   const response = await routes.postJSON('/api/home/actions', {
     actionId: 'set_thermostat_temperature',
-    targetTemperatureLow: 63,
-    targetTemperatureHigh: 70,
+    targetTemperatureLow: 65,
+    targetTemperatureHigh: 71,
   });
 
   assert.equal(response.ok, true);
   assert.equal(response.result.actionId, 'set_thermostat_temperature');
-  assert.equal(response.result.refreshedHomeOverview.thermostatStatus.targetTemperatureLow, 63);
-  assert.equal(response.result.refreshedHomeOverview.thermostatStatus.targetTemperatureHigh, 70);
+  assert.equal(response.result.refreshedHomeOverview.thermostatStatus.targetTemperatureLow, 65);
+  assert.equal(response.result.refreshedHomeOverview.thermostatStatus.targetTemperatureHigh, 71);
 
   const invalidResponse = await fetch(`${routes.baseURL()}/api/home/actions`, {
     method: 'POST',
@@ -101,7 +101,7 @@ test('POST /api/home/actions sets the thermostat range only when its minimum del
     body: JSON.stringify({
       actionId: 'set_thermostat_temperature',
       targetTemperatureLow: 65,
-      targetTemperatureHigh: 71,
+      targetTemperatureHigh: 70,
     }),
   });
   const invalidBody = (await invalidResponse.json()) as { code: string };

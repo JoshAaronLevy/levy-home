@@ -12,6 +12,7 @@ import type { HomeAssistantFacade } from './integrations/homeAssistant/facade.js
 import { HTTPError } from './http/errors.js';
 
 const importantSeverities = new Set(['warning', 'critical']);
+const minimumThermostatDelta = 6;
 
 export class HomeService {
   constructor(
@@ -131,10 +132,10 @@ export class HomeService {
         );
       }
 
-      if (targetTemperatureHigh - targetTemperatureLow < 7) {
+      if (targetTemperatureHigh - targetTemperatureLow < minimumThermostatDelta) {
         throw new HTTPError(
           400,
-          'Thermostat high temperature must be at least 7° above the low temperature.',
+          `Thermostat high temperature must be at least ${minimumThermostatDelta}° above the low temperature.`,
           'thermostat_minimum_delta_required',
         );
       }

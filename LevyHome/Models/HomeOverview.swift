@@ -41,7 +41,7 @@ struct ThermostatStatus: Codable, Equatable {
 }
 
 struct ThermostatSetpointDraft: Equatable {
-    static let minimumDelta = 7.0
+    static let minimumDelta = 6.0
     static let controlStep = 1.0
 
     private(set) var low: Double

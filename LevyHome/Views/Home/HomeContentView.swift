@@ -781,7 +781,7 @@ private struct ThermostatControlSheet: View {
                 .padding(AppSpacing.small)
                 .background(HomePalette.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
-                Text("A minimum 7° gap is maintained automatically.")
+                Text("A minimum \(Int(ThermostatSetpointDraft.minimumDelta))° gap is maintained automatically.")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(HomePalette.secondaryInk)
                     .frame(maxWidth: .infinity, alignment: .leading)
