@@ -26,6 +26,8 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_PHONE_ENTITIES` | Exact phone home-presence entity IDs to listen for, in `entity_id:Person:Device name` comma-separated format. |
 | `HOME_ASSISTANT_PHONE_ENTITY_PATTERNS` | Explicit glob-style phone entity patterns to listen for, in `entity_id_glob:Person:Device name` comma-separated format. Use `*` as the wildcard; Activity only stores `device_tracker` home transitions. |
 | `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID` | Server-side garage cover entity. |
+| `HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID` | Server-side Ecobee climate entity used by the interactive thermostat node. |
+| `HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS` | Optional exact five-sensor override for Temps, in `roomId:Display name:sensor.entity_id` comma-separated format. Leave blank for the verified Levy Home Study, Kitchen/Family, Nursery, Master Bedroom, and Playroom defaults. |
 | `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Optional server-side all-lights entity/group. Leave blank when curated light entities are the source of truth. |
 | `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. Used when `HOME_ASSISTANT_LIGHT_ENTITIES` is blank. |
 | `HOME_ASSISTANT_LIGHT_ENTITIES` | Curated individual light entities in `entity_id:Display name` comma-separated format. When set, these are used instead of `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and light groups. |
@@ -45,7 +47,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Basic API health and mode. |
-| `GET` | `/api/home/overview` | Garage status, light summary, recent important event, generated time. |
+| `GET` | `/api/home/overview` | Garage status, light summary, room temperatures, thermostat status, recent important event, generated time. |
 | `GET` | `/api/home/actions` | Curated quick actions and configured light groups. |
 | `POST` | `/api/home/actions` | Generic curated action endpoint using `actionId` and optional `groupId`. |
 | `POST` | `/api/home/actions/open-garage` | Explicit open-garage action. |
@@ -157,7 +159,7 @@ After any live PTZ check, visually return the Kids Room camera to its safe
 position. Stop the session using the opaque `id` returned by the session-create
 response; never record or share the stream bytes or authorization header.
 
-As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves both `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and `HOME_ASSISTANT_LIGHT_GROUPS` blank. The older `downstairs`, `bedrooms`, and `light.all_lights` examples were demo/fallback values and do not exist in the live catalog.
+As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves both `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and `HOME_ASSISTANT_LIGHT_GROUPS` blank. The Temps default sensor map is Study `sensor.study_thermometer_study_temperature`, Kitchen/Family `sensor.study_govee_thermometer_study_temperature`, Nursery `sensor.nursery_thermometer_nursery_temperature`, Master Bedroom `sensor.master_bedroom_thermometer_master_bedroom_temperature`, and Playroom `sensor.playroom_thermometer_playroom_temperature`. The older `downstairs`, `bedrooms`, and `light.all_lights` examples were demo/fallback values and do not exist in the live catalog.
 
 To verify arbitrary Home Assistant payloads are rejected:
 

@@ -1,4 +1,4 @@
-import type { AppConfig } from '../../config.js';
+import { defaultRoomTemperatureSensors, type AppConfig, type CuratedRoomTemperatureSensor } from '../../config.js';
 import type {
   GarageStatus,
   GarageState,
@@ -6,6 +6,7 @@ import type {
   LightGroupStatus,
   LightState,
   PersonPresenceStatus,
+  RoomTemperatureReading,
   ThermostatStatus,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
@@ -51,6 +52,24 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
       lastUpdatedAt: new Date().toISOString(),
       isStale: false,
     };
+  }
+
+  async getRoomTemperatures(): Promise<RoomTemperatureReading[]> {
+    const temperatures: Record<string, number> = {
+      study: 69,
+      kitchen_family: 72,
+      nursery: 70,
+      master_bedroom: 68,
+      playroom: 71,
+    };
+
+    return this.roomTemperatureSensors.map((sensor) => ({
+      id: sensor.id,
+      name: sensor.name,
+      temperature: temperatures[sensor.id] ?? null,
+      lastUpdatedAt: new Date().toISOString(),
+      isStale: false,
+    }));
   }
 
   async setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void> {
@@ -153,6 +172,10 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
     return this.config.homeAssistant.lightEntities.length > 0
       ? this.config.homeAssistant.lightEntities
       : this.config.homeAssistant.lightGroups;
+  }
+
+  private get roomTemperatureSensors(): CuratedRoomTemperatureSensor[] {
+    return this.config.homeAssistant.roomTemperatureSensors ?? defaultRoomTemperatureSensors;
   }
 
   private hasLightTarget(groupId: string): boolean {

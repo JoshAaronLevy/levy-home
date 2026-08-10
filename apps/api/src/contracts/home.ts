@@ -47,10 +47,19 @@ export type ThermostatStatus = {
   isStale?: boolean;
 };
 
+export type RoomTemperatureReading = {
+  id: string;
+  name: string;
+  temperature: number | null;
+  lastUpdatedAt?: string;
+  isStale?: boolean;
+};
+
 export type HomeOverview = {
   garageStatus: GarageStatus;
   lightSummary: LightSummary;
   thermostatStatus: ThermostatStatus;
+  roomTemperatures: RoomTemperatureReading[];
   presence: PersonPresenceStatus[];
   recentImportantEvent: LevyHomeEvent | null;
   generatedAt: string;

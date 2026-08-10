@@ -42,6 +42,27 @@ test('readConfig uses the verified thermostat climate entity and accepts a clima
   );
 });
 
+test('readConfig uses the verified room-temperature sensors and accepts an exact override', () => {
+  assert.deepEqual(readConfig({}).homeAssistant.roomTemperatureSensors, [
+    { id: 'study', name: 'Study', entityId: 'sensor.study_thermometer_study_temperature' },
+    { id: 'kitchen_family', name: 'Kitchen / Family', entityId: 'sensor.study_govee_thermometer_study_temperature' },
+    { id: 'nursery', name: 'Nursery', entityId: 'sensor.nursery_thermometer_nursery_temperature' },
+    { id: 'master_bedroom', name: 'Master Bedroom', entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature' },
+    { id: 'playroom', name: 'Playroom', entityId: 'sensor.playroom_thermometer_playroom_temperature' },
+  ]);
+
+  const config = readConfig({
+    HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS:
+      'study:Study:sensor.study_temperature,kitchen_family:Kitchen / Family:sensor.family_temperature,nursery:Nursery:sensor.nursery_temperature,master_bedroom:Master Bedroom:sensor.master_temperature,playroom:Playroom:sensor.playroom_temperature',
+  });
+
+  assert.equal(config.homeAssistant.roomTemperatureSensors?.[1]?.entityId, 'sensor.family_temperature');
+  assert.throws(
+    () => readConfig({ HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS: 'study:Study:sensor.study_temperature' }),
+    /must configure each of the five Levy Home room IDs exactly once/,
+  );
+});
+
 test('readConfig uses only the curated Kids Room camera and validates its entity types', () => {
   const defaults = readConfig({});
   assert.deepEqual(defaults.homeAssistant.camera, {

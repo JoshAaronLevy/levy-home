@@ -8,6 +8,7 @@ struct HomeContentView: View {
     @State private var searchText = ""
     @State private var isShowingConfirmationDialog = false
     @State private var isWeatherExpanded = false
+    @State private var selectedBlueprintMode: HomeBlueprintMode = .temperatures
     @State private var selectedLightingArea: BlueprintLightingArea?
     @State private var isShowingThermostatControl = false
     @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
@@ -56,21 +57,34 @@ struct HomeContentView: View {
 
                 statusMessages
 
-                HomeBlueprintView(
-                    garageData: homeViewModel.garageCardData,
-                    lightSummaryData: homeViewModel.lightSummaryCardData,
-                    thermostatStatus: homeViewModel.overview?.thermostatStatus,
-                    garageToggleAction: garageToggleAction,
-                    showsGarageWarning: showsGarageAwayWarning,
-                    performingActionID: quickActionsViewModel.performingActionID
-                ) { area in
-                    selectedLightingArea = area
-                } onGarageTapped: {
-                    Task {
-                        await selectGarageToggle()
+                HomeBlueprintModePicker(selection: $selectedBlueprintMode)
+
+                switch selectedBlueprintMode {
+                case .temperatures:
+                    TemperatureBlueprintView(
+                        roomTemperatures: homeViewModel.overview?.roomTemperatures ?? [],
+                        thermostatStatus: homeViewModel.overview?.thermostatStatus
+                    ) {
+                        isShowingThermostatControl = true
                     }
-                } onThermostatTapped: {
-                    isShowingThermostatControl = true
+
+                case .lights:
+                    HomeBlueprintView(
+                        garageData: homeViewModel.garageCardData,
+                        lightSummaryData: homeViewModel.lightSummaryCardData,
+                        thermostatStatus: homeViewModel.overview?.thermostatStatus,
+                        garageToggleAction: garageToggleAction,
+                        showsGarageWarning: showsGarageAwayWarning,
+                        performingActionID: quickActionsViewModel.performingActionID
+                    ) { area in
+                        selectedLightingArea = area
+                    } onGarageTapped: {
+                        Task {
+                            await selectGarageToggle()
+                        }
+                    } onThermostatTapped: {
+                        isShowingThermostatControl = true
+                    }
                 }
 
                 // AutomationShortcutStrip(

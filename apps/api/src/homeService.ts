@@ -22,9 +22,10 @@ export class HomeService {
   ) {}
 
   async getOverview(): Promise<HomeOverview> {
-    const [garageStatus, thermostatStatus, lightSummaryInputs, presence] = await Promise.all([
+    const [garageStatus, thermostatStatus, roomTemperatures, lightSummaryInputs, presence] = await Promise.all([
       this.homeAssistant.getGarageStatus(),
       this.homeAssistant.getThermostatStatus(),
+      this.homeAssistant.getRoomTemperatures(),
       this.homeAssistant.getLightSummaryInputs(),
       this.homeAssistant.getPresenceStatuses(),
     ]);
@@ -35,6 +36,7 @@ export class HomeService {
       garageStatus,
       lightSummary,
       thermostatStatus,
+      roomTemperatures,
       presence,
       recentImportantEvent: this.findRecentImportantEvent(),
       generatedAt: new Date().toISOString(),

@@ -232,6 +232,15 @@ final class ModelDecodingTests: XCTestCase {
                 "temperatureStep": 1,
                 "hvacAction": "cooling"
               },
+              "roomTemperatures": [
+                {
+                  "id": "study",
+                  "name": "Study",
+                  "temperature": 73.94,
+                  "lastUpdatedAt": "2026-08-10T02:43:30Z",
+                  "isStale": false
+                }
+              ],
               "recentImportantEvent": \(eventJSON(type: "garage_closed", displaySeverity: "info")),
               "generatedAt": "2026-06-12T14:00:02Z",
               "isPartial": false
@@ -248,6 +257,8 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(overview.thermostatStatus?.maximumTemperature, 95)
         XCTAssertEqual(overview.thermostatStatus?.temperatureStep, 1)
         XCTAssertEqual(overview.thermostatStatus?.hvacAction, "cooling")
+        XCTAssertEqual(overview.roomTemperatures?.first?.id, "study")
+        XCTAssertEqual(overview.roomTemperatures?.first?.temperature, 73.94)
         XCTAssertEqual(overview.recentImportantEvent?.type, .garageClosed)
         XCTAssertEqual(overview.isPartial, false)
     }

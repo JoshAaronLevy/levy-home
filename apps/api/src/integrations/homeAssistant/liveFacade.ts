@@ -1,4 +1,10 @@
-import type { AppConfig, CuratedLightEntity, CuratedLightGroup } from '../../config.js';
+import {
+  defaultRoomTemperatureSensors,
+  type AppConfig,
+  type CuratedLightEntity,
+  type CuratedLightGroup,
+  type CuratedRoomTemperatureSensor,
+} from '../../config.js';
 import type {
   GarageStatus,
   GarageState,
@@ -7,6 +13,7 @@ import type {
   LightState,
   PersonPresenceStatus,
   PresenceState,
+  RoomTemperatureReading,
   ThermostatStatus,
 } from '../../contracts.js';
 import { HTTPError } from '../../http/errors.js';
@@ -59,6 +66,12 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
       lastUpdatedAt: state.last_updated,
       isStale: false,
     };
+  }
+
+  async getRoomTemperatures(): Promise<RoomTemperatureReading[]> {
+    return Promise.all(
+      this.roomTemperatureSensors.map((sensor) => this.fetchRoomTemperature(sensor)),
+    );
   }
 
   async getLightSummaryInputs(): Promise<{ allLights: LightGroupStatus; groups: LightGroupStatus[] }> {
@@ -208,6 +221,27 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
     };
   }
 
+  private async fetchRoomTemperature(sensor: CuratedRoomTemperatureSensor): Promise<RoomTemperatureReading> {
+    try {
+      const state = await this.fetchEntityState(sensor.entityId);
+
+      return {
+        id: sensor.id,
+        name: sensor.name,
+        temperature: stateTemperatureOrNull(state.state),
+        lastUpdatedAt: state.last_updated,
+        isStale: false,
+      };
+    } catch {
+      return {
+        id: sensor.id,
+        name: sensor.name,
+        temperature: null,
+        isStale: true,
+      };
+    }
+  }
+
   private async fetchLightGroupState(group: CuratedLightGroup): Promise<LightGroupStatus> {
     const state = await this.fetchEntityState(group.entityId);
     const totalLightCount = Array.isArray(state.attributes?.entity_id) ? state.attributes.entity_id.length : undefined;
@@ -223,6 +257,10 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
 
   private async fetchEntityState(entityId: string): Promise<HomeAssistantStateResponse> {
     return this.restClient.request<HomeAssistantStateResponse>(`/api/states/${encodeURIComponent(entityId)}`);
+  }
+
+  private get roomTemperatureSensors(): CuratedRoomTemperatureSensor[] {
+    return this.config.homeAssistant.roomTemperatureSensors ?? defaultRoomTemperatureSensors;
   }
 
   private configuredLightTarget(groupId: string): CuratedLightEntity | CuratedLightGroup {
@@ -280,6 +318,11 @@ function childLightCount(entityIds: unknown): number {
 
 function finiteNumberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stateTemperatureOrNull(value: string): number | null {
+  const trimmed = value.trim();
+  return trimmed ? finiteNumberOrNull(Number(trimmed)) : null;
 }
 
 function stringOrNull(value: unknown): string | null {

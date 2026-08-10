@@ -18,6 +18,27 @@ export type CuratedLightEntity = Pick<LightGroupStatus, 'id' | 'name'> & {
   entityId: string;
 };
 
+export type RoomTemperatureSensorID =
+  | 'study'
+  | 'kitchen_family'
+  | 'nursery'
+  | 'master_bedroom'
+  | 'playroom';
+
+export type CuratedRoomTemperatureSensor = {
+  id: RoomTemperatureSensorID;
+  name: string;
+  entityId: string;
+};
+
+export const defaultRoomTemperatureSensors: CuratedRoomTemperatureSensor[] = [
+  { id: 'study', name: 'Study', entityId: 'sensor.study_thermometer_study_temperature' },
+  { id: 'kitchen_family', name: 'Kitchen / Family', entityId: 'sensor.study_govee_thermometer_study_temperature' },
+  { id: 'nursery', name: 'Nursery', entityId: 'sensor.nursery_thermometer_nursery_temperature' },
+  { id: 'master_bedroom', name: 'Master Bedroom', entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature' },
+  { id: 'playroom', name: 'Playroom', entityId: 'sensor.playroom_thermometer_playroom_temperature' },
+];
+
 export type CuratedCamera = {
   id: 'kids_room';
   displayName: string;
@@ -79,6 +100,7 @@ export type AppConfig = {
     token?: string;
     garageCoverEntityId: string;
     thermostatClimateEntityId: string;
+    roomTemperatureSensors?: CuratedRoomTemperatureSensor[];
     allLightsEntityId?: string;
     lightGroups: CuratedLightGroup[];
     lightEntities: CuratedLightEntity[];
@@ -142,6 +164,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       token: readOptionalString(env.HOME_ASSISTANT_TOKEN),
       garageCoverEntityId: readOptionalString(env.HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID) ?? 'cover.main_garage_door',
       thermostatClimateEntityId: readThermostatClimateEntityId(env.HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID),
+      roomTemperatureSensors: readRoomTemperatureSensors(env.HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS),
       allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID),
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
       lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
@@ -270,6 +293,50 @@ function readThermostatClimateEntityId(value: string | undefined): string {
   }
 
   return entityId;
+}
+
+function readRoomTemperatureSensors(value: string | undefined): CuratedRoomTemperatureSensor[] {
+  const rawSensors = readOptionalString(value);
+
+  if (!rawSensors) {
+    return defaultRoomTemperatureSensors.map((sensor) => ({ ...sensor }));
+  }
+
+  const entries = rawSensors
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [id, name, entityId, ...extraParts] = entry.split(':').map((part) => part.trim());
+
+      if (!isRoomTemperatureSensorID(id) || !name || !entityId || extraParts.length > 0 || !entityId.startsWith('sensor.')) {
+        throw new Error(
+          `Invalid HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS entry: ${entry}. Expected roomId:Display name:sensor.entity_id.`,
+        );
+      }
+
+      return { id, name, entityId };
+    });
+
+  const byID = new Map(entries.map((entry) => [entry.id, entry]));
+
+  if (byID.size !== defaultRoomTemperatureSensors.length || entries.length !== defaultRoomTemperatureSensors.length) {
+    throw new Error('HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS must configure each of the five Levy Home room IDs exactly once.');
+  }
+
+  return defaultRoomTemperatureSensors.map((defaultSensor) => {
+    const configuredSensor = byID.get(defaultSensor.id);
+
+    if (!configuredSensor) {
+      throw new Error('HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS must configure each of the five Levy Home room IDs exactly once.');
+    }
+
+    return configuredSensor;
+  });
+}
+
+function isRoomTemperatureSensorID(value: string | undefined): value is RoomTemperatureSensorID {
+  return defaultRoomTemperatureSensors.some((sensor) => sensor.id === value);
 }
 
 function readLightGroups(value: string | undefined): CuratedLightGroup[] {
