@@ -220,6 +220,317 @@ struct HomeBlueprintView: View {
     }
 }
 
+enum HomeBlueprintMode: String, CaseIterable, Identifiable {
+    case temperatures
+    case lights
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .temperatures:
+            return "Temps"
+        case .lights:
+            return "Lights"
+        }
+    }
+}
+
+struct HomeBlueprintModePicker: View {
+    @Binding var selection: HomeBlueprintMode
+
+    var body: some View {
+        HStack(spacing: AppSpacing.xSmall) {
+            ForEach(HomeBlueprintMode.allCases) { mode in
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                        selection = mode
+                    }
+                } label: {
+                    Text(mode.title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(selection == mode ? HomePalette.blue : HomePalette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppSpacing.small + 2)
+                        .background {
+                            if selection == mode {
+                                Capsule()
+                                    .fill(HomePalette.nodeFill)
+                                    .shadow(color: HomePalette.shadow.opacity(0.42), radius: 8, y: 3)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(mode.title) blueprint")
+                .accessibilityAddTraits(selection == mode ? .isSelected : [])
+            }
+        }
+        .padding(AppSpacing.xSmall)
+        .background(HomePalette.blueprintFill, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(HomePalette.hairline, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+struct TemperatureBlueprintView: View {
+    let roomTemperatures: [RoomTemperatureReading]
+    let thermostatStatus: ThermostatStatus?
+    let onThermostatTapped: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let height = geometry.size.height
+            let cornerRadius: CGFloat = 26
+            let center = CGPoint(x: width * 0.50, y: height * 0.48)
+            let sensorNodeSize = min(max(width * 0.22, 78), 88)
+            let thermostatNodeSize = min(max(width * 0.32, 108), 118)
+            let centerSize = min(max(width * 0.185, 66), 80)
+            let positions = TemperatureBlueprintNodePositions(width: width, height: height)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(HomePalette.blueprintFill)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(.white.opacity(0.75), lineWidth: 2)
+                    }
+                    .shadow(color: HomePalette.shadow.opacity(0.8), radius: 18, y: 10)
+
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(HomePalette.hairline, lineWidth: 1)
+
+                FloorPlanLines()
+                    .stroke(HomePalette.floorLine, lineWidth: 1)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+
+                ForEach(TemperatureBlueprintNodeKind.allCases) { node in
+                    BlueprintConnectorLine(from: center, to: positions.point(for: node))
+                        .stroke(HomePalette.blue.opacity(0.28), style: BlueprintConnectorLine.strokeStyle)
+                        .shadow(color: .white.opacity(0.78), radius: 1.5)
+                }
+
+                BlueprintConnectorLine(from: center, to: positions.thermostat)
+                    .stroke(HomePalette.blue.opacity(0.42), style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
+                CenterHomeNode(size: centerSize)
+                    .position(center)
+
+                ForEach(TemperatureBlueprintNodeKind.allCases) { node in
+                    TemperatureBlueprintSensorNode(
+                        node: node,
+                        reading: roomTemperatures.first(where: { $0.id == node.id }),
+                        size: sensorNodeSize
+                    )
+                    .position(positions.point(for: node))
+                }
+
+                Button {
+                    onThermostatTapped()
+                } label: {
+                    TemperatureBlueprintThermostatNode(
+                        size: thermostatNodeSize,
+                        status: thermostatStatus,
+                        operation: BlueprintThermostatOperation(hvacAction: thermostatStatus?.hvacAction)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Thermostat controls")
+                .accessibilityHint("Shows the current temperature and setpoint controls.")
+                .position(positions.thermostat)
+            }
+        }
+        .frame(height: 350)
+        .padding(.bottom, AppSpacing.large)
+    }
+}
+
+private enum TemperatureBlueprintNodeKind: CaseIterable, Identifiable {
+    case study
+    case kitchenFamily
+    case nursery
+    case masterBedroom
+    case playroom
+
+    var id: String {
+        switch self {
+        case .study:
+            return "study"
+        case .kitchenFamily:
+            return "kitchen_family"
+        case .nursery:
+            return "nursery"
+        case .masterBedroom:
+            return "master_bedroom"
+        case .playroom:
+            return "playroom"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .study:
+            return "Study"
+        case .kitchenFamily:
+            return "Kitchen and Family Room"
+        case .nursery:
+            return "Nursery"
+        case .masterBedroom:
+            return "Master Bedroom"
+        case .playroom:
+            return "Playroom"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .study:
+            return "lamp.desk"
+        case .kitchenFamily:
+            return "tv"
+        case .nursery:
+            return "teddybear"
+        case .masterBedroom:
+            return "bed.double"
+        case .playroom:
+            return "gamecontroller"
+        }
+    }
+}
+
+private struct TemperatureBlueprintNodePositions {
+    let study: CGPoint
+    let kitchenFamily: CGPoint
+    let nursery: CGPoint
+    let masterBedroom: CGPoint
+    let playroom: CGPoint
+    let thermostat: CGPoint
+
+    init(width: CGFloat, height: CGFloat) {
+        study = CGPoint(x: width * 0.28, y: height * 0.25)
+        kitchenFamily = CGPoint(x: width * 0.72, y: height * 0.25)
+        nursery = CGPoint(x: width * 0.18, y: height * 0.50)
+        masterBedroom = CGPoint(x: width * 0.82, y: height * 0.50)
+        playroom = CGPoint(x: width * 0.20, y: height * 0.76)
+        thermostat = CGPoint(x: width * 0.50, y: height * 0.80)
+    }
+
+    func point(for node: TemperatureBlueprintNodeKind) -> CGPoint {
+        switch node {
+        case .study:
+            return study
+        case .kitchenFamily:
+            return kitchenFamily
+        case .nursery:
+            return nursery
+        case .masterBedroom:
+            return masterBedroom
+        case .playroom:
+            return playroom
+        }
+    }
+}
+
+private struct TemperatureBlueprintSensorNode: View {
+    let node: TemperatureBlueprintNodeKind
+    let reading: RoomTemperatureReading?
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(HomePalette.nodeFill)
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.88), lineWidth: 2)
+                }
+                .overlay {
+                    Circle()
+                        .stroke(HomePalette.inactiveLightStatus.opacity(0.78), lineWidth: 2.5)
+                }
+                .shadow(color: HomePalette.shadow, radius: 12, y: 7)
+
+            VStack(spacing: size * 0.05) {
+                Text(temperatureText)
+                    .font(.system(size: size * 0.34, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(reading?.temperature?.isFinite == true ? HomePalette.blue : HomePalette.secondaryInk)
+
+                Image(systemName: node.systemImage)
+                    .font(.system(size: size * 0.26, weight: .medium))
+                    .foregroundStyle(HomePalette.iconInk.opacity(0.62))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel("\(reading?.name ?? node.name), \(temperatureText)")
+    }
+
+    private var temperatureText: String {
+        guard let temperature = reading?.temperature, temperature.isFinite else {
+            return "—"
+        }
+
+        return "\(Int(temperature.rounded()))°"
+    }
+}
+
+private struct TemperatureBlueprintThermostatNode: View {
+    let size: CGFloat
+    let status: ThermostatStatus?
+    let operation: BlueprintThermostatOperation
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(HomePalette.nodeFill)
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.9), lineWidth: 2)
+                }
+                .overlay {
+                    Circle()
+                        .stroke(operation.color.opacity(0.8), lineWidth: 3)
+                }
+                .shadow(color: HomePalette.shadow, radius: 18, y: 9)
+
+            VStack(spacing: size * 0.025) {
+                Text(temperatureText(status?.currentTemperature, includesDegreeSymbol: true))
+                    .font(.system(size: size * 0.34, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(HomePalette.blue)
+
+                Text("\(temperatureText(status?.targetTemperatureLow)) / \(temperatureText(status?.targetTemperatureHigh))")
+                    .font(.system(size: size * 0.16, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .foregroundStyle(HomePalette.secondaryInk)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func temperatureText(_ temperature: Double?, includesDegreeSymbol: Bool = false) -> String {
+        guard let temperature, temperature.isFinite else {
+            return "—"
+        }
+
+        let value = "\(Int(temperature.rounded()))"
+        return includesDegreeSymbol ? "\(value)°" : value
+    }
+
+    private var accessibilityLabel: String {
+        "Thermostat, current \(temperatureText(status?.currentTemperature)), low \(temperatureText(status?.targetTemperatureLow)), high \(temperatureText(status?.targetTemperatureHigh))"
+    }
+}
+
 enum BlueprintLightingArea: String, CaseIterable, Identifiable {
     case entry
     case kitchen
