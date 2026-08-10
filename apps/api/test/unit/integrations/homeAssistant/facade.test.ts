@@ -85,6 +85,53 @@ test('live Home Assistant facade retrieves the configured thermostat temperature
   }
 });
 
+test('live Home Assistant facade retrieves the curated room temperatures without failing the whole overview for one unavailable sensor', async () => {
+  const states = new Map<string, unknown>([
+    [
+      '/api/states/sensor.study_thermometer_study_temperature',
+      { entity_id: 'sensor.study_thermometer_study_temperature', state: '73.94', last_updated: '2026-08-10T02:43:30.515809+00:00', attributes: {} },
+    ],
+    [
+      '/api/states/sensor.study_govee_thermometer_study_temperature',
+      { entity_id: 'sensor.study_govee_thermometer_study_temperature', state: '69.8', last_updated: '2026-08-10T02:43:04.904630+00:00', attributes: {} },
+    ],
+    [
+      '/api/states/sensor.nursery_thermometer_nursery_temperature',
+      { entity_id: 'sensor.nursery_thermometer_nursery_temperature', state: '70.52', last_updated: '2026-08-10T02:43:50.491549+00:00', attributes: {} },
+    ],
+    [
+      '/api/states/sensor.master_bedroom_thermometer_master_bedroom_temperature',
+      { entity_id: 'sensor.master_bedroom_thermometer_master_bedroom_temperature', state: '72.68', last_updated: '2026-08-10T02:43:15.585695+00:00', attributes: {} },
+    ],
+  ]);
+  const server = await startHomeAssistantServer((req, res) => {
+    const state = req.url ? states.get(req.url) : undefined;
+
+    if (!state) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(state));
+  });
+
+  try {
+    const temperatures = await createHomeAssistantFacade(liveConfig(server.baseURL)).getRoomTemperatures();
+
+    assert.deepEqual(temperatures, [
+      { id: 'study', name: 'Study', temperature: 73.94, lastUpdatedAt: '2026-08-10T02:43:30.515809+00:00', isStale: false },
+      { id: 'kitchen_family', name: 'Kitchen / Family', temperature: 69.8, lastUpdatedAt: '2026-08-10T02:43:04.904630+00:00', isStale: false },
+      { id: 'nursery', name: 'Nursery', temperature: 70.52, lastUpdatedAt: '2026-08-10T02:43:50.491549+00:00', isStale: false },
+      { id: 'master_bedroom', name: 'Master Bedroom', temperature: 72.68, lastUpdatedAt: '2026-08-10T02:43:15.585695+00:00', isStale: false },
+      { id: 'playroom', name: 'Playroom', temperature: null, isStale: true },
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
 test('live Home Assistant facade sets the configured thermostat range', async () => {
   const serviceCalls: Array<{ path: string; body: unknown }> = [];
   const server = await startHomeAssistantServer(async (req, res) => {

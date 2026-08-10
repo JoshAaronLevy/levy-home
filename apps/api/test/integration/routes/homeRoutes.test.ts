@@ -30,6 +30,23 @@ test('GET /api/home/overview returns a narrow home overview', async () => {
   assert.equal(response.overview.thermostatStatus.temperatureStep, 1);
   assert.equal(response.overview.thermostatStatus.hvacAction, 'idle');
   assert.equal(response.overview.thermostatStatus.isStale, false);
+  assert.deepEqual(response.overview.roomTemperatures.map((reading: {
+    id: string;
+    name: string;
+    temperature: number | null;
+    isStale: boolean;
+  }) => ({
+    id: reading.id,
+    name: reading.name,
+    temperature: reading.temperature,
+    isStale: reading.isStale,
+  })), [
+    { id: 'study', name: 'Study', temperature: 69, isStale: false },
+    { id: 'kitchen_family', name: 'Kitchen / Family', temperature: 72, isStale: false },
+    { id: 'nursery', name: 'Nursery', temperature: 70, isStale: false },
+    { id: 'master_bedroom', name: 'Master Bedroom', temperature: 68, isStale: false },
+    { id: 'playroom', name: 'Playroom', temperature: 71, isStale: false },
+  ]);
   assert.deepEqual(response.overview.presence, []);
 });
 
