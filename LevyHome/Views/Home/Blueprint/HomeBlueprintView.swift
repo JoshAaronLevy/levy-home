@@ -452,15 +452,15 @@ private struct TemperatureBlueprintSensorNode: View {
                 }
                 .overlay {
                     Circle()
-                        .stroke(HomePalette.inactiveLightStatus.opacity(0.78), lineWidth: 2.5)
+                        .stroke(borderColor, lineWidth: 2.5)
                 }
                 .shadow(color: HomePalette.shadow, radius: 12, y: 7)
 
             VStack(spacing: size * 0.05) {
                 Text(temperatureText)
-                    .font(.system(size: size * 0.34, weight: .semibold, design: .rounded))
+                    .font(.system(size: size * 0.32, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(reading?.temperature?.isFinite == true ? HomePalette.blue : HomePalette.secondaryInk)
+                    .foregroundStyle(HomePalette.ink)
 
                 Image(systemName: node.systemImage)
                     .font(.system(size: size * 0.26, weight: .medium))
@@ -477,6 +477,23 @@ private struct TemperatureBlueprintSensorNode: View {
         }
 
         return "\(Int(temperature.rounded()))°"
+    }
+
+    private var borderColor: Color {
+        guard let temperature = reading?.temperature, temperature.isFinite else {
+            return HomePalette.inactiveLightStatus.opacity(0.78)
+        }
+
+        switch temperature {
+        case ...70:
+            return HomePalette.blue
+        case ...72:
+            return HomePalette.temperatureNeutral
+        case ...74:
+            return HomePalette.gold
+        default:
+            return HomePalette.coral
+        }
     }
 }
 
@@ -495,7 +512,7 @@ private struct TemperatureBlueprintThermostatNode: View {
                 }
                 .overlay {
                     Circle()
-                        .stroke(operation.color.opacity(0.8), lineWidth: 3)
+                        .stroke(operation.color, lineWidth: 3)
                 }
                 .shadow(color: HomePalette.shadow, radius: 18, y: 9)
 

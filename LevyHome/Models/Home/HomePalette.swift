@@ -74,6 +74,7 @@ enum HomePalette {
     static let gold = Color(red: 0.86, green: 0.63, blue: 0.10)
     static let coral = Color(red: 0.96, green: 0.34, blue: 0.16)
     static let indigo = Color(red: 0.31, green: 0.35, blue: 0.85)
+    static let temperatureNeutral = Color(red: 0.18, green: 0.19, blue: 0.20)
 
     private static func adaptive(light: UIColor, dark: UIColor) -> Color {
         Color(
