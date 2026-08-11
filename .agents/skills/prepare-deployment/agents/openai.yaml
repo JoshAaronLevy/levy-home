@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prepare Deployment"
+  short_description: "Create a verified Levy Home release IPA"
+  default_prompt: "Use $prepare-deployment to prepare the current Levy Home release for Transporter."
+policy:
+  allow_implicit_invocation: false
