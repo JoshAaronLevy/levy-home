@@ -88,20 +88,20 @@ test('live Home Assistant facade retrieves the configured thermostat temperature
 test('live Home Assistant facade retrieves the curated room temperatures without failing the whole overview for one unavailable sensor', async () => {
   const states = new Map<string, unknown>([
     [
-      '/api/states/sensor.study_thermometer_study_temperature',
-      { entity_id: 'sensor.study_thermometer_study_temperature', state: '73.94', last_updated: '2026-08-10T02:43:30.515809+00:00', attributes: {} },
+      '/api/states/sensor.study_thermometer_temperature',
+      { entity_id: 'sensor.study_thermometer_temperature', state: '73.94', last_updated: '2026-08-10T02:43:30.515809+00:00', attributes: {} },
     ],
     [
-      '/api/states/sensor.study_govee_thermometer_study_temperature',
-      { entity_id: 'sensor.study_govee_thermometer_study_temperature', state: '69.8', last_updated: '2026-08-10T02:43:04.904630+00:00', attributes: {} },
+      '/api/states/sensor.family_room_thermometer_temperature',
+      { entity_id: 'sensor.family_room_thermometer_temperature', state: '69.8', last_updated: '2026-08-10T02:43:04.904630+00:00', attributes: {} },
     ],
     [
-      '/api/states/sensor.nursery_thermometer_nursery_temperature',
-      { entity_id: 'sensor.nursery_thermometer_nursery_temperature', state: '70.52', last_updated: '2026-08-10T02:43:50.491549+00:00', attributes: {} },
+      '/api/states/sensor.nursery_thermometer_temperature',
+      { entity_id: 'sensor.nursery_thermometer_temperature', state: '70.52', last_updated: '2026-08-10T02:43:50.491549+00:00', attributes: {} },
     ],
     [
-      '/api/states/sensor.master_bedroom_thermometer_master_bedroom_temperature',
-      { entity_id: 'sensor.master_bedroom_thermometer_master_bedroom_temperature', state: '72.68', last_updated: '2026-08-10T02:43:15.585695+00:00', attributes: {} },
+      '/api/states/sensor.master_bedroom_thermometer_temperature',
+      { entity_id: 'sensor.master_bedroom_thermometer_temperature', state: '72.68', last_updated: '2026-08-10T02:43:15.585695+00:00', attributes: {} },
     ],
     [
       '/api/states/schedule.study_occupied',

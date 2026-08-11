@@ -1,5 +1,9 @@
 # Changelog
 
+## 12.2.6 — 2026-08-10
+
+- Restored live temperature readings for every room in the Temps home view after Home Assistant sensor IDs changed.
+
 ## 12.2.5 — 2026-08-10
 
 - Improved the Temps home view with occupied-room emphasis, an occupied mean temperature card, and refreshed readings when returning to the app.

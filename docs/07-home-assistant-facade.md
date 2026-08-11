@@ -160,7 +160,7 @@ After any live PTZ check, visually return the Kids Room camera to its safe
 position. Stop the session using the opaque `id` returned by the session-create
 response; never record or share the stream bytes or authorization header.
 
-As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves both `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and `HOME_ASSISTANT_LIGHT_GROUPS` blank. The Temps default sensor map is Study `sensor.study_thermometer_study_temperature`, Kitchen/Family `sensor.study_govee_thermometer_study_temperature`, Nursery `sensor.nursery_thermometer_nursery_temperature`, Master Bedroom `sensor.master_bedroom_thermometer_master_bedroom_temperature`, and Playroom `sensor.playroom_thermometer_playroom_temperature`. The older `downstairs`, `bedrooms`, and `light.all_lights` examples were demo/fallback values and do not exist in the live catalog.
+As of the current Home Assistant catalog, the Levy Home live configuration uses exact `HOME_ASSISTANT_LIGHT_ENTITIES` and leaves both `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and `HOME_ASSISTANT_LIGHT_GROUPS` blank. The Temps default sensor map is Study `sensor.study_thermometer_temperature`, Kitchen/Family `sensor.family_room_thermometer_temperature`, Nursery `sensor.nursery_thermometer_temperature`, Master Bedroom `sensor.master_bedroom_thermometer_temperature`, and Playroom `sensor.playroom_thermometer_temperature`. The older `downstairs`, `bedrooms`, and `light.all_lights` examples were demo/fallback values and do not exist in the live catalog.
 
 To verify arbitrary Home Assistant payloads are rejected:
 

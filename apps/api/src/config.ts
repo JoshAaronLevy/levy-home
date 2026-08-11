@@ -36,31 +36,31 @@ export const defaultRoomTemperatureSensors: CuratedRoomTemperatureSensor[] = [
   {
     id: 'study',
     name: 'Study',
-    entityId: 'sensor.study_thermometer_study_temperature',
+    entityId: 'sensor.study_thermometer_temperature',
     occupancyEntityId: 'schedule.study_occupied',
   },
   {
     id: 'kitchen_family',
     name: 'Kitchen / Family',
-    entityId: 'sensor.study_govee_thermometer_study_temperature',
+    entityId: 'sensor.family_room_thermometer_temperature',
     occupancyEntityId: 'schedule.kitchen_family_room_occupied',
   },
   {
     id: 'nursery',
     name: 'Nursery',
-    entityId: 'sensor.nursery_thermometer_nursery_temperature',
+    entityId: 'sensor.nursery_thermometer_temperature',
     occupancyEntityId: 'schedule.nursery_occupied',
   },
   {
     id: 'master_bedroom',
     name: 'Master Bedroom',
-    entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature',
+    entityId: 'sensor.master_bedroom_thermometer_temperature',
     occupancyEntityId: 'schedule.master_bedroom_occupied',
   },
   {
     id: 'playroom',
     name: 'Playroom',
-    entityId: 'sensor.playroom_thermometer_playroom_temperature',
+    entityId: 'sensor.playroom_thermometer_temperature',
     occupancyEntityId: 'schedule.playroom_occupied',
   },
 ];
