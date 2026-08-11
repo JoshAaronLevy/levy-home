@@ -46,6 +46,21 @@ final class HomeOverviewViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.overview?.generatedAt, "2026-06-12T14:00:01Z")
     }
 
+    func testRefreshReloadsTheLatestHomeOverviewAfterInitialLoad() async {
+        var loadCount = 0
+        let viewModel = HomeOverviewViewModel {
+            loadCount += 1
+            return Self.overview(generatedAt: "2026-06-12T14:00:0\(loadCount)Z")
+        }
+
+        await viewModel.loadIfNeeded()
+        await viewModel.refresh()
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(viewModel.overview?.generatedAt, "2026-06-12T14:00:02Z")
+        XCTAssertFalse(viewModel.isRefreshing)
+    }
+
     func testPartialAndUnknownStatusRemainReadable() async {
         let viewModel = HomeOverviewViewModel {
             Self.overview(

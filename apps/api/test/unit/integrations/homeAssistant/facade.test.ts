@@ -103,6 +103,26 @@ test('live Home Assistant facade retrieves the curated room temperatures without
       '/api/states/sensor.master_bedroom_thermometer_master_bedroom_temperature',
       { entity_id: 'sensor.master_bedroom_thermometer_master_bedroom_temperature', state: '72.68', last_updated: '2026-08-10T02:43:15.585695+00:00', attributes: {} },
     ],
+    [
+      '/api/states/schedule.study_occupied',
+      { entity_id: 'schedule.study_occupied', state: 'on', attributes: {} },
+    ],
+    [
+      '/api/states/schedule.kitchen_family_room_occupied',
+      { entity_id: 'schedule.kitchen_family_room_occupied', state: 'on', attributes: {} },
+    ],
+    [
+      '/api/states/schedule.nursery_occupied',
+      { entity_id: 'schedule.nursery_occupied', state: 'on', attributes: {} },
+    ],
+    [
+      '/api/states/schedule.master_bedroom_occupied',
+      { entity_id: 'schedule.master_bedroom_occupied', state: 'off', attributes: {} },
+    ],
+    [
+      '/api/states/schedule.playroom_occupied',
+      { entity_id: 'schedule.playroom_occupied', state: 'off', attributes: {} },
+    ],
   ]);
   const server = await startHomeAssistantServer((req, res) => {
     const state = req.url ? states.get(req.url) : undefined;
@@ -121,12 +141,33 @@ test('live Home Assistant facade retrieves the curated room temperatures without
     const temperatures = await createHomeAssistantFacade(liveConfig(server.baseURL)).getRoomTemperatures();
 
     assert.deepEqual(temperatures, [
-      { id: 'study', name: 'Study', temperature: 73.94, lastUpdatedAt: '2026-08-10T02:43:30.515809+00:00', isStale: false },
-      { id: 'kitchen_family', name: 'Kitchen / Family', temperature: 69.8, lastUpdatedAt: '2026-08-10T02:43:04.904630+00:00', isStale: false },
-      { id: 'nursery', name: 'Nursery', temperature: 70.52, lastUpdatedAt: '2026-08-10T02:43:50.491549+00:00', isStale: false },
-      { id: 'master_bedroom', name: 'Master Bedroom', temperature: 72.68, lastUpdatedAt: '2026-08-10T02:43:15.585695+00:00', isStale: false },
-      { id: 'playroom', name: 'Playroom', temperature: null, isStale: true },
+      { id: 'study', name: 'Study', temperature: 73.94, isOccupied: true, lastUpdatedAt: '2026-08-10T02:43:30.515809+00:00', isStale: false },
+      { id: 'kitchen_family', name: 'Kitchen / Family', temperature: 69.8, isOccupied: true, lastUpdatedAt: '2026-08-10T02:43:04.904630+00:00', isStale: false },
+      { id: 'nursery', name: 'Nursery', temperature: 70.52, isOccupied: true, lastUpdatedAt: '2026-08-10T02:43:50.491549+00:00', isStale: false },
+      { id: 'master_bedroom', name: 'Master Bedroom', temperature: 72.68, isOccupied: false, lastUpdatedAt: '2026-08-10T02:43:15.585695+00:00', isStale: false },
+      { id: 'playroom', name: 'Playroom', temperature: null, isOccupied: false, isStale: true },
     ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test('live Home Assistant facade retrieves the occupied mean temperature helper without making the overview fail if it is unavailable', async () => {
+  const server = await startHomeAssistantServer((req, res) => {
+    if (req.url !== '/api/states/sensor.occupied_mean_temperature') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ entity_id: 'sensor.occupied_mean_temperature', state: '73.8', attributes: {} }));
+  });
+
+  try {
+    const facade = createHomeAssistantFacade(liveConfig(server.baseURL));
+
+    assert.equal(await facade.getOccupiedMeanTemperature(), 73.8);
   } finally {
     await server.close();
   }

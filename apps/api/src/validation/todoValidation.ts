@@ -144,6 +144,10 @@ export function validateUpdateToDoItemBody(input: unknown): UpdateToDoItemReques
     request.createdBy = readOptionalNullablePositiveInteger(input.createdBy, 'createdBy', invalidToDoItem) ?? null;
   }
 
+  if (hasOwn(input, 'createdFor')) {
+    request.createdFor = readOptionalToDoCreatedFor(input.createdFor);
+  }
+
   const actor = readOptionalToDoActor(input.actor);
   const mutationId = readOptionalToDoMutationId(input.mutationId);
 
@@ -468,7 +472,8 @@ function hasMutableToDoItemField(request: UpdateToDoItemRequest): boolean {
     request.notes !== undefined ||
     request.alerts !== undefined ||
     request.subtasks !== undefined ||
-    request.createdBy !== undefined
+    request.createdBy !== undefined ||
+    request.createdFor !== undefined
   );
 }
 

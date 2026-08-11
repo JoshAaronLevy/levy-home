@@ -28,6 +28,7 @@ The API defaults to mock mode so it can be tested safely without Home Assistant 
 | `HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID` | Server-side garage cover entity. |
 | `HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID` | Server-side Ecobee climate entity used by the interactive thermostat node. |
 | `HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS` | Optional exact five-sensor override for Temps, in `roomId:Display name:sensor.entity_id` comma-separated format. Leave blank for the verified Levy Home Study, Kitchen/Family, Nursery, Master Bedroom, and Playroom defaults. |
+| `HOME_ASSISTANT_OCCUPIED_MEAN_TEMPERATURE_ENTITY_ID` | Home Assistant sensor used for the occupied-only mean in Temps. Defaults to `sensor.occupied_mean_temperature`. |
 | `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` | Optional server-side all-lights entity/group. Leave blank when curated light entities are the source of truth. |
 | `HOME_ASSISTANT_LIGHT_GROUPS` | Curated light groups in `groupId:Display name:entity_id` comma-separated format. Used when `HOME_ASSISTANT_LIGHT_ENTITIES` is blank. |
 | `HOME_ASSISTANT_LIGHT_ENTITIES` | Curated individual light entities in `entity_id:Display name` comma-separated format. When set, these are used instead of `HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID` and light groups. |

@@ -237,10 +237,12 @@ final class ModelDecodingTests: XCTestCase {
                   "id": "study",
                   "name": "Study",
                   "temperature": 73.94,
+                  "isOccupied": true,
                   "lastUpdatedAt": "2026-08-10T02:43:30Z",
                   "isStale": false
                 }
               ],
+              "occupiedMeanTemperature": 73.8,
               "recentImportantEvent": \(eventJSON(type: "garage_closed", displaySeverity: "info")),
               "generatedAt": "2026-06-12T14:00:02Z",
               "isPartial": false
@@ -259,8 +261,37 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(overview.thermostatStatus?.hvacAction, "cooling")
         XCTAssertEqual(overview.roomTemperatures?.first?.id, "study")
         XCTAssertEqual(overview.roomTemperatures?.first?.temperature, 73.94)
+        XCTAssertEqual(overview.roomTemperatures?.first?.isOccupied, true)
+        XCTAssertEqual(overview.occupiedMeanTemperature, 73.8)
         XCTAssertEqual(overview.recentImportantEvent?.type, .garageClosed)
         XCTAssertEqual(overview.isPartial, false)
+    }
+
+    func testOccupiedMeanTemperatureDifferenceUsesTheDisplayedWholeDegreeThresholds() throws {
+        let neutralCooler = try XCTUnwrap(
+            OccupiedMeanTemperatureDifference(occupiedMeanTemperature: 68, thermostatTemperature: 70)
+        )
+        let blueCooler = try XCTUnwrap(
+            OccupiedMeanTemperatureDifference(occupiedMeanTemperature: 67, thermostatTemperature: 70)
+        )
+        let neutralWarmer = try XCTUnwrap(
+            OccupiedMeanTemperatureDifference(occupiedMeanTemperature: 72, thermostatTemperature: 70)
+        )
+        let yellowWarmer = try XCTUnwrap(
+            OccupiedMeanTemperatureDifference(occupiedMeanTemperature: 73, thermostatTemperature: 70)
+        )
+        let redWarmer = try XCTUnwrap(
+            OccupiedMeanTemperatureDifference(occupiedMeanTemperature: 75, thermostatTemperature: 70)
+        )
+
+        XCTAssertEqual(neutralCooler.degrees, -2)
+        XCTAssertEqual(neutralCooler.tone, .neutral)
+        XCTAssertEqual(blueCooler.tone, .cooler)
+        XCTAssertEqual(neutralWarmer.displayText, "+2°")
+        XCTAssertEqual(neutralWarmer.tone, .neutral)
+        XCTAssertEqual(yellowWarmer.tone, .warmer)
+        XCTAssertEqual(redWarmer.tone, .muchWarmer)
+        XCTAssertNil(OccupiedMeanTemperatureDifference(occupiedMeanTemperature: nil, thermostatTemperature: 70))
     }
 
     func testThermostatSetpointDraftAdjustsOnlyTheOppositeSetpointNeededForTheMinimumDelta() throws {

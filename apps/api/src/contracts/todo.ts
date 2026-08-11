@@ -107,6 +107,7 @@ export type UpdateToDoItemRequest = {
   alerts?: ToDoItemAlert[] | null;
   subtasks?: ToDoItemSubtask[] | null;
   createdBy?: number | null;
+  createdFor?: number[];
   actor?: string;
   mutationId?: string;
 };

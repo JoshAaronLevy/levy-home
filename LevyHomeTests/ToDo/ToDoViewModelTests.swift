@@ -211,6 +211,34 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertEqual(createRequest.jsonBody["createdFor"] as? [Int], [1])
     }
 
+    func testUpdateTaskSendsEditedAudience() async throws {
+        ToDoMockURLProtocol.requestHandler = { request in
+            self.capturedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/todo-list"):
+                return Self.response(for: request, json: Self.toDoListJSON(status: "open"))
+            case ("GET", "/api/users"):
+                return Self.response(for: request, json: Self.usersJSON)
+            case ("PATCH", "/api/todo-list/items/1"):
+                return Self.response(for: request, json: Self.toDoMutationJSON(status: "open"))
+            default:
+                return Self.response(for: request, statusCode: 404, json: #"{"error":"Unhandled"}"#)
+            }
+        }
+
+        let viewModel = ToDoViewModel()
+        await viewModel.load(apiClient: client)
+        let task = try XCTUnwrap(viewModel.sections.first?.tasks.first)
+        var draft = ToDoDraft(task: task, fallbackCreatedBy: 1)
+        draft.audience = .me
+
+        try await viewModel.updateTask(task, from: draft, apiClient: client, actor: "Josh")
+
+        let patchRequest = try XCTUnwrap(capturedRequests.requests.first { $0.httpMethod == "PATCH" })
+        XCTAssertEqual(patchRequest.jsonBody["createdFor"] as? [Int], [1])
+    }
+
     func testLoadFailureShowsErrorAndMarksLoaded() async {
         ToDoMockURLProtocol.requestHandler = { request in
             self.capturedRequests.append(request)

@@ -62,14 +62,26 @@ export class MockHomeAssistantFacade implements HomeAssistantFacade {
       master_bedroom: 68,
       playroom: 71,
     };
+    const occupancy: Record<string, boolean> = {
+      study: true,
+      kitchen_family: true,
+      nursery: true,
+      master_bedroom: false,
+      playroom: false,
+    };
 
     return this.roomTemperatureSensors.map((sensor) => ({
       id: sensor.id,
       name: sensor.name,
       temperature: temperatures[sensor.id] ?? null,
+      isOccupied: occupancy[sensor.id] ?? false,
       lastUpdatedAt: new Date().toISOString(),
       isStale: false,
     }));
+  }
+
+  async getOccupiedMeanTemperature(): Promise<number | null> {
+    return 73.8;
   }
 
   async setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void> {

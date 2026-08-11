@@ -21,8 +21,13 @@ export type PushSendOptions = {
   preferenceCategory?: NotificationPreferenceCategory;
   data?: Record<string, string>;
   mutableContent?: boolean;
+  collapseId?: string;
+  expiration?: number;
   onInvalidToken?: (deviceId: string) => Promise<void>;
 };
+
+export const doorbellPushExpirationSeconds = 60;
+const doorbellPushCollapseID = 'doorbell-current';
 
 export type ListMutationPushAction = 'created' | 'updated' | 'deleted' | 'completed';
 
@@ -53,11 +58,20 @@ export type WeatherAlertPushPayload = {
   chance: number;
 };
 
+export type ToDoDueReminderPushPayload = {
+  itemId: number;
+  itemName: string;
+  dueDate: string;
+  reminderKind: 'morning' | 'evening';
+  recipientUserId: number;
+};
+
 export type NotificationService = {
   sendEventPush: (payload: HomeAssistantEventPayload) => Promise<EventPushStatus>;
   sendListMutationPush: (payload: ListMutationPushPayload) => Promise<EventPushStatus>;
   sendListSessionPush: (payload: ListSessionPushPayload) => Promise<EventPushStatus>;
   sendWeatherAlertPush: (payload: WeatherAlertPushPayload) => Promise<EventPushStatus>;
+  sendToDoDueReminderPush: (payload: ToDoDueReminderPushPayload) => Promise<EventPushStatus>;
   sendTestPush: (payload: TestPushPayload) => Promise<PushSendSummary>;
 };
 
@@ -95,6 +109,8 @@ export function createNotificationService(options: {
             },
             preferenceCategory,
             ...(doorbellImageURL(payload) ? { data: { category: preferenceCategory, imageURL: doorbellImageURL(payload)! }, mutableContent: true } : {}),
+            ...doorbellPushDeliveryOptions(payload),
+            onInvalidToken: options.deviceRegistry.invalidateDevice,
           })
         : undefined;
 
@@ -241,6 +257,55 @@ export function createNotificationService(options: {
 
       return pushStatusFromSummary(summary, preferenceCategory);
     },
+    async sendToDoDueReminderPush(payload) {
+      const recipient = toDoReminderRecipientForUserId(payload.recipientUserId);
+
+      if (!recipient) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: `No Levy Home recipient is configured for to-do user ${payload.recipientUserId}.`,
+        };
+      }
+
+      const devices = await options.deviceRegistry.listDevices();
+      const targetDevices = filterDevicesForRecipient(devices, recipient);
+
+      if (targetDevices.length === 0) {
+        return {
+          attempted: false,
+          skipped: true,
+          reason: `No registered APNs devices match recipient "${recipient}".`,
+        };
+      }
+
+      const itemName = payload.itemName.trim() || 'A to-do item';
+      const isMorning = payload.reminderKind === 'morning';
+      const preferenceCategory: NotificationPreferenceCategory = 'todo_list';
+      const summary = await sendPushToRegisteredDevices({
+        devices: targetDevices,
+        notificationPreferenceStore: options.notificationPreferenceStore,
+        pushSender: options.pushSender,
+        payload: {
+          title: isMorning ? 'To-do due today' : 'To-do reminder',
+          body: isMorning ? `${itemName} is due today.` : `${itemName} is still due today.`,
+        },
+        preferenceCategory,
+        data: {
+          category: preferenceCategory,
+          listType: 'todo',
+          action: 'due_reminder',
+          reminder: payload.reminderKind,
+          todoItemId: String(payload.itemId),
+          dueDate: payload.dueDate,
+        },
+        collapseId: `todo-due-${payload.itemId}-${payload.reminderKind}`,
+        expiration: Math.floor(Date.now() / 1_000) + 60 * 60,
+        onInvalidToken: options.deviceRegistry.invalidateDevice,
+      });
+
+      return pushStatusFromSummary(summary, preferenceCategory);
+    },
     async sendTestPush(payload) {
       const devices = await options.deviceRegistry.listDevices();
 
@@ -266,35 +331,39 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
         preferenceCategory,
       )
     : apnsDevices;
-  const results: APNsSendResult[] = [];
-  let configurationError: string | undefined;
+  const attempts = await Promise.all(
+    enabledDevices.map(async (device) => {
+      try {
+        return {
+          result: await options.pushSender.send({
+            device,
+            title: options.payload.title,
+            body: options.payload.body,
+            data: options.data ?? (options.preferenceCategory ? { category: options.preferenceCategory } : { debug: 'true' }),
+            mutableContent: options.mutableContent,
+            ...(options.collapseId ? { collapseId: options.collapseId } : {}),
+            ...(options.expiration !== undefined ? { expiration: options.expiration } : {}),
+          }),
+        };
+      } catch (error) {
+        if (error instanceof APNsConfigurationError) {
+          return { configurationError: error.message };
+        }
 
-  for (const device of enabledDevices) {
-    try {
-      results.push(
-        await options.pushSender.send({
-          device,
-          title: options.payload.title,
-          body: options.payload.body,
-          data: options.data ?? (options.preferenceCategory ? { category: options.preferenceCategory } : { debug: 'true' }),
-          mutableContent: options.mutableContent,
-        }),
-      );
-    } catch (error) {
-      if (error instanceof APNsConfigurationError) {
-        configurationError = error.message;
-        break;
+        return {
+          result: {
+            provider: 'apns' as const,
+            deviceId: device.id,
+            success: false,
+            reason: error instanceof Error ? error.message : String(error),
+            isInvalidToken: false,
+          },
+        };
       }
-
-      results.push({
-        provider: 'apns',
-        deviceId: device.id,
-        success: false,
-        reason: error instanceof Error ? error.message : String(error),
-        isInvalidToken: false,
-      });
-    }
-  }
+    }),
+  );
+  const results = attempts.flatMap(({ result }) => result ? [result] : []);
+  const configurationError = attempts.find(({ configurationError }) => configurationError)?.configurationError;
 
   const invalidTokenCount = results.filter((result) => result.isInvalidToken).length;
 
@@ -320,6 +389,19 @@ export async function sendPushToRegisteredDevices(options: PushSendOptions): Pro
 function doorbellImageURL(payload: HomeAssistantEventPayload): string | undefined {
   const value = payload.category === 'doorbell' ? payload.metadata?.imageURL : undefined;
   return typeof value === 'string' && value.startsWith('https://') ? value : undefined;
+}
+
+function doorbellPushDeliveryOptions(
+  payload: HomeAssistantEventPayload,
+): Pick<PushSendOptions, 'collapseId' | 'expiration'> {
+  if (payload.category !== 'doorbell') {
+    return {};
+  }
+
+  return {
+    collapseId: doorbellPushCollapseID,
+    expiration: Math.floor(Date.now() / 1_000) + doorbellPushExpirationSeconds,
+  };
 }
 
 async function filterPreferenceEnabledDevices(
@@ -472,6 +554,18 @@ function counterpartRecipientForActor(actor: string): string | undefined {
 
   if (normalizedActor.includes('mallory')) {
     return 'Josh';
+  }
+
+  return undefined;
+}
+
+function toDoReminderRecipientForUserId(userId: number): string | undefined {
+  if (userId === 1) {
+    return 'Josh';
+  }
+
+  if (userId === 2) {
+    return 'Mallory';
   }
 
   return undefined;

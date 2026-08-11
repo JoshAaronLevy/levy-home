@@ -51,6 +51,7 @@ export type RoomTemperatureReading = {
   id: string;
   name: string;
   temperature: number | null;
+  isOccupied?: boolean;
   lastUpdatedAt?: string;
   isStale?: boolean;
 };
@@ -60,6 +61,7 @@ export type HomeOverview = {
   lightSummary: LightSummary;
   thermostatStatus: ThermostatStatus;
   roomTemperatures: RoomTemperatureReading[];
+  occupiedMeanTemperature: number | null;
   presence: PersonPresenceStatus[];
   recentImportantEvent: LevyHomeEvent | null;
   generatedAt: string;

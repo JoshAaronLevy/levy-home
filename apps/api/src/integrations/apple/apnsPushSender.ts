@@ -216,6 +216,7 @@ type APNsPayloadRequest = {
 };
 
 type APNsPayloadResult = Omit<APNsSendResult, 'provider' | 'deviceId'>;
+const APNS_REQUEST_TIMEOUT_MS = 8_000;
 
 function sendAPNsPayload(
   endpoint: string,
@@ -239,6 +240,7 @@ function sendAPNsPayload(
     let statusCode: number | undefined;
     let apnsId: string | undefined;
     let settled = false;
+    let requestTimeout: NodeJS.Timeout | undefined;
 
     const settle = (result: APNsPayloadResult): void => {
       if (settled) {
@@ -246,8 +248,24 @@ function sendAPNsPayload(
       }
 
       settled = true;
+      if (requestTimeout) {
+        clearTimeout(requestTimeout);
+      }
       client.close();
       resolve(result);
+    };
+
+    const fail = (error: Error): void => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (requestTimeout) {
+        clearTimeout(requestTimeout);
+      }
+      client.close();
+      reject(error);
     };
 
     stream.setEncoding('utf8');
@@ -272,23 +290,20 @@ function sendAPNsPayload(
       });
     });
     stream.on('error', (error) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      client.close();
-      reject(error);
+      fail(error);
     });
     client.on('error', (error) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      reject(error);
+      fail(error);
     });
 
+    requestTimeout = setTimeout(() => {
+      stream.close(http2.constants.NGHTTP2_CANCEL);
+      settle({
+        success: false,
+        reason: 'APNs request timed out.',
+        isInvalidToken: false,
+      });
+    }, APNS_REQUEST_TIMEOUT_MS);
     stream.end(request.payload);
   });
 }

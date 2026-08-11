@@ -14,6 +14,7 @@ export type HomeAssistantFacade = {
   getGarageStatus(): Promise<GarageStatus>;
   getThermostatStatus(): Promise<ThermostatStatus>;
   getRoomTemperatures(): Promise<RoomTemperatureReading[]>;
+  getOccupiedMeanTemperature(): Promise<number | null>;
   setThermostatTemperatures(targetTemperatureLow: number, targetTemperatureHigh: number): Promise<void>;
   getLightSummaryInputs(): Promise<{
     allLights: LightGroupStatus;

@@ -30,22 +30,25 @@ test('GET /api/home/overview returns a narrow home overview', async () => {
   assert.equal(response.overview.thermostatStatus.temperatureStep, 1);
   assert.equal(response.overview.thermostatStatus.hvacAction, 'idle');
   assert.equal(response.overview.thermostatStatus.isStale, false);
+  assert.equal(response.overview.occupiedMeanTemperature, 73.8);
   assert.deepEqual(response.overview.roomTemperatures.map((reading: {
     id: string;
     name: string;
     temperature: number | null;
+    isOccupied: boolean;
     isStale: boolean;
   }) => ({
     id: reading.id,
     name: reading.name,
     temperature: reading.temperature,
+    isOccupied: reading.isOccupied,
     isStale: reading.isStale,
   })), [
-    { id: 'study', name: 'Study', temperature: 69, isStale: false },
-    { id: 'kitchen_family', name: 'Kitchen / Family', temperature: 72, isStale: false },
-    { id: 'nursery', name: 'Nursery', temperature: 70, isStale: false },
-    { id: 'master_bedroom', name: 'Master Bedroom', temperature: 68, isStale: false },
-    { id: 'playroom', name: 'Playroom', temperature: 71, isStale: false },
+    { id: 'study', name: 'Study', temperature: 69, isOccupied: true, isStale: false },
+    { id: 'kitchen_family', name: 'Kitchen / Family', temperature: 72, isOccupied: true, isStale: false },
+    { id: 'nursery', name: 'Nursery', temperature: 70, isOccupied: true, isStale: false },
+    { id: 'master_bedroom', name: 'Master Bedroom', temperature: 68, isOccupied: false, isStale: false },
+    { id: 'playroom', name: 'Playroom', temperature: 71, isOccupied: false, isStale: false },
   ]);
   assert.deepEqual(response.overview.presence, []);
 });

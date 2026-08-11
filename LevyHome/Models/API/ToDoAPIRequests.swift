@@ -64,6 +64,7 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
     let alerts: ShoppingListNullableValue<[JSONValue]>?
     let subtasks: ShoppingListNullableValue<[JSONValue]>?
     let createdBy: ShoppingListNullableValue<Int>?
+    let createdFor: [Int]?
     let actor: String?
     let mutationId: String
 
@@ -77,6 +78,7 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
         alerts: ShoppingListNullableValue<[JSONValue]>? = nil,
         subtasks: ShoppingListNullableValue<[JSONValue]>? = nil,
         createdBy: ShoppingListNullableValue<Int>? = nil,
+        createdFor: [Int]? = nil,
         actor: String? = nil,
         mutationId: String = UUID().uuidString
     ) {
@@ -89,6 +91,7 @@ struct UpdateToDoItemRequest: Encodable, Equatable {
         self.alerts = alerts
         self.subtasks = subtasks
         self.createdBy = createdBy
+        self.createdFor = createdFor
         self.actor = actor
         self.mutationId = mutationId
     }

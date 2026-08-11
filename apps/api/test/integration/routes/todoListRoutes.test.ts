@@ -69,6 +69,7 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
             id,
             name: 'Schedule dentist',
             status: request.status ?? 'open',
+            createdFor: request.createdFor ?? [1, 2],
           });
         },
       }),
@@ -96,6 +97,7 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
       notes: null,
       alerts: null,
       subtasks: [],
+      createdFor: [2],
       actor: 'Josh',
     }),
   });
@@ -124,10 +126,12 @@ test('GET, POST, and PATCH /api/todo-list use the configured to-do list store', 
     notes: null,
     alerts: null,
     subtasks: [],
+    createdFor: [2],
     actor: 'Josh',
   });
   assert.equal(updated.ok, true);
   assert.equal(updated.item.status, 'completed');
+  assert.deepEqual(updated.item.createdFor, [2]);
 });
 
 function todoListStore(overrides: Partial<ToDoListStore>): ToDoListStore {

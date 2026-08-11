@@ -53,6 +53,10 @@ import {
   type ToDoLocationStore,
 } from './repositories/todoLocationRepository.js';
 import { createPostgresToDoListStore, type ToDoListStore } from './repositories/todoListRepository.js';
+import {
+  createPostgresToDoDueReminderStore,
+  type ToDoDueReminderStore,
+} from './repositories/todoDueReminderRepository.js';
 import { createPostgresUserStore, type UserStore } from './repositories/userRepository.js';
 import { createActivityEventService } from './services/activity/activityEventService.js';
 import {
@@ -99,6 +103,10 @@ import {
 } from './services/shopping/shoppingTripSummaryDeliveryService.js';
 import { createToDoListMutationService, type ToDoListMutationService } from './services/todo/todoListMutationService.js';
 import {
+  createToDoDueReminderService,
+  type ToDoDueReminderService,
+} from './services/todo/todoDueReminderService.js';
+import {
   createWeatherAlertService,
   type WeatherAlertService,
 } from './services/weather/weatherAlertService.js';
@@ -141,6 +149,8 @@ export type CreateAppOptions = {
   toDoLocationStore?: ToDoLocationStore;
   toDoListStore?: ToDoListStore;
   toDoListMutationService?: ToDoListMutationService;
+  toDoDueReminderStore?: ToDoDueReminderStore;
+  toDoDueReminderService?: ToDoDueReminderService;
   weatherAlertService?: WeatherAlertService;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
@@ -280,6 +290,16 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const userStore = options.userStore ?? createPostgresUserStore();
   const toDoLocationStore = options.toDoLocationStore ?? createPostgresToDoLocationStore();
   const toDoListStore = options.toDoListStore ?? createPostgresToDoListStore();
+  const toDoDueReminderStore = options.toDoDueReminderStore ?? (
+    isDatabaseConfigured() ? createPostgresToDoDueReminderStore() : undefined
+  );
+  const toDoDueReminderService = options.toDoDueReminderService ?? (toDoDueReminderStore
+    ? createToDoDueReminderService({
+      logger: appLogger,
+      notificationService,
+      toDoDueReminderStore,
+    })
+    : undefined);
   const toDoListRealtime = options.toDoListRealtime ?? createToDoListRealtimeHub({ notificationService });
   const toDoListMutationService =
     options.toDoListMutationService ??
@@ -301,6 +321,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(express.json({ limit: '1mb' }));
   app.set('shoppingListRealtime', shoppingListRealtime);
   app.set('toDoListRealtime', toDoListRealtime);
+  app.set('toDoDueReminderService', toDoDueReminderService);
   app.set('weatherAlertService', weatherAlertService);
   app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);
   app.set('shoppingTripSummaryDeliveryService', shoppingTripSummaryDeliveryService);

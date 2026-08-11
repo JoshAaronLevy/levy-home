@@ -29,14 +29,40 @@ export type CuratedRoomTemperatureSensor = {
   id: RoomTemperatureSensorID;
   name: string;
   entityId: string;
+  occupancyEntityId?: string;
 };
 
 export const defaultRoomTemperatureSensors: CuratedRoomTemperatureSensor[] = [
-  { id: 'study', name: 'Study', entityId: 'sensor.study_thermometer_study_temperature' },
-  { id: 'kitchen_family', name: 'Kitchen / Family', entityId: 'sensor.study_govee_thermometer_study_temperature' },
-  { id: 'nursery', name: 'Nursery', entityId: 'sensor.nursery_thermometer_nursery_temperature' },
-  { id: 'master_bedroom', name: 'Master Bedroom', entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature' },
-  { id: 'playroom', name: 'Playroom', entityId: 'sensor.playroom_thermometer_playroom_temperature' },
+  {
+    id: 'study',
+    name: 'Study',
+    entityId: 'sensor.study_thermometer_study_temperature',
+    occupancyEntityId: 'schedule.study_occupied',
+  },
+  {
+    id: 'kitchen_family',
+    name: 'Kitchen / Family',
+    entityId: 'sensor.study_govee_thermometer_study_temperature',
+    occupancyEntityId: 'schedule.kitchen_family_room_occupied',
+  },
+  {
+    id: 'nursery',
+    name: 'Nursery',
+    entityId: 'sensor.nursery_thermometer_nursery_temperature',
+    occupancyEntityId: 'schedule.nursery_occupied',
+  },
+  {
+    id: 'master_bedroom',
+    name: 'Master Bedroom',
+    entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature',
+    occupancyEntityId: 'schedule.master_bedroom_occupied',
+  },
+  {
+    id: 'playroom',
+    name: 'Playroom',
+    entityId: 'sensor.playroom_thermometer_playroom_temperature',
+    occupancyEntityId: 'schedule.playroom_occupied',
+  },
 ];
 
 export type CuratedCamera = {
@@ -101,6 +127,7 @@ export type AppConfig = {
     garageCoverEntityId: string;
     thermostatClimateEntityId: string;
     roomTemperatureSensors?: CuratedRoomTemperatureSensor[];
+    occupiedMeanTemperatureEntityId?: string;
     allLightsEntityId?: string;
     lightGroups: CuratedLightGroup[];
     lightEntities: CuratedLightEntity[];
@@ -165,6 +192,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       garageCoverEntityId: readOptionalString(env.HOME_ASSISTANT_GARAGE_COVER_ENTITY_ID) ?? 'cover.main_garage_door',
       thermostatClimateEntityId: readThermostatClimateEntityId(env.HOME_ASSISTANT_THERMOSTAT_CLIMATE_ENTITY_ID),
       roomTemperatureSensors: readRoomTemperatureSensors(env.HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS),
+      occupiedMeanTemperatureEntityId: readOccupiedMeanTemperatureEntityId(env.HOME_ASSISTANT_OCCUPIED_MEAN_TEMPERATURE_ENTITY_ID),
       allLightsEntityId: readOptionalString(env.HOME_ASSISTANT_ALL_LIGHTS_ENTITY_ID),
       lightGroups: readLightGroups(env.HOME_ASSISTANT_LIGHT_GROUPS),
       lightEntities: readLightEntities(env.HOME_ASSISTANT_LIGHT_ENTITIES),
@@ -331,8 +359,21 @@ function readRoomTemperatureSensors(value: string | undefined): CuratedRoomTempe
       throw new Error('HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS must configure each of the five Levy Home room IDs exactly once.');
     }
 
-    return configuredSensor;
+    return {
+      ...configuredSensor,
+      occupancyEntityId: defaultSensor.occupancyEntityId,
+    };
   });
+}
+
+function readOccupiedMeanTemperatureEntityId(value: string | undefined): string {
+  const entityId = readOptionalString(value) ?? 'sensor.occupied_mean_temperature';
+
+  if (!entityId.startsWith('sensor.')) {
+    throw new Error('HOME_ASSISTANT_OCCUPIED_MEAN_TEMPERATURE_ENTITY_ID must be a sensor entity ID.');
+  }
+
+  return entityId;
 }
 
 function isRoomTemperatureSensorID(value: string | undefined): value is RoomTemperatureSensorID {

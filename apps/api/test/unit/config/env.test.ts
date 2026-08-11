@@ -44,11 +44,11 @@ test('readConfig uses the verified thermostat climate entity and accepts a clima
 
 test('readConfig uses the verified room-temperature sensors and accepts an exact override', () => {
   assert.deepEqual(readConfig({}).homeAssistant.roomTemperatureSensors, [
-    { id: 'study', name: 'Study', entityId: 'sensor.study_thermometer_study_temperature' },
-    { id: 'kitchen_family', name: 'Kitchen / Family', entityId: 'sensor.study_govee_thermometer_study_temperature' },
-    { id: 'nursery', name: 'Nursery', entityId: 'sensor.nursery_thermometer_nursery_temperature' },
-    { id: 'master_bedroom', name: 'Master Bedroom', entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature' },
-    { id: 'playroom', name: 'Playroom', entityId: 'sensor.playroom_thermometer_playroom_temperature' },
+    { id: 'study', name: 'Study', entityId: 'sensor.study_thermometer_study_temperature', occupancyEntityId: 'schedule.study_occupied' },
+    { id: 'kitchen_family', name: 'Kitchen / Family', entityId: 'sensor.study_govee_thermometer_study_temperature', occupancyEntityId: 'schedule.kitchen_family_room_occupied' },
+    { id: 'nursery', name: 'Nursery', entityId: 'sensor.nursery_thermometer_nursery_temperature', occupancyEntityId: 'schedule.nursery_occupied' },
+    { id: 'master_bedroom', name: 'Master Bedroom', entityId: 'sensor.master_bedroom_thermometer_master_bedroom_temperature', occupancyEntityId: 'schedule.master_bedroom_occupied' },
+    { id: 'playroom', name: 'Playroom', entityId: 'sensor.playroom_thermometer_playroom_temperature', occupancyEntityId: 'schedule.playroom_occupied' },
   ]);
 
   const config = readConfig({
@@ -57,9 +57,23 @@ test('readConfig uses the verified room-temperature sensors and accepts an exact
   });
 
   assert.equal(config.homeAssistant.roomTemperatureSensors?.[1]?.entityId, 'sensor.family_temperature');
+  assert.equal(config.homeAssistant.roomTemperatureSensors?.[1]?.occupancyEntityId, 'schedule.kitchen_family_room_occupied');
   assert.throws(
     () => readConfig({ HOME_ASSISTANT_ROOM_TEMPERATURE_SENSORS: 'study:Study:sensor.study_temperature' }),
     /must configure each of the five Levy Home room IDs exactly once/,
+  );
+});
+
+test('readConfig uses the occupied-mean temperature helper and accepts a sensor override', () => {
+  assert.equal(readConfig({}).homeAssistant.occupiedMeanTemperatureEntityId, 'sensor.occupied_mean_temperature');
+  assert.equal(
+    readConfig({ HOME_ASSISTANT_OCCUPIED_MEAN_TEMPERATURE_ENTITY_ID: 'sensor.downstairs_occupied_mean_temperature' })
+      .homeAssistant.occupiedMeanTemperatureEntityId,
+    'sensor.downstairs_occupied_mean_temperature',
+  );
+  assert.throws(
+    () => readConfig({ HOME_ASSISTANT_OCCUPIED_MEAN_TEMPERATURE_ENTITY_ID: 'input_number.occupied_mean_temperature' }),
+    /must be a sensor entity ID/,
   );
 });
 

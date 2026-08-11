@@ -232,6 +232,7 @@ export async function updateToDoItem(
   const hasAlerts = request.alerts !== undefined;
   const hasSubtasks = request.subtasks !== undefined;
   const hasCreatedBy = request.createdBy !== undefined;
+  const hasCreatedFor = request.createdFor !== undefined;
   const hasStatus = request.status !== undefined;
 
   const [row] = await database<ToDoItemRow>`
@@ -251,6 +252,10 @@ export async function updateToDoItem(
         ELSE item.subtasks
       END,
       created_by = CASE WHEN ${hasCreatedBy} THEN ${request.createdBy ?? null} ELSE item.created_by END,
+      created_for = CASE
+        WHEN ${hasCreatedFor} THEN ${jsonb(request.createdFor ?? TODO_FAMILY_USER_IDS)}::jsonb
+        ELSE item.created_for
+      END,
       status = CASE WHEN ${hasStatus} THEN ${request.status ?? null} ELSE item.status END
     WHERE item.id = ${id}
     RETURNING
@@ -385,7 +390,8 @@ function hasToDoItemUpdate(request: UpdateToDoItemRequest): boolean {
     request.notes !== undefined ||
     request.alerts !== undefined ||
     request.subtasks !== undefined ||
-    request.createdBy !== undefined
+    request.createdBy !== undefined ||
+    request.createdFor !== undefined
   );
 }
 

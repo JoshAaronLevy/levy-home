@@ -5,6 +5,7 @@ struct HomeOverview: Codable, Equatable {
     let lightSummary: LightSummary
     let thermostatStatus: ThermostatStatus?
     let roomTemperatures: [RoomTemperatureReading]?
+    let occupiedMeanTemperature: Double?
     let presence: [HomePresenceStatus]?
     let recentImportantEvent: LevyHomeEvent?
     let generatedAt: String?
@@ -15,6 +16,7 @@ struct HomeOverview: Codable, Equatable {
         lightSummary: LightSummary,
         thermostatStatus: ThermostatStatus? = nil,
         roomTemperatures: [RoomTemperatureReading]? = nil,
+        occupiedMeanTemperature: Double? = nil,
         presence: [HomePresenceStatus]?,
         recentImportantEvent: LevyHomeEvent?,
         generatedAt: String?,
@@ -24,6 +26,7 @@ struct HomeOverview: Codable, Equatable {
         self.lightSummary = lightSummary
         self.thermostatStatus = thermostatStatus
         self.roomTemperatures = roomTemperatures
+        self.occupiedMeanTemperature = occupiedMeanTemperature
         self.presence = presence
         self.recentImportantEvent = recentImportantEvent
         self.generatedAt = generatedAt
@@ -35,6 +38,7 @@ struct RoomTemperatureReading: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let temperature: Double?
+    let isOccupied: Bool?
     let lastUpdatedAt: String?
     let isStale: Bool?
 }

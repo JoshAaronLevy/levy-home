@@ -15,7 +15,10 @@ import {
 } from '../../../src/validation/shoppingValidation.js';
 import { validateStartShoppingListReaddBody } from '../../../src/validation/shoppingListReaddValidation.js';
 import { shoppingListReaddLimits } from '../../../src/services/shopping/shoppingListReaddContracts.js';
-import { validateCreateToDoLocationBody } from '../../../src/validation/todoValidation.js';
+import {
+  validateCreateToDoLocationBody,
+  validateUpdateToDoItemBody,
+} from '../../../src/validation/todoValidation.js';
 import { HTTPError } from '../../../src/http/errors.js';
 
 test('shopping validators normalize create payloads and reject empty updates', () => {
@@ -133,6 +136,24 @@ test('to-do location validator trims names and preserves favorited user id array
   assertHTTPError(
     () => validateCreateToDoLocationBody({ name: 'School', favoritedBy: [1, 0] }),
     'invalid_todo_location',
+  );
+});
+
+test('to-do update validator accepts a non-empty visibility audience', () => {
+  assert.deepEqual(
+    validateUpdateToDoItemBody({
+      createdFor: [2, 2],
+      actor: ' Mallory ',
+    }),
+    {
+      createdFor: [2],
+      actor: 'Mallory',
+    },
+  );
+
+  assertHTTPError(
+    () => validateUpdateToDoItemBody({ createdFor: [] }),
+    'invalid_todo_item',
   );
 });
 

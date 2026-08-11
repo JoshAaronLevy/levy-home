@@ -58,10 +58,12 @@ final class APIModelDecodingTests: XCTestCase {
                     "id": "nursery",
                     "name": "Nursery",
                     "temperature": 70.52,
+                    "isOccupied": true,
                     "lastUpdatedAt": "2026-08-10T02:43:50Z",
                     "isStale": false
                   }
                 ],
+                "occupiedMeanTemperature": 73.8,
                 "presence": [
                   {
                     "person": "Josh",
@@ -91,6 +93,8 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.overview.thermostatStatus?.hvacAction, "heating")
         XCTAssertEqual(response.overview.roomTemperatures?.first?.id, "nursery")
         XCTAssertEqual(response.overview.roomTemperatures?.first?.temperature, 70.52)
+        XCTAssertEqual(response.overview.roomTemperatures?.first?.isOccupied, true)
+        XCTAssertEqual(response.overview.occupiedMeanTemperature, 73.8)
         XCTAssertEqual(response.overview.presence?.first?.person, "Josh")
         XCTAssertEqual(response.overview.presence?.first?.state, .away)
     }

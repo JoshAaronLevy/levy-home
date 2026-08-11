@@ -649,13 +649,11 @@ private struct ToDoEditorSheet: View {
             VStack(spacing: 0) {
                 ToDoCreatedByRow(user: selectedUser)
 
-                if case .add = mode {
-                    Divider()
-                        .padding(.leading, 42)
-                        .padding(.vertical, AppSpacing.medium)
+                Divider()
+                    .padding(.leading, 42)
+                    .padding(.vertical, AppSpacing.medium)
 
-                    ToDoAudiencePicker(selectedAudience: $draft.audience)
-                }
+                ToDoAudiencePicker(selectedAudience: $draft.audience)
 
                 Divider()
                     .padding(.leading, 42)

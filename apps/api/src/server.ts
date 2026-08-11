@@ -20,6 +20,7 @@ import type { WeatherAlertService } from './services/weather/weatherAlertService
 import type { ToDoListRealtimeHub } from './todoListRealtime.js';
 import type { ShoppingLiveActivityDeliveryService } from './services/shopping/shoppingLiveActivityDeliveryService.js';
 import type { ShoppingTripSummaryDeliveryService } from './services/shopping/shoppingTripSummaryDeliveryService.js';
+import type { ToDoDueReminderService } from './services/todo/todoDueReminderService.js';
 
 export function startServer(config?: AppConfig, options: { logger?: Logger } = {}): void {
   const serverLogger = options.logger ?? logger;
@@ -34,6 +35,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
   const weatherAlertService = app.get('weatherAlertService') as WeatherAlertService | undefined;
   const shoppingLiveActivityDeliveryService = app.get('shoppingLiveActivityDeliveryService') as ShoppingLiveActivityDeliveryService | undefined;
   const shoppingTripSummaryDeliveryService = app.get('shoppingTripSummaryDeliveryService') as ShoppingTripSummaryDeliveryService | undefined;
+  const toDoDueReminderService = app.get('toDoDueReminderService') as ToDoDueReminderService | undefined;
   const storeHomeAssistantPhoneActivity = (event: HomeAssistantStateChangedEvent) => {
     if (!shouldIncludePhoneStateChangedEvent(event)) {
       return;
@@ -58,6 +60,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     weatherAlertService?.start();
     shoppingLiveActivityDeliveryService?.start();
     shoppingTripSummaryDeliveryService?.start();
+    toDoDueReminderService?.start();
     void backfillHomeAssistantActivity(resolvedConfig, {
       logger: serverLogger,
       onStateChanged: storeHomeAssistantPhoneActivity,
@@ -77,6 +80,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     weatherAlertService?.stop();
     shoppingLiveActivityDeliveryService?.stop();
     shoppingTripSummaryDeliveryService?.stop();
+    toDoDueReminderService?.stop();
     shoppingListRealtime.close();
     toDoListRealtime?.close();
   });
@@ -114,6 +118,7 @@ export function startServer(config?: AppConfig, options: { logger?: Logger } = {
     weatherAlertService?.stop();
     shoppingLiveActivityDeliveryService?.stop();
     shoppingTripSummaryDeliveryService?.stop();
+    toDoDueReminderService?.stop();
     toDoListRealtime?.close();
 
     server.close((error) => {

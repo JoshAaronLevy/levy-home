@@ -74,6 +74,15 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
     );
   }
 
+  async getOccupiedMeanTemperature(): Promise<number | null> {
+    try {
+      const state = await this.fetchEntityState(this.occupiedMeanTemperatureEntityId);
+      return stateTemperatureOrNull(state.state);
+    } catch {
+      return null;
+    }
+  }
+
   async getLightSummaryInputs(): Promise<{ allLights: LightGroupStatus; groups: LightGroupStatus[] }> {
     if (this.config.homeAssistant.lightEntities.length > 0) {
       const groups = await Promise.all(
@@ -222,24 +231,32 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
   }
 
   private async fetchRoomTemperature(sensor: CuratedRoomTemperatureSensor): Promise<RoomTemperatureReading> {
-    try {
-      const state = await this.fetchEntityState(sensor.entityId);
+    const [temperatureResult, occupancyResult] = await Promise.allSettled([
+      this.fetchEntityState(sensor.entityId),
+      sensor.occupancyEntityId ? this.fetchEntityState(sensor.occupancyEntityId) : Promise.resolve(undefined),
+    ]);
+    const isOccupied = occupancyResult.status === 'fulfilled' && occupancyResult.value
+      ? occupancyResult.value.state === 'on'
+      : undefined;
 
+    if (temperatureResult.status === 'fulfilled') {
       return {
         id: sensor.id,
         name: sensor.name,
-        temperature: stateTemperatureOrNull(state.state),
-        lastUpdatedAt: state.last_updated,
+        temperature: stateTemperatureOrNull(temperatureResult.value.state),
+        ...(isOccupied === undefined ? {} : { isOccupied }),
+        lastUpdatedAt: temperatureResult.value.last_updated,
         isStale: false,
       };
-    } catch {
-      return {
-        id: sensor.id,
-        name: sensor.name,
-        temperature: null,
-        isStale: true,
-      };
     }
+
+    return {
+      id: sensor.id,
+      name: sensor.name,
+      temperature: null,
+      ...(isOccupied === undefined ? {} : { isOccupied }),
+      isStale: true,
+    };
   }
 
   private async fetchLightGroupState(group: CuratedLightGroup): Promise<LightGroupStatus> {
@@ -261,6 +278,10 @@ export class LiveHomeAssistantFacade implements HomeAssistantFacade {
 
   private get roomTemperatureSensors(): CuratedRoomTemperatureSensor[] {
     return this.config.homeAssistant.roomTemperatureSensors ?? defaultRoomTemperatureSensors;
+  }
+
+  private get occupiedMeanTemperatureEntityId(): string {
+    return this.config.homeAssistant.occupiedMeanTemperatureEntityId ?? 'sensor.occupied_mean_temperature';
   }
 
   private configuredLightTarget(groupId: string): CuratedLightEntity | CuratedLightGroup {

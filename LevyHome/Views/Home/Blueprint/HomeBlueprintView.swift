@@ -279,6 +279,7 @@ struct HomeBlueprintModePicker: View {
 
 struct TemperatureBlueprintView: View {
     let roomTemperatures: [RoomTemperatureReading]
+    let occupiedMeanTemperature: Double?
     let thermostatStatus: ThermostatStatus?
     let onThermostatTapped: () -> Void
 
@@ -290,7 +291,6 @@ struct TemperatureBlueprintView: View {
             let center = CGPoint(x: width * 0.50, y: height * 0.48)
             let sensorNodeSize = min(max(width * 0.22, 78), 88)
             let thermostatNodeSize = min(max(width * 0.32, 108), 118)
-            let centerSize = min(max(width * 0.185, 66), 80)
             let positions = TemperatureBlueprintNodePositions(width: width, height: height)
 
             ZStack {
@@ -319,7 +319,11 @@ struct TemperatureBlueprintView: View {
                     .stroke(HomePalette.blue.opacity(0.42), style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
 
-                CenterHomeNode(size: centerSize)
+                OccupiedMeanTemperatureNode(
+                    size: sensorNodeSize,
+                    occupiedMeanTemperature: occupiedMeanTemperature,
+                    thermostatTemperature: thermostatStatus?.currentTemperature
+                )
                     .position(center)
 
                 ForEach(TemperatureBlueprintNodeKind.allCases) { node in
@@ -460,7 +464,7 @@ private struct TemperatureBlueprintSensorNode: View {
                 Text(temperatureText)
                     .font(.system(size: size * 0.32, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(HomePalette.ink)
+                    .foregroundStyle(temperatureColor)
 
                 Image(systemName: node.systemImage)
                     .font(.system(size: size * 0.26, weight: .medium))
@@ -494,6 +498,136 @@ private struct TemperatureBlueprintSensorNode: View {
         default:
             return HomePalette.coral
         }
+    }
+
+    private var temperatureColor: Color {
+        reading?.isOccupied == false ? HomePalette.secondaryInk : HomePalette.ink
+    }
+}
+
+enum OccupiedMeanTemperatureDifferenceTone: Equatable {
+    case neutral
+    case cooler
+    case warmer
+    case muchWarmer
+
+    init(degrees: Int) {
+        switch degrees {
+        case ...(-3):
+            self = .cooler
+        case ...2:
+            self = .neutral
+        case ...4:
+            self = .warmer
+        default:
+            self = .muchWarmer
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .neutral:
+            return HomePalette.secondaryInk
+        case .cooler:
+            return HomePalette.blue
+        case .warmer:
+            return HomePalette.gold
+        case .muchWarmer:
+            return HomePalette.coral
+        }
+    }
+}
+
+struct OccupiedMeanTemperatureDifference: Equatable {
+    let degrees: Int
+
+    init?(occupiedMeanTemperature: Double?, thermostatTemperature: Double?) {
+        guard
+            let occupiedMeanTemperature,
+            let thermostatTemperature,
+            occupiedMeanTemperature.isFinite,
+            thermostatTemperature.isFinite
+        else {
+            return nil
+        }
+
+        degrees = Int((occupiedMeanTemperature - thermostatTemperature).rounded())
+    }
+
+    var displayText: String {
+        degrees > 0 ? "+\(degrees)°" : "\(degrees)°"
+    }
+
+    var tone: OccupiedMeanTemperatureDifferenceTone {
+        OccupiedMeanTemperatureDifferenceTone(degrees: degrees)
+    }
+
+    var accessibilityDescription: String {
+        switch degrees {
+        case 0:
+            return "the same as the thermostat"
+        case let value where value > 0:
+            return "\(value) degrees warmer than the thermostat"
+        default:
+            return "\(abs(degrees)) degrees cooler than the thermostat"
+        }
+    }
+}
+
+private struct OccupiedMeanTemperatureNode: View {
+    let size: CGFloat
+    let occupiedMeanTemperature: Double?
+    let thermostatTemperature: Double?
+
+    private var difference: OccupiedMeanTemperatureDifference? {
+        OccupiedMeanTemperatureDifference(
+            occupiedMeanTemperature: occupiedMeanTemperature,
+            thermostatTemperature: thermostatTemperature
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(HomePalette.centerFill)
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.95), lineWidth: 2)
+                }
+                .shadow(color: HomePalette.green.opacity(0.22), radius: 14, y: 7)
+
+            VStack(spacing: size * 0.015) {
+                Text(temperatureText)
+                    .font(.system(size: size * 0.31, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(HomePalette.ink)
+
+                if let difference {
+                    Text(difference.displayText)
+                        .font(.system(size: size * 0.17, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(difference.tone.color)
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var temperatureText: String {
+        guard let occupiedMeanTemperature, occupiedMeanTemperature.isFinite else {
+            return "—"
+        }
+
+        return "\(Int(occupiedMeanTemperature.rounded()))°"
+    }
+
+    private var accessibilityLabel: String {
+        guard let difference else {
+            return "Occupied mean temperature, \(temperatureText)"
+        }
+
+        return "Occupied mean temperature, \(temperatureText), \(difference.accessibilityDescription)"
     }
 }
 

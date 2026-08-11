@@ -3,7 +3,10 @@ import { test } from 'node:test';
 
 import { createInMemoryDeviceRegistry } from '../../../../src/services/notifications/deviceRegistry.js';
 import { createInMemoryNotificationPreferenceStore } from '../../../../src/services/notifications/notificationPreferenceStore.js';
-import { createNotificationService } from '../../../../src/services/notifications/notificationService.js';
+import {
+  createNotificationService,
+  doorbellPushExpirationSeconds,
+} from '../../../../src/services/notifications/notificationService.js';
 import { FakePushSender } from '../../../support/fakePushSender.js';
 
 test('notification service honors per-device garage preferences for event pushes', async () => {
@@ -107,6 +110,7 @@ test('notification service sends doorbell event pushes through the doorbell pref
     environment: 'sandbox',
   });
 
+  const beforeSend = Math.floor(Date.now() / 1_000);
   const push = await notificationService.sendEventPush({
     type: 'doorbell_person_detected',
     entityId: 'binary_sensor.doorbell_person_detected',
@@ -118,8 +122,47 @@ test('notification service sends doorbell event pushes through the doorbell pref
   assert.equal(push.attempted, true);
   assert.equal(push.sentNotificationCount, 1);
   assert.equal(pushSender.requests.length, 1);
-  assert.equal(pushSender.requests[0].title, 'Person detected');
-  assert.deepEqual(pushSender.requests[0].data, { category: 'doorbell' });
+  const request = pushSender.requests[0];
+  assert.ok(request);
+  assert.equal(request.title, 'Person detected');
+  assert.deepEqual(request.data, { category: 'doorbell' });
+  assert.equal(request.collapseId, 'doorbell-current');
+  assert.ok(request.expiration !== undefined);
+  assert.ok(request.expiration >= beforeSend + doorbellPushExpirationSeconds);
+  assert.ok(request.expiration <= Math.floor(Date.now() / 1_000) + doorbellPushExpirationSeconds);
+});
+
+test('notification service removes an invalid device token after a doorbell push', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender([{
+    success: false,
+    reason: 'Unregistered',
+    isInvalidToken: true,
+  }]);
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'stale-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  const push = await notificationService.sendEventPush({
+    type: 'doorbell_person_detected',
+    entityId: 'binary_sensor.doorbell_person_detected',
+    category: 'doorbell',
+    severity: 'high',
+    source: 'home_assistant',
+  });
+
+  assert.equal(push.invalidTokenCount, 1);
+  assert.equal((await deviceRegistry.listDevices()).length, 0);
 });
 
 test('notification service sends partner presence pushes only to the metadata recipient', async () => {
@@ -262,6 +305,56 @@ test('notification service sends To Do add session summaries only to the other r
     action: 'created',
     actor: 'Josh',
     itemCount: '2',
+  });
+});
+
+test('notification service sends due reminders only to the visible To Do recipient', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'josh-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Josh iPhone',
+  });
+  await deviceRegistry.registerDevice({
+    token: 'mallory-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    deviceName: 'Mallory iPhone',
+  });
+
+  const push = await notificationService.sendToDoDueReminderPush({
+    itemId: 42,
+    itemName: 'Schedule dentist',
+    dueDate: '2026-01-15',
+    reminderKind: 'morning',
+    recipientUserId: 1,
+  });
+
+  assert.equal(push.attempted, true);
+  assert.equal(push.sentNotificationCount, 1);
+  assert.equal(pushSender.requests.length, 1);
+  assert.equal(pushSender.requests[0].device.token, 'josh-apns-token');
+  assert.equal(pushSender.requests[0].title, 'To-do due today');
+  assert.equal(pushSender.requests[0].body, 'Schedule dentist is due today.');
+  assert.equal(pushSender.requests[0].collapseId, 'todo-due-42-morning');
+  assert.deepEqual(pushSender.requests[0].data, {
+    category: 'todo_list',
+    listType: 'todo',
+    action: 'due_reminder',
+    reminder: 'morning',
+    todoItemId: '42',
+    dueDate: '2026-01-15',
   });
 });
 

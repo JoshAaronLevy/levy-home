@@ -63,6 +63,7 @@ struct HomeContentView: View {
                 case .temperatures:
                     TemperatureBlueprintView(
                         roomTemperatures: homeViewModel.overview?.roomTemperatures ?? [],
+                        occupiedMeanTemperature: homeViewModel.overview?.occupiedMeanTemperature,
                         thermostatStatus: homeViewModel.overview?.thermostatStatus
                     ) {
                         isShowingThermostatControl = true
@@ -121,8 +122,7 @@ struct HomeContentView: View {
             }
 
             Task {
-                await refreshWeatherForHomeVisit()
-                await homeViewModel.refreshTodayActivityIfDayChanged()
+                await refreshHomeContentForVisit()
             }
         }
         .onChange(of: scenePhase) { _, newValue in
@@ -131,8 +131,16 @@ struct HomeContentView: View {
             }
 
             Task {
-                await refreshWeatherForHomeVisit()
-                await homeViewModel.refreshTodayActivityIfDayChanged()
+                await refreshHomeContentForVisit()
+            }
+        }
+        .onChange(of: selectedBlueprintMode) { _, newValue in
+            guard newValue == .temperatures else {
+                return
+            }
+
+            Task {
+                await refreshHomeOverviewForTemperatureView()
             }
         }
         .refreshable {
@@ -203,9 +211,18 @@ struct HomeContentView: View {
         }
     }
 
-    private func refreshWeatherForHomeVisit() async {
+    private func refreshHomeContentForVisit() async {
         await runHomeContentOperation {
-            await weatherViewModel.refreshForHomeVisit()
+            async let home: Void = homeViewModel.refresh()
+            async let weather: Void = weatherViewModel.refreshForHomeVisit()
+            async let activity: Void = homeViewModel.refreshTodayActivityIfDayChanged()
+            _ = await (home, weather, activity)
+        }
+    }
+
+    private func refreshHomeOverviewForTemperatureView() async {
+        await runHomeContentOperation {
+            await homeViewModel.refresh()
         }
     }
 

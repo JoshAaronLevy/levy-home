@@ -264,6 +264,7 @@ final class ToDoViewModel: ObservableObject {
                 .map { .value($0) } ?? .null,
             notes: draft.trimmedNotes.isEmpty ? .null : .value(draft.trimmedNotes),
             createdBy: .value(draft.createdBy),
+            createdFor: draft.createdFor,
             actor: actor
         )
         let response = try await apiClient.updateToDoItem(id: task.id, request)
