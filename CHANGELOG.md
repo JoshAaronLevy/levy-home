@@ -1,5 +1,9 @@
 # Changelog
 
+## 12.2.7 — 2026-08-10
+
+- Added a neutral all-room temperature average when no room is scheduled occupied, without a thermostat comparison.
+
 ## 12.2.6 — 2026-08-10
 
 - Restored live temperature readings for every room in the Temps home view after Home Assistant sensor IDs changed.

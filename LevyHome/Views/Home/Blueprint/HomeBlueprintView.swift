@@ -283,6 +283,13 @@ struct TemperatureBlueprintView: View {
     let thermostatStatus: ThermostatStatus?
     let onThermostatTapped: () -> Void
 
+    private var meanDisplay: TemperatureBlueprintMeanDisplay {
+        TemperatureBlueprintMeanDisplay(
+            occupiedMeanTemperature: occupiedMeanTemperature,
+            roomTemperatures: roomTemperatures
+        )
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
@@ -321,7 +328,7 @@ struct TemperatureBlueprintView: View {
 
                 OccupiedMeanTemperatureNode(
                     size: sensorNodeSize,
-                    occupiedMeanTemperature: occupiedMeanTemperature,
+                    meanDisplay: meanDisplay,
                     thermostatTemperature: thermostatStatus?.currentTemperature
                 )
                     .position(center)
@@ -574,14 +581,45 @@ struct OccupiedMeanTemperatureDifference: Equatable {
     }
 }
 
+struct TemperatureBlueprintMeanDisplay: Equatable {
+    let temperature: Double?
+    let usesAllRoomsFallback: Bool
+
+    init(occupiedMeanTemperature: Double?, roomTemperatures: [RoomTemperatureReading]) {
+        let usableRoomTemperatures = roomTemperatures.compactMap { reading -> Double? in
+            guard let temperature = reading.temperature, temperature.isFinite else {
+                return nil
+            }
+
+            return temperature
+        }
+        let areAllRoomsExplicitlyUnoccupied = !roomTemperatures.isEmpty
+            && roomTemperatures.allSatisfy { $0.isOccupied == false }
+        let hasEveryRoomTemperature = usableRoomTemperatures.count == roomTemperatures.count
+
+        guard areAllRoomsExplicitlyUnoccupied, hasEveryRoomTemperature else {
+            temperature = occupiedMeanTemperature
+            usesAllRoomsFallback = false
+            return
+        }
+
+        temperature = usableRoomTemperatures.reduce(0, +) / Double(usableRoomTemperatures.count)
+        usesAllRoomsFallback = true
+    }
+}
+
 private struct OccupiedMeanTemperatureNode: View {
     let size: CGFloat
-    let occupiedMeanTemperature: Double?
+    let meanDisplay: TemperatureBlueprintMeanDisplay
     let thermostatTemperature: Double?
 
     private var difference: OccupiedMeanTemperatureDifference? {
-        OccupiedMeanTemperatureDifference(
-            occupiedMeanTemperature: occupiedMeanTemperature,
+        guard !meanDisplay.usesAllRoomsFallback else {
+            return nil
+        }
+
+        return OccupiedMeanTemperatureDifference(
+            occupiedMeanTemperature: meanDisplay.temperature,
             thermostatTemperature: thermostatTemperature
         )
     }
@@ -600,7 +638,7 @@ private struct OccupiedMeanTemperatureNode: View {
                 Text(temperatureText)
                     .font(.system(size: size * 0.31, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(HomePalette.ink)
+                    .foregroundStyle(meanDisplay.usesAllRoomsFallback ? HomePalette.secondaryInk : HomePalette.ink)
 
                 if let difference {
                     Text(difference.displayText)
@@ -615,14 +653,18 @@ private struct OccupiedMeanTemperatureNode: View {
     }
 
     private var temperatureText: String {
-        guard let occupiedMeanTemperature, occupiedMeanTemperature.isFinite else {
+        guard let temperature = meanDisplay.temperature, temperature.isFinite else {
             return "—"
         }
 
-        return "\(Int(occupiedMeanTemperature.rounded()))°"
+        return "\(Int(temperature.rounded()))°"
     }
 
     private var accessibilityLabel: String {
+        if meanDisplay.usesAllRoomsFallback {
+            return "All-room average temperature, \(temperatureText)"
+        }
+
         guard let difference else {
             return "Occupied mean temperature, \(temperatureText)"
         }

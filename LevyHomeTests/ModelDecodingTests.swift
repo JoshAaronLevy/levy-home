@@ -294,6 +294,51 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertNil(OccupiedMeanTemperatureDifference(occupiedMeanTemperature: nil, thermostatTemperature: 70))
     }
 
+    func testTemperatureBlueprintMeanDisplayUsesEveryRoomOnlyWhenAllAreExplicitlyUnoccupied() {
+        let occupiedDisplay = TemperatureBlueprintMeanDisplay(
+            occupiedMeanTemperature: 73.8,
+            roomTemperatures: [
+                roomTemperature(id: "study", temperature: 70, isOccupied: true),
+                roomTemperature(id: "nursery", temperature: 74, isOccupied: false)
+            ]
+        )
+        let fallbackDisplay = TemperatureBlueprintMeanDisplay(
+            occupiedMeanTemperature: 99,
+            roomTemperatures: [
+                roomTemperature(id: "study", temperature: 70, isOccupied: false),
+                roomTemperature(id: "kitchen_family", temperature: 72, isOccupied: false),
+                roomTemperature(id: "nursery", temperature: 74, isOccupied: false)
+            ]
+        )
+
+        XCTAssertEqual(occupiedDisplay.temperature, 73.8)
+        XCTAssertFalse(occupiedDisplay.usesAllRoomsFallback)
+        XCTAssertEqual(fallbackDisplay.temperature, 72)
+        XCTAssertTrue(fallbackDisplay.usesAllRoomsFallback)
+    }
+
+    func testTemperatureBlueprintMeanDisplayDoesNotUseAPartialOrUnknownOccupancyFallback() {
+        let partialDisplay = TemperatureBlueprintMeanDisplay(
+            occupiedMeanTemperature: 73.8,
+            roomTemperatures: [
+                roomTemperature(id: "study", temperature: 70, isOccupied: false),
+                roomTemperature(id: "nursery", temperature: nil, isOccupied: false)
+            ]
+        )
+        let unknownOccupancyDisplay = TemperatureBlueprintMeanDisplay(
+            occupiedMeanTemperature: 73.8,
+            roomTemperatures: [
+                roomTemperature(id: "study", temperature: 70, isOccupied: nil),
+                roomTemperature(id: "nursery", temperature: 74, isOccupied: false)
+            ]
+        )
+
+        XCTAssertEqual(partialDisplay.temperature, 73.8)
+        XCTAssertFalse(partialDisplay.usesAllRoomsFallback)
+        XCTAssertEqual(unknownOccupancyDisplay.temperature, 73.8)
+        XCTAssertFalse(unknownOccupancyDisplay.usesAllRoomsFallback)
+    }
+
     func testThermostatSetpointDraftAdjustsOnlyTheOppositeSetpointNeededForTheMinimumDelta() throws {
         let status = ThermostatStatus(
             currentTemperature: 72,
@@ -448,6 +493,17 @@ final class ModelDecodingTests: XCTestCase {
 
     private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
         try decoder.decode(T.self, from: Data(json.utf8))
+    }
+
+    private func roomTemperature(id: String, temperature: Double?, isOccupied: Bool?) -> RoomTemperatureReading {
+        RoomTemperatureReading(
+            id: id,
+            name: id,
+            temperature: temperature,
+            isOccupied: isOccupied,
+            lastUpdatedAt: nil,
+            isStale: false
+        )
     }
 
     private func decodeEvent(
