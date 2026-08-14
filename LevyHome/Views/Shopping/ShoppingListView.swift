@@ -3625,21 +3625,21 @@ private struct ShoppingStoreListingSummaryRow: View {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: AppSpacing.xSmall) {
                     storePill
-                    availabilityPill
+                    aislePill
                     pricePill
                 }
 
                 VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
                     HStack(spacing: AppSpacing.xSmall) {
                         storePill
-                        availabilityPill
+                        aislePill
                     }
                     pricePill
                 }
             }
 
-            if let contextText = ShoppingStoreListingPresentation.contextText(for: listing) {
-                Text(contextText)
+            if let freshnessText = ShoppingStoreListingPresentation.freshnessText(for: listing) {
+                Text(freshnessText)
                     .font(.caption)
                     .foregroundStyle(AppColors.mutedText)
                     .lineLimit(2)
@@ -3651,27 +3651,32 @@ private struct ShoppingStoreListingSummaryRow: View {
     }
 
     private var storePill: some View {
-        Text(ShoppingStoreListingPresentation.storeName(for: listing))
+        let tone = ShoppingStoreListingPresentation.availabilityTone(for: listing)
+
+        return Text(ShoppingStoreListingPresentation.storeName(for: listing))
             .font(.caption.weight(.semibold))
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, AppSpacing.small)
             .frame(height: 24)
-            .foregroundStyle(AppColors.mutedText)
-            .background(Color(uiColor: .tertiarySystemFill))
+            .foregroundStyle(tone.foregroundColor)
+            .background(tone.backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
     }
 
-    private var availabilityPill: some View {
-        Text(ShoppingStoreListingPresentation.availabilityLabel(for: listing))
-            .font(.caption.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .padding(.horizontal, AppSpacing.small)
-            .frame(height: 24)
-            .foregroundStyle(ShoppingStoreListingPresentation.availabilityTone(for: listing).foregroundColor)
-            .background(ShoppingStoreListingPresentation.availabilityTone(for: listing).backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+    @ViewBuilder
+    private var aislePill: some View {
+        if let aisleText = ShoppingStoreListingPresentation.locationText(for: listing) {
+            Label(aisleText, systemImage: "mappin.circle")
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .padding(.horizontal, AppSpacing.small)
+                .frame(height: 24)
+                .foregroundStyle(AppColors.mutedText)
+                .background(Color(uiColor: .tertiarySystemFill))
+                .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.badge, style: .continuous))
+        }
     }
 
     @ViewBuilder
