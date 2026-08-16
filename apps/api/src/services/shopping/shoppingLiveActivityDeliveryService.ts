@@ -19,9 +19,10 @@ import type {
 import type { ShoppingTripStore } from '../../repositories/shoppingTripRepository.js';
 import type { Logger } from '../../observability/logger.js';
 import { logger as defaultLogger, safeErrorMessage } from '../../observability/logger.js';
+import { createDeliveryWorkerWakeScheduler } from './deliveryWorkerWakeScheduler.js';
 
 const permanentAPNsReasons = new Set(['Unregistered', 'BadDeviceToken', 'DeviceTokenNotForTopic']);
-const deliveryPollIntervalMs = 5_000;
+const deliveryBatchSize = 20;
 
 export type ShoppingLiveActivityDeliveryService = {
   start: () => void;
@@ -44,7 +45,6 @@ export function createShoppingLiveActivityDeliveryService(options: {
 }): ShoppingLiveActivityDeliveryService {
   const auditLogger = options.logger ?? defaultLogger;
   const now = options.now ?? (() => new Date());
-  let poller: NodeJS.Timeout | undefined;
   let processing: Promise<void> | undefined;
 
   const processPending = async (): Promise<void> => {
@@ -63,75 +63,78 @@ export function createShoppingLiveActivityDeliveryService(options: {
 
   async function processPendingDeliveries(): Promise<void> {
     await options.shoppingLiveActivityStore.recoverStaleClaims();
-    const deliveries = await options.shoppingLiveActivityStore.claimDueDeliveries(20);
+    while (true) {
+      const deliveries = await options.shoppingLiveActivityStore.claimDueDeliveries(deliveryBatchSize);
 
-    for (const delivery of deliveries) {
-      try {
-        const result = await options.pushSender.send({
-          registrationId: delivery.registration.id,
-          token: delivery.registration.token,
-          environment: delivery.registration.environment,
-          payload: delivery.payload,
-          priority: delivery.eventType === 'update' ? 5 : 10,
-          expiration: expirationFor(delivery.eventType, now()),
-        });
+      for (const delivery of deliveries) {
+        try {
+          const result = await options.pushSender.send({
+            registrationId: delivery.registration.id,
+            token: delivery.registration.token,
+            environment: delivery.registration.environment,
+            payload: delivery.payload,
+            priority: delivery.eventType === 'update' ? 5 : 10,
+            expiration: expirationFor(delivery.eventType, now()),
+          });
 
-        if (result.success) {
-          await options.shoppingLiveActivityStore.markDeliverySent(delivery.id, result.apnsId);
-          auditLogger.info('Shopping Live Activity delivery sent.', deliveryAuditDetails(delivery, result.reason));
-          continue;
+          if (result.success) {
+            await options.shoppingLiveActivityStore.markDeliverySent(delivery.id, result.apnsId);
+            auditLogger.info('Shopping Live Activity delivery sent.', deliveryAuditDetails(delivery, result.reason));
+            continue;
+          }
+
+          const reason = result.reason ?? `APNs status ${result.statusCode ?? 'unknown'}`;
+
+          if (result.isInvalidToken || permanentAPNsReasons.has(reason)) {
+            await options.shoppingLiveActivityStore.invalidateRegistration(delivery.registration.id);
+            await options.shoppingLiveActivityStore.markDeliveryPermanentFailure(delivery.id, reason);
+            auditLogger.warn('Shopping Live Activity registration invalidated after APNs rejection.', deliveryAuditDetails(delivery, reason));
+            continue;
+          }
+
+          const retryAt = nextRetryAt(delivery.attemptCount, now);
+          await options.shoppingLiveActivityStore.markDeliveryRetryableFailure(
+            delivery.id,
+            reason,
+            retryAt,
+          );
+          wakeScheduler.scheduleRetryAt(retryAt);
+          auditLogger.warn('Shopping Live Activity delivery will retry after APNs rejection.', deliveryAuditDetails(delivery, reason));
+        } catch (error) {
+          const reason = error instanceof APNsConfigurationError
+            ? error.message
+            : safeErrorMessage(error);
+          const retryAt = nextRetryAt(delivery.attemptCount, now);
+          await options.shoppingLiveActivityStore.markDeliveryAmbiguous(
+            delivery.id,
+            reason,
+            retryAt,
+          );
+          wakeScheduler.scheduleRetryAt(retryAt);
+          auditLogger.warn('Shopping Live Activity delivery response was ambiguous; retaining delivery for retry.', deliveryAuditDetails(delivery, reason));
         }
+      }
 
-        const reason = result.reason ?? `APNs status ${result.statusCode ?? 'unknown'}`;
-
-        if (result.isInvalidToken || permanentAPNsReasons.has(reason)) {
-          await options.shoppingLiveActivityStore.invalidateRegistration(delivery.registration.id);
-          await options.shoppingLiveActivityStore.markDeliveryPermanentFailure(delivery.id, reason);
-          auditLogger.warn('Shopping Live Activity registration invalidated after APNs rejection.', deliveryAuditDetails(delivery, reason));
-          continue;
-        }
-
-        await options.shoppingLiveActivityStore.markDeliveryRetryableFailure(
-          delivery.id,
-          reason,
-          nextRetryAt(delivery.attemptCount, now),
-        );
-        auditLogger.warn('Shopping Live Activity delivery will retry after APNs rejection.', deliveryAuditDetails(delivery, reason));
-      } catch (error) {
-        const reason = error instanceof APNsConfigurationError
-          ? error.message
-          : safeErrorMessage(error);
-        await options.shoppingLiveActivityStore.markDeliveryAmbiguous(
-          delivery.id,
-          reason,
-          nextRetryAt(delivery.attemptCount, now),
-        );
-        auditLogger.warn('Shopping Live Activity delivery response was ambiguous; retaining delivery for retry.', deliveryAuditDetails(delivery, reason));
+      if (deliveries.length < deliveryBatchSize) {
+        return;
       }
     }
   }
 
+  const wakeScheduler = createDeliveryWorkerWakeScheduler({
+    now,
+    run: processPending,
+    onError(error) {
+      auditLogger.warn('Shopping Live Activity delivery processing failed.', { error: safeErrorMessage(error) });
+    },
+  });
+
   return {
     start() {
-      if (poller) {
-        return;
-      }
-
-      void processPending().catch((error) => {
-        auditLogger.warn('Initial Shopping Live Activity delivery recovery failed.', { error: safeErrorMessage(error) });
-      });
-      poller = setInterval(() => {
-        void processPending().catch((error) => {
-          auditLogger.warn('Shopping Live Activity delivery poll failed.', { error: safeErrorMessage(error) });
-        });
-      }, deliveryPollIntervalMs);
-      poller.unref();
+      wakeScheduler.start();
     },
     stop() {
-      if (poller) {
-        clearInterval(poller);
-        poller = undefined;
-      }
+      wakeScheduler.stop();
     },
     async register(request) {
       const registration = await options.shoppingLiveActivityStore.register(request);
@@ -152,9 +155,7 @@ export function createShoppingLiveActivityDeliveryService(options: {
             trip,
             registrations: [registration],
           });
-          void processPending().catch((error) => {
-            auditLogger.warn('Late Shopping Live Activity update token catch-up failed.', { error: safeErrorMessage(error) });
-          });
+          wakeScheduler.runNow();
         }
       }
 
@@ -170,9 +171,7 @@ export function createShoppingLiveActivityDeliveryService(options: {
         ...(excludeResident ? { excludeResident } : {}),
       });
       const deliveries = await enqueueForRegistrations({ event, trip, registrations });
-      void processPending().catch((error) => {
-        auditLogger.warn('Shopping Live Activity immediate delivery processing failed.', { error: safeErrorMessage(error) });
-      });
+      wakeScheduler.runNow();
       return deliveries;
     },
     processPending,
