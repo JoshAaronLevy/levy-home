@@ -6,7 +6,7 @@ The strongest code-level explanation for sustained Neon spend was the always-on 
 
 Those counts are derived from source code, not from the Neon billing dashboard or production query telemetry. They show execution frequency and likely compute pressure; they cannot assign a dollar amount or prove which Neon billing meter produced the current $40+ charge. If Render has more than one API process/replica, multiply the worker estimates by the number of processes.
 
-The lowest-risk remaining cost plan is to add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
+The lowest-risk remaining cost plan starts with avoiding redundant To-do reference-data loads and snapshot reloads (Section 6).
 
 The delivery and reminder-worker fixes preserve normal interactive behavior: new delivery work and known retries are processed immediately or at their exact retry time. The deliberate recovery tradeoffs apply only to exceptional, unobserved work after a process failure.
 
@@ -164,33 +164,36 @@ Expected user-experience reduction:
 - `last_seen_at` can be up to seven days stale for an otherwise inactive app installation. Push delivery still uses the registered token already on file; this only reduces the precision of operational liveness metadata.
 - The developer-only registration status no longer displays an active-device total after the modern iOS registration request. The count was not product-facing, and legacy callers can still request it.
 
-### 5. Terminal operational data has little or no retention
+### 5. Implemented: bounded retention for terminal operational data
 
-**Priority: high for storage growth and future query cost. Expected savings: increasing over time. UX impact: none if retention matches the real support/audit need.**
+**Priority: high for storage growth and future query cost. Implemented savings: increasing over time as old rows and JSONB outcomes are removed. UX impact: none in normal use; completed shopping-trip history is deliberately retained.**
 
-Several operational tables only append/update and are not cleaned up by any running code:
+The API now has one low-frequency operational-retention service. It runs once at API startup, then once every 24 hours, logs the deletion count for each data type, and stops during graceful shutdown. A failure for one retention target is logged but does not prevent the other targets from being cleaned up.
 
-| Data | Evidence | Recommended bounded policy |
+The documented policies are:
+
+| Data | Implemented retention | Safety boundary |
 | --- | --- | --- |
-| Live Activity deliveries | `shopping_live_activity_deliveries` has no cleanup path | Delete terminal `sent`/`failed` rows after 30–90 days in small batches. Keep pending/ambiguous rows. |
-| Trip summary deliveries | `shopping_trip_summary_deliveries` has no cleanup path | Same terminal-row retention policy. |
-| To-do reminder deliveries | `todo_due_reminder_deliveries` has no cleanup path | Retain terminal rows for a defined support period, then delete in batches. |
-| Stock/price check runs and JSONB item outcomes | no retention/cleanup repository method | Retain final results for a bounded period, then delete completed/failed runs; cascading removes their item snapshots/outcomes. |
-| Inactive push registrations | rows are marked inactive but never purged | Remove long-inactive tokens after a conservative retention period. |
-| Completed shopping trips and snapshots | no cleanup path | Decide whether historical trips are a product requirement. If not, retain for a documented support period and delete completed trips, cascading their snapshots and delivery rows. |
+| AI Shopping re-add runs and operations | 30 days (the pre-existing `purge_after` policy) | Only terminal runs; the five-minute Undo window is long expired. |
+| Live Activity deliveries | 90 days | Only `sent`/`failed`; pending, sending, and ambiguous recovery work is retained. |
+| Trip-summary deliveries | 90 days | Only `sent`/`failed`/`skipped`; ambiguous retries are retained. |
+| To-do reminder deliveries | 90 days | Only `sent`/`failed`/`skipped`; pending and ambiguous reminders are retained. |
+| Stock/price-check runs and their JSONB outcomes | 30 days | Only completed, completed-with-issues, or failed runs; child item snapshots cascade with the parent run. |
+| Inactive push devices | 180 days after invalidation | Active devices are never selected. Associated preference rows are removed with the inactive device. |
+| Completed shopping trips and snapshots | Retained indefinitely for now | Historical trip retention remains a product decision and is not silently changed. |
 
-There is also a concrete unfinished cleanup implementation: `shoppingListReaddRetentionDays` is 30, `purge_after` is set, and `cleanupExpiredRuns()` is implemented with an indexed bounded delete in `shoppingListReaddRepository.ts`. A repository-wide search finds no caller. As a result, terminal AI re-add runs and their operation rows remain indefinitely despite the explicit retention design.
+Implemented behavior:
 
-Recommended change:
-
-- Call `cleanupExpiredRuns()` from one low-frequency maintenance job (daily is sufficient) and log the number of rows deleted.
-- Add similarly bounded, indexed cleanup methods for the other terminal operational tables. Delete small batches until empty rather than issuing one unbounded delete.
-- Decide and document retention before deleting completed trips or AI results. The current user-facing app has no general history screen for old runs/deliveries, but support/debug needs are a product decision.
+1. `cleanupExpiredRuns()` is now called daily, so the existing 30-day AI re-add policy is no longer dormant.
+2. New partial indexes cover only the terminal rows selected by retention. Each new cleanup query selects at most 100 oldest candidates, locks them with `FOR UPDATE SKIP LOCKED`, and deletes that batch. The service drains batches until the target is current, avoiding one unbounded delete while remaining safe if multiple API processes run the maintenance pass.
+3. The stock-run delete cascades to durable item snapshots/outcomes. Inactive-device cleanup also deletes matching token/device-keyed notification preferences, preventing orphaned preference records.
+4. Pending, sending, and ambiguous deliveries are intentionally excluded from all retention deletes, preserving retry and crash-recovery behavior.
 
 Expected user-experience reduction:
 
-- None in everyday use if the policy keeps a reasonable support window. AI re-add Undo is only valid for five minutes, so deleting its terminal rows after the already intended 30 days has no normal user-facing effect.
-- Developers lose access to old debug history after the chosen retention deadline; export/aggregate any history that must be kept first.
+- **None expected** in everyday use. A 90-day delivery support window, 30-day job-debug window, and 180-day inactive-device window are far longer than the user-visible action/retry windows.
+- AI re-add Undo remains available for its existing five-minute window; terminal run history disappears only after 30 days.
+- Developers lose older delivery/job diagnostics after their policy deadline. Completed shopping-trip history is not deleted by this implementation.
 
 ### 6. To-do reloads include stable reference data and an extra users request
 

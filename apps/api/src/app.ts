@@ -39,6 +39,10 @@ import {
   createPostgresShoppingListReaddStore,
   type ShoppingListReaddStore,
 } from './repositories/shoppingListReaddRepository.js';
+import {
+  createPostgresOperationalRetentionStore,
+  type OperationalRetentionStore,
+} from './repositories/operationalRetentionRepository.js';
 import { createPostgresShoppingTripStore, type ShoppingTripStore } from './repositories/shoppingTripRepository.js';
 import {
   createPostgresShoppingLiveActivityStore,
@@ -107,6 +111,10 @@ import {
   type ToDoDueReminderService,
 } from './services/todo/todoDueReminderService.js';
 import {
+  createOperationalRetentionService,
+  type OperationalRetentionService,
+} from './services/maintenance/operationalRetentionService.js';
+import {
   createWeatherAlertService,
   type WeatherAlertService,
 } from './services/weather/weatherAlertService.js';
@@ -151,6 +159,8 @@ export type CreateAppOptions = {
   toDoListMutationService?: ToDoListMutationService;
   toDoDueReminderStore?: ToDoDueReminderStore;
   toDoDueReminderService?: ToDoDueReminderService;
+  operationalRetentionStore?: OperationalRetentionStore;
+  operationalRetentionService?: OperationalRetentionService;
   weatherAlertService?: WeatherAlertService;
   krogerProductDiagnosticRunner?: KrogerProductDiagnosticRunner;
   krogerProductSearchRunner?: (query?: string) => Promise<KrogerProductSearchResponse>;
@@ -300,6 +310,16 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       toDoDueReminderStore,
     })
     : undefined);
+  const operationalRetentionStore = options.operationalRetentionStore ?? (
+    isDatabaseConfigured() ? createPostgresOperationalRetentionStore() : undefined
+  );
+  const operationalRetentionService = options.operationalRetentionService ?? (operationalRetentionStore
+    ? createOperationalRetentionService({
+      logger: appLogger,
+      operationalRetentionStore,
+      shoppingListReaddStore,
+    })
+    : undefined);
   const toDoListRealtime = options.toDoListRealtime ?? createToDoListRealtimeHub({ notificationService });
   const toDoListMutationService =
     options.toDoListMutationService ??
@@ -322,6 +342,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.set('shoppingListRealtime', shoppingListRealtime);
   app.set('toDoListRealtime', toDoListRealtime);
   app.set('toDoDueReminderService', toDoDueReminderService);
+  app.set('operationalRetentionService', operationalRetentionService);
   app.set('weatherAlertService', weatherAlertService);
   app.set('shoppingLiveActivityDeliveryService', shoppingLiveActivityDeliveryService);
   app.set('shoppingTripSummaryDeliveryService', shoppingTripSummaryDeliveryService);
