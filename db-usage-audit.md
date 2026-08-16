@@ -8,9 +8,8 @@ Those counts are derived from source code, not from the Neon billing dashboard o
 
 The lowest-risk remaining cost plan is:
 
-1. Remove duplicate list snapshots caused by reconnecting the live WebSocket after already fetching the same snapshot.
-2. Stop re-registering an unchanged APNs device token on every app launch/status refresh.
-3. Add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
+1. Stop re-registering an unchanged APNs device token on every app launch/status refresh.
+2. Add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
 
 The delivery and reminder-worker fixes preserve normal interactive behavior: new delivery work and known retries are processed immediately or at their exact retry time. The deliberate recovery tradeoffs apply only to exceptional, unobserved work after a process failure.
 
@@ -99,9 +98,9 @@ Expected user-experience reduction:
 - Scheduled 8:00 AM/6:00 PM reminders and known retries: **none expected**; they are woken directly at the intended time and remain idempotent.
 - A send that was in flight when a process died is recovered on restart when already stale, or by the 90-second startup recovery and its 30-second retry when the failure was immediate. This retains the old roughly two-minute exceptional-path timing without an all-day poll.
 
-### 3. Shopping live synchronization fetches the same full snapshot twice per visit
+### 3. Implemented: use one server-directed snapshot for each retained Shopping revisit
 
-**Priority: high. Expected savings: medium to high for active users. UX impact: none if the WebSocket becomes the single resync trigger.**
+**Priority: high. Implemented savings: medium to high for active users. UX impact: none expected during ordinary returns to Shopping.**
 
 The shopping snapshot endpoint does four database queries per successful request:
 
@@ -112,9 +111,9 @@ The shopping snapshot endpoint does four database queries per successful request
 
 See `apps/api/src/repositories/shoppingListRepository.ts` and `apps/api/src/routes/shoppingListRoutes.ts`.
 
-When Shopping is selected or the app returns to foreground, `ShoppingListView.refreshForSelectedVisit()` explicitly calls `viewModel.refresh()`. That fetch starts/restarts the live WebSocket. On every WebSocket connection, the server sends `snapshot_required`, and `ShoppingListViewModel` fetches the entire snapshot again. The current normal visit is therefore approximately:
+Before this implementation, when Shopping was selected again or the app returned to foreground, `ShoppingListView.refreshForSelectedVisit()` explicitly called `viewModel.refresh()`. That fetched a snapshot and restarted the live WebSocket. The server then sent `snapshot_required`, which made `ShoppingListViewModel` fetch the entire snapshot again. A repeated visit was therefore approximately:
 
-| Per selected Shopping visit | Database commands |
+| Per repeated selected Shopping visit before implementation | Database commands |
 | --- | ---: |
 | Explicit `GET /api/shopping-list` | 4 |
 | Live WebSocket's immediate `snapshot_required` -> another `GET /api/shopping-list` | 4 |
@@ -122,20 +121,22 @@ When Shopping is selected or the app returns to foreground, `ShoppingListView.re
 | AI re-add readiness probe | 1 |
 | **Total before any active-trip display claim** | **about 10** |
 
-An active trip adds a device lookup and a multi-query transaction for the idempotent display claim when the tab is revisited.
+An active trip also added a device lookup and a multi-query transaction for the idempotent display claim whenever the tab was revisited.
 
-Recommended change:
+Implemented behavior:
 
-- Make one source authoritative for a reconnect snapshot. The cleanest version is: connect the live channel, fetch one snapshot because the connection asks for it, and do not also force `refresh()` for that same visit.
-- Retain the in-memory snapshot while the tab is not selected. On return, reconnect and accept one server-directed snapshot; retain pull-to-refresh as the explicit "check now" action.
-- Cache the two readiness responses for the current Shopping screen/session. The action-start endpoints already perform authoritative validation, so availability need not be probed on every tab select and foreground event.
-- Cache the successful active-trip display claim by `tripId` + local device ID for the lifetime of the active trip, rather than posting the same idempotent claim on every foreground/selection transition.
+1. `refreshForSelectedVisit()` now reconnects with `loadIfNeeded()` rather than forcing `refresh()`. When the retained view model already has a snapshot, it stays visible while the live channel reconnects, and the server's `snapshot_required` is the sole full resync for that return.
+2. Pull-to-refresh still calls `refresh()` and remains the explicit "check now" path.
+3. The stock-price and AI re-add readiness responses are retained for the view-model session, and an in-flight readiness request is coalesced. Returning to the tab restarts monitoring for an active job but does not repeat an unchanged readiness probe; each action-start endpoint still validates eligibility authoritatively.
+4. A successful active-trip display claim is now cached and concurrent claims are coalesced by `tripId` plus local device ID. The cache is cleared when the active trip changes.
+
+For a retained Shopping revisit with no active long-running job or new display claim, the normal database work falls from about 10 commands to one four-query server-directed snapshot: roughly a **60% reduction per revisit**, before considering the avoided active-trip claim. The first creation of a Shopping view model retains its existing bootstrap fetch; this change targets the repeated selection/foreground path that previously did the duplicate work.
 
 Expected user-experience reduction:
 
 - Normal shared-list freshness: **none expected**. The WebSocket already asks for a snapshot on connection and carries mutation/trip updates while connected.
-- There can be a short existing loading period while the single snapshot arrives. Keeping the prior in-memory list visible avoids a visual regression on tab return.
-- If live connection setup fails, keep the explicit manual refresh path; do not remove it.
+- On return, the previously confirmed list remains visible while the single snapshot arrives, avoiding the prior loading/flicker risk. Manual pull-to-refresh is unchanged.
+- If live connection setup fails, the prior snapshot remains visible and the explicit manual refresh path remains available. A first-ever load still uses the established HTTP bootstrap path.
 
 ### 4. Every unchanged push-registration refresh writes to the database
 

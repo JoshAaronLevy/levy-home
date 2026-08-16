@@ -871,9 +871,12 @@ private struct ShoppingListContentView: View {
     }
 
     private func refreshForSelectedVisit() async {
+        // Reconnect first and let the server's snapshot_required message decide
+        // when a full snapshot is needed. Pull-to-refresh remains the explicit
+        // manual fetch path.
         viewModel.setStockPriceCheckPollingAllowed(true)
         viewModel.setShoppingListReaddPollingAllowed(true)
-        await viewModel.refresh()
+        await viewModel.loadIfNeeded()
         await recoverActiveTripDisplay()
     }
 

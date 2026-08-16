@@ -44,6 +44,16 @@ final class ShoppingListViewModel: ObservableObject {
         let activeTripRevisionBaseline: UInt64
     }
 
+    private struct ActiveTripDisplayClaimCacheEntry {
+        let key: String
+        let disposition: ShoppingTripDisplayDisposition
+    }
+
+    private struct ActiveTripDisplayClaimInFlight {
+        let key: String
+        let task: Task<ShoppingTripDisplayDisposition?, Never>
+    }
+
     @Published private(set) var items: [ShoppingListItem] = []
     @Published private(set) var stores: [ShoppingStore] = []
     @Published private(set) var categories: [ShoppingCategory] = []
@@ -101,9 +111,13 @@ final class ShoppingListViewModel: ObservableObject {
     private var stockPriceCheckPollingTask: Task<Void, Never>?
     private var stockPriceCheckPollingToken: UUID?
     private var isStockPriceCheckPollingAllowed = false
+    private var isLoadingStockPriceCheckReadiness = false
     private var shoppingListReaddPollingTask: Task<Void, Never>?
     private var shoppingListReaddPollingToken: UUID?
     private var isShoppingListReaddPollingAllowed = false
+    private var isLoadingShoppingListReaddReadiness = false
+    private var activeTripDisplayClaimCache: ActiveTripDisplayClaimCacheEntry?
+    private var activeTripDisplayClaimInFlight: ActiveTripDisplayClaimInFlight?
 
     private static let maximumStockPriceCheckPollAttempts = 30
     private static let stockPriceCheckPollDelaysNanoseconds: [UInt64] = [
@@ -493,15 +507,32 @@ final class ShoppingListViewModel: ObservableObject {
 
     /// Starts or stops client-side monitoring only. The durable server job continues when this screen is not visible.
     func setStockPriceCheckPollingAllowed(_ allowed: Bool) {
-        isStockPriceCheckPollingAllowed = allowed
-
         guard allowed else {
+            isStockPriceCheckPollingAllowed = false
             stopStockPriceCheckPolling()
             return
         }
 
+        guard !isStockPriceCheckPollingAllowed else {
+            beginStockPriceCheckPollingIfNeeded()
+            return
+        }
+
+        isStockPriceCheckPollingAllowed = true
+
+        guard stockPriceCheckReadiness == nil else {
+            beginStockPriceCheckPollingIfNeeded()
+            return
+        }
+
+        guard !isLoadingStockPriceCheckReadiness else {
+            return
+        }
+
+        isLoadingStockPriceCheckReadiness = true
         Task { [weak self] in
             guard let self else { return }
+            defer { self.isLoadingStockPriceCheckReadiness = false }
             await self.refreshStockPriceCheckReadiness()
             self.beginStockPriceCheckPollingIfNeeded()
         }
@@ -587,15 +618,32 @@ final class ShoppingListViewModel: ObservableObject {
 
     /// Starts or stops local re-add polling. The server-owned run is never cancelled when this screen leaves view.
     func setShoppingListReaddPollingAllowed(_ allowed: Bool) {
-        isShoppingListReaddPollingAllowed = allowed
-
         guard allowed else {
+            isShoppingListReaddPollingAllowed = false
             stopShoppingListReaddPolling()
             return
         }
 
+        guard !isShoppingListReaddPollingAllowed else {
+            beginShoppingListReaddPollingIfNeeded()
+            return
+        }
+
+        isShoppingListReaddPollingAllowed = true
+
+        guard shoppingListReaddReadiness == nil else {
+            beginShoppingListReaddPollingIfNeeded()
+            return
+        }
+
+        guard !isLoadingShoppingListReaddReadiness else {
+            return
+        }
+
+        isLoadingShoppingListReaddReadiness = true
         Task { [weak self] in
             guard let self else { return }
+            defer { self.isLoadingShoppingListReaddReadiness = false }
             await self.refreshShoppingListReaddReadiness()
             self.beginShoppingListReaddPollingIfNeeded()
         }
@@ -792,15 +840,46 @@ final class ShoppingListViewModel: ObservableObject {
             return nil
         }
 
-        do {
-            return try await claimShoppingTripDisplay(
-                activeTrip.id,
-                ClaimShoppingTripDisplayRequest(actor: actor, pushDeviceId: pushDeviceId)
-            ).displayDisposition
-        } catch {
-            // The shared trip remains usable even when a display claim cannot be recovered.
+        let claimKey = "\(activeTrip.id)|\(pushDeviceId)"
+        if let cached = activeTripDisplayClaimCache, cached.key == claimKey {
+            return cached.disposition
+        }
+
+        if let inFlight = activeTripDisplayClaimInFlight, inFlight.key == claimKey {
+            let disposition = await inFlight.task.value
+            return self.activeTrip?.id == activeTrip.id ? disposition : nil
+        }
+
+        let tripId = activeTrip.id
+        let request = ClaimShoppingTripDisplayRequest(actor: actor, pushDeviceId: pushDeviceId)
+        let claimer = claimShoppingTripDisplay
+        let task = Task<ShoppingTripDisplayDisposition?, Never> {
+            do {
+                return try await claimer(tripId, request).displayDisposition
+            } catch {
+                // The shared trip remains usable when display recovery is unavailable.
+                return nil
+            }
+        }
+        activeTripDisplayClaimInFlight = ActiveTripDisplayClaimInFlight(key: claimKey, task: task)
+
+        let disposition = await task.value
+        if activeTripDisplayClaimInFlight?.key == claimKey {
+            activeTripDisplayClaimInFlight = nil
+        }
+
+        guard self.activeTrip?.id == tripId else {
             return nil
         }
+
+        if let disposition {
+            activeTripDisplayClaimCache = ActiveTripDisplayClaimCacheEntry(
+                key: claimKey,
+                disposition: disposition
+            )
+        }
+
+        return disposition
     }
 
     func startLiveUpdatesIfNeeded() {
@@ -1118,6 +1197,7 @@ final class ShoppingListViewModel: ObservableObject {
             return false
         }
 
+        let previousTripId = activeTrip?.id
         let didChangeCommittedState = items != response.items
             || stores != response.stores
             || categories != response.categories
@@ -1129,6 +1209,10 @@ final class ShoppingListViewModel: ObservableObject {
         categories = response.categories
         generatedAt = response.generatedAt
         activeTrip = response.activeTrip
+
+        if previousTripId != activeTrip?.id {
+            activeTripDisplayClaimCache = nil
+        }
 
         if didChangeActiveTrip {
             activeTripRevision &+= 1
@@ -1382,7 +1466,11 @@ final class ShoppingListViewModel: ObservableObject {
             return
         }
 
+        let previousTripId = activeTrip?.id
         activeTrip = trip
+        if previousTripId != trip?.id {
+            activeTripDisplayClaimCache = nil
+        }
         activeTripRevision &+= 1
         committedStateRevision &+= 1
     }

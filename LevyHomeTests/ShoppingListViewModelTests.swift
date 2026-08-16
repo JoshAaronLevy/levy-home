@@ -499,6 +499,30 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.activeViewers, [])
     }
 
+    func testLoadIfNeededRetainsTheCurrentSnapshotUntilLiveRequestsResync() async {
+        var loadCount = 0
+        let viewModel = ShoppingListViewModel(loadShoppingList: {
+            loadCount += 1
+            return Self.response(items: [Self.item(id: loadCount, name: "Item \(loadCount)")])
+        })
+
+        await viewModel.loadIfNeeded()
+        await viewModel.loadIfNeeded()
+
+        XCTAssertEqual(loadCount, 1)
+        XCTAssertEqual(viewModel.items.map(\.id), [1])
+
+        await viewModel.applyLiveMessage(
+            .snapshotRequired(
+                reason: .connected,
+                serverTime: "2026-08-16T18:00:00Z"
+            )
+        )
+
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(viewModel.items.map(\.id), [2])
+    }
+
     func testStartTripUsesRegisteredOriginDeviceAndPublishesCanonicalActiveTrip() async {
         var receivedRequest: StartShoppingTripRequest?
         let trip = Self.trip()
@@ -562,6 +586,56 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.map(\.id), [15])
         XCTAssertEqual(viewModel.errorMessage, "Trips unavailable.")
         XCTAssertFalse(viewModel.isStartingTrip)
+    }
+
+    func testActiveTripDisplayClaimIsCachedForTheActiveTripAndDevice() async {
+        let trip = Self.trip()
+        let disposition = ShoppingTripDisplayDisposition(
+            tripId: trip.id,
+            pushDeviceId: "device-josh",
+            resident: "Josh",
+            kind: "start_locally",
+            remoteStartCount: 1
+        )
+        var claimCount = 0
+        var activeTripForLoad: ShoppingTrip? = trip
+        let viewModel = ShoppingListViewModel(
+            currentActorName: "Josh",
+            loadShoppingList: {
+                Self.response(items: [Self.item(id: 15, name: "Cereal")], activeTrip: activeTripForLoad)
+            },
+            lookupShoppingListItem: { name in
+                ShoppingListItemLookupResponse(ok: true, query: name, match: nil)
+            },
+            createShoppingListItem: { _ in throw APIError.transport("Unused") },
+            updateShoppingListItem: { _, _ in throw APIError.transport("Unused") },
+            deleteShoppingListItem: { _, _, _ in throw APIError.transport("Unused") },
+            claimShoppingTripDisplay: { tripId, request in
+                claimCount += 1
+                XCTAssertEqual(tripId, trip.id)
+                XCTAssertEqual(request.pushDeviceId, "device-josh")
+                return ClaimShoppingTripDisplayResponse(
+                    ok: true,
+                    displayDisposition: disposition,
+                    generatedAt: "2026-08-16T18:00:00Z"
+                )
+            }
+        )
+        await viewModel.loadIfNeeded()
+
+        let first = await viewModel.claimActiveTripDisplay(pushDeviceId: "device-josh")
+        let second = await viewModel.claimActiveTripDisplay(pushDeviceId: "device-josh")
+
+        activeTripForLoad = nil
+        await viewModel.refresh()
+        activeTripForLoad = trip
+        await viewModel.refresh()
+        let restored = await viewModel.claimActiveTripDisplay(pushDeviceId: "device-josh")
+
+        XCTAssertEqual(claimCount, 2)
+        XCTAssertEqual(first, disposition)
+        XCTAssertEqual(second, disposition)
+        XCTAssertEqual(restored, disposition)
     }
 
     func testStockPriceCheckStartsOnlyOnceDuringRapidTaps() async {
@@ -693,6 +767,28 @@ final class ShoppingListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.stockPriceCheckReadiness, readiness)
         XCTAssertTrue(viewModel.isStockPriceCheckUnavailable)
         XCTAssertNil(viewModel.stockPriceCheckErrorMessage)
+    }
+
+    func testStockPriceCheckReadinessIsCachedAcrossShoppingScreenRevisits() async {
+        var readinessLoadCount = 0
+        let readiness = Self.stockPriceCheckReadiness(enabled: true)
+        let viewModel = Self.stockPriceCheckViewModel(
+            items: [Self.item(id: 15, name: "Cereal")],
+            start: { _ in .accepted(Self.stockPriceCheckJob(status: .queued)) },
+            readiness: {
+                readinessLoadCount += 1
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                return readiness
+            }
+        )
+
+        viewModel.setStockPriceCheckPollingAllowed(true)
+        viewModel.setStockPriceCheckPollingAllowed(false)
+        viewModel.setStockPriceCheckPollingAllowed(true)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(readinessLoadCount, 1)
+        XCTAssertEqual(viewModel.stockPriceCheckReadiness, readiness)
     }
 
     func testStockPriceCheckPollingRecoversAfterTransportFailure() async {
@@ -926,6 +1022,28 @@ final class ShoppingListViewModelTests: XCTestCase {
         let expiredUndo = await viewModel.undoCurrentShoppingListReadd()
         XCTAssertNil(expiredUndo)
         XCTAssertEqual(undoCount, 1)
+    }
+
+    func testShoppingListReaddReadinessIsCachedAcrossShoppingScreenRevisits() async {
+        var readinessLoadCount = 0
+        let readiness = Self.shoppingListReaddReadiness(ready: true)
+        let viewModel = Self.shoppingListReaddViewModel(
+            items: [Self.item(id: 15, name: "Eggs")],
+            start: { _ in .accepted(Self.shoppingListReaddRun(status: .queued)) },
+            readiness: {
+                readinessLoadCount += 1
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                return readiness
+            }
+        )
+
+        viewModel.setShoppingListReaddPollingAllowed(true)
+        viewModel.setShoppingListReaddPollingAllowed(false)
+        viewModel.setShoppingListReaddPollingAllowed(true)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(readinessLoadCount, 1)
+        XCTAssertEqual(viewModel.shoppingListReaddReadiness, readiness)
     }
 
     func testLiveItemUpdateSurvivesAnOlderTerminalReaddRefresh() async {
