@@ -52,6 +52,20 @@ test('POST /api/devices/register preserves legacy Expo push token registration',
   assert.equal(response.device.platform, 'ios');
 });
 
+test('POST /api/devices/register can skip the active-device count for modern clients', async () => {
+  const response = await routes.postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+    includeDeviceCount: false,
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.registeredDeviceCount, undefined);
+  assert.equal(response.device.id.startsWith('apns-sandbox-'), true);
+});
+
 test('POST /api/devices/register rejects ambiguous APNs registrations', async () => {
   const response = await fetch(`${routes.baseURL()}/api/devices/register`, {
     method: 'POST',

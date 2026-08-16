@@ -93,7 +93,8 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 provider: .apns,
                 environment: .sandbox,
                 appVersion: "0.1.0",
-                deviceName: "Joshs iPhone"
+                deviceName: "Joshs iPhone",
+                includeDeviceCount: false
             )
         ])
         XCTAssertEqual(
@@ -103,6 +104,8 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 environment: .sandbox,
                 deviceId: "device-1",
                 registeredDeviceCount: 2,
+                appVersion: "0.1.0",
+                deviceName: "Joshs iPhone",
                 syncedAt: now
             )
         )
@@ -148,7 +151,8 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 provider: .apns,
                 environment: .production,
                 appVersion: "0.1.0",
-                deviceName: "Mallory"
+                deviceName: "Mallory",
+                includeDeviceCount: false
             )
         ])
     }
@@ -208,9 +212,128 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 provider: .apns,
                 environment: .production,
                 appVersion: "0.1.0",
-                deviceName: "Josh"
+                deviceName: "Josh",
+                includeDeviceCount: false
             )
         ])
+    }
+
+    func testPrepareDeliverySkipsAPISyncForAnUnchangedPersistedDevice() async {
+        let now = Date(timeIntervalSince1970: 1_783_000_000)
+        let apiService = MockDeviceRegistrationService()
+        let stateStore = MockPushRegistrationStateStore(
+            apiSyncState: PushAPISyncState(
+                deviceToken: "abc123",
+                environment: .production,
+                deviceId: "device-josh",
+                registeredDeviceCount: 2,
+                appVersion: "0.1.0",
+                deviceName: "Josh",
+                syncedAt: now
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: MockNotificationService(
+                currentSnapshot: PushRegistrationSnapshot(
+                    permissionStatus: .authorized,
+                    availability: .available,
+                    deviceToken: "abc123",
+                    errorMessage: nil
+                )
+            ),
+            deviceRegistrationService: apiService,
+            stateStore: stateStore,
+            apnsEnvironment: .production,
+            appVersion: "0.1.0",
+            deviceName: "Josh",
+            now: { now }
+        )
+
+        await viewModel.prepareDeliveryIfNeeded()
+        await viewModel.refreshStatus()
+
+        XCTAssertEqual(apiService.requests, [])
+        XCTAssertEqual(viewModel.apiRegistrationLabel, "Synced")
+        XCTAssertEqual(viewModel.registeredDeviceID, "device-josh")
+    }
+
+    func testRefreshSyncsAnUnchangedDeviceAtTheWeeklyHeartbeat() async {
+        let now = Date(timeIntervalSince1970: 1_783_000_000)
+        let apiService = MockDeviceRegistrationService(
+            response: RegisterDeviceResponse(ok: true, registeredDeviceCount: nil, device: nil)
+        )
+        let stateStore = MockPushRegistrationStateStore(
+            apiSyncState: PushAPISyncState(
+                deviceToken: "abc123",
+                environment: .production,
+                deviceId: "device-josh",
+                registeredDeviceCount: 2,
+                appVersion: "0.1.0",
+                deviceName: "Josh",
+                syncedAt: now.addingTimeInterval(-7 * 24 * 60 * 60)
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: MockNotificationService(
+                currentSnapshot: PushRegistrationSnapshot(
+                    permissionStatus: .authorized,
+                    availability: .available,
+                    deviceToken: "abc123",
+                    errorMessage: nil
+                )
+            ),
+            deviceRegistrationService: apiService,
+            stateStore: stateStore,
+            apnsEnvironment: .production,
+            appVersion: "0.1.0",
+            deviceName: "Josh",
+            now: { now }
+        )
+
+        await viewModel.refreshStatus()
+
+        XCTAssertEqual(apiService.requests.count, 1)
+        XCTAssertEqual(apiService.requests.first?.includeDeviceCount, false)
+        XCTAssertEqual(stateStore.apiSyncState?.syncedAt, now)
+        XCTAssertNil(stateStore.apiSyncState?.registeredDeviceCount)
+        XCTAssertEqual(viewModel.developerStatusMessage, "API device registration succeeded.")
+    }
+
+    func testRefreshSyncsWhenPersistedAppVersionChanges() async {
+        let now = Date(timeIntervalSince1970: 1_783_000_000)
+        let apiService = MockDeviceRegistrationService()
+        let stateStore = MockPushRegistrationStateStore(
+            apiSyncState: PushAPISyncState(
+                deviceToken: "abc123",
+                environment: .sandbox,
+                registeredDeviceCount: 2,
+                appVersion: "0.9.0",
+                deviceName: "Josh",
+                syncedAt: now
+            )
+        )
+        let viewModel = PushRegistrationViewModel(
+            service: MockNotificationService(
+                currentSnapshot: PushRegistrationSnapshot(
+                    permissionStatus: .authorized,
+                    availability: .available,
+                    deviceToken: "abc123",
+                    errorMessage: nil
+                )
+            ),
+            deviceRegistrationService: apiService,
+            stateStore: stateStore,
+            apnsEnvironment: .sandbox,
+            appVersion: "1.0.0",
+            deviceName: "Josh",
+            now: { now }
+        )
+
+        await viewModel.refreshStatus()
+
+        XCTAssertEqual(apiService.requests.count, 1)
+        XCTAssertEqual(apiService.requests.first?.appVersion, "1.0.0")
+        XCTAssertEqual(stateStore.apiSyncState?.appVersion, "1.0.0")
     }
 
     func testPrepareDeliveryDoesNotRequestPermissionAgainWhenDenied() async {
@@ -273,6 +396,16 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 device: nil
             )
         )
+        let stateStore = MockPushRegistrationStateStore(
+            apiSyncState: PushAPISyncState(
+                deviceToken: "abc123",
+                environment: .sandbox,
+                registeredDeviceCount: 2,
+                appVersion: "0.1.0",
+                deviceName: "Josh",
+                syncedAt: Date()
+            )
+        )
         let viewModel = PushRegistrationViewModel(
             service: MockNotificationService(
                 currentSnapshot: PushRegistrationSnapshot(
@@ -283,6 +416,7 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 )
             ),
             deviceRegistrationService: apiService,
+            stateStore: stateStore,
             apnsEnvironment: .sandbox,
             appVersion: "0.1.0",
             deviceName: "Josh"
@@ -299,7 +433,8 @@ final class PushRegistrationViewModelTests: XCTestCase {
                 provider: .apns,
                 environment: .sandbox,
                 appVersion: "0.1.0",
-                deviceName: "Mallory"
+                deviceName: "Mallory",
+                includeDeviceCount: false
             )
         ])
     }

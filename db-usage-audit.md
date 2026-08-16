@@ -6,10 +6,7 @@ The strongest code-level explanation for sustained Neon spend was the always-on 
 
 Those counts are derived from source code, not from the Neon billing dashboard or production query telemetry. They show execution frequency and likely compute pressure; they cannot assign a dollar amount or prove which Neon billing meter produced the current $40+ charge. If Render has more than one API process/replica, multiply the worker estimates by the number of processes.
 
-The lowest-risk remaining cost plan is:
-
-1. Stop re-registering an unchanged APNs device token on every app launch/status refresh.
-2. Add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
+The lowest-risk remaining cost plan is to add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
 
 The delivery and reminder-worker fixes preserve normal interactive behavior: new delivery work and known retries are processed immediately or at their exact retry time. The deliberate recovery tradeoffs apply only to exceptional, unobserved work after a process failure.
 
@@ -138,30 +135,34 @@ Expected user-experience reduction:
 - On return, the previously confirmed list remains visible while the single snapshot arrives, avoiding the prior loading/flicker risk. Manual pull-to-refresh is unchanged.
 - If live connection setup fails, the prior snapshot remains visible and the explicit manual refresh path remains available. A first-ever load still uses the established HTTP bootstrap path.
 
-### 4. Every unchanged push-registration refresh writes to the database
+### 4. Implemented: avoid unchanged push-registration writes and device counts
 
-**Priority: high. Expected savings: medium, proportional to app launches/settings visits. UX impact: none for unchanged devices.**
+**Priority: high. Implemented savings: medium, proportional to app launches/settings visits. UX impact: none for unchanged devices; operational liveness metadata can be up to seven days old.**
 
-`PushRegistrationViewModel.shouldSyncDeviceWithAPIOnRefresh` returns true whenever the app has an authorized APNs token. It does **not** compare that token/environment to the already persisted `PushAPISyncState` before calling `POST /api/devices/register`.
+Before this implementation, `PushRegistrationViewModel.shouldSyncDeviceWithAPIOnRefresh` returned true whenever the app had an authorized APNs token. It did **not** compare that token/environment to the already persisted `PushAPISyncState` before calling `POST /api/devices/register`.
 
-Each registration request currently performs three database queries:
+Each registration request previously performed three database queries:
 
 1. find active device by lookup key;
 2. upsert the device and update `last_seen_at`;
 3. count active devices for the response.
 
-The root app task invokes `prepareDeliveryIfNeeded()` on launch. Its task ID includes `registeredDeviceID`, which is set by the registration response; that state change can cause a second task run and another registration for the unchanged token. The status cards also call `refreshStatus()` when their views appear, which repeats the same write path.
+The root app task invokes `prepareDeliveryIfNeeded()` on launch. Its task ID includes `registeredDeviceID`, which is set by the registration response; that state change could cause a second task run and another registration for the unchanged token. The status cards also call `refreshStatus()` when their views appear, which repeated the same write path.
 
-Recommended change:
+Implemented behavior:
 
-- Before registering, consult `PushAPISyncState`. Skip the API call when the token and APNs environment match, unless one of these changed: device name, app version, token, environment, or an explicit refresh/repair action was requested.
-- If a server-side liveness timestamp is needed, use a bounded heartbeat (for example weekly) instead of every launch. Store the server sync timestamp locally.
-- Consider returning a cached active-device count or omit it from ordinary upsert responses; it is only used for status text and costs a full count query.
+1. `PushAPISyncState` now fingerprints the APNs token, environment, normalized device name, and app version, as well as the successful-sync time. A launch/status refresh with an exact match makes **no** request to Neon.
+2. A changed token, APNs environment, app version, or device name registers immediately. The explicit native registration action remains an immediate repair path even when the persisted fingerprint matches.
+3. An unchanged device sends a bounded weekly heartbeat so `last_seen_at` is refreshed without an every-launch write. Older persisted sync records lack the new fingerprint and therefore make one safe registration after the app update.
+4. The iOS client now requests `includeDeviceCount: false` for its registrations. The API skips `countDevices()` and omits `registeredDeviceCount` in that response; legacy callers that omit the flag retain the prior counted response for deployment compatibility.
+
+Repeated unchanged launch/refresh work therefore falls from three database commands to zero. A registration that is actually needed falls from three to two commands (lookup plus upsert), because the active-device count is not a user-facing requirement on that path.
 
 Expected user-experience reduction:
 
-- **None expected** for a token that has not changed. A new token, reinstall, environment change, app-version/device-name update, or explicit retry would still register immediately.
-- With a weekly heartbeat, a stale device row may take up to a week to have `last_seen_at` refreshed; push delivery itself still uses the token already on file.
+- **None expected** for an unchanged device. A new token, reinstall, environment change, app-version/device-name update, or explicit registration action still registers immediately.
+- `last_seen_at` can be up to seven days stale for an otherwise inactive app installation. Push delivery still uses the registered token already on file; this only reduces the precision of operational liveness metadata.
+- The developer-only registration status no longer displays an active-device total after the modern iOS registration request. The count was not product-facing, and legacy callers can still request it.
 
 ### 5. Terminal operational data has little or no retention
 

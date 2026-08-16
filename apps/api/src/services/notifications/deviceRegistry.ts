@@ -12,7 +12,7 @@ import {
 
 export type DeviceRegistrationResult = {
   device: RegisteredDevice;
-  registeredDeviceCount: number;
+  registeredDeviceCount?: number;
   statusCode: 200 | 201;
 };
 
@@ -62,7 +62,9 @@ export function createDeviceRegistry(repository: PushDeviceRepository): DeviceRe
 
       return {
         device: savedDevice,
-        registeredDeviceCount: await repository.countDevices(),
+        ...(registration.includeDeviceCount === false
+          ? {}
+          : { registeredDeviceCount: await repository.countDevices() }),
         statusCode: existingDevice ? 200 : 201,
       };
     },

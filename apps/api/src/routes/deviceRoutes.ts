@@ -20,7 +20,9 @@ export function createDeviceRoutes(deps: DeviceRouteDependencies): Router {
 
     res.status(result.statusCode).json({
       ok: true,
-      registeredDeviceCount: result.registeredDeviceCount,
+      ...(result.registeredDeviceCount === undefined
+        ? {}
+        : { registeredDeviceCount: result.registeredDeviceCount }),
       device: deviceResponse(result.device),
     });
   }));

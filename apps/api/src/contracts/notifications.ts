@@ -58,6 +58,7 @@ export type RegisterDeviceRequest = {
   environment?: APNsEnvironment;
   appVersion?: string;
   deviceName?: string;
+  includeDeviceCount?: boolean;
 };
 
 export type NotificationPreferenceCategory =

@@ -15,7 +15,7 @@ struct RegisteredDevice: Codable, Equatable, Identifiable {
 
 struct RegisterDeviceResponse: Codable, Equatable {
     let ok: Bool
-    let registeredDeviceCount: Int
+    let registeredDeviceCount: Int?
     let device: RegisteredDevice?
 }
 

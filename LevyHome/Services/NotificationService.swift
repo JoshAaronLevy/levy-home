@@ -57,25 +57,43 @@ struct PushAPISyncState: Codable, Equatable {
     let deviceToken: String
     let environment: APNsEnvironment
     let deviceId: String?
-    let registeredDeviceCount: Int
+    let registeredDeviceCount: Int?
+    let appVersion: String?
+    let deviceName: String?
     let syncedAt: Date
 
     init(
         deviceToken: String,
         environment: APNsEnvironment,
         deviceId: String? = nil,
-        registeredDeviceCount: Int,
+        registeredDeviceCount: Int?,
+        appVersion: String? = nil,
+        deviceName: String? = nil,
         syncedAt: Date
     ) {
         self.deviceToken = deviceToken
         self.environment = environment
         self.deviceId = deviceId
         self.registeredDeviceCount = registeredDeviceCount
+        self.appVersion = appVersion
+        self.deviceName = deviceName
         self.syncedAt = syncedAt
     }
 
-    func matches(deviceToken: String, environment: APNsEnvironment) -> Bool {
-        self.deviceToken == deviceToken && self.environment == environment
+    func matches(
+        deviceToken: String,
+        environment: APNsEnvironment,
+        appVersion: String?,
+        deviceName: String?
+    ) -> Bool {
+        self.deviceToken == deviceToken
+            && self.environment == environment
+            && self.appVersion == appVersion
+            && self.deviceName == deviceName
+    }
+
+    func isHeartbeatDue(at date: Date, interval: TimeInterval) -> Bool {
+        date.timeIntervalSince(syncedAt) >= interval
     }
 }
 

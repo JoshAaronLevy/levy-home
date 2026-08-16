@@ -22,6 +22,7 @@ export function validateRegisterDeviceBody(input: unknown): RegisterDeviceReques
   const environment = readAPNsEnvironment(input.environment, provider);
   const appVersion = readOptionalStringOrThrow(input.appVersion, 'appVersion');
   const deviceName = readOptionalStringOrThrow(input.deviceName, 'deviceName');
+  const includeDeviceCount = readOptionalBoolean(input.includeDeviceCount, 'includeDeviceCount');
 
   return {
     token,
@@ -30,7 +31,20 @@ export function validateRegisterDeviceBody(input: unknown): RegisterDeviceReques
     ...(environment ? { environment } : {}),
     ...(appVersion ? { appVersion } : {}),
     ...(deviceName ? { deviceName } : {}),
+    ...(includeDeviceCount !== undefined ? { includeDeviceCount } : {}),
   };
+}
+
+function readOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  throw new HTTPError(400, `${fieldName} must be a boolean when provided.`, `invalid_${fieldName}`);
 }
 
 export function readDeviceToken(input: Record<string, unknown>): string {

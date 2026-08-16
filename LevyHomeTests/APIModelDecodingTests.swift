@@ -480,6 +480,29 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(response.device?.environment, .sandbox)
     }
 
+    func testDecodesRegisterDeviceResponseWithoutAnActiveDeviceCount() throws {
+        let response = try decode(
+            RegisterDeviceResponse.self,
+            from: """
+            {
+              "ok": true,
+              "device": {
+                "id": "device-1",
+                "platform": "ios",
+                "provider": "apns",
+                "environment": "sandbox",
+                "registeredAt": "2026-06-12T14:00:04Z",
+                "lastSeenAt": "2026-06-12T14:00:05Z"
+              }
+            }
+            """
+        )
+
+        XCTAssertTrue(response.ok)
+        XCTAssertNil(response.registeredDeviceCount)
+        XCTAssertEqual(response.device?.id, "device-1")
+    }
+
     func testDecodesTestPushResponse() throws {
         let response = try decode(
             TestPushResponse.self,
@@ -543,7 +566,8 @@ final class APIModelDecodingTests: XCTestCase {
             provider: .apns,
             environment: .sandbox,
             appVersion: "0.1.0",
-            deviceName: "Joshs iPhone"
+            deviceName: "Joshs iPhone",
+            includeDeviceCount: false
         )
 
         let json = try encodeJSON(request)
@@ -552,6 +576,7 @@ final class APIModelDecodingTests: XCTestCase {
         XCTAssertEqual(json["platform"] as? String, "ios")
         XCTAssertEqual(json["provider"] as? String, "apns")
         XCTAssertEqual(json["environment"] as? String, "sandbox")
+        XCTAssertEqual(json["includeDeviceCount"] as? Bool, false)
     }
 
     func testEncodesProviderAwareNotificationPreferenceSyncRequest() throws {

@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class PushRegistrationViewModel: ObservableObject {
+    private static let apiSyncHeartbeatInterval: TimeInterval = 7 * 24 * 60 * 60
+
     @Published private(set) var permissionLabel = "Checking"
     @Published private(set) var permissionDetail = "Checking iOS notification settings."
     @Published private(set) var permissionTone: StatusBadgeTone = .neutral
@@ -225,7 +227,8 @@ final class PushRegistrationViewModel: ObservableObject {
                     provider: .apns,
                     environment: apnsEnvironment,
                     appVersion: appVersion,
-                    deviceName: deviceName
+                    deviceName: deviceName,
+                    includeDeviceCount: false
                 )
             )
 
@@ -236,11 +239,17 @@ final class PushRegistrationViewModel: ObservableObject {
                     environment: apnsEnvironment,
                     deviceId: response.device?.id,
                     registeredDeviceCount: response.registeredDeviceCount,
+                    appVersion: appVersion,
+                    deviceName: deviceName,
                     syncedAt: now()
                 )
             )
             registeredDeviceID = response.device?.id
-            developerStatusMessage = "API device registration succeeded. Registered devices: \(response.registeredDeviceCount)."
+            if let registeredDeviceCount = response.registeredDeviceCount {
+                developerStatusMessage = "API device registration succeeded. Registered devices: \(registeredDeviceCount)."
+            } else {
+                developerStatusMessage = "API device registration succeeded."
+            }
         } catch {
             apiRegistrationLabel = "Failed"
             apiRegistrationDetail = "The API could not sync this device. Notifications may not arrive yet."
@@ -254,7 +263,12 @@ final class PushRegistrationViewModel: ObservableObject {
         guard
             let token = snapshot.deviceToken,
             let syncState = stateStore.loadAPISyncState(),
-            syncState.matches(deviceToken: token, environment: apnsEnvironment)
+            syncState.matches(
+                deviceToken: token,
+                environment: apnsEnvironment,
+                appVersion: appVersion,
+                deviceName: deviceName
+            )
         else {
             applyAPISyncPending()
             return
@@ -293,10 +307,29 @@ final class PushRegistrationViewModel: ObservableObject {
     }
 
     private func shouldSyncDeviceWithAPIOnRefresh(_ snapshot: PushRegistrationSnapshot) -> Bool {
-        deviceRegistrationService != nil
-            && snapshot.availability == .available
-            && snapshot.permissionStatus.allowsNotifications
-            && snapshot.hasDeviceToken
+        guard
+            deviceRegistrationService != nil,
+            snapshot.availability == .available,
+            snapshot.permissionStatus.allowsNotifications,
+            let token = snapshot.deviceToken,
+            !token.isEmpty
+        else {
+            return false
+        }
+
+        guard let syncState = stateStore.loadAPISyncState() else {
+            return true
+        }
+
+        return !syncState.matches(
+            deviceToken: token,
+            environment: apnsEnvironment,
+            appVersion: appVersion,
+            deviceName: deviceName
+        ) || syncState.isHeartbeatDue(
+            at: now(),
+            interval: Self.apiSyncHeartbeatInterval
+        )
     }
 
     private func shouldRequestPermissionOrNativeRegistration(_ snapshot: PushRegistrationSnapshot) -> Bool {
