@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { createPostgresToDoDueReminderStore } from '../../../src/repositories/todoDueReminderRepository.js';
 import {
   createToDoDueReminderService,
+  nextToDoDueReminderSlotAt,
   toDoDueReminderScheduleAt,
 } from '../../../src/services/todo/todoDueReminderService.js';
 import { createDisposableShoppingDatabase } from '../../support/pgliteDatabase.js';
@@ -21,6 +22,62 @@ test('To Do due reminder schedule uses the current America/Denver calendar day',
     toDoDueReminderScheduleAt(new Date('2026-01-16T01:00:00.000Z')),
     { dueDate: '2026-01-15', reminderKinds: ['evening'] },
   );
+});
+
+test('the next To Do reminder slot is an exact America/Denver 8 AM or 6 PM wake-up across daylight saving time', () => {
+  assert.deepEqual(
+    nextToDoDueReminderSlotAt(new Date('2026-01-15T14:59:00.000Z')),
+    {
+      dueDate: '2026-01-15',
+      reminderKind: 'morning',
+      scheduledAt: new Date('2026-01-15T15:00:00.000Z'),
+    },
+  );
+  assert.deepEqual(
+    nextToDoDueReminderSlotAt(new Date('2026-01-15T15:00:00.000Z')),
+    {
+      dueDate: '2026-01-15',
+      reminderKind: 'evening',
+      scheduledAt: new Date('2026-01-16T01:00:00.000Z'),
+    },
+  );
+  assert.deepEqual(
+    nextToDoDueReminderSlotAt(new Date('2026-03-08T13:59:00.000Z')),
+    {
+      dueDate: '2026-03-08',
+      reminderKind: 'morning',
+      scheduledAt: new Date('2026-03-08T14:00:00.000Z'),
+    },
+  );
+  assert.deepEqual(
+    nextToDoDueReminderSlotAt(new Date('2026-11-01T14:59:00.000Z')),
+    {
+      dueDate: '2026-11-01',
+      reminderKind: 'morning',
+      scheduledAt: new Date('2026-11-01T15:00:00.000Z'),
+    },
+  );
+});
+
+test('the reminder store exposes the earliest valid pending retry for one-shot scheduling', async (t) => {
+  const disposable = await createDisposableShoppingDatabase();
+  t.after(() => disposable.close());
+  const reminderStore = createPostgresToDoDueReminderStore({
+    database: disposable.database,
+    transactionRunner: disposable.transactionRunner,
+  });
+  await disposable.database`
+    INSERT INTO todo_list (name, date, status, created_for)
+    VALUES ('Return library books', '2026-01-15T22:00:00.000Z', 'open', '[1]'::jsonb)
+  `;
+  await reminderStore.enqueueDueReminders('2026-01-15', 'morning');
+
+  const pending = await reminderStore.findNextPendingDelivery('2026-01-15');
+
+  assert.ok(pending);
+  assert.equal(pending.dueDate, '2026-01-15');
+  assert.equal(pending.reminderKind, 'morning');
+  assert.equal(Number.isFinite(pending.nextAttemptAt.getTime()), true);
 });
 
 test('To Do due reminders deliver once to the item audience and skip completed, undated, and overdue items', async (t) => {

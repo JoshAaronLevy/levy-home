@@ -2,18 +2,17 @@
 
 ## Bottom line
 
-The strongest code-level explanation for sustained Neon spend was the always-on delivery polling, not ordinary household-list use. Before the implementation recorded below, two independent workers polled the database every five seconds regardless of whether any push delivery existed. Together they executed approximately **4.15 million Postgres commands in a 30-day month per API process while idle**. The to-do reminder worker still adds roughly **403,200 commands/month** in its current schedule, including repeated work for the same reminder window.
+The strongest code-level explanation for sustained Neon spend was the always-on delivery polling, not ordinary household-list use. Before the implementations recorded below, two independent workers polled the database every five seconds regardless of whether any push delivery existed, and the to-do worker repeated its reminder work every 30 seconds for much of the day. Together those patterns generated millions of avoidable database commands per API process each month.
 
 Those counts are derived from source code, not from the Neon billing dashboard or production query telemetry. They show execution frequency and likely compute pressure; they cannot assign a dollar amount or prove which Neon billing meter produced the current $40+ charge. If Render has more than one API process/replica, multiply the worker estimates by the number of processes.
 
 The lowest-risk remaining cost plan is:
 
-1. Replace the to-do worker's continuous schedule with exact, idempotent morning/evening wake-ups plus startup/retry recovery.
-2. Remove duplicate list snapshots caused by reconnecting the live WebSocket after already fetching the same snapshot.
-3. Stop re-registering an unchanged APNs device token on every app launch/status refresh.
-4. Add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
+1. Remove duplicate list snapshots caused by reconnecting the live WebSocket after already fetching the same snapshot.
+2. Stop re-registering an unchanged APNs device token on every app launch/status refresh.
+3. Add bounded retention for terminal operational rows, including the existing-but-never-called AI re-add purge.
 
-The delivery-worker fix preserves normal interactive behavior: new delivery work and known retries are processed immediately or at their exact retry time. The deliberate recovery tradeoff is limited to delivery work that is not observed locally (for example, after a process restart): it can wait up to the 10-minute maintenance sweep.
+The delivery and reminder-worker fixes preserve normal interactive behavior: new delivery work and known retries are processed immediately or at their exact retry time. The deliberate recovery tradeoffs apply only to exceptional, unobserved work after a process failure.
 
 ## Scope and method
 
@@ -60,21 +59,21 @@ Expected user-experience reduction:
 - After an APNs timeout handled by the running worker: **none expected**; the precise retry time is scheduled directly rather than discovered by a sweep.
 - After a lost process, an unavailable database, or work created by another process that this one does not observe: recovery can wait up to the next 10-minute sweep. This is a rare degraded path, not a normal screen interaction.
 
-### 2. The to-do reminder worker repeats a full reminder pass for hours
+### 2. Implemented: replace the to-do worker's continuous reminder polling
 
-**Priority: highest. Expected savings: large. UX impact: none if replaced with exact scheduled wake-ups; otherwise a configurable delay only.**
+**Priority: highest. Implemented savings: large. UX impact: none expected for scheduled reminders or known retries.**
 
-`apps/api/src/services/todo/todoDueReminderService.ts` runs every 30 seconds. Every run always executes:
+Before this implementation, `apps/api/src/services/todo/todoDueReminderService.ts` ran every 30 seconds. Every run executed:
 
 - `recoverStaleClaims()` — one `UPDATE` query.
 - `discardExpiredAndIneligibleDeliveries()` — one `UPDATE ... FROM todo_list` query.
 
-The schedule then returns `['morning']` for every time from 8:00 AM until 5:59 PM Denver time, and `['evening']` for every time from 6:00 PM until midnight. For every one of those repeated 30-second passes, the service also runs:
+The schedule then returned `['morning']` for every time from 8:00 AM until 5:59 PM Denver time, and `['evening']` for every time from 6:00 PM until midnight. For every one of those repeated 30-second passes, the service also ran:
 
 - `enqueueDueReminders()` — an `INSERT ... SELECT ... ON CONFLICT DO NOTHING` over the to-do/audience data.
 - `claimDueDeliveries()` — an empty transactional claim (`BEGIN`, claim query, `COMMIT`) once all actual deliveries have been sent.
 
-Per 30-day month, per API process, the source implies roughly:
+Per 30-day month, per API process, that source implied roughly:
 
 | Work | Commands/month |
 | --- | ---: |
@@ -83,19 +82,22 @@ Per 30-day month, per API process, the source implies roughly:
 | Evening enqueue/claim repeated for 6 hours daily | 86,400 |
 | **Total before actual sends/retries** | **403,200** |
 
-The unique constraint prevents duplicate notifications, but it does not prevent the repeated queries and table scans.
+The unique constraint prevented duplicate notifications, but it did not prevent the repeated queries and table scans.
 
-Recommended change:
+Implemented behavior:
 
-- Keep the database uniqueness constraint as the correctness backstop.
-- Process a morning slot once at 8:00 AM and an evening slot once at 6:00 PM using timers aligned to `America/Denver`; schedule a one-time startup catch-up for the current slot so a restart cannot silently miss it.
-- Only schedule a fast retry timer while there are actually pending/ambiguous deliveries. Move stale-claim recovery and the eligibility cleanup to startup plus a low-frequency maintenance sweep (for example hourly or daily, depending on the chosen retry policy).
-- Persist or derive a slot key if more than one process can run the worker, so each process need not repeatedly discover the same slot. The existing delivery unique constraint keeps the result idempotent.
+1. Kept the delivery uniqueness constraint as the correctness backstop.
+2. Schedules exactly one morning run at 8:00 AM and one evening run at 6:00 PM in `America/Denver`, including daylight-saving transitions. Server startup processes the current slot once as catch-up.
+3. Schedules a one-shot wake-up for the earliest persisted pending/ambiguous delivery. A retry claims its original due-date/kind without re-enqueuing an extra reminder slot.
+4. Runs stale-claim recovery, eligibility cleanup, and pending-retry discovery at startup, once 90 seconds later to catch a just-stale in-flight send, and then hourly. This keeps the old recovery timing without continuous polling.
+5. Drains complete 50-item batches in one pass so a burst is not deferred to another scheduled wake-up.
+6. The quiet baseline is now approximately **2,460 commands/month per API process**: 2,160 hourly maintenance commands plus 300 exact-slot commands, before real sends/retries and startup work. That is about a **99.4% reduction** from the prior 403,200-command estimate.
+7. Multiple API replicas still make their own exact-slot/maintenance queries, though the uniqueness constraint and `FOR UPDATE SKIP LOCKED` preserve correctness. A designated worker or lease remains an operational topology decision, not a safe code-only default.
 
 Expected user-experience reduction:
 
-- With exact scheduled wake-ups and startup catch-up: **none expected**; reminders are still sent at the intended time and remain idempotent.
-- With only a simpler five-minute interval: a reminder could arrive up to five minutes late. That is not necessary here; an exact wake-up design avoids it.
+- Scheduled 8:00 AM/6:00 PM reminders and known retries: **none expected**; they are woken directly at the intended time and remain idempotent.
+- A send that was in flight when a process died is recovered on restart when already stale, or by the 90-second startup recovery and its 30-second retry when the failure was immediate. This retains the old roughly two-minute exceptional-path timing without an all-day poll.
 
 ### 3. Shopping live synchronization fetches the same full snapshot twice per visit
 

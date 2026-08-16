@@ -15,6 +15,13 @@ export type ToDoDueReminderDelivery = {
   attemptCount: number;
 };
 
+export type ToDoDueReminderPendingDelivery = Pick<
+  ToDoDueReminderDelivery,
+  'dueDate' | 'reminderKind'
+> & {
+  nextAttemptAt: Date;
+};
+
 export type ToDoDueReminderStore = {
   enqueueDueReminders: (dueDate: string, reminderKind: ToDoDueReminderKind) => Promise<void>;
   discardExpiredAndIneligibleDeliveries: (currentDueDate: string) => Promise<void>;
@@ -28,6 +35,7 @@ export type ToDoDueReminderStore = {
   markPermanentFailure: (deliveryId: string, reason: string) => Promise<void>;
   markRetryableFailure: (deliveryId: string, reason: string, nextAttemptAt: Date) => Promise<void>;
   recoverStaleClaims: () => Promise<void>;
+  findNextPendingDelivery: (currentDueDate: string) => Promise<ToDoDueReminderPendingDelivery | undefined>;
 };
 
 type DeliveryRow = Record<string, unknown> & {
@@ -38,6 +46,12 @@ type DeliveryRow = Record<string, unknown> & {
   reminderKind: unknown;
   recipientUserId: unknown;
   attemptCount: unknown;
+};
+
+type PendingDeliveryRow = Record<string, unknown> & {
+  dueDate: unknown;
+  reminderKind: unknown;
+  nextAttemptAt: unknown;
 };
 
 export function createPostgresToDoDueReminderStore(options: {
@@ -172,6 +186,27 @@ export function createPostgresToDoDueReminderStore(options: {
           AND updated_at < now() - interval '60 seconds'
       `;
     },
+    async findNextPendingDelivery(currentDueDate) {
+      const [row] = await query()<PendingDeliveryRow>`
+        SELECT
+          delivery.due_date AS "dueDate",
+          delivery.reminder_kind AS "reminderKind",
+          delivery.next_attempt_at AS "nextAttemptAt"
+        FROM todo_due_reminder_deliveries delivery
+        INNER JOIN todo_list item ON item.id = delivery.todo_item_id
+        WHERE delivery.status IN ('pending', 'ambiguous')
+          AND delivery.due_date >= ${currentDueDate}::date
+          AND item.status = 'open'
+          AND item.date IS NOT NULL
+          AND (item.date AT TIME ZONE 'America/Denver')::date = delivery.due_date
+          AND COALESCE(item.created_for, ${jsonb(TODO_FAMILY_USER_IDS)}::jsonb)
+            @> jsonb_build_array(delivery.recipient_user_id)
+        ORDER BY delivery.next_attempt_at ASC, delivery.created_at ASC
+        LIMIT 1
+      `;
+
+      return row ? toDoDueReminderPendingDeliveryFromRow(row) : undefined;
+    },
   };
 }
 
@@ -197,6 +232,22 @@ function toDoDueReminderDeliveryFromRow(row: DeliveryRow): ToDoDueReminderDelive
     reminderKind: requiredReminderKind(row.reminderKind),
     recipientUserId: requiredInteger(row.recipientUserId, 'todo_due_reminder_deliveries.recipient_user_id'),
     attemptCount: requiredInteger(row.attemptCount, 'todo_due_reminder_deliveries.attempt_count'),
+  };
+}
+
+function toDoDueReminderPendingDeliveryFromRow(row: PendingDeliveryRow): ToDoDueReminderPendingDelivery {
+  const nextAttemptAt = row.nextAttemptAt instanceof Date
+    ? row.nextAttemptAt
+    : new Date(requiredString(row.nextAttemptAt, 'todo_due_reminder_deliveries.next_attempt_at'));
+
+  if (!Number.isFinite(nextAttemptAt.getTime())) {
+    throw new Error('Expected todo_due_reminder_deliveries.next_attempt_at to be a timestamp.');
+  }
+
+  return {
+    dueDate: requiredDueDate(row.dueDate),
+    reminderKind: requiredReminderKind(row.reminderKind),
+    nextAttemptAt,
   };
 }
 
