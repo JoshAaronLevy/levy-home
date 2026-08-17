@@ -1631,7 +1631,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHome/Resources/LevyHome.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1645,7 +1645,7 @@
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
 				LEVY_HOME_CAMERA_ACCESS_TOKEN = "";
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1664,7 +1664,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHome/LevyHomeRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1678,7 +1678,7 @@
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
 				LEVY_HOME_CAMERA_ACCESS_TOKEN = "";
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1695,7 +1695,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeWidgets/Info.plist;
@@ -1705,7 +1705,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1723,7 +1723,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeWidgets/Info.plist;
@@ -1733,7 +1733,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1748,12 +1748,12 @@
 		};
 		D12000000000000000000031 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 44; DEVELOPMENT_TEAM = 45K7QCRX6Y; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LevyHomeDoorbellNotification/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 18.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 12.2.9; PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.doorbellnotification; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; };
+			buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 45; DEVELOPMENT_TEAM = 45K7QCRX6Y; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LevyHomeDoorbellNotification/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 18.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 12.2.10; PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.doorbellnotification; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; };
 			name = Debug;
 		};
 		D12000000000000000000032 /* Release */ = {
 			isa = XCBuildConfiguration;
-			buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 44; DEVELOPMENT_TEAM = 45K7QCRX6Y; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LevyHomeDoorbellNotification/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 18.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 12.2.9; PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.doorbellnotification; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; };
+			buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 45; DEVELOPMENT_TEAM = 45K7QCRX6Y; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LevyHomeDoorbellNotification/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 18.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 12.2.10; PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.doorbellnotification; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; };
 			name = Release;
 		};
 		950000000000000000000001 /* Debug */ = {
@@ -1762,7 +1762,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHomeIntents/LevyHomeIntents.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeIntents/Info.plist;
@@ -1773,7 +1773,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.intents;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1792,7 +1792,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LevyHomeIntents/LevyHomeIntents.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = 45K7QCRX6Y;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LevyHomeIntents/Info.plist;
@@ -1803,7 +1803,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LEVY_HOME_API_BASE_URL = "https://levy-home.onrender.com";
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.intents;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1821,7 +1821,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -1830,7 +1830,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1848,7 +1848,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -1857,7 +1857,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 12.2.9;
+				MARKETING_VERSION = 12.2.10;
 				PRODUCT_BUNDLE_IDENTIFIER = com.levyhome.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
