@@ -13,16 +13,16 @@ final class PersonalRemindersService {
         self.calendar = calendar
     }
 
-    func loadIncompleteReminders() async throws -> PersonalRemindersLoadResult {
+    func loadIncompleteReminders(in dateInterval: DateInterval) async throws -> PersonalRemindersLoadResult {
         switch EKEventStore.authorizationStatus(for: .reminder) {
         case .notDetermined:
             guard try await requestFullAccess() else {
                 return PersonalRemindersLoadResult(state: .permissionNeeded, reminders: [])
             }
 
-            return try await readIncompleteReminders()
+            return try await readIncompleteReminders(in: dateInterval)
         case .fullAccess:
-            return try await readIncompleteReminders()
+            return try await readIncompleteReminders(in: dateInterval)
         case .denied:
             return PersonalRemindersLoadResult(state: .permissionNeeded, reminders: [])
         case .restricted:
@@ -55,35 +55,29 @@ final class PersonalRemindersService {
         }
     }
 
-    private func readIncompleteReminders() async throws -> PersonalRemindersLoadResult {
-        let now = Date()
-        let endOfToday = calendar.dateInterval(of: .day, for: now)?.end
+    private func readIncompleteReminders(in dateInterval: DateInterval) async throws -> PersonalRemindersLoadResult {
         let predicate = eventStore.predicateForIncompleteReminders(
-            withDueDateStarting: nil,
-            ending: endOfToday,
+            withDueDateStarting: dateInterval.start,
+            ending: dateInterval.end,
             calendars: nil
         )
         let reminders = await fetchReminders(matching: predicate)
             .filter { !$0.isCompleted }
             .map { ToDoReminder(reminder: $0, calendar: calendar) }
-            .filter { Self.isDueTodayOrOverdue($0.dueDate, now: now, calendar: calendar) }
+            .filter { Self.isDue($0.dueDate, in: dateInterval) }
 
         return PersonalRemindersLoadResult(state: .synced, reminders: reminders)
     }
 
-    static func isDueTodayOrOverdue(
+    static func isDue(
         _ dueDate: Date?,
-        now: Date = Date(),
-        calendar: Calendar = .current
+        in dateInterval: DateInterval
     ) -> Bool {
-        guard
-            let dueDate,
-            let today = calendar.dateInterval(of: .day, for: now)
-        else {
+        guard let dueDate else {
             return false
         }
 
-        return dueDate < today.end
+        return dueDate >= dateInterval.start && dueDate < dateInterval.end
     }
 
     private func fetchReminders(matching predicate: NSPredicate) async -> [EKReminder] {

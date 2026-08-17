@@ -10,6 +10,7 @@ final class ToDoPersonalRemindersViewModel: ObservableObject {
     private let service: PersonalRemindersService
     private var isLoadingReminders = false
     private var completingReminderIDs = Set<String>()
+    private var loadedDateInterval: DateInterval?
 
     init(service: PersonalRemindersService? = nil) {
         self.service = service ?? PersonalRemindersService.shared
@@ -33,8 +34,8 @@ final class ToDoPersonalRemindersViewModel: ObservableObject {
         }
     }
 
-    func loadReminders(force: Bool = false) async {
-        if !force, state == .synced {
+    func loadReminders(in dateInterval: DateInterval, force: Bool = false) async {
+        if !force, state == .synced, loadedDateInterval == dateInterval {
             return
         }
 
@@ -45,6 +46,7 @@ final class ToDoPersonalRemindersViewModel: ObservableObject {
         isLoadingReminders = true
         let previousState = state
         let previousReminders = reminders
+        let previousDateInterval = loadedDateInterval
         state = EKEventStore.authorizationStatus(for: .reminder) == .notDetermined ? .requestingPermission : .loading
 
         defer {
@@ -52,13 +54,15 @@ final class ToDoPersonalRemindersViewModel: ObservableObject {
         }
 
         do {
-            let result = try await service.loadIncompleteReminders()
+            let result = try await service.loadIncompleteReminders(in: dateInterval)
             state = result.state
             reminders = result.reminders
+            loadedDateInterval = dateInterval
         } catch {
             guard !error.isTaskCancellation else {
                 state = previousState
                 reminders = previousReminders
+                loadedDateInterval = previousDateInterval
                 return
             }
 
@@ -68,9 +72,12 @@ final class ToDoPersonalRemindersViewModel: ObservableObject {
     }
 
     #if targetEnvironment(simulator)
-    func loadSimulatorPreviewData() {
+    func loadSimulatorPreviewData(in dateInterval: DateInterval) {
         state = .synced
-        reminders = ToDoPreviewData.simulatorReminders
+        reminders = ToDoPreviewData.simulatorReminders.filter {
+            PersonalRemindersService.isDue($0.dueDate, in: dateInterval)
+        }
+        loadedDateInterval = dateInterval
     }
 
     func completeSimulatorReminder(_ reminder: ToDoReminder) {

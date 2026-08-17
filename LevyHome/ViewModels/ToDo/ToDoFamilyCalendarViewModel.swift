@@ -10,7 +10,8 @@ final class ToDoFamilyCalendarViewModel: ObservableObject {
     private let service: FamilyCalendarService
     private let userDefaults: UserDefaults
     private let completionStorageKey = "familyCalendarCompletedEventIDs"
-    private var isLoadingToday = false
+    private var isLoadingEvents = false
+    private var loadedDateInterval: DateInterval?
     private var completedEventIDs: Set<String>
 
     init(service: FamilyCalendarService? = nil, userDefaults: UserDefaults = .standard) {
@@ -37,34 +38,37 @@ final class ToDoFamilyCalendarViewModel: ObservableObject {
         }
     }
 
-    func loadToday(force: Bool = false) async {
-        if !force, state == .synced {
+    func load(in dateInterval: DateInterval, force: Bool = false) async {
+        if !force, state == .synced, loadedDateInterval == dateInterval {
             return
         }
 
-        guard !isLoadingToday else {
+        guard !isLoadingEvents else {
             return
         }
 
-        isLoadingToday = true
+        isLoadingEvents = true
         let previousState = state
         let previousEvents = events
+        let previousDateInterval = loadedDateInterval
         state = EKEventStore.authorizationStatus(for: .event) == .notDetermined ? .requestingPermission : .loading
 
         defer {
-            isLoadingToday = false
+            isLoadingEvents = false
         }
 
         do {
-            let result = try await service.loadTodaysFamilyEvents()
+            let result = try await service.loadFamilyEvents(in: dateInterval)
             state = result.state
             events = result.events.map { event in
                 event.withCompletion(completedEventIDs.contains(event.completionID))
             }
+            loadedDateInterval = dateInterval
         } catch {
             guard !error.isTaskCancellation else {
                 state = previousState
                 events = previousEvents
+                loadedDateInterval = previousDateInterval
                 return
             }
 
@@ -74,11 +78,14 @@ final class ToDoFamilyCalendarViewModel: ObservableObject {
     }
 
     #if targetEnvironment(simulator)
-    func loadSimulatorPreviewData() {
+    func loadSimulatorPreviewData(in dateInterval: DateInterval) {
         state = .synced
-        events = ToDoPreviewData.simulatorCalendarEvents.map { event in
-            event.withCompletion(completedEventIDs.contains(event.completionID))
-        }
+        events = ToDoPreviewData.simulatorCalendarEvents
+            .filter { $0.startDate < dateInterval.end && $0.endDate > dateInterval.start }
+            .map { event in
+                event.withCompletion(completedEventIDs.contains(event.completionID))
+            }
+        loadedDateInterval = dateInterval
     }
     #endif
 

@@ -8,6 +8,84 @@ enum ToDoDateDefaults {
     static let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: today)
 }
 
+enum ToDoDateScope: String, CaseIterable, Identifiable {
+    case today
+    case tomorrow
+    case week
+
+    var id: String {
+        rawValue
+    }
+
+    func title(now: Date = Date(), calendar: Calendar = .current) -> String {
+        switch self {
+        case .today:
+            return Self.tabDateFormatter.string(from: now)
+        case .tomorrow:
+            guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else {
+                return Self.tabDateFormatter.string(from: now)
+            }
+
+            return Self.tabDateFormatter.string(from: tomorrow)
+        case .week:
+            return "Week"
+        }
+    }
+
+    var summaryPeriodText: String {
+        switch self {
+        case .today:
+            return "Today"
+        case .tomorrow:
+            return "Tomorrow"
+        case .week:
+            return "this Week"
+        }
+    }
+
+    func dateInterval(now: Date = Date(), calendar: Calendar = .current) -> DateInterval {
+        let startOfToday = calendar.startOfDay(for: now)
+
+        switch self {
+        case .today:
+            let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+            return DateInterval(start: startOfToday, end: endOfToday)
+        case .tomorrow:
+            let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+            let endOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfTomorrow) ?? startOfTomorrow
+            return DateInterval(start: startOfTomorrow, end: endOfTomorrow)
+        case .week:
+            var sundayFirstCalendar = calendar
+            sundayFirstCalendar.firstWeekday = 1
+            let startOfWeek = sundayFirstCalendar.dateInterval(of: .weekOfYear, for: startOfToday)?.start ?? startOfToday
+            let endOfWeek = sundayFirstCalendar.date(byAdding: .day, value: 7, to: startOfWeek) ?? startOfToday
+            return DateInterval(start: startOfToday, end: endOfWeek)
+        }
+    }
+
+    func includesToDoItem(
+        dueDate: Date?,
+        status: ToDoStatus,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let dueDate else {
+            return false
+        }
+
+        let interval = dateInterval(now: now, calendar: calendar)
+        return (dueDate >= interval.start && dueDate < interval.end) ||
+            (status == .open && dueDate < interval.start)
+    }
+
+    private static let tabDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM. d"
+        return formatter
+    }()
+}
+
 struct ToDoLocationSearchSuggestion: Identifiable, Equatable {
     let id: String
     let title: String

@@ -14,16 +14,16 @@ final class FamilyCalendarService {
         self.calendar = calendar
     }
 
-    func loadTodaysFamilyEvents() async throws -> FamilyCalendarLoadResult {
+    func loadFamilyEvents(in dateInterval: DateInterval) async throws -> FamilyCalendarLoadResult {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .notDetermined:
             guard try await requestFullAccess() else {
                 return FamilyCalendarLoadResult(state: .permissionNeeded, events: [])
             }
 
-            return try readTodaysFamilyEvents()
+            return try readFamilyEvents(in: dateInterval)
         case .fullAccess:
-            return try readTodaysFamilyEvents()
+            return try readFamilyEvents(in: dateInterval)
         case .denied:
             return FamilyCalendarLoadResult(state: .permissionNeeded, events: [])
         case .restricted:
@@ -77,7 +77,7 @@ final class FamilyCalendarService {
         }
     }
 
-    private func readTodaysFamilyEvents() throws -> FamilyCalendarLoadResult {
+    private func readFamilyEvents(in dateInterval: DateInterval) throws -> FamilyCalendarLoadResult {
         let familyCalendars = eventStore.calendars(for: .event).filter { calendar in
             calendar.title.trimmingCharacters(in: .whitespacesAndNewlines) == familyCalendarName
         }
@@ -86,14 +86,9 @@ final class FamilyCalendarService {
             return FamilyCalendarLoadResult(state: .calendarNotFound, events: [])
         }
 
-        let startOfDay = calendar.startOfDay(for: Date())
-        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return FamilyCalendarLoadResult(state: .failed("Unable to calculate today's Family Calendar window."), events: [])
-        }
-
         let predicate = eventStore.predicateForEvents(
-            withStart: startOfDay,
-            end: endOfDay,
+            withStart: dateInterval.start,
+            end: dateInterval.end,
             calendars: familyCalendars
         )
         let events = eventStore.events(matching: predicate)

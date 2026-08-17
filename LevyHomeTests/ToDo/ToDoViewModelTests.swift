@@ -362,23 +362,49 @@ final class ToDoViewModelTests: XCTestCase {
         viewModel.stopLiveUpdates()
     }
 
-    func testPersonalRemindersTodayFilterExcludesFutureRecurringInstances() {
+    func testDateScopesUseExpectedLabelsAndDateWindows() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
 
-        let monday = Self.date(calendar: calendar, year: 2026, month: 7, day: 6, hour: 12)
-        let overdueSunday = Self.date(calendar: calendar, year: 2026, month: 7, day: 5, hour: 7)
-        let todayMorning = Self.date(calendar: calendar, year: 2026, month: 7, day: 6, hour: 7)
-        let thursday = Self.date(calendar: calendar, year: 2026, month: 7, day: 9, hour: 7)
-        let nextSunday = Self.date(calendar: calendar, year: 2026, month: 7, day: 12, hour: 7, minute: 30)
-        let tomorrowStart = Self.date(calendar: calendar, year: 2026, month: 7, day: 7)
+        let sunday = Self.date(calendar: calendar, year: 2026, month: 8, day: 16, hour: 12)
+        let todayInterval = ToDoDateScope.today.dateInterval(now: sunday, calendar: calendar)
+        let tomorrowInterval = ToDoDateScope.tomorrow.dateInterval(now: sunday, calendar: calendar)
+        let weekInterval = ToDoDateScope.week.dateInterval(now: sunday, calendar: calendar)
 
-        XCTAssertTrue(PersonalRemindersService.isDueTodayOrOverdue(overdueSunday, now: monday, calendar: calendar))
-        XCTAssertTrue(PersonalRemindersService.isDueTodayOrOverdue(todayMorning, now: monday, calendar: calendar))
-        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(thursday, now: monday, calendar: calendar))
-        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(nextSunday, now: monday, calendar: calendar))
-        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(tomorrowStart, now: monday, calendar: calendar))
-        XCTAssertFalse(PersonalRemindersService.isDueTodayOrOverdue(nil, now: monday, calendar: calendar))
+        XCTAssertEqual(ToDoDateScope.today.title(now: sunday, calendar: calendar), "Aug. 16")
+        XCTAssertEqual(ToDoDateScope.tomorrow.title(now: sunday, calendar: calendar), "Aug. 17")
+        XCTAssertEqual(ToDoDateScope.week.title(now: sunday, calendar: calendar), "Week")
+        XCTAssertEqual(todayInterval.start, Self.date(calendar: calendar, year: 2026, month: 8, day: 16))
+        XCTAssertEqual(todayInterval.end, Self.date(calendar: calendar, year: 2026, month: 8, day: 17))
+        XCTAssertEqual(tomorrowInterval.start, Self.date(calendar: calendar, year: 2026, month: 8, day: 17))
+        XCTAssertEqual(tomorrowInterval.end, Self.date(calendar: calendar, year: 2026, month: 8, day: 18))
+        XCTAssertEqual(weekInterval.start, Self.date(calendar: calendar, year: 2026, month: 8, day: 16))
+        XCTAssertEqual(weekInterval.end, Self.date(calendar: calendar, year: 2026, month: 8, day: 23))
+    }
+
+    func testDateScopesIncludeOnlyScheduledRemindersAndOpenOverdueToDoItems() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let thursday = Self.date(calendar: calendar, year: 2026, month: 8, day: 20, hour: 12)
+        let overdueWednesday = Self.date(calendar: calendar, year: 2026, month: 8, day: 19, hour: 7)
+        let thursdayMorning = Self.date(calendar: calendar, year: 2026, month: 8, day: 20, hour: 7)
+        let friday = Self.date(calendar: calendar, year: 2026, month: 8, day: 21, hour: 7)
+        let saturday = Self.date(calendar: calendar, year: 2026, month: 8, day: 22, hour: 7)
+        let sunday = Self.date(calendar: calendar, year: 2026, month: 8, day: 23, hour: 7)
+        let todayInterval = ToDoDateScope.today.dateInterval(now: thursday, calendar: calendar)
+
+        XCTAssertFalse(PersonalRemindersService.isDue(overdueWednesday, in: todayInterval))
+        XCTAssertTrue(PersonalRemindersService.isDue(thursdayMorning, in: todayInterval))
+        XCTAssertFalse(PersonalRemindersService.isDue(friday, in: todayInterval))
+        XCTAssertFalse(PersonalRemindersService.isDue(nil, in: todayInterval))
+
+        XCTAssertTrue(ToDoDateScope.today.includesToDoItem(dueDate: overdueWednesday, status: .open, now: thursday, calendar: calendar))
+        XCTAssertFalse(ToDoDateScope.today.includesToDoItem(dueDate: overdueWednesday, status: .completed, now: thursday, calendar: calendar))
+        XCTAssertTrue(ToDoDateScope.tomorrow.includesToDoItem(dueDate: thursdayMorning, status: .open, now: thursday, calendar: calendar))
+        XCTAssertTrue(ToDoDateScope.tomorrow.includesToDoItem(dueDate: friday, status: .completed, now: thursday, calendar: calendar))
+        XCTAssertTrue(ToDoDateScope.week.includesToDoItem(dueDate: saturday, status: .open, now: thursday, calendar: calendar))
+        XCTAssertFalse(ToDoDateScope.week.includesToDoItem(dueDate: sunday, status: .open, now: thursday, calendar: calendar))
     }
 
     private static func response(

@@ -17,6 +17,7 @@ struct ToDoView: View {
     @State private var selectedCalendarEvent: ToDoCalendarEvent?
     @State private var selectedReminder: ToDoReminder?
     @State private var hasAppeared = false
+    @State private var selectedDateScope: ToDoDateScope = .today
 
     let isSelected: Bool
 
@@ -40,10 +41,10 @@ struct ToDoView: View {
         sections.flatMap(\.tasks)
     }
 
-    private var dueTodayCount: Int {
+    private var visibleTasks: [ToDoTask] {
         tasks.filter { task in
-            task.status == .open && task.date.map(Calendar.current.isDateInToday) == true
-        }.count
+            selectedDateScope.includesToDoItem(dueDate: task.date, status: task.status)
+        }
     }
 
     private var residentAvatars: [ResidentAvatarState] {
@@ -101,11 +102,14 @@ struct ToDoView: View {
                     }
                 }
 
+                ToDoDateScopePicker(selection: $selectedDateScope)
+
                 ToDoSummaryCard(
                     residentAvatars: residentAvatars,
                     calendarEventCount: familyCalendarViewModel.eventCount,
                     reminderCount: personalRemindersViewModel.reminderCount,
-                    toDoItemCount: dueTodayCount
+                    toDoItemCount: visibleTasks.count,
+                    summaryPeriodText: selectedDateScope.summaryPeriodText
                 )
 
                 ToDoCalendarPanel(
@@ -184,6 +188,11 @@ struct ToDoView: View {
         .onChange(of: currentToDoViewerIdentity.viewerId) { _, _ in
             updateToDoLivePresence()
         }
+        .onChange(of: selectedDateScope) { _, _ in
+            Task {
+                await refreshEventKitContent()
+            }
+        }
         .refreshable {
             await load(force: true)
         }
@@ -241,13 +250,32 @@ struct ToDoView: View {
     }
 
     private var toDoSections: [ToDoTaskSection] {
-        sections.isEmpty ? [ToDoTaskSection(
+        let familyTasks = visibleTasks.filter(\.isFamilyItem)
+        let personalTasks = visibleTasks.filter { !$0.isFamilyItem }
+        let visibleSections = [
+            familyTasks.isEmpty ? nil : ToDoTaskSection(
+                id: "family",
+                title: "Family",
+                systemImage: "person.2.fill",
+                tone: .accent,
+                tasks: familyTasks
+            ),
+            personalTasks.isEmpty ? nil : ToDoTaskSection(
+                id: "me",
+                title: "Me",
+                systemImage: "person.fill",
+                tone: .neutral,
+                tasks: personalTasks
+            )
+        ].compactMap { $0 }
+
+        return visibleSections.isEmpty ? [ToDoTaskSection(
             id: "family",
             title: "Family",
             systemImage: "person.2.fill",
             tone: .accent,
             tasks: []
-        )] : sections
+        )] : visibleSections
     }
 
     private var currentActorName: String? {
@@ -295,9 +323,9 @@ struct ToDoView: View {
     private func refreshCalendar() async {
         await runToDoContentOperation {
             #if targetEnvironment(simulator)
-            familyCalendarViewModel.loadSimulatorPreviewData()
+            familyCalendarViewModel.loadSimulatorPreviewData(in: selectedDateInterval)
             #else
-            await familyCalendarViewModel.loadToday(force: true)
+            await familyCalendarViewModel.load(in: selectedDateInterval, force: true)
             #endif
         }
     }
@@ -305,9 +333,9 @@ struct ToDoView: View {
     private func refreshReminders() async {
         await runToDoContentOperation {
             #if targetEnvironment(simulator)
-            personalRemindersViewModel.loadSimulatorPreviewData()
+            personalRemindersViewModel.loadSimulatorPreviewData(in: selectedDateInterval)
             #else
-            await personalRemindersViewModel.loadReminders(force: true)
+            await personalRemindersViewModel.loadReminders(in: selectedDateInterval, force: true)
             #endif
         }
     }
@@ -320,21 +348,25 @@ struct ToDoView: View {
 
     private func loadEventKitContent(force: Bool) async {
         #if targetEnvironment(simulator)
-        familyCalendarViewModel.loadSimulatorPreviewData()
-        personalRemindersViewModel.loadSimulatorPreviewData()
+        familyCalendarViewModel.loadSimulatorPreviewData(in: selectedDateInterval)
+        personalRemindersViewModel.loadSimulatorPreviewData(in: selectedDateInterval)
         #else
-        await familyCalendarViewModel.loadToday(force: force)
-        await personalRemindersViewModel.loadReminders(force: force)
+        await familyCalendarViewModel.load(in: selectedDateInterval, force: force)
+        await personalRemindersViewModel.loadReminders(in: selectedDateInterval, force: force)
         #endif
     }
 
     #if targetEnvironment(simulator)
     private func loadSimulatorPreviewData() {
         viewModel.loadSimulatorPreviewData()
-        familyCalendarViewModel.loadSimulatorPreviewData()
-        personalRemindersViewModel.loadSimulatorPreviewData()
+        familyCalendarViewModel.loadSimulatorPreviewData(in: selectedDateInterval)
+        personalRemindersViewModel.loadSimulatorPreviewData(in: selectedDateInterval)
     }
     #endif
+
+    private var selectedDateInterval: DateInterval {
+        selectedDateScope.dateInterval()
+    }
 
     private func complete(_ reminder: ToDoReminder) async {
         #if targetEnvironment(simulator)
@@ -414,6 +446,45 @@ struct ToDoView: View {
     }
 }
 
+private struct ToDoDateScopePicker: View {
+    @Binding var selection: ToDoDateScope
+
+    var body: some View {
+        HStack(spacing: AppSpacing.xSmall) {
+            ForEach(ToDoDateScope.allCases) { scope in
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                        selection = scope
+                    }
+                } label: {
+                    Text(scope.title())
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(selection == scope ? HomePalette.blue : HomePalette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppSpacing.small + 2)
+                        .background {
+                            if selection == scope {
+                                Capsule()
+                                    .fill(HomePalette.nodeFill)
+                                    .shadow(color: HomePalette.shadow.opacity(0.42), radius: 8, y: 3)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(scope.title()) To Do items")
+                .accessibilityAddTraits(selection == scope ? .isSelected : [])
+            }
+        }
+        .padding(AppSpacing.xSmall)
+        .background(HomePalette.blueprintFill, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(HomePalette.hairline, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
 private struct ToDoErrorBanner: View {
     let message: String
     let onRetry: () -> Void
@@ -447,19 +518,20 @@ private struct ToDoSummaryCard: View {
     let calendarEventCount: Int
     let reminderCount: Int
     let toDoItemCount: Int
+    let summaryPeriodText: String
 
-    private var totalTodayCount: Int {
+    private var totalCount: Int {
         calendarEventCount + reminderCount + toDoItemCount
     }
 
     private var headlineText: String {
-        switch totalTodayCount {
+        switch totalCount {
         case 0:
-            return "No Events/Items Today"
+            return "No Events/Items \(summaryPeriodText)"
         case 1:
-            return "1 Event/Item Today"
+            return "1 Event/Item \(summaryPeriodText)"
         default:
-            return "\(totalTodayCount) Events/Items Today"
+            return "\(totalCount) Events/Items \(summaryPeriodText)"
         }
     }
 
