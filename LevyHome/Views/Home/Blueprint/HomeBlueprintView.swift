@@ -170,23 +170,15 @@ struct HomeBlueprintView: View {
                 .accessibilityHint("Shows the current temperature and setpoint controls.")
                 .position(positions.thermostat)
 
-                Button {
-                    onGarageTapped()
-                } label: {
-                    BlueprintNodeView(
-                        systemImage: garageData.systemImage,
-                        tone: garageData.tone,
-                        size: garageSize,
-                        iconReferenceSize: fullGarageSize,
-                        lightStatus: garageStatus,
-                        isPriority: true,
-                        showsWarningBadge: showsGarageWarning,
-                        isPerforming: garageToggleAction?.id == performingActionID
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(garageAccessibilityLabel)
-                .accessibilityHint(garageAccessibilityHint)
+                BlueprintGarageNode(
+                    data: garageData,
+                    toggleAction: garageToggleAction,
+                    showsWarning: showsGarageWarning,
+                    performingActionID: performingActionID,
+                    size: garageSize,
+                    iconReferenceSize: fullGarageSize,
+                    onTapped: onGarageTapped
+                )
                 .position(positions.garage)
             }
         }
@@ -202,22 +194,6 @@ struct HomeBlueprintView: View {
         return BlueprintLightStatus(groups: groups)
     }
 
-    private var garageAccessibilityLabel: String {
-        let warning = showsGarageWarning ? ", open while you are away" : ""
-        return "Garage, \(garageData.status.lowercased())\(warning)"
-    }
-
-    private var garageAccessibilityHint: String {
-        guard let garageToggleAction else {
-            return "Garage control is unavailable."
-        }
-
-        if garageToggleAction.id == performingActionID {
-            return "\(garageToggleAction.title) is in progress."
-        }
-
-        return "Double tap to \(garageToggleAction.title.lowercased())."
-    }
 }
 
 enum HomeBlueprintMode: String, CaseIterable, Identifiable {
@@ -235,6 +211,37 @@ enum HomeBlueprintMode: String, CaseIterable, Identifiable {
         case .lights:
             return "Lights"
         }
+    }
+
+    var defaultPreferenceDetail: String {
+        switch self {
+        case .temperatures:
+            return "Open Home with room temperatures"
+        case .lights:
+            return "Open Home with lighting controls"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .temperatures:
+            return "thermometer.medium"
+        case .lights:
+            return "lightbulb.fill"
+        }
+    }
+}
+
+enum HomeBlueprintPreference {
+    static let storageKey = "homeBlueprint.defaultMode"
+    static let defaultMode: HomeBlueprintMode = .temperatures
+
+    static func mode(for rawValue: String?) -> HomeBlueprintMode {
+        guard let rawValue, let mode = HomeBlueprintMode(rawValue: rawValue) else {
+            return defaultMode
+        }
+
+        return mode
     }
 }
 
@@ -281,6 +288,11 @@ struct TemperatureBlueprintView: View {
     let roomTemperatures: [RoomTemperatureReading]
     let occupiedMeanTemperature: Double?
     let thermostatStatus: ThermostatStatus?
+    let garageData: GarageStatusCardData
+    let garageToggleAction: QuickActionDisplayData?
+    let showsGarageWarning: Bool
+    let performingActionID: String?
+    let onGarageTapped: () -> Void
     let onThermostatTapped: () -> Void
 
     private var meanDisplay: TemperatureBlueprintMeanDisplay {
@@ -298,7 +310,9 @@ struct TemperatureBlueprintView: View {
             let center = CGPoint(x: width * 0.50, y: height * 0.48)
             let sensorNodeSize = min(max(width * 0.22, 78), 88)
             let thermostatNodeSize = min(max(width * 0.32, 108), 118)
+            let garageNodeSize = min(max(width * 0.27, 96), 106)
             let positions = TemperatureBlueprintNodePositions(width: width, height: height)
+            let garageStatus = BlueprintLightStatus(garageStatus: garageData.status)
 
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -322,6 +336,10 @@ struct TemperatureBlueprintView: View {
                         .shadow(color: .white.opacity(0.78), radius: 1.5)
                 }
 
+                BlueprintConnectorLine(from: center, to: positions.garage)
+                    .stroke(garageStatus.color, style: BlueprintConnectorLine.strokeStyle)
+                    .shadow(color: .white.opacity(0.78), radius: 1.5)
+
                 BlueprintConnectorLine(from: center, to: positions.thermostat)
                     .stroke(HomePalette.blue.opacity(0.42), style: BlueprintConnectorLine.strokeStyle)
                     .shadow(color: .white.opacity(0.78), radius: 1.5)
@@ -341,6 +359,17 @@ struct TemperatureBlueprintView: View {
                     )
                     .position(positions.point(for: node))
                 }
+
+                BlueprintGarageNode(
+                    data: garageData,
+                    toggleAction: garageToggleAction,
+                    showsWarning: showsGarageWarning,
+                    performingActionID: performingActionID,
+                    size: garageNodeSize,
+                    iconReferenceSize: garageNodeSize,
+                    onTapped: onGarageTapped
+                )
+                .position(positions.garage)
 
                 Button {
                     onThermostatTapped()
@@ -421,14 +450,16 @@ private struct TemperatureBlueprintNodePositions {
     let nursery: CGPoint
     let masterBedroom: CGPoint
     let playroom: CGPoint
+    let garage: CGPoint
     let thermostat: CGPoint
 
     init(width: CGFloat, height: CGFloat) {
         study = CGPoint(x: width * 0.28, y: height * 0.25)
-        kitchenFamily = CGPoint(x: width * 0.72, y: height * 0.25)
+        kitchenFamily = CGPoint(x: width * 0.72, y: height * 0.21)
         nursery = CGPoint(x: width * 0.18, y: height * 0.50)
-        masterBedroom = CGPoint(x: width * 0.82, y: height * 0.50)
+        masterBedroom = CGPoint(x: width * 0.82, y: height * 0.45)
         playroom = CGPoint(x: width * 0.20, y: height * 0.76)
+        garage = CGPoint(x: width * 0.82, y: height * 0.78)
         thermostat = CGPoint(x: width * 0.50, y: height * 0.80)
     }
 
@@ -941,6 +972,57 @@ private struct BlueprintThermostatNode: View {
 
     private var accessibilityLabel: String {
         "Thermostat, current \(temperatureText(status?.currentTemperature)), low \(temperatureText(status?.targetTemperatureLow)), high \(temperatureText(status?.targetTemperatureHigh))"
+    }
+}
+
+private struct BlueprintGarageNode: View {
+    let data: GarageStatusCardData
+    let toggleAction: QuickActionDisplayData?
+    let showsWarning: Bool
+    let performingActionID: String?
+    let size: CGFloat
+    let iconReferenceSize: CGFloat
+    let onTapped: () -> Void
+
+    private var status: BlueprintLightStatus {
+        BlueprintLightStatus(garageStatus: data.status)
+    }
+
+    var body: some View {
+        Button {
+            onTapped()
+        } label: {
+            BlueprintNodeView(
+                systemImage: data.systemImage,
+                tone: data.tone,
+                size: size,
+                iconReferenceSize: iconReferenceSize,
+                lightStatus: status,
+                isPriority: true,
+                showsWarningBadge: showsWarning,
+                isPerforming: toggleAction?.id == performingActionID
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
+    }
+
+    private var accessibilityLabel: String {
+        let warning = showsWarning ? ", open while you are away" : ""
+        return "Garage, \(data.status.lowercased())\(warning)"
+    }
+
+    private var accessibilityHint: String {
+        guard let toggleAction else {
+            return "Garage control is unavailable."
+        }
+
+        if toggleAction.id == performingActionID {
+            return "\(toggleAction.title) is in progress."
+        }
+
+        return "Double tap to \(toggleAction.title.lowercased())."
     }
 }
 

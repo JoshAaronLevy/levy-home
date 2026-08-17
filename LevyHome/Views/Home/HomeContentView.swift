@@ -8,9 +8,11 @@ struct HomeContentView: View {
     @State private var searchText = ""
     @State private var isShowingConfirmationDialog = false
     @State private var isWeatherExpanded = false
-    @State private var selectedBlueprintMode: HomeBlueprintMode = .temperatures
+    @State private var selectedBlueprintMode: HomeBlueprintMode
     @State private var selectedLightingArea: BlueprintLightingArea?
     @State private var isShowingThermostatControl = false
+    @AppStorage(HomeBlueprintPreference.storageKey)
+    private var defaultBlueprintModeRawValue = HomeBlueprintPreference.defaultMode.rawValue
     @AppStorage(ResidentPreference.storageKey, store: ResidentPreference.sharedDefaults)
     private var currentResidentName = ResidentDeviceOwnerDefaults.defaultName
 
@@ -23,6 +25,11 @@ struct HomeContentView: View {
         _homeViewModel = StateObject(wrappedValue: homeViewModel)
         _weatherViewModel = StateObject(wrappedValue: weatherViewModel)
         _quickActionsViewModel = StateObject(wrappedValue: quickActionsViewModel)
+        _selectedBlueprintMode = State(
+            initialValue: HomeBlueprintPreference.mode(
+                for: UserDefaults.standard.string(forKey: HomeBlueprintPreference.storageKey)
+            )
+        )
         self.isSelected = isSelected
     }
 
@@ -64,10 +71,20 @@ struct HomeContentView: View {
                     TemperatureBlueprintView(
                         roomTemperatures: homeViewModel.overview?.roomTemperatures ?? [],
                         occupiedMeanTemperature: homeViewModel.overview?.occupiedMeanTemperature,
-                        thermostatStatus: homeViewModel.overview?.thermostatStatus
-                    ) {
-                        isShowingThermostatControl = true
-                    }
+                        thermostatStatus: homeViewModel.overview?.thermostatStatus,
+                        garageData: homeViewModel.garageCardData,
+                        garageToggleAction: garageToggleAction,
+                        showsGarageWarning: showsGarageAwayWarning,
+                        performingActionID: quickActionsViewModel.performingActionID,
+                        onGarageTapped: {
+                            Task {
+                                await selectGarageToggle()
+                            }
+                        },
+                        onThermostatTapped: {
+                            isShowingThermostatControl = true
+                        }
+                    )
 
                 case .lights:
                     HomeBlueprintView(
@@ -133,6 +150,9 @@ struct HomeContentView: View {
             Task {
                 await refreshHomeContentForVisit()
             }
+        }
+        .onChange(of: defaultBlueprintModeRawValue) { _, newValue in
+            selectedBlueprintMode = HomeBlueprintPreference.mode(for: newValue)
         }
         .onChange(of: selectedBlueprintMode) { _, newValue in
             guard newValue == .temperatures else {

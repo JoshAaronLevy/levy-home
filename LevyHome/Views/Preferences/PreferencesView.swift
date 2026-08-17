@@ -81,6 +81,8 @@ private struct PreferencesContentView: View {
 
                 ThemePreferenceRowView(viewModel: themePreferenceViewModel)
 
+                HomeBlueprintPreferenceRowView()
+
                 SiriPreferencesView(authorizationService: siriAuthorizationService)
 
                 ResidentPreferenceRowView(currentResidentName: $currentResidentName)
@@ -228,6 +230,120 @@ private struct ReleaseNotesView: View {
 
     private var latestVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "11.1.1"
+    }
+}
+
+private struct HomeBlueprintPreferenceRowView: View {
+    @AppStorage(HomeBlueprintPreference.storageKey)
+    private var defaultBlueprintModeRawValue = HomeBlueprintPreference.defaultMode.rawValue
+
+    private var defaultBlueprintMode: HomeBlueprintMode {
+        HomeBlueprintPreference.mode(for: defaultBlueprintModeRawValue)
+    }
+
+    var body: some View {
+        InfoPanel(
+            title: "Home",
+            subtitle: nil,
+            systemImage: "house"
+        ) {
+            NavigationLink {
+                HomeBlueprintPreferenceView()
+            } label: {
+                HStack(spacing: AppSpacing.medium) {
+                    Image(systemName: defaultBlueprintMode.systemImage)
+                        .font(.title3)
+                        .foregroundStyle(AppColors.accent)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                        Text("Default blueprint")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+
+                        Text(defaultBlueprintMode.title)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColors.mutedText)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppColors.mutedText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct HomeBlueprintPreferenceView: View {
+    @AppStorage(HomeBlueprintPreference.storageKey)
+    private var defaultBlueprintModeRawValue = HomeBlueprintPreference.defaultMode.rawValue
+
+    private var defaultBlueprintMode: HomeBlueprintMode {
+        HomeBlueprintPreference.mode(for: defaultBlueprintModeRawValue)
+    }
+
+    var body: some View {
+        ScrollView {
+            InfoPanel(
+                title: "Default Home blueprint",
+                subtitle: "Choose which tab opens when you visit Home on this iPhone.",
+                systemImage: "house"
+            ) {
+                VStack(spacing: 0) {
+                    ForEach(HomeBlueprintMode.allCases) { mode in
+                        optionButton(mode)
+
+                        if mode != HomeBlueprintMode.allCases.last {
+                            Divider()
+                                .padding(.vertical, AppSpacing.medium)
+                        }
+                    }
+                }
+            }
+            .padding(AppSpacing.screen)
+        }
+        .background(AppColors.pageBackground)
+        .navigationTitle("Home")
+    }
+
+    private func optionButton(_ mode: HomeBlueprintMode) -> some View {
+        Button {
+            defaultBlueprintModeRawValue = mode.rawValue
+        } label: {
+            HStack(spacing: AppSpacing.medium) {
+                Image(systemName: mode.systemImage)
+                    .font(.title3)
+                    .foregroundStyle(AppColors.accent)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: AppSpacing.xSmall) {
+                    Text(mode.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(mode.defaultPreferenceDetail)
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.mutedText)
+                }
+
+                Spacer()
+
+                if defaultBlueprintMode == mode {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.accent)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(mode.title)
+        .accessibilityHint(mode.defaultPreferenceDetail)
     }
 }
 
