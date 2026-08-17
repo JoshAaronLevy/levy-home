@@ -475,3 +475,54 @@ struct ToDoCalendarEvent: Identifiable {
         return formatter
     }()
 }
+
+struct ToDoCalendarEventDateGroup: Identifiable {
+    let date: Date
+    let events: [ToDoCalendarEvent]
+    private let calendar: Calendar
+
+    var id: Date {
+        date
+    }
+
+    var title: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "EEEE, MMM."
+
+        let day = calendar.component(.day, from: date)
+        return "\(formatter.string(from: date)) \(day)\(Self.ordinalSuffix(for: day))"
+    }
+
+    static func grouped(
+        _ events: [ToDoCalendarEvent],
+        calendar: Calendar = .current
+    ) -> [ToDoCalendarEventDateGroup] {
+        Dictionary(grouping: events) { event in
+            calendar.startOfDay(for: event.startDate)
+        }
+        .map { date, events in
+            ToDoCalendarEventDateGroup(date: date, events: events, calendar: calendar)
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    private static func ordinalSuffix(for day: Int) -> String {
+        switch day % 100 {
+        case 11, 12, 13:
+            return "th"
+        default:
+            switch day % 10 {
+            case 1:
+                return "st"
+            case 2:
+                return "nd"
+            case 3:
+                return "rd"
+            default:
+                return "th"
+            }
+        }
+    }
+}

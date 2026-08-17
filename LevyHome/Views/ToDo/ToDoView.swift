@@ -114,7 +114,8 @@ struct ToDoView: View {
 
                 ToDoCalendarPanel(
                     state: familyCalendarViewModel.state,
-                    events: familyCalendarViewModel.displayEvents
+                    events: familyCalendarViewModel.displayEvents,
+                    groupsEventsByDate: selectedDateScope == .week
                 ) { event in
                     familyCalendarViewModel.toggleCompletion(for: event)
                 } onSelectEvent: { event in

@@ -407,6 +407,26 @@ final class ToDoViewModelTests: XCTestCase {
         XCTAssertFalse(ToDoDateScope.week.includesToDoItem(dueDate: sunday, status: .open, now: thursday, calendar: calendar))
     }
 
+    func testCalendarEventsGroupByDateWithOrdinalHeaders() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let mondayMorning = Self.date(calendar: calendar, year: 2026, month: 8, day: 17, hour: 9)
+        let mondayAfternoon = Self.date(calendar: calendar, year: 2026, month: 8, day: 17, hour: 14)
+        let tuesdayMorning = Self.date(calendar: calendar, year: 2026, month: 8, day: 18, hour: 10)
+        let events = [
+            Self.calendarEvent(id: "monday-morning", startDate: mondayMorning, calendar: calendar),
+            Self.calendarEvent(id: "monday-afternoon", startDate: mondayAfternoon, calendar: calendar),
+            Self.calendarEvent(id: "tuesday-morning", startDate: tuesdayMorning, calendar: calendar)
+        ]
+
+        let groups = ToDoCalendarEventDateGroup.grouped(events, calendar: calendar)
+
+        XCTAssertEqual(groups.map(\.title), ["Monday, Aug. 17th", "Tuesday, Aug. 18th"])
+        XCTAssertEqual(groups[0].events.map(\.id), ["monday-morning", "monday-afternoon"])
+        XCTAssertEqual(groups[1].events.map(\.id), ["tuesday-morning"])
+    }
+
     private static func response(
         for request: URLRequest,
         statusCode: Int = 200,
@@ -437,6 +457,25 @@ final class ToDoViewModelTests: XCTestCase {
             locationDisplayText: "No location",
             createdBy: createdBy,
             createdFor: createdFor
+        )
+    }
+
+    private static func calendarEvent(
+        id: String,
+        startDate: Date,
+        calendar: Calendar
+    ) -> ToDoCalendarEvent {
+        ToDoCalendarEvent(
+            id: id,
+            completionID: id,
+            title: id,
+            calendarTitle: "Family",
+            startDate: startDate,
+            endDate: calendar.date(byAdding: .hour, value: 1, to: startDate) ?? startDate,
+            isAllDay: false,
+            location: nil,
+            notes: nil,
+            url: nil
         )
     }
 

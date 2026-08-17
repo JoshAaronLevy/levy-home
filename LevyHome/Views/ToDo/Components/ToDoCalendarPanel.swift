@@ -3,6 +3,7 @@ import SwiftUI
 struct ToDoCalendarPanel: View {
     let state: ToDoFamilyCalendarState
     let events: [ToDoCalendarEvent]
+    let groupsEventsByDate: Bool
     let onToggleCompletion: (ToDoCalendarEvent) -> Void
     let onSelectEvent: (ToDoCalendarEvent) -> Void
     let onRetry: () -> Void
@@ -89,22 +90,51 @@ struct ToDoCalendarPanel: View {
             )
         case .synced:
             if !events.isEmpty {
-                ForEach(events) { event in
-                    ToDoCalendarEventRow(
-                        event: event,
-                        onToggleCompletion: {
-                            onToggleCompletion(event)
-                        },
-                        onSelect: {
-                            onSelectEvent(event)
-                        }
-                    )
-
-                    if event.id != events.last?.id {
-                        Divider()
-                            .padding(.leading, 92)
-                    }
+                if groupsEventsByDate {
+                    weeklyEventGroups
+                } else {
+                    eventRows(events)
                 }
+            }
+        }
+    }
+
+    private var eventGroups: [ToDoCalendarEventDateGroup] {
+        ToDoCalendarEventDateGroup.grouped(events)
+    }
+
+    @ViewBuilder
+    private var weeklyEventGroups: some View {
+        ForEach(eventGroups) { group in
+            ToDoCalendarEventDateGroupView(
+                group: group,
+                onToggleCompletion: onToggleCompletion,
+                onSelectEvent: onSelectEvent
+            )
+
+            if group.id != eventGroups.last?.id {
+                Divider()
+                    .padding(.leading, AppSpacing.large)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func eventRows(_ events: [ToDoCalendarEvent]) -> some View {
+        ForEach(events) { event in
+            ToDoCalendarEventRow(
+                event: event,
+                onToggleCompletion: {
+                    onToggleCompletion(event)
+                },
+                onSelect: {
+                    onSelectEvent(event)
+                }
+            )
+
+            if event.id != events.last?.id {
+                Divider()
+                    .padding(.leading, 92)
             }
         }
     }
@@ -141,6 +171,44 @@ struct ToDoCalendarPanel: View {
             }
         }
         .padding(AppSpacing.large)
+    }
+}
+
+private struct ToDoCalendarEventDateGroupView: View {
+    let group: ToDoCalendarEventDateGroup
+    let onToggleCompletion: (ToDoCalendarEvent) -> Void
+    let onSelectEvent: (ToDoCalendarEvent) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(group.title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(AppColors.accent)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, AppSpacing.large)
+                .padding(.vertical, AppSpacing.small)
+                .accessibilityAddTraits(.isHeader)
+
+            Divider()
+                .padding(.leading, AppSpacing.large)
+
+            ForEach(group.events) { event in
+                ToDoCalendarEventRow(
+                    event: event,
+                    onToggleCompletion: {
+                        onToggleCompletion(event)
+                    },
+                    onSelect: {
+                        onSelectEvent(event)
+                    }
+                )
+
+                if event.id != group.events.last?.id {
+                    Divider()
+                        .padding(.leading, 92)
+                }
+            }
+        }
     }
 }
 
