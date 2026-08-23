@@ -25,7 +25,7 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
     func testLoadsNotificationPreferencesEnabledByDefault() {
         let viewModel = makeViewModel()
 
-        XCTAssertEqual(viewModel.preferences.count, 10)
+        XCTAssertEqual(viewModel.preferences.count, 13)
         XCTAssertEqual(
             viewModel.preferences.map(\.category),
             [
@@ -34,6 +34,9 @@ final class NotificationPreferencesViewModelTests: XCTestCase {
                 .garageLeftOpen,
                 .garageAfterHours,
                 .garageStillOpenAt10PM,
+                .laundry,
+                .freezer,
+                .refrigerator,
                 .partnerPresence,
                 .doorbell,
                 .thermostatSetpointHigh,

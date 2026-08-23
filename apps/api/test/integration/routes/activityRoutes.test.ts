@@ -117,6 +117,133 @@ test('garage left open Home Assistant automation payload sends a Levy Home push 
   assert.deepEqual(pushSender.requests[0].data, { category: 'garage_left_open' });
 });
 
+test('washer and dryer completion Home Assistant automations send Levy Home push notifications', async () => {
+  const pushSender = new FakePushSender();
+
+  await routes.restart(createApp({ config: testConfig, pushSender }));
+
+  await routes.postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  for (const event of [
+    {
+      type: 'washer_cycle_finished',
+      entityId: 'sensor.washer_job_state',
+      title: 'Washer cycle complete',
+      message: 'The washer cycle has finished.',
+    },
+    {
+      type: 'dryer_cycle_finished',
+      entityId: 'sensor.dryer_job_state',
+      title: 'Dryer cycle complete',
+      message: 'The dryer cycle has finished.',
+    },
+  ]) {
+    const created = await routes.postJSON(
+      '/api/ha/events',
+      {
+        ...event,
+        category: 'laundry',
+        severity: 'normal',
+        source: 'home_assistant',
+      },
+      { Authorization: 'Bearer test-secret' },
+    );
+
+    assert.equal(created.ok, true);
+    assert.equal(created.event.type, event.type);
+    assert.equal(created.event.category, 'laundry');
+    assert.equal(created.event.display.title, event.title);
+    assert.equal(created.event.display.body, event.message);
+    assert.equal(created.event.push.attempted, true);
+    assert.equal(created.event.push.sentNotificationCount, 1);
+  }
+
+  assert.deepEqual(
+    pushSender.requests.map(({ title, body, data }) => ({ title, body, data })),
+    [
+      {
+        title: 'Washer cycle complete',
+        body: 'The washer cycle has finished.',
+        data: { category: 'laundry' },
+      },
+      {
+        title: 'Dryer cycle complete',
+        body: 'The dryer cycle has finished.',
+        data: { category: 'laundry' },
+      },
+    ],
+  );
+});
+
+test('refrigerator and freezer door Home Assistant automations send Levy Home push notifications', async () => {
+  const pushSender = new FakePushSender();
+
+  await routes.restart(createApp({ config: testConfig, pushSender }));
+
+  await routes.postJSON('/api/devices/register', {
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  for (const event of [
+    {
+      type: 'freezer_door_left_open_5_min',
+      category: 'freezer',
+      entityId: 'binary_sensor.refrigerator_freezer_door',
+      title: 'Freezer door left open',
+      message: 'The freezer door has been open for 5 minutes.',
+    },
+    {
+      type: 'refrigerator_door_left_open_5_min',
+      category: 'refrigerator',
+      entityId: 'binary_sensor.refrigerator_fridge_door',
+      title: 'Refrigerator door left open',
+      message: 'The refrigerator door has been open for 5 minutes.',
+    },
+  ]) {
+    const created = await routes.postJSON(
+      '/api/ha/events',
+      {
+        ...event,
+        severity: 'normal',
+        source: 'home_assistant',
+      },
+      { Authorization: 'Bearer test-secret' },
+    );
+
+    assert.equal(created.ok, true);
+    assert.equal(created.event.type, event.type);
+    assert.equal(created.event.category, event.category);
+    assert.equal(created.event.display.title, event.title);
+    assert.equal(created.event.display.body, event.message);
+    assert.equal(created.event.push.attempted, true);
+    assert.equal(created.event.push.sentNotificationCount, 1);
+  }
+
+  assert.deepEqual(
+    pushSender.requests.map(({ title, body, data }) => ({ title, body, data })),
+    [
+      {
+        title: 'Freezer door left open',
+        body: 'The freezer door has been open for 5 minutes.',
+        data: { category: 'freezer' },
+      },
+      {
+        title: 'Refrigerator door left open',
+        body: 'The refrigerator door has been open for 5 minutes.',
+        data: { category: 'refrigerator' },
+      },
+    ],
+  );
+});
+
 test('thermostat high-setpoint automation notifies every registered household device', async () => {
   const pushSender = new FakePushSender();
 

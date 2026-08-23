@@ -257,6 +257,36 @@ test('quick action validator accepts curated actions and rejects arbitrary Home 
 
 test('Home Assistant event validator returns validation results without throwing', () => {
   assert.deepEqual(validateHomeAssistantEventPayload({
+    type: 'washer_cycle_finished',
+    entityId: ' sensor.washer_job_state ',
+    category: 'laundry',
+    severity: 'normal',
+  }), {
+    ok: true,
+    value: {
+      type: 'washer_cycle_finished',
+      entityId: 'sensor.washer_job_state',
+      category: 'laundry',
+      severity: 'normal',
+    },
+  });
+
+  assert.deepEqual(validateHomeAssistantEventPayload({
+    type: 'freezer_door_left_open_5_min',
+    entityId: ' binary_sensor.refrigerator_freezer_door ',
+    category: 'freezer',
+    severity: 'normal',
+  }), {
+    ok: true,
+    value: {
+      type: 'freezer_door_left_open_5_min',
+      entityId: 'binary_sensor.refrigerator_freezer_door',
+      category: 'freezer',
+      severity: 'normal',
+    },
+  });
+
+  assert.deepEqual(validateHomeAssistantEventPayload({
     type: 'study_lights_on',
     entityId: ' automation.study_on_bright ',
     category: 'lighting',

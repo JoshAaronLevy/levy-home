@@ -4,6 +4,10 @@ export const LEVY_HOME_EVENT_TYPES = [
   'garage_left_open_10_min',
   'garage_opened_after_hours',
   'garage_still_open_at_10pm',
+  'dryer_cycle_finished',
+  'washer_cycle_finished',
+  'freezer_door_left_open_5_min',
+  'refrigerator_door_left_open_5_min',
   'partner_left_home',
   'partner_arrived_home',
   'study_lights_on',
@@ -17,7 +21,16 @@ export const LEVY_HOME_EVENT_TYPES = [
 export type LevyHomeEventType = (typeof LEVY_HOME_EVENT_TYPES)[number];
 
 export type DisplaySeverity = 'info' | 'warning' | 'critical';
-export type HomeAssistantEventCategory = 'garage' | 'doorbell' | 'phone' | 'presence' | 'lighting' | 'thermostat';
+export type HomeAssistantEventCategory =
+  | 'garage'
+  | 'laundry'
+  | 'freezer'
+  | 'refrigerator'
+  | 'doorbell'
+  | 'phone'
+  | 'presence'
+  | 'lighting'
+  | 'thermostat';
 export type HomeAssistantEventSeverity = 'normal' | 'high';
 
 export type HomeAssistantEntityDiscoveryCandidate = {
@@ -90,6 +103,26 @@ export const EVENT_DISPLAY_METADATA: Record<LevyHomeEventType, EventDisplayMetad
     title: 'Garage still open',
     body: 'The garage is still open at 10 PM.',
     severity: 'critical',
+  },
+  dryer_cycle_finished: {
+    title: 'Dryer cycle complete',
+    body: 'The dryer cycle has finished.',
+    severity: 'info',
+  },
+  washer_cycle_finished: {
+    title: 'Washer cycle complete',
+    body: 'The washer cycle has finished.',
+    severity: 'info',
+  },
+  freezer_door_left_open_5_min: {
+    title: 'Freezer door left open',
+    body: 'The freezer door has been open for 5 minutes.',
+    severity: 'warning',
+  },
+  refrigerator_door_left_open_5_min: {
+    title: 'Refrigerator door left open',
+    body: 'The refrigerator door has been open for 5 minutes.',
+    severity: 'warning',
   },
   partner_left_home: {
     title: 'Partner left home',

@@ -67,6 +67,9 @@ export type NotificationPreferenceCategory =
   | 'garage_left_open'
   | 'garage_after_hours'
   | 'garage_still_open_at_10pm'
+  | 'laundry'
+  | 'freezer'
+  | 'refrigerator'
   | 'partner_presence'
   | 'doorbell'
   | 'thermostat_setpoint_high'
@@ -130,6 +133,24 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     isEnabled: true,
     title: 'Garage still open at 10 PM',
     detail: 'Notify at bedtime if the garage is still open.',
+  },
+  {
+    category: 'laundry',
+    isEnabled: true,
+    title: 'Laundry',
+    detail: 'Notify when the washer or dryer cycle finishes.',
+  },
+  {
+    category: 'freezer',
+    isEnabled: true,
+    title: 'Freezer door',
+    detail: 'Notify when the freezer door has been left open.',
+  },
+  {
+    category: 'refrigerator',
+    isEnabled: true,
+    title: 'Refrigerator door',
+    detail: 'Notify when the refrigerator door has been left open.',
   },
   {
     category: 'partner_presence',

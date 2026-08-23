@@ -104,6 +104,24 @@ final class NotificationPreferencesService: NotificationPreferencesServicing {
             detail: "Notify at bedtime if the garage is still open."
         ),
         NotificationPreference(
+            category: .laundry,
+            isEnabled: true,
+            title: "Laundry",
+            detail: "Notify when the washer or dryer cycle finishes."
+        ),
+        NotificationPreference(
+            category: .freezer,
+            isEnabled: true,
+            title: "Freezer door",
+            detail: "Notify when the freezer door has been left open."
+        ),
+        NotificationPreference(
+            category: .refrigerator,
+            isEnabled: true,
+            title: "Refrigerator door",
+            detail: "Notify when the refrigerator door has been left open."
+        ),
+        NotificationPreference(
             category: .partnerPresence,
             isEnabled: true,
             title: "Partner presence",

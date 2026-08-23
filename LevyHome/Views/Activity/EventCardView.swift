@@ -68,6 +68,14 @@ struct EventCardView: View {
             return "door.garage.closed"
         case .garageLeftOpen10Min, .garageOpenedAfterHours, .garageStillOpenAt10PM:
             return "exclamationmark.triangle"
+        case .dryerCycleFinished:
+            return "dryer"
+        case .washerCycleFinished:
+            return "washer"
+        case .freezerDoorLeftOpen5Min:
+            return "snowflake"
+        case .refrigeratorDoorLeftOpen5Min:
+            return "refrigerator"
         case .partnerLeftHome, .partnerArrivedHome:
             return "person.2"
         case .studyLightsOn:

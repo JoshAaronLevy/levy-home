@@ -36,6 +36,46 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(event.display.severity, .warning)
     }
 
+    func testDecodesLaundryCompletionEvents() throws {
+        let cases: [(String, EventType)] = [
+            ("washer_cycle_finished", .washerCycleFinished),
+            ("dryer_cycle_finished", .dryerCycleFinished)
+        ]
+
+        for (rawType, expectedType) in cases {
+            let event = try decodeEvent(
+                type: rawType,
+                displaySeverity: "info",
+                category: "laundry"
+            )
+
+            XCTAssertEqual(event.type, expectedType)
+            XCTAssertEqual(event.category, .laundry)
+            XCTAssertEqual(event.display.severity, .info)
+            XCTAssertEqual(event.push?.attempted, true)
+        }
+    }
+
+    func testDecodesRefrigeratorAndFreezerDoorEvents() throws {
+        let cases: [(String, EventType, HomeAssistantCategory)] = [
+            ("freezer_door_left_open_5_min", .freezerDoorLeftOpen5Min, .freezer),
+            ("refrigerator_door_left_open_5_min", .refrigeratorDoorLeftOpen5Min, .refrigerator)
+        ]
+
+        for (rawType, expectedType, expectedCategory) in cases {
+            let event = try decodeEvent(
+                type: rawType,
+                displaySeverity: "warning",
+                category: expectedCategory.rawValue
+            )
+
+            XCTAssertEqual(event.type, expectedType)
+            XCTAssertEqual(event.category, expectedCategory)
+            XCTAssertEqual(event.display.severity, .warning)
+            XCTAssertEqual(event.push?.attempted, true)
+        }
+    }
+
     func testDecodesPartnerPresenceEvent() throws {
         let event = try decodeEvent(
             type: "partner_left_home",
@@ -450,6 +490,24 @@ final class ModelDecodingTests: XCTestCase {
                 "isEnabled": true
               },
               {
+                "category": "laundry",
+                "isEnabled": true,
+                "title": "Laundry",
+                "detail": "Notify when the washer or dryer cycle finishes."
+              },
+              {
+                "category": "freezer",
+                "isEnabled": true,
+                "title": "Freezer door",
+                "detail": "Notify when the freezer door has been left open."
+              },
+              {
+                "category": "refrigerator",
+                "isEnabled": true,
+                "title": "Refrigerator door",
+                "detail": "Notify when the refrigerator door has been left open."
+              },
+              {
                 "category": "thermostat_setpoint_high",
                 "isEnabled": true,
                 "title": "Thermostat high setpoint",
@@ -479,6 +537,9 @@ final class ModelDecodingTests: XCTestCase {
                 .garageLeftOpen,
                 .garageAfterHours,
                 .garageStillOpenAt10PM,
+                .laundry,
+                .freezer,
+                .refrigerator,
                 .partnerPresence,
                 .doorbell,
                 .thermostatSetpointHigh,

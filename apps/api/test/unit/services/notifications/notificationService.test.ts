@@ -132,6 +132,125 @@ test('notification service sends doorbell event pushes through the doorbell pref
   assert.ok(request.expiration <= Math.floor(Date.now() / 1_000) + doorbellPushExpirationSeconds);
 });
 
+test('notification service sends washer and dryer completion pushes through the laundry preference', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  for (const event of [
+    {
+      type: 'washer_cycle_finished' as const,
+      entityId: 'sensor.washer_job_state',
+      title: 'Washer cycle complete',
+      message: 'The washer cycle has finished.',
+    },
+    {
+      type: 'dryer_cycle_finished' as const,
+      entityId: 'sensor.dryer_job_state',
+      title: 'Dryer cycle complete',
+      message: 'The dryer cycle has finished.',
+    },
+  ]) {
+    const push = await notificationService.sendEventPush({
+      ...event,
+      category: 'laundry',
+      severity: 'normal',
+      source: 'home_assistant',
+    });
+
+    assert.equal(push.attempted, true);
+    assert.equal(push.sentNotificationCount, 1);
+  }
+
+  assert.deepEqual(
+    pushSender.requests.map(({ title, body, data }) => ({ title, body, data })),
+    [
+      {
+        title: 'Washer cycle complete',
+        body: 'The washer cycle has finished.',
+        data: { category: 'laundry' },
+      },
+      {
+        title: 'Dryer cycle complete',
+        body: 'The dryer cycle has finished.',
+        data: { category: 'laundry' },
+      },
+    ],
+  );
+});
+
+test('notification service sends refrigerator and freezer door reminders through their preferences', async () => {
+  const deviceRegistry = createInMemoryDeviceRegistry();
+  const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);
+  const pushSender = new FakePushSender();
+  const notificationService = createNotificationService({
+    deviceRegistry,
+    notificationPreferenceStore,
+    pushSender,
+  });
+
+  await deviceRegistry.registerDevice({
+    token: 'sample-apns-token',
+    platform: 'ios',
+    provider: 'apns',
+    environment: 'sandbox',
+  });
+
+  for (const event of [
+    {
+      type: 'freezer_door_left_open_5_min' as const,
+      category: 'freezer' as const,
+      entityId: 'binary_sensor.refrigerator_freezer_door',
+      title: 'Freezer door left open',
+      message: 'The freezer door has been open for 5 minutes.',
+    },
+    {
+      type: 'refrigerator_door_left_open_5_min' as const,
+      category: 'refrigerator' as const,
+      entityId: 'binary_sensor.refrigerator_fridge_door',
+      title: 'Refrigerator door left open',
+      message: 'The refrigerator door has been open for 5 minutes.',
+    },
+  ]) {
+    const push = await notificationService.sendEventPush({
+      ...event,
+      severity: 'normal',
+      source: 'home_assistant',
+    });
+
+    assert.equal(push.attempted, true);
+    assert.equal(push.sentNotificationCount, 1);
+  }
+
+  assert.deepEqual(
+    pushSender.requests.map(({ title, body, data }) => ({ title, body, data })),
+    [
+      {
+        title: 'Freezer door left open',
+        body: 'The freezer door has been open for 5 minutes.',
+        data: { category: 'freezer' },
+      },
+      {
+        title: 'Refrigerator door left open',
+        body: 'The refrigerator door has been open for 5 minutes.',
+        data: { category: 'refrigerator' },
+      },
+    ],
+  );
+});
+
 test('notification service removes an invalid device token after a doorbell push', async () => {
   const deviceRegistry = createInMemoryDeviceRegistry();
   const notificationPreferenceStore = createInMemoryNotificationPreferenceStore(deviceRegistry);

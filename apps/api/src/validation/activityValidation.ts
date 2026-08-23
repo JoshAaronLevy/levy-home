@@ -90,6 +90,9 @@ function readOptionalCategory(value: unknown): ValidationResult<HomeAssistantEve
 
   if (
     value === 'garage'
+    || value === 'laundry'
+    || value === 'freezer'
+    || value === 'refrigerator'
     || value === 'doorbell'
     || value === 'phone'
     || value === 'presence'
@@ -99,7 +102,7 @@ function readOptionalCategory(value: unknown): ValidationResult<HomeAssistantEve
     return { ok: true, value };
   }
 
-  return { ok: false, error: 'category must be garage, doorbell, phone, presence, lighting, or thermostat when provided.' };
+  return { ok: false, error: 'category must be garage, laundry, freezer, refrigerator, doorbell, phone, presence, lighting, or thermostat when provided.' };
 }
 
 function readOptionalPayloadSeverity(value: unknown): ValidationResult<HomeAssistantEventSeverity | undefined> {

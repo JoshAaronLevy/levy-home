@@ -6,6 +6,9 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
     case garageLeftOpen
     case garageAfterHours
     case garageStillOpenAt10PM
+    case laundry
+    case freezer
+    case refrigerator
     case partnerPresence
     case doorbell
     case thermostatSetpointHigh
@@ -27,6 +30,12 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
             return "garage_after_hours"
         case .garageStillOpenAt10PM:
             return "garage_still_open_at_10pm"
+        case .laundry:
+            return "laundry"
+        case .freezer:
+            return "freezer"
+        case .refrigerator:
+            return "refrigerator"
         case .partnerPresence:
             return "partner_presence"
         case .doorbell:
@@ -58,6 +67,12 @@ enum NotificationPreferenceCategory: Codable, Equatable, Hashable {
             self = .garageAfterHours
         case "garage_still_open_at_10pm":
             self = .garageStillOpenAt10PM
+        case "laundry":
+            self = .laundry
+        case "freezer":
+            self = .freezer
+        case "refrigerator":
+            self = .refrigerator
         case "partner_presence":
             self = .partnerPresence
         case "doorbell":

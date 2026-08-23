@@ -47,6 +47,9 @@ typealias EventSeverity = DisplaySeverity
 
 enum HomeAssistantCategory: Codable, Equatable, Hashable {
     case garage
+    case laundry
+    case freezer
+    case refrigerator
     case doorbell
     case phone
     case presence
@@ -58,6 +61,12 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
         switch self {
         case .garage:
             return "garage"
+        case .laundry:
+            return "laundry"
+        case .freezer:
+            return "freezer"
+        case .refrigerator:
+            return "refrigerator"
         case .doorbell:
             return "doorbell"
         case .phone:
@@ -77,6 +86,12 @@ enum HomeAssistantCategory: Codable, Equatable, Hashable {
         switch rawValue {
         case "garage":
             self = .garage
+        case "laundry":
+            self = .laundry
+        case "freezer":
+            self = .freezer
+        case "refrigerator":
+            self = .refrigerator
         case "doorbell":
             self = .doorbell
         case "phone":
