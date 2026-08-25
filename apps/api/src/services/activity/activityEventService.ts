@@ -76,6 +76,7 @@ function eventDisplayMetadataForPayload(payload: HomeAssistantEventPayload) {
 function usesPayloadDisplayMetadata(type: HomeAssistantEventPayload['type']): boolean {
   return type === 'partner_left_home'
     || type === 'partner_arrived_home'
+    || type === 'washer_transfer_reminder'
     || type === 'study_lights_on'
     || type === 'thermostat_setpoint_high';
 }

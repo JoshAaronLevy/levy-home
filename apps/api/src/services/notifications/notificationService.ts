@@ -480,6 +480,7 @@ export function notificationCategoryForEvent(
     garage_still_open_at_10pm: 'garage_still_open_at_10pm',
     dryer_cycle_finished: 'laundry',
     washer_cycle_finished: 'laundry',
+    washer_transfer_reminder: 'laundry',
     freezer_door_left_open_5_min: 'freezer',
     refrigerator_door_left_open_5_min: 'refrigerator',
     partner_left_home: 'partner_presence',

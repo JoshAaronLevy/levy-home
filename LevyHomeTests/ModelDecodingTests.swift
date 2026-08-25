@@ -36,10 +36,11 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertEqual(event.display.severity, .warning)
     }
 
-    func testDecodesLaundryCompletionEvents() throws {
+    func testDecodesLaundryEvents() throws {
         let cases: [(String, EventType)] = [
             ("washer_cycle_finished", .washerCycleFinished),
-            ("dryer_cycle_finished", .dryerCycleFinished)
+            ("dryer_cycle_finished", .dryerCycleFinished),
+            ("washer_transfer_reminder", .washerTransferReminder)
         ]
 
         for (rawType, expectedType) in cases {

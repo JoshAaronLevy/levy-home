@@ -6,6 +6,7 @@ export const LEVY_HOME_EVENT_TYPES = [
   'garage_still_open_at_10pm',
   'dryer_cycle_finished',
   'washer_cycle_finished',
+  'washer_transfer_reminder',
   'freezer_door_left_open_5_min',
   'refrigerator_door_left_open_5_min',
   'partner_left_home',
@@ -112,6 +113,11 @@ export const EVENT_DISPLAY_METADATA: Record<LevyHomeEventType, EventDisplayMetad
   washer_cycle_finished: {
     title: 'Washer cycle complete',
     body: 'The washer cycle has finished.',
+    severity: 'info',
+  },
+  washer_transfer_reminder: {
+    title: 'Laundry may still be in the washer',
+    body: "The washer finished, but the dryer hasn't been started since. You may still need to move the laundry over.",
     severity: 'info',
   },
   freezer_door_left_open_5_min: {

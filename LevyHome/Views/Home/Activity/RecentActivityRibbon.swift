@@ -43,6 +43,7 @@ struct RecentActivityRibbon: View {
         case .garageLeftOpen10Min, .garageOpenedAfterHours, .garageStillOpenAt10PM: return "exclamationmark.triangle"
         case .dryerCycleFinished: return "dryer"
         case .washerCycleFinished: return "washer"
+        case .washerTransferReminder: return "washer"
         case .freezerDoorLeftOpen5Min: return "snowflake"
         case .refrigeratorDoorLeftOpen5Min: return "refrigerator"
         case .partnerLeftHome, .partnerArrivedHome: return "person.2"

@@ -72,6 +72,8 @@ struct EventCardView: View {
             return "dryer"
         case .washerCycleFinished:
             return "washer"
+        case .washerTransferReminder:
+            return "washer"
         case .freezerDoorLeftOpen5Min:
             return "snowflake"
         case .refrigeratorDoorLeftOpen5Min:

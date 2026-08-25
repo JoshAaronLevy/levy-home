@@ -117,7 +117,7 @@ test('garage left open Home Assistant automation payload sends a Levy Home push 
   assert.deepEqual(pushSender.requests[0].data, { category: 'garage_left_open' });
 });
 
-test('washer and dryer completion Home Assistant automations send Levy Home push notifications', async () => {
+test('laundry Home Assistant events send Levy Home push notifications through the laundry preference', async () => {
   const pushSender = new FakePushSender();
 
   await routes.restart(createApp({ config: testConfig, pushSender }));
@@ -142,6 +142,13 @@ test('washer and dryer completion Home Assistant automations send Levy Home push
       title: 'Dryer cycle complete',
       message: 'The dryer cycle has finished.',
     },
+    {
+      type: 'washer_transfer_reminder',
+      entityId: 'input_boolean.laundry_needs_transfer',
+      occurredAt: '2026-08-24T20:30:00-06:00',
+      title: 'Laundry may still be in the washer',
+      message: "The washer finished, but the dryer hasn't been started since. You may still need to move the laundry over.",
+    },
   ]) {
     const created = await routes.postJSON(
       '/api/ha/events',
@@ -161,6 +168,13 @@ test('washer and dryer completion Home Assistant automations send Levy Home push
     assert.equal(created.event.display.body, event.message);
     assert.equal(created.event.push.attempted, true);
     assert.equal(created.event.push.sentNotificationCount, 1);
+
+    if (event.type === 'washer_transfer_reminder') {
+      assert.equal(created.event.entityId, 'input_boolean.laundry_needs_transfer');
+      assert.equal(created.event.severity, 'normal');
+      assert.equal(created.event.source, 'home_assistant');
+      assert.equal(created.event.occurredAt, '2026-08-24T20:30:00-06:00');
+    }
   }
 
   assert.deepEqual(
@@ -174,6 +188,11 @@ test('washer and dryer completion Home Assistant automations send Levy Home push
       {
         title: 'Dryer cycle complete',
         body: 'The dryer cycle has finished.',
+        data: { category: 'laundry' },
+      },
+      {
+        title: 'Laundry may still be in the washer',
+        body: "The washer finished, but the dryer hasn't been started since. You may still need to move the laundry over.",
         data: { category: 'laundry' },
       },
     ],

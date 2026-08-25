@@ -8,6 +8,7 @@ enum EventType: Codable, Equatable, Hashable {
     case garageStillOpenAt10PM
     case dryerCycleFinished
     case washerCycleFinished
+    case washerTransferReminder
     case freezerDoorLeftOpen5Min
     case refrigeratorDoorLeftOpen5Min
     case partnerLeftHome
@@ -36,6 +37,8 @@ enum EventType: Codable, Equatable, Hashable {
             return "dryer_cycle_finished"
         case .washerCycleFinished:
             return "washer_cycle_finished"
+        case .washerTransferReminder:
+            return "washer_transfer_reminder"
         case .freezerDoorLeftOpen5Min:
             return "freezer_door_left_open_5_min"
         case .refrigeratorDoorLeftOpen5Min:
@@ -77,6 +80,8 @@ enum EventType: Codable, Equatable, Hashable {
             self = .dryerCycleFinished
         case "washer_cycle_finished":
             self = .washerCycleFinished
+        case "washer_transfer_reminder":
+            self = .washerTransferReminder
         case "freezer_door_left_open_5_min":
             self = .freezerDoorLeftOpen5Min
         case "refrigerator_door_left_open_5_min":
